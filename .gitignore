@@ -1,0 +1,64 @@
+# IDE/Editor files
+/.phpunit.cache
+/.fleet
+/.idea
+/.vscode
+/.vscode-server
+/.zed
+/.sublime-*
+/.netbeans
+.phpactor.json
+
+# Dependency directories
+/node_modules
+/vendor
+
+# Build directories
+/public/build
+/public/hot
+/public/storage
+/public/css
+/public/js
+/public/mix-manifest.json
+/public/vendor/**/*
+/public/vendor/*/dist
+/public/vendor/*/css
+/public/vendor/*/js
+/public/vendor/*/build
+
+# Environment files
+.env
+.env.backup
+.env.production
+.env.testing
+
+# Testing and code quality
+.phpunit.result.cache
+.php-cs-fixer.cache
+.php_cs.cache
+phpstan.neon
+phpunit.xml
+
+# Storage
+/storage/*.key
+/storage/pail
+
+# Laravel homestead
+Homestead.json
+Homestead.yaml
+auth.json
+
+# Logs
+npm-debug.log
+yarn-error.log
+
+# OS generated files
+/.sass-cache
+/.DS_Store
+Thumbs.db
+
+# For dependency files that should be tracked but changes ignored locally:
+# Run these commands to ignore local changes:
+# git update-index --skip-worktree composer.json composer.lock package.json package-lock.json
+# To resume tracking changes:
+# git update-index --no-skip-worktree composer.json composer.lock package.json package-lock.json

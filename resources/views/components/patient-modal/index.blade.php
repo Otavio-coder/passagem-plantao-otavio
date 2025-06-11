@@ -3,7 +3,9 @@
     'currentPatient' => null,
     'patientDetails' => null,
     'loadingPatient' => false,
-    'currentHospitalName' => null
+    'currentHospitalName' => null,
+    'showAlertsModal' => false,
+    'patientAlerts' => []
 ])
 
 @if($showModal)
@@ -52,3 +54,9 @@
         </div>
     </div>
 @endif
+
+<!-- NEW: Include Alerts Modal -->
+<x-patient-modal.alerts-modal 
+    :showAlertsModal="$showAlertsModal"
+    :patientAlerts="$patientAlerts"
+    :currentPatient="$currentPatient" />

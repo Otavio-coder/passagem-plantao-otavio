@@ -488,7 +488,9 @@
         :currentPatient="$currentPatient"
         :patientDetails="$patientDetails"
         :loadingPatient="$loadingPatient"
-        :currentHospitalName="$currentHospitalName" />
+        :currentHospitalName="$currentHospitalName"
+        :showAlertsModal="$showAlertsModal ?? false"
+        :patientAlerts="$patientAlerts ?? []" />
 
     <!-- Auto-scroll JavaScript with enhanced controls and auto-refresh -->
     <script src="{{ asset('js/sbar-autoscroll.js') }}"></script>

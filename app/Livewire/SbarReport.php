@@ -4,8 +4,8 @@ namespace App\Livewire;
 
 use App\Models\EMR\SbarReport as SbarReportModel;
 use Livewire\Component;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SbarReport extends Component
 {
@@ -28,6 +28,10 @@ class SbarReport extends Component
     public $currentPatient = null;
     public $patientDetails = null;
     public $loadingPatient = false;
+    
+    // NEW: Alert properties
+    public $patientAlerts = [];
+    public $showAlertsModal = false;
     
     // Cache para detalhes
     public $patientDetailsCache = [];
@@ -73,7 +77,7 @@ class SbarReport extends Component
                     ];
                 })->toArray();
                 
-            } catch (\Exception $e) {
+            } catch (\Exception) {
                 return [];
             }
         });
@@ -204,6 +208,9 @@ class SbarReport extends Component
             if (isset($this->patientDetailsCache[$attendanceNumber])) {
                 $this->patientDetails = $this->patientDetailsCache[$attendanceNumber];
                 $this->loadingPatient = false;
+                
+                // Check for alerts after loading cached details
+                $this->checkPatientAlerts($attendanceNumber);
                 return;
             }
             
@@ -213,6 +220,9 @@ class SbarReport extends Component
             if (!empty($this->patientDetails)) {
                 $this->patientDetails->cpoe_procedures = $model->getPatientCpoeProcedures($attendanceNumber);
                 $this->patientDetailsCache[$attendanceNumber] = $this->patientDetails;
+                
+                // Check for alerts after loading details
+                $this->checkPatientAlerts($attendanceNumber);
             } else {
                 $this->errorMessage = "Não foi possível carregar os detalhes do paciente.";
             }
@@ -224,6 +234,64 @@ class SbarReport extends Component
     }
 
     /**
+     * NEW: Check for patient alerts with improved logging
+     */
+    private function checkPatientAlerts($attendanceNumber)
+    {
+        if (!$this->currentPatient || empty($this->currentPatient['cd_pessoa_fisica'])) {
+            Log::info("No patient data available for alerts check", [
+                'attendance' => $attendanceNumber
+            ]);
+            return;
+        }
+        
+        try {
+            $clinicalModel = new \App\Models\EMR\PatientClinical();
+            $this->patientAlerts = $clinicalModel->getPatientActiveAlerts(
+                $attendanceNumber,
+                $this->currentPatient['cd_pessoa_fisica']
+            );
+            
+            // Debug: Log alerts found with more details
+            Log::info("Alerts check completed for patient {$attendanceNumber}:", [
+                'person_id' => $this->currentPatient['cd_pessoa_fisica'],
+                'alerts_count' => count($this->patientAlerts),
+                'alerts_summary' => collect($this->patientAlerts)->map(function($alert) {
+                    return [
+                        'type' => $alert['type'],
+                        'message_length' => strlen($alert['message']),
+                        'has_end_date' => !empty($alert['end_date'])
+                    ];
+                })->toArray()
+            ]);
+            
+            // Show alerts modal if there are alerts
+            if (!empty($this->patientAlerts)) {
+                $this->showAlertsModal = true;
+                Log::info("Displaying alerts modal for patient {$attendanceNumber} with " . count($this->patientAlerts) . " alerts");
+            } else {
+                Log::info("No active alerts found for patient {$attendanceNumber}");
+            }
+            
+        } catch (\Exception $e) {
+            Log::error("Error checking patient alerts for {$attendanceNumber}: " . $e->getMessage(), [
+                'exception' => $e,
+                'person_id' => $this->currentPatient['cd_pessoa_fisica'] ?? 'unknown'
+            ]);
+            // Silently handle alert errors to not break the main modal
+        }
+    }
+
+    /**
+     * NEW: Close alerts modal
+     */
+    public function closeAlertsModal()
+    {
+        $this->showAlertsModal = false;
+        $this->patientAlerts = [];
+    }
+
+    /**
      * Fechar modal
      */
     public function closeModal()
@@ -232,6 +300,10 @@ class SbarReport extends Component
         $this->currentPatient = null;
         $this->patientDetails = null;
         $this->errorMessage = null;
+        
+        // NEW: Also close alerts
+        $this->showAlertsModal = false;
+        $this->patientAlerts = [];
     }
 
     /**

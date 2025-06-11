@@ -133,4 +133,131 @@ class PatientClinical extends Model
             return !empty($result) ? $result[0] : null;
         });
     }
+    
+    /**
+     * Get active alerts for a patient (allergies and isolation warnings)
+     * Prevents duplicates and filters out expired alerts properly
+     */
+    public function getPatientActiveAlerts($attendanceNumber, $personId)
+    {
+        $cacheKey = "patient_alerts_{$attendanceNumber}_{$personId}";
+        
+        return Cache::remember($cacheKey, 300, function() use ($attendanceNumber, $personId) {
+            $results = DB::connection('tasy')->select("
+                SELECT DISTINCT
+                    ua.cd_unidade_basica AS leito,
+                    ua.nr_atendimento,
+                    atp.cd_pessoa_fisica,
+                    
+                    alp.ds_alerta,
+                    alp.nr_seq_tipo_alerta,
+                    alp.dt_fim_alerta,
+                    
+                    apc.nr_seq_motivo_isol,
+                    apc.dt_inicio AS dt_inicio_precaucao,
+                    apc.dt_termino AS dt_termino_precaucao,
+                    
+                    mi.ds_motivo AS motivo_isolamento,
+                    
+                    -- Priority for ordering (alerts first, then isolation)
+                    CASE 
+                        WHEN alp.ds_alerta IS NOT NULL THEN 1
+                        WHEN mi.ds_motivo IS NOT NULL THEN 2
+                        ELSE 3
+                    END AS alert_priority
+                FROM tasy.atendimento_paciente atp
+                JOIN tasy.unidade_atendimento ua 
+                    ON ua.nr_atendimento = atp.nr_atendimento
+                    AND ua.ie_situacao = 'A'
+                LEFT JOIN tasy.alerta_paciente alp 
+                    ON atp.cd_pessoa_fisica = alp.cd_pessoa_fisica
+                    AND alp.ds_alerta IS NOT NULL
+                    AND LENGTH(TRIM(alp.ds_alerta)) > 0
+                    -- Only active alerts: either no end date OR end date is in the future
+                    AND (alp.dt_fim_alerta IS NULL OR TRUNC(alp.dt_fim_alerta) > TRUNC(SYSDATE))
+                LEFT JOIN tasy.atendimento_precaucao apc 
+                    ON ua.nr_atendimento = apc.nr_atendimento
+                    AND apc.dt_liberacao IS NOT NULL
+                    AND apc.dt_inativacao IS NULL
+                    -- Only active precautions: either no end date OR end date is in the future
+                    AND (apc.dt_termino IS NULL OR TRUNC(apc.dt_termino) > TRUNC(SYSDATE))
+                LEFT JOIN tasy.motivo_isolamento mi 
+                    ON apc.nr_seq_motivo_isol = mi.nr_sequencia
+                    AND mi.ds_motivo IS NOT NULL
+                    AND LENGTH(TRIM(mi.ds_motivo)) > 0
+                WHERE atp.nr_atendimento = :attendance
+                  AND atp.cd_pessoa_fisica = :person_id
+                  AND atp.dt_alta IS NULL
+                  AND (
+                    (alp.ds_alerta IS NOT NULL AND LENGTH(TRIM(alp.ds_alerta)) > 0)
+                    OR 
+                    (mi.ds_motivo IS NOT NULL AND LENGTH(TRIM(mi.ds_motivo)) > 0)
+                  )
+                ORDER BY alert_priority, 
+                         CASE WHEN alp.dt_fim_alerta IS NULL THEN 0 ELSE 1 END, -- Active alerts first
+                         alp.dt_fim_alerta DESC,
+                         CASE WHEN apc.dt_termino IS NULL THEN 0 ELSE 1 END, -- Active isolation first
+                         apc.dt_termino DESC
+            ", [
+                'attendance' => $attendanceNumber,
+                'person_id' => $personId
+            ]);
+            
+            $alerts = [];
+            $processedAlerts = []; // Track processed alerts to prevent duplicates
+            
+            foreach ($results as $result) {
+                // Process ALERTA type
+                if (!empty($result->ds_alerta) && !empty(trim($result->ds_alerta))) {
+                    // Create unique key based on alert content and type
+                    $alertKey = 'alert_' . ($result->nr_seq_tipo_alerta ?? 'null') . '_' . md5(trim($result->ds_alerta));
+                    
+                    if (!isset($processedAlerts[$alertKey])) {
+                        $alerts[] = [
+                            'type' => 'ALERTA',
+                            'message' => trim($result->ds_alerta),
+                            'end_date' => $result->dt_fim_alerta,
+                            'severity' => 'warning',
+                            'type_id' => $result->nr_seq_tipo_alerta,
+                            'unique_key' => $alertKey,
+                            'is_active' => $result->dt_fim_alerta === null || strtotime($result->dt_fim_alerta) > time()
+                        ];
+                        $processedAlerts[$alertKey] = true;
+                    }
+                }
+                
+                // Process ISOLAMENTO type
+                if (!empty($result->motivo_isolamento) && !empty(trim($result->motivo_isolamento))) {
+                    // Create unique key based on isolation content and dates
+                    $isolationKey = 'isolation_' . ($result->nr_seq_motivo_isol ?? 'null') . '_' . 
+                                   md5(trim($result->motivo_isolamento) . '_' . ($result->dt_inicio_precaucao ?? ''));
+                    
+                    if (!isset($processedAlerts[$isolationKey])) {
+                        $alerts[] = [
+                            'type' => 'ISOLAMENTO',
+                            'message' => trim($result->motivo_isolamento),
+                            'start_date' => $result->dt_inicio_precaucao,
+                            'end_date' => $result->dt_termino_precaucao,
+                            'severity' => 'danger',
+                            'motivo_id' => $result->nr_seq_motivo_isol,
+                            'unique_key' => $isolationKey,
+                            'is_active' => $result->dt_termino_precaucao === null || strtotime($result->dt_termino_precaucao) > time()
+                        ];
+                        $processedAlerts[$isolationKey] = true;
+                    }
+                }
+            }
+            
+            // Filter out any alerts that somehow got through but are expired
+            $alerts = array_filter($alerts, function($alert) {
+                if (isset($alert['end_date']) && $alert['end_date'] !== null) {
+                    return strtotime($alert['end_date']) > time();
+                }
+                return true; // Keep alerts without end dates (they're active)
+            });
+            
+            // Re-index array after filtering
+            return array_values($alerts);
+        });
+    }
 }

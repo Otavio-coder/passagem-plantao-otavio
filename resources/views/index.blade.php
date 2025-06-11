@@ -8,7 +8,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="text-center">
                     <p class="mt-2 text-2xl leading-8 font-bold tracking-tight text-santacasa-100 sm:text-4xl sm:tracking-tight">Bem vindo ao {{ env( 'APP_NAME' ) }}</p>
-                    <p class="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">Digite aqui um breve descrição para que serve este sistema.</p>
+                    <p class="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">Facilitando uma passagem de plantão segura, clara e padronizada para garantir a continuidade do cuidado.</p>
                 </div>
 
                 <div class="mt-16">
@@ -42,7 +42,19 @@
                                 <dd class="mt-2 ml-16 text-base text-gray-500">Gerencie o cadastro de perfis no sistema</dd>
                             </a>
                         </div>
-
+                        <div class="border shadow-md p-2 rounded-lg cursor-pointer hover:shadow-2xl bg-white lg:h-20">
+                            <a href="{{ route('sbar.report') }}" class="relative">
+                                <dt>
+                                    <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                        <svg class="w-6 h-6" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1Z"/>
+                                        </svg>
+                                    </div>
+                                    <p class="ml-16 text-lg leading-6 font-medium text-santacasa-100">SBAR - Passagem de Plantão</p>
+                                </dt>
+                                <dd class="mt-2 ml-16 text-base text-gray-500">Sistema de passagem de plantão estruturada para enfermeiros</dd>
+                            </a>
+                        </div>
                     </dl>
                 </div>
             </div>

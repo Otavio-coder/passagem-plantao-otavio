@@ -8,6 +8,19 @@
     <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset( 'images/favicon.ico') }}">
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/fontawesome-free-6.3.0-web/css/all.min.css' ) }}"/>
     <link rel="stylesheet" href="https://cdn.datatables.net/2.2.2/css/dataTables.dataTables.min.css"/>
+
+    <!-- Add Montserrat font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Add custom styles for Montserrat font -->
+    <style>
+        .font-montserrat {
+            font-family: 'Montserrat', sans-serif;
+        }
+    </style>
+
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -23,8 +36,10 @@
     </span>
 </div>
 
-<!-- NAVBAR -->
-@include('partials.navbar')
+<!-- NAVBAR - Make it fixed -->
+<header class="sticky top-0 z-40 w-full bg-white shadow-md">
+    @include('partials.navbar')
+</header>
 <!-- NAVBAR -->
 
 <!-- MENU MOBILE -->
@@ -32,9 +47,9 @@
 <!-- MENU MOBILE -->
 
 <!-- PRINCIPAL -->
-<main class="flex-grow bg-gray-50">
+<main class="flex-grow bg-gray-50 pt-2"> <!-- Added pt-2 to account for the fixed header -->
 
-    <div class="relative pt-4 md:pt-10 pb-4 md:pb-10 flex justify-center">
+    <div class="relative pt-4 md:pt-6 pb-4 md:pb-10 flex justify-center"> <!-- Reduced padding from pt-10 to pt-6 -->
 
         <div class="container relative p-2 rounded pb-6">
             <div class="items-center flex flex-wrap">

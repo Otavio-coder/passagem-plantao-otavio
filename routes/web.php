@@ -27,9 +27,18 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );
 
+        Route::get('/sbar', function() {
+            return view('sbar.report');
+        })->name('sbar.report');
     });
 
 });
+
+// Model Testing Routes
+Route::get('/test/sbar-model', function () {
+    return view('tests.sbar-model');
+});
+Route::post('/test/sbar-model/debug', [App\Http\Controllers\SbarReportController::class, 'debugModelMethod'])->name('test.sbar-model.debug');
 
 Route::get('teste', function (){
 });

@@ -40,12 +40,12 @@
                         :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails" />
                     
-                    <!-- Tab 2: CPOE -->
+                    <!-- Tab 2: Avaliação (renamed from SBAR por Turno) -->
+                    <x-patient-modal.content.avaliacao />
+                    
+                    <!-- Tab 3: CPOE (moved to third position) -->
                     <x-patient-modal.content.cpoe 
                         :patientDetails="$patientDetails" />
-                    
-                    <!-- Tab 3: SBAR por Turno -->
-                    <x-patient-modal.content.sbar-turnos />
                 </div>
                 
                 <!-- Modal Footer -->

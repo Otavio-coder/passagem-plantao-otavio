@@ -56,93 +56,214 @@ class PatientScales extends Model
     }
     
     /**
-     * Get all scales for a specific patient - SIMPLIFIED
+     * Get all scales for a specific patient - REFACTORED FOR EFFICIENCY
      */
     public function getPatientScales($attendanceNumber)
     {
         $cacheKey = "patient_scales_{$attendanceNumber}";
         
         return Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
-            $result = DB::connection('tasy')->select("
-                SELECT
-                    -- MEWS score and description
-                    (SELECT qt_pontuacao FROM tasy.escala_mews 
-                     WHERE nr_atendimento = :attendance 
-                       AND dt_liberacao IS NOT NULL 
-                     ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY) AS mews_score,
-                    
-                    -- MEWS description with treatment for new patients
-                    CASE 
-                        WHEN (SELECT TRUNC(SYSDATE - TRUNC(dt_entrada)) FROM tasy.atendimento_paciente WHERE nr_atendimento = :attendance2) = 0
-                        THEN 'Paciente recém-chegado - MEWS pendente'
-                        WHEN (SELECT qt_pontuacao FROM tasy.escala_mews 
-                              WHERE nr_atendimento = :attendance3
-                                AND dt_liberacao IS NOT NULL 
-                              ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY) IS NULL
-                        THEN 'MEWS não realizado'
-                        ELSE (SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || 
-                                     CASE 
-                                         WHEN qt_pontuacao >= 5 THEN 'CRÍTICO (MEWS: ' || qt_pontuacao || ')'
-                                         WHEN qt_pontuacao >= 3 THEN 'ALERTA (MEWS: ' || qt_pontuacao || ')'
-                                         ELSE 'NORMAL (MEWS: ' || qt_pontuacao || ')'
-                                     END
-                              FROM tasy.escala_mews 
-                              WHERE nr_atendimento = :attendance4
-                                AND dt_liberacao IS NOT NULL 
-                              ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY)
-                    END AS ds_mews,
-                    
-                    -- Braden Scale
-                    COALESCE(
-                        (SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.obter_resultado_braden(qt_ponto), 1, 50)
-                         FROM tasy.ATEND_ESCALA_BRADEN 
-                         WHERE nr_atendimento = :attendance5
-                           AND dt_liberacao IS NOT NULL 
-                         ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY),
-                        'Não avaliado'
-                    ) AS ds_braden,
-                    
-                    -- Morse Scale
-                    COALESCE(
-                        (SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.Obter_desc_escala_morse(qt_pontuacao), 1, 20)
-                         FROM tasy.escala_morse 
-                         WHERE nr_atendimento = :attendance6
-                           AND dt_liberacao IS NOT NULL 
-                         ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY),
-                        'Não avaliado'
-                    ) AS ds_morse,
-                    
-                    -- PEWS for pediatric patients
-                    CASE 
-                        WHEN (SELECT FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) 
-                              FROM tasy.atendimento_paciente atp 
-                              JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
-                              WHERE atp.nr_atendimento = :attendance7) < 16
-                        THEN COALESCE(
-                            (SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - PEWS: ' || qt_pontuacao
-                             FROM tasy.escala_pews 
-                             WHERE nr_atendimento = :attendance8
-                               AND dt_liberacao IS NOT NULL 
-                             ORDER BY dt_avaliacao DESC FETCH FIRST 1 ROWS ONLY),
-                            'Não avaliado'
-                        )
-                        ELSE NULL
-                    END AS ds_pews
-                       
-                FROM dual
-            ", [
-                'attendance' => $attendanceNumber,
-                'attendance2' => $attendanceNumber,
-                'attendance3' => $attendanceNumber,
-                'attendance4' => $attendanceNumber,
-                'attendance5' => $attendanceNumber,
-                'attendance6' => $attendanceNumber,
-                'attendance7' => $attendanceNumber,
-                'attendance8' => $attendanceNumber
-            ]);
-            
-            return !empty($result) ? $result[0] : null;
+            return (object) [
+                'mews_score' => $this->getMewsScore($attendanceNumber),
+                'ds_mews' => $this->getMewsDescription($attendanceNumber),
+                'ds_braden' => $this->getBradenDescription($attendanceNumber),
+                'ds_morse' => $this->getMorseDescription($attendanceNumber),
+                'ds_pews' => $this->getPewsDescription($attendanceNumber),
+                'ds_dor' => $this->getPainScaleDescription($attendanceNumber),
+                'ds_tev' => $this->getTevDescription($attendanceNumber)
+            ];
         });
+    }
+    
+    /**
+     * Get MEWS score for a patient
+     */
+    private function getMewsScore($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT qt_pontuacao 
+            FROM tasy.escala_mews 
+            WHERE nr_atendimento = ? 
+              AND dt_liberacao IS NOT NULL 
+              AND dt_inativacao IS NULL
+            ORDER BY dt_avaliacao DESC 
+            FETCH FIRST 1 ROWS ONLY
+        ", [$attendanceNumber]);
+        
+        return $result ? $result[0]->qt_pontuacao : null;
+    }
+    
+    /**
+     * Get MEWS description for a patient - OPTIMIZED
+     */
+    private function getMewsDescription($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT
+                -- Check if patient arrived today
+                CASE WHEN TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) = 0 THEN 1 ELSE 0 END AS is_new_patient,
+                
+                -- Get latest MEWS data
+                em.qt_pontuacao AS mews_score,
+                em.dt_avaliacao AS mews_date
+                
+            FROM tasy.atendimento_paciente atp
+            LEFT JOIN (
+                SELECT nr_atendimento, qt_pontuacao, dt_avaliacao,
+                       ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) AS rn
+                FROM tasy.escala_mews 
+                WHERE nr_atendimento = ?
+                  AND dt_liberacao IS NOT NULL 
+                  AND dt_inativacao IS NULL
+            ) em ON em.nr_atendimento = atp.nr_atendimento AND em.rn = 1
+            WHERE atp.nr_atendimento = ?
+        ", [$attendanceNumber, $attendanceNumber]);
+        
+        if (!$result) {
+            return 'MEWS não realizado';
+        }
+        
+        $data = $result[0];
+        
+        // New patient logic
+        if ($data->is_new_patient) {
+            return 'Paciente recém-chegado - MEWS pendente';
+        }
+        
+        // No MEWS found
+        if ($data->mews_score === null) {
+            return 'MEWS não realizado';
+        }
+        
+        // Format MEWS description
+        $date = date('d/m', strtotime($data->mews_date));
+        $classification = $this->getMewsClassification($data->mews_score);
+        
+        return "{$date} - {$classification} (MEWS: {$data->mews_score})";
+    }
+    
+    /**
+     * Get MEWS classification
+     */
+    private function getMewsClassification($score)
+    {
+        if ($score >= 5) return 'CRÍTICO';
+        if ($score >= 3) return 'ALERTA';
+        return 'NORMAL';
+    }
+    
+    /**
+     * Get Braden scale description for a patient
+     */
+    private function getBradenDescription($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.obter_resultado_braden(qt_ponto), 1, 50) AS ds_braden
+            FROM tasy.ATEND_ESCALA_BRADEN 
+            WHERE nr_atendimento = ? 
+              AND dt_liberacao IS NOT NULL 
+              AND dt_inativacao IS NULL
+            ORDER BY dt_avaliacao DESC 
+            FETCH FIRST 1 ROWS ONLY
+        ", [$attendanceNumber]);
+        
+        return $result ? $result[0]->ds_braden : 'Não avaliado';
+    }
+    
+    /**
+     * Get Morse scale description for a patient
+     */
+    private function getMorseDescription($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.Obter_desc_escala_morse(qt_pontuacao), 1, 20) AS ds_morse
+            FROM tasy.escala_morse 
+            WHERE nr_atendimento = ? 
+              AND dt_liberacao IS NOT NULL 
+              AND dt_inativacao IS NULL
+            ORDER BY dt_avaliacao DESC 
+            FETCH FIRST 1 ROWS ONLY
+        ", [$attendanceNumber]);
+        
+        return $result ? $result[0]->ds_morse : 'Não avaliado';
+    }
+    
+    /**
+     * Get PEWS description for pediatric patients
+     */
+    private function getPewsDescription($attendanceNumber)
+    {
+        // Check if patient is pediatric first
+        $ageResult = DB::connection('tasy')->select("
+            SELECT FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS age
+            FROM tasy.atendimento_paciente atp 
+            JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
+            WHERE atp.nr_atendimento = ?
+        ", [$attendanceNumber]);
+        
+        if (!$ageResult || $ageResult[0]->age >= 16) {
+            return null; // Not pediatric patient
+        }
+        
+        // Get PEWS data for pediatric patient
+        $result = DB::connection('tasy')->select("
+            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - PEWS: ' || qt_pontuacao AS ds_pews
+            FROM tasy.escala_pews 
+            WHERE nr_atendimento = ? 
+              AND dt_liberacao IS NOT NULL 
+              AND dt_inativacao IS NULL
+            ORDER BY dt_avaliacao DESC 
+            FETCH FIRST 1 ROWS ONLY
+        ", [$attendanceNumber]);
+        
+        return $result ? $result[0]->ds_pews : 'Não avaliado';
+    }
+    
+    /**
+     * Get Pain scale description for a patient - NEW
+     */
+    private function getPainScaleDescription($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT DISTINCT
+                TO_CHAR(TRUNC(asv.dt_sinal_vital), 'DD/MM') || ' - Dor: ' || asv.qt_escala_dor AS ds_dor
+            FROM tasy.atendimento_sinal_vital asv
+            WHERE asv.nr_atendimento = ?
+              AND asv.nr_sequencia = (
+                  SELECT MAX(sub_asv.nr_sequencia)
+                  FROM tasy.atendimento_sinal_vital sub_asv
+                  WHERE sub_asv.nr_atendimento = ?
+                    AND sub_asv.dt_inativacao IS NULL
+                    AND sub_asv.qt_escala_dor IS NOT NULL
+                    AND sub_asv.dt_liberacao IS NOT NULL
+              )
+        ", [$attendanceNumber, $attendanceNumber]);
+        
+        return $result ? $result[0]->ds_dor : 'Não avaliado';
+    }
+    
+    /**
+     * Get TEV scale description for a patient - NEW
+     */
+    private function getTevDescription($attendanceNumber)
+    {
+        $result = DB::connection('tasy')->select("
+            SELECT
+                TO_CHAR(dt_avaliacao, 'DD/MM') || ' - TEV: ' || 
+                SUBSTR(tasy.obter_valor_dominio(2900, et.ie_risco), 1, 255) AS ds_tev
+            FROM tasy.escala_tev et
+            WHERE et.nr_atendimento = ?
+              AND et.dt_inativacao IS NULL
+              AND et.nr_sequencia = (
+                  SELECT MAX(e.nr_sequencia)
+                  FROM tasy.escala_tev e
+                  WHERE e.nr_atendimento = ?
+                    AND e.dt_liberacao IS NOT NULL
+                    AND e.dt_inativacao IS NULL
+              )
+        ", [$attendanceNumber, $attendanceNumber]);
+        
+        return $result ? $result[0]->ds_tev : 'Não avaliado';
     }
     
     /**

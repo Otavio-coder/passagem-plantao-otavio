@@ -59,7 +59,7 @@ class PatientClinical extends Model
     }
     
     /**
-     * Get detailed clinical information for a patient
+     * Get detailed clinical information for a patient - EXPANDED
      */
     public function getPatientClinicalDetails($attendanceNumber)
     {
@@ -68,7 +68,88 @@ class PatientClinical extends Model
         return Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
             $result = DB::connection('tasy')->select("
                 SELECT
-                    -- Diagnoses
+                    -- Basic patient info (enhanced)
+                    atp.cd_pessoa_fisica,
+                    tasy.obter_nome_paciente(atp.nr_atendimento) AS nm_pessoa_fisica,
+                    pf.dt_nascimento,
+                    FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS idade_anos,
+                    MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)), 12) AS idade_meses,
+                    FLOOR(SYSDATE - ADD_MONTHS(pf.dt_nascimento, FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)))) AS idade_dias,
+                    pf.ie_sexo AS sexo,
+                    TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) AS tempo_internacao_dias,
+                    tasy.obter_medico_resp_atend(atp.nr_atendimento, 'N') AS medico_responsavel,
+                    tasy.obter_desc_convenio(tasy.obter_convenio_atendimento(atp.nr_atendimento)) AS convenio,
+                    
+                    -- Isolation check
+                    (SELECT DECODE(
+                        COUNT(nr_sequencia),
+                        0, 'Não',
+                        'Sim'
+                    ) FROM tasy.atendimento_precaucao
+                    WHERE nr_atendimento = atp.nr_atendimento
+                      AND SYSDATE BETWEEN dt_inicio AND NVL(dt_termino, SYSDATE)
+                      AND dt_liberacao IS NOT NULL
+                      AND dt_inativacao IS NULL
+                    ) AS medida_bloqueio,
+                    
+                    -- Isolation motives
+                    (SELECT LISTAGG(cp.ds_precaucao || ' - ' || mi.ds_motivo, '; ') WITHIN GROUP (ORDER BY 1)
+                     FROM tasy.atendimento_precaucao ap,
+                          tasy.motivo_isolamento mi,
+                          tasy.cih_precaucao cp
+                     WHERE ap.nr_atendimento = atp.nr_atendimento
+                       AND SYSDATE BETWEEN ap.dt_inicio AND NVL(ap.dt_termino, SYSDATE)
+                       AND ap.dt_liberacao IS NOT NULL
+                       AND ap.dt_inativacao IS NULL
+                       AND ap.nr_seq_motivo_isol = mi.nr_sequencia
+                       AND ap.nr_seq_precaucao = cp.nr_sequencia
+                    ) AS motivos_isolamento,
+                    
+                    -- Nursing evaluation date
+                    (SELECT TO_CHAR(MAX(ap.dt_avaliacao), 'DD/MM/YYYY HH24:MI')
+                     FROM tasy.med_avaliacao_paciente ap
+                     WHERE ap.nr_atendimento = atp.nr_atendimento
+                       AND ap.nr_seq_tipo_avaliacao = 7781
+                       AND ap.dt_liberacao IS NOT NULL
+                       AND ap.dt_inativacao IS NULL
+                    ) AS avaliacao_enf,
+                    
+                    -- Educational plan date
+                    (SELECT TO_CHAR(TRUNC(MAX(ap.dt_avaliacao)), 'DD/MM/YYYY')
+                     FROM tasy.med_avaliacao_paciente ap
+                     WHERE ap.nr_atendimento = atp.nr_atendimento
+                       AND ap.nr_seq_tipo_avaliacao = 793
+                       AND ap.dt_liberacao IS NOT NULL
+                       AND ap.dt_inativacao IS NULL
+                    ) AS plano_educ,
+                    
+                    -- PE date
+                    (SELECT TO_CHAR(MAX(ap.dt_avaliacao), 'DD/MM/YYYY HH24:MI')
+                     FROM tasy.med_avaliacao_paciente ap
+                     WHERE ap.nr_atendimento = atp.nr_atendimento
+                       AND ap.nr_seq_tipo_avaliacao = 1154
+                       AND ap.dt_liberacao IS NOT NULL
+                       AND ap.dt_inativacao IS NULL
+                    ) AS pe_data,
+                    
+                    -- Fall history
+                    (SELECT CASE 
+                        WHEN a.ie_hist_queda = 'S' 
+                        THEN TO_CHAR(a.dt_avaliacao, 'DD/MM/YYYY HH24:MI:SS')
+                        ELSE 'Não'
+                     END
+                     FROM tasy.escala_morse a
+                     WHERE a.dt_liberacao IS NOT NULL
+                       AND a.nr_atendimento = atp.nr_atendimento
+                       AND a.nr_sequencia = (
+                           SELECT MAX(b.nr_sequencia)
+                           FROM tasy.escala_morse b
+                           WHERE b.dt_liberacao IS NOT NULL
+                             AND b.nr_atendimento = a.nr_atendimento
+                       )
+                    ) AS ds_queda,
+                    
+                    -- Diagnoses (SAE)
                     COALESCE(
                         (SELECT SUBSTR(LISTAGG(SUBSTR(tasy.PE_obter_desc_diag(d.nr_seq_diag, 'DI'), 1, 100), ' | ') 
                                 WITHIN GROUP (ORDER BY 1), 1, 400)
@@ -77,15 +158,8 @@ class PatientClinical extends Model
                          WHERE p.nr_atendimento = atp.nr_atendimento
                            AND p.dt_prescricao = (SELECT MAX(c.dt_prescricao) FROM tasy.pe_prescricao c WHERE c.nr_atendimento = atp.nr_atendimento)
                          AND ROWNUM <= 3),
-                        'Sem diagnósticos'
+                        'Sem diagnósticos SAE'
                     ) AS diag,
-                    
-                    -- Allergies
-                    COALESCE(
-                        (SELECT SUBSTR(ds_alergias, 1, 300) FROM tasy.W_PAN_PACIENTE 
-                         WHERE cd_pessoa_paciente = atp.cd_pessoa_fisica AND ROWNUM = 1),
-                        'Sem alergias registradas'
-                    ) AS alergias_detalhadas,
                     
                     -- Devices
                     COALESCE(
@@ -97,40 +171,168 @@ class PatientClinical extends Model
                         'Nenhum dispositivo'
                     ) AS dispositivos,
                     
-                    -- Isolation
-                    (SELECT CASE WHEN COUNT(*) > 0 THEN 'Sim - Precauções ativas' ELSE 'Não' END
-                     FROM tasy.atendimento_precaucao ap
-                     WHERE ap.nr_atendimento = atp.nr_atendimento
-                       AND SYSDATE BETWEEN ap.dt_inicio AND NVL(ap.dt_termino, SYSDATE)
-                       AND ap.dt_liberacao IS NOT NULL
-                       AND ap.dt_inativacao IS NULL) AS ds_isolamento,
-                       
-                    -- Priority exams
+                    -- Allergies (cleaned up)
                     COALESCE(
-                        (SELECT RTRIM(LISTAGG(DISTINCT tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), ', ') 
-                                WITHIN GROUP (ORDER BY tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento)), ', ')
-                         FROM tasy.prescr_procedimento pp
-                         JOIN tasy.prescr_medica pm ON pp.nr_prescricao = pm.nr_prescricao
-                         JOIN tasy.procedimento proc ON pp.cd_procedimento = proc.cd_procedimento
-                         WHERE pm.nr_atendimento = atp.nr_atendimento
-                           AND pp.ie_status_execucao = '10'
-                           AND pp.dt_coleta IS NULL
-                           AND pm.dt_liberacao IS NOT NULL),
-                        'Nenhum exame prioritário'
-                    ) AS prioridade_exames,
-                       
-                    -- Default values for missing fields
-                    'Sem registro' AS ds_queda,
-                    'Sem consultas agendadas' AS futureinquiries,
-                    'Nenhuma precaução' AS precaucoes,
-                    'Nenhum antimicrobiano' AS materiais,
-                    'Nenhum exame agendado' AS exams
+                        (SELECT REGEXP_REPLACE(
+                            SUBSTR(ds_alergias, 1, 300),
+                            ' - (Não informado|desconhecido|N/A)[^;]*',
+                            '',
+                            1, 0, 'i'
+                        ) FROM tasy.W_PAN_PACIENTE 
+                         WHERE cd_pessoa_paciente = atp.cd_pessoa_fisica AND ROWNUM = 1),
+                        'Sem alergias registradas'
+                    ) AS alergias_detalhadas
                        
                 FROM tasy.atendimento_paciente atp
+                LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
                 WHERE atp.nr_atendimento = :attendance
             ", ['attendance' => $attendanceNumber]);
             
-            return !empty($result) ? $result[0] : null;
+            if (empty($result)) {
+                return null;
+            }
+            
+            $basicData = $result[0];
+            
+            // Get diagnoses and comorbidities separately due to complexity
+            $diagResult = DB::connection('tasy')->select("
+                SELECT
+                    tasy.obter_diagnostico_atendimento(:nr_atendimento, 0)
+                    || (
+                        SELECT
+                            CHR(13)
+                            || REPLACE(
+                                REPLACE(
+                                    REPLACE(DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25583),
+                                        'S',
+                                        '>Asma<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25584),
+                                        'S',
+                                        '>AVC<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25585),
+                                        'S',
+                                        '>DPOV<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25586),
+                                        'S',
+                                        '>Enfisema<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25587),
+                                        'S',
+                                        '>HIV<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25588),
+                                        'S',
+                                        '>IAM<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25589),
+                                        'S',
+                                        '>IRC/IRA<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25590),
+                                        'S',
+                                        '>TBC<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25591),
+                                        'S',
+                                        '>Hepatite A<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25592),
+                                        'S',
+                                        '>Hepatite B<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25593),
+                                        'S',
+                                        '>Hepatite C<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25594),
+                                        'S',
+                                        '>Hepatite D<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25580),
+                                        'S',
+                                        '>Diabetes Mellitus<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25595),
+                                        'S',
+                                        '>HAS<='
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25596),
+                                        'S',
+                                        NVL2(
+                                                             tasy.aval(mapa.nr_sequencia, 25597),
+                                                             '>Câncer - Protocolo:'
+                                                             || tasy.aval(mapa.nr_sequencia, 25597)
+                                                             || '<=',
+                                                             '>Câncer<='
+                                                         )
+                                    )
+                                            || DECODE(
+                                        tasy.aval(mapa.nr_sequencia, 25598),
+                                        'S',
+                                        NVL2(
+                                                             tasy.aval(mapa.nr_sequencia, 25599),
+                                                             '>Outros - Desc.: '
+                                                             || tasy.aval(mapa.nr_sequencia, 25599)
+                                                             || '<=',
+                                                             '>Outros<='
+                                                         )
+                                    ),
+                                            '<=>',
+                                            ', '),
+                                    '<=',
+                                    ''
+                                ),
+                                '>',
+                                'Doenças Prévias: '
+                            )
+                        FROM
+                            tasy.atendimento_paciente   atepa,
+                            tasy.med_avaliacao_paciente mapa
+                        WHERE
+                                atepa.nr_atendimento = mapa.nr_atendimento (+)
+                            AND mapa.nr_atendimento (+) = :nr_atendimento
+                            AND mapa.nr_sequencia = (
+                                SELECT
+                                    MAX(nr_sequencia)
+                                FROM
+                                    tasy.med_avaliacao_paciente mp
+                                WHERE
+                                        mp.nr_atendimento = mapa.nr_atendimento
+                                    AND mp.nr_seq_tipo_avaliacao = 1154
+                                    AND mp.dt_liberacao IS NOT NULL
+                                    AND mp.dt_inativacao IS NULL
+                            )
+                    ) AS diagnosticos_comorbidades
+                FROM dual
+            ", ['nr_atendimento' => $attendanceNumber]);
+            
+            $basicData->diagnosticos_comorbidades = $diagResult ? $diagResult[0]->diagnosticos_comorbidades : 'Sem diagnósticos e comorbidades';
+            
+            // Default values for missing fields
+            $basicData->prioridade_exames = 'Nenhum exame prioritário';
+            $basicData->materiais = 'Nenhum antimicrobiano';
+            $basicData->exams = 'Nenhum exame agendado';
+            $basicData->ds_isolamento = $basicData->medida_bloqueio ?? 'Não informado';
+            
+            return $basicData;
         });
     }
     

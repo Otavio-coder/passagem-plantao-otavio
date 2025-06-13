@@ -2,7 +2,7 @@
     'patientDetails' => null
 ])
 
-<div x-show="activeTab === 'tab-2'" class="p-3 sm:p-6">
+<div x-show="activeTab === 'tab-3'" class="p-3 sm:p-6">
     <!-- CPOE Header -->
     <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mb-6">
         <div class="flex items-center justify-between mb-4">

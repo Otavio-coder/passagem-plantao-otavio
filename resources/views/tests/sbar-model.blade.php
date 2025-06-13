@@ -19,20 +19,17 @@
                 <div class="mb-3">
                     <label for="method" class="form-label">Method to Test</label>
                     <select class="form-select" id="method">
-                        <option value="getBradenScaleData">getBradenScaleData</option>
-                        <option value="getMorseScaleData">getMorseScaleData</option>
-                        <option value="getMewsDescriptionData">getMewsDescriptionData</option>
-                        <option value="getPewsDescriptionData">getPewsDescriptionData</option>
-                        <option value="getActiveDevicesData">getActiveDevicesData</option>
-                        <option value="getIsolationStatusData">getIsolationStatusData</option>
-                        <option value="getDiagnosesData">getDiagnosesData</option>
-                        <option value="getFallHistoryData">getFallHistoryData</option>
-                        <option value="getAllergiesData">getAllergiesData</option>
-                        <option value="getActivePrecautionsData">getActivePrecautionsData</option>
-                        <option value="getAntimicrobialMaterialsData">getAntimicrobialMaterialsData</option>
-                        <option value="getExamPrioritiesData">getExamPrioritiesData</option>
-                        <option value="getBasicPatientData">getBasicPatientData</option>
-                        <option value="generateFullReport">generateFullReport</option>
+                        <option value="getPatientScales">getPatientScales (PatientScales)</option>
+                        <option value="getMewsDataForPatients">getMewsDataForPatients (PatientScales)</option>
+                        <option value="getPainScaleDescription">getPainScaleDescription (PatientScales)</option>
+                        <option value="getTevDescription">getTevDescription (PatientScales)</option>
+                        <option value="getPatientClinicalDetails">getPatientClinicalDetails (PatientClinical)</option>
+                        <option value="getClinicalAlertsForPatients">getClinicalAlertsForPatients (PatientClinical)</option>
+                        <option value="getPatientActiveAlerts">getPatientActiveAlerts (PatientClinical)</option>
+                        <option value="getPatientBasicDetails">getPatientBasicDetails (Patient)</option>
+                        <option value="getBasicPatientData">getBasicPatientData (Patient)</option>
+                        <option value="getPatientDetails">getPatientDetails (SbarReport)</option>
+                        <option value="getBasePatientData">getBasePatientData (SbarReport)</option>
                     </select>
                 </div>
                 

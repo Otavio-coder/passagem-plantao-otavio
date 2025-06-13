@@ -74,7 +74,8 @@ class PatientCPOE extends Model
                         WHEN TO_NUMBER(TO_CHAR(pp.dt_prev_execucao, 'HH24')) BETWEEN 6 AND 13 THEN 'MANHÃ'
                         WHEN TO_NUMBER(TO_CHAR(pp.dt_prev_execucao, 'HH24')) BETWEEN 14 AND 21 THEN 'TARDE'
                         ELSE 'NOITE'
-                    END AS turno
+                    END AS turno,
+                    pm.dt_liberacao
                 FROM tasy.prescr_medica pm
                 JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
                 WHERE pm.nr_atendimento = :attendance
@@ -97,7 +98,7 @@ class PatientCPOE extends Model
                     'count' => $shiftProcedures->count(),
                     'procedures' => $shiftProcedures->map(function ($procedure) {
                         return [
-                            'procedimento' => $procedure->ds_procedimento,
+                            'procedimento' => $procedure->ds_procedimento ?? 'Procedimento não identificado',
                             'data_prevista' => $procedure->dt_prev_execucao_fmt,
                             'horario' => $procedure->hr_prev_execucao,
                             'horarios' => $procedure->dt_prev_execucao_full,
@@ -107,7 +108,8 @@ class PatientCPOE extends Model
                             'nr_seq_proc_interno' => $procedure->nr_seq_proc_interno,
                             'is_completed' => !empty($procedure->dt_baixa),
                             'dt_baixa' => $procedure->dt_baixa ? 
-                                Carbon::parse($procedure->dt_baixa)->format('d/m/Y H:i') : null
+                                Carbon::parse($procedure->dt_baixa)->format('d/m/Y H:i') : null,
+                            'dt_liberacao' => $procedure->dt_liberacao
                         ];
                     })->toArray()
                 ];

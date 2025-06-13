@@ -21,7 +21,7 @@
             
             <!-- Modal Content -->
             <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto h-[95vh] sm:h-[90vh] transition-all flex flex-col overflow-hidden"
-                 x-data="{ activeTab: 'tab-1', activeCpoeCategory: 'cpoe-exames' }">
+                 x-data="{ activeTab: 'tab-s', activeCpoeCategory: 'cpoe-exames' }">
                 
                 <!-- Modal Header -->
                 <x-patient-modal.header 
@@ -34,17 +34,28 @@
 
                 <!-- Modal Body - Scrollable Content -->
                 <div class="flex-1 overflow-y-auto bg-gray-50">
-                    <!-- Tab 1: SBAR Geral -->
-                    <x-patient-modal.content.sbar-geral 
+                    <!-- Tab S: Situação -->
+                    <x-patient-modal.content.sbar-situacao 
                         :loadingPatient="$loadingPatient"
                         :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails" />
                     
-                    <!-- Tab 2: Avaliação (renamed from SBAR por Turno) -->
-                    <x-patient-modal.content.avaliacao />
+                    <!-- Tab B: Background -->
+                    <x-patient-modal.content.sbar-background 
+                        :loadingPatient="$loadingPatient"
+                        :currentPatient="$currentPatient"
+                        :patientDetails="$patientDetails" />
                     
-                    <!-- Tab 3: CPOE (moved to third position) -->
-                    <x-patient-modal.content.cpoe 
+                    <!-- Tab A: Avaliação -->
+                    <x-patient-modal.content.sbar-avaliacao 
+                        :loadingPatient="$loadingPatient"
+                        :currentPatient="$currentPatient"
+                        :patientDetails="$patientDetails" />
+                    
+                    <!-- Tab R: Recomendações (includes CPOE) -->
+                    <x-patient-modal.content.sbar-recomendacoes 
+                        :loadingPatient="$loadingPatient"
+                        :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails" />
                 </div>
                 
@@ -55,7 +66,7 @@
     </div>
 @endif
 
-<!-- NEW: Include Alerts Modal -->
+<!-- Include Alerts Modal -->
 <x-patient-modal.alerts-modal 
     :showAlertsModal="$showAlertsModal"
     :patientAlerts="$patientAlerts"

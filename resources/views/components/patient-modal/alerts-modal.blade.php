@@ -70,22 +70,22 @@
                                 
                                 @if($activeAlerts->count() > 0)
                                     <div class="mb-6">
-                                        <!-- Type Header -->
+                                        <!-- Type Header - PADRONIZADO -->
                                         <div class="flex items-center mb-3">
                                             @if($type === 'ISOLAMENTO')
-                                                <div class="bg-red-100 rounded-full p-2 mr-3">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <div class="bg-yellow-100 rounded-full p-2 mr-3">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                     </svg>
                                                 </div>
-                                                <h4 class="text-lg font-semibold text-red-800">Precauções de Isolamento</h4>
+                                                <h4 class="text-lg font-semibold text-yellow-800">Precauções de Isolamento</h4>
                                             @else
-                                                <div class="bg-amber-100 rounded-full p-2 mr-3">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <div class="bg-red-100 rounded-full p-2 mr-3">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                     </svg>
                                                 </div>
-                                                <h4 class="text-lg font-semibold text-amber-800">Alertas do Paciente</h4>
+                                                <h4 class="text-lg font-semibold text-red-800">Alertas do Paciente</h4>
                                             @endif
                                         </div>
                                         
@@ -96,11 +96,11 @@
                                             @endphp
                                             
                                             @if($isActive)
-                                                <div class="border-l-4 {{ $alert['type'] === 'ISOLAMENTO' ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50' }} p-4 rounded-r-lg mb-3 shadow-sm">
+                                                <div class="border-l-4 {{ $alert['type'] === 'ISOLAMENTO' ? 'border-yellow-500 bg-yellow-50' : 'border-red-500 bg-red-50' }} p-4 rounded-r-lg mb-3 shadow-sm">
                                                     <!-- Alert Header -->
                                                     <div class="flex items-center justify-between mb-2">
                                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                                            {{ $alert['type'] === 'ISOLAMENTO' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' }}">
+                                                            {{ $alert['type'] === 'ISOLAMENTO' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800' }}">
                                                             {{ $alert['type'] }}
                                                         </span>
                                                         
@@ -130,7 +130,7 @@
                                                     </div>
                                                     
                                                     <!-- Alert Message with justified text -->
-                                                    <div class="text-sm {{ $alert['type'] === 'ISOLAMENTO' ? 'text-red-800' : 'text-amber-800' }} leading-relaxed text-justify bg-white/50 p-3 rounded border">
+                                                    <div class="text-sm {{ $alert['type'] === 'ISOLAMENTO' ? 'text-yellow-800' : 'text-red-800' }} leading-relaxed text-justify bg-white/50 p-3 rounded border">
                                                         {{ $alert['message'] }}
                                                     </div>
                                                 </div>

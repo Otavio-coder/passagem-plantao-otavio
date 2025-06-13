@@ -5,6 +5,7 @@ namespace App\Models\EMR;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class PatientClinical extends Model
 {
@@ -326,14 +327,137 @@ class PatientClinical extends Model
             
             $basicData->diagnosticos_comorbidades = $diagResult ? $diagResult[0]->diagnosticos_comorbidades : 'Sem diagnósticos e comorbidades';
             
+            // Get antimicrobials data
+            $antimicrobialsResult = $this->getPatientAntimicrobials($attendanceNumber);
+            $basicData->materiais = $antimicrobialsResult ?: 'Nenhum antimicrobiano prescrito';
+            
+            // NEW: Get priority exams data
+            $priorityExamsResult = $this->getPatientPriorityExams($attendanceNumber);
+            $basicData->prioridade_exames = $priorityExamsResult ?: 'Nenhum exame prioritário identificado';
+            
             // Default values for missing fields
-            $basicData->prioridade_exames = 'Nenhum exame prioritário';
-            $basicData->materiais = 'Nenhum antimicrobiano';
             $basicData->exams = 'Nenhum exame agendado';
             $basicData->ds_isolamento = $basicData->medida_bloqueio ?? 'Não informado';
             
             return $basicData;
         });
+    }
+    
+    /**
+     * NEW: Get antimicrobials for a patient
+     */
+    private function getPatientAntimicrobials($attendanceNumber)
+    {
+        try {
+            $result = DB::connection('tasy')->select("
+                SELECT
+                    LISTAGG(INITCAP(ds_material)
+                            || ' '
+                            || nr_dia_util
+                            || ' Dia(s) - ',
+                            CHR(13)
+                            || CHR(13)) WITHIN GROUP(
+                    ORDER BY
+                        ds_material
+                    ) AS materiais
+                FROM
+                    (
+                        SELECT DISTINCT
+                            m.ds_material,
+                            pt.nr_dia_util,
+                            pm.dt_prescricao
+                        FROM
+                            tasy.material            m,
+                            tasy.medic_ficha_tecnica mf,
+                            tasy.prescr_medica       pm,
+                            tasy.prescr_material     pt
+                        WHERE
+                                mf.nr_sequencia = (
+                                    SELECT
+                                        nr_seq_ficha_tecnica
+                                    FROM
+                                        tasy.material
+                                    WHERE
+                                        cd_material = m.cd_material_estoque
+                                )
+                            AND m.cd_material = pt.cd_material
+                            AND pm.nr_prescricao = pt.nr_prescricao
+                            AND mf.ie_antimicrobiano = 'S'
+                            AND pm.dt_prescricao = (
+                                SELECT
+                                    MAX(dt_prescricao)
+                                FROM
+                                    tasy.prescr_medica   a,
+                                    tasy.prescr_material b
+                                WHERE
+                                        nr_atendimento = pm.nr_atendimento
+                                    AND a.nr_prescricao = b.nr_prescricao
+                                    AND b.cd_material = pt.cd_material
+                                    AND a.dt_liberacao IS NOT NULL
+                                    AND a.dt_validade_prescr >= SYSDATE
+                                    AND a.dt_suspensao IS NULL
+                            )
+                            AND pt.dt_suspensao IS NULL
+                            AND pt.nr_dia_util IS NOT NULL
+                            AND pm.nr_atendimento = :nr_atendimento_p
+                    )
+            ", ['nr_atendimento_p' => $attendanceNumber]);
+            
+            return $result && !empty($result[0]->materiais) ? $result[0]->materiais : null;
+            
+        } catch (\Exception $e) {
+            // Log error but don't break the main flow
+            Log::warning("Error fetching antimicrobials for attendance {$attendanceNumber}: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * NEW: Get priority exams for a patient
+     */
+    private function getPatientPriorityExams($attendanceNumber)
+    {
+        try {
+            $result = DB::connection('tasy')->select("
+                SELECT
+                    tasy.obter_select_concatenado_bv(
+                        'select obter_valor_dominio(95,proc.cd_tipo_procedimento) tipo
+                        from prescr_procedimento prescrp,
+                             prescr_medica prescrm,
+                             procedimento proc
+                        where prescrp.nr_prescricao = prescrm.nr_prescricao
+                        and prescrp.cd_procedimento = proc.cd_procedimento
+                        and prescrm.nr_atendimento = :nr_atend
+                        and prescrp.ie_status_execucao = ''10''
+                        and prescrp.dt_coleta is null
+                        and prescrm.dt_liberacao is not null
+                        and prescrp.ie_origem_proced <> 4
+                        group by obter_valor_dominio(95,proc.cd_tipo_procedimento)',
+                        'nr_atend=' || :nr_atendimento,
+                        CHR(13)
+                    ) AS prioridade_exames
+                FROM dual
+            ", ['nr_atendimento' => $attendanceNumber]);
+            
+            if ($result && !empty($result[0]->prioridade_exames)) {
+                // Format the output to be more readable
+                $exams = $result[0]->prioridade_exames;
+                // Replace line breaks with bullet points for better formatting
+                $exams = str_replace(chr(13), chr(13) . '• ', $exams);
+                // Add bullet to the beginning if not empty
+                if (!empty(trim($exams))) {
+                    $exams = '• ' . $exams;
+                }
+                return $exams;
+            }
+            
+            return null;
+            
+        } catch (\Exception $e) {
+            // Log error but don't break the main flow
+            Log::warning("Error fetching priority exams for attendance {$attendanceNumber}: " . $e->getMessage());
+            return null;
+        }
     }
     
     /**

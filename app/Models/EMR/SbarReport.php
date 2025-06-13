@@ -155,12 +155,20 @@ class SbarReport extends Model
             // Get clinical details
             $clinical = $this->patientClinical->getPatientClinicalDetails($attendanceNumber);
             
+            // Get CPOE procedures
+            $cpoeData = $this->patientCPOE->getPatientCpoeProcedures($attendanceNumber);
+            
             // Merge all data
-            return (object) array_merge(
+            $result = (object) array_merge(
                 (array) $basicDetails,
                 (array) $scales,
                 (array) $clinical
             );
+            
+            // Add CPOE procedures data
+            $result->cpoe_procedures = $cpoeData;
+            
+            return $result;
         });
     }
 

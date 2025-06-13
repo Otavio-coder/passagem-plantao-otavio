@@ -29,7 +29,7 @@ class SbarReport extends Component
     public $patientDetails = null;
     public $loadingPatient = false;
     
-    // NEW: Alert properties
+    // Alert properties
     public $patientAlerts = [];
     public $showAlertsModal = false;
     

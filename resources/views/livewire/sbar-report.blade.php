@@ -7,20 +7,61 @@
         </div>
     </div>
 
+    <!-- Sistema de Aviso - Aparece sempre -->
+    <div x-data="{ showAlert: true }" 
+         x-show="showAlert" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform -translate-y-2"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 transform translate-y-0"
+         x-transition:leave-end="opacity-0 transform -translate-y-2"
+         class="mb-6 bg-blue-50 border-l-4 border-blue-400 p-4 shadow-sm">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3 flex-1">
+                <div class="text-sm text-blue-800 leading-relaxed">
+                    <p class="mb-2">
+                        <strong>Sistema SBAR - Visualização de Dados:</strong> Este sistema é um <strong>visualizador de informações</strong> 
+                        que apresenta dados dos pacientes de forma otimizada. <strong>Não substitui o Tasy</strong> e <strong>não realiza 
+                        inserções diretas de dados</strong> no sistema ERP hospitalar.
+                    </p>
+                    <p>
+                        <strong>Objetivo:</strong> Organizar informações por hospital, setor e leito, digitalizar dados tradicionalmente registrados 
+                        no SBAR em papel e oferecer interface para avaliações de enfermagem por turno, reduzindo o uso de papel. 
+                        Para ações no prontuário, continue utilizando o Tasy normalmente.
+                    </p>
+                </div>
+            </div>
+            <div class="flex-shrink-0 ml-4">
+                <button @click="showAlert = false" 
+                        class="text-blue-400 hover:text-blue-600 transition-colors">
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main container with more subtle gradient background -->
     <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden">
         <!-- Header section with more professional look - NOW FIXED -->
         <div class="bg-[#004D9D]/90 px-4 sm:px-8 py-5 top-0 z-50 shadow-lg">
-            <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
+            <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-4 lg:space-y-0">
                 <h1 class="text-xl sm:text-2xl font-bold text-white">SBAR - Painel de Pacientes</h1>
                 
-                <div class="flex flex-wrap flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                <div class="flex flex-wrap lg:flex-nowrap items-center gap-2">
                     <!-- Sector Selector -->
-                    <div class="relative w-full sm:w-auto mb-2 sm:mb-0">
+                    <div class="min-w-0 flex-shrink-0">
                         <select 
                             wire:model="selectedSector" 
                             wire:change="changeSelector($event.target.value)" 
-                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-4 pr-8 w-full focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 pr-8 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
                         >
                             @foreach($sectors as $sector)
                                 <option value="{{ $sector['cd_setor_atendimento'] }}">{{ $sector['ds_setor_atendimento'] }}</option>
@@ -29,47 +70,45 @@
                     </div>
                     
                     <!-- MEWS Filter -->
-                    <div class="relative w-full sm:w-auto mb-2 sm:mb-0">
+                    <div class="min-w-0 flex-shrink-0">
                         <select 
                             wire:model="mewsFilter" 
                             wire:change="applyMewsFilter($event.target.value)"
-                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-4 pr-8 w-full focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 pr-8 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
                         >
                             <option value="all">Todos os leitos</option>
-                            <option value="critical">Pacientes críticos (MEWS ≥ 5)</option>
-                            <option value="warning">Pacientes em alerta (MEWS ≥ 3)</option>
-                            <option value="normal">Pacientes normais (MEWS < 3)</option>
+                            <option value="critical">Críticos (MEWS ≥ 5)</option>
+                            <option value="warning">Alerta (MEWS ≥ 3)</option>
+                            <option value="normal">Normais (MEWS < 3)</option>
                         </select>
                     </div>
                     
-                    <!-- Order By Filter - NEW COMPONENT -->
-                    <div class="flex w-full sm:w-auto mb-2 sm:mb-0">
-                        <div class="relative flex-grow">
-                            <select 
-                                wire:model="orderBy" 
-                                wire:change="applyOrderBy($event.target.value)"
-                                class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-l-lg py-2 px-4 pr-8 w-full focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
-                            >
-                                <option value="leito">Ordenar por Leito</option>
-                                <option value="mews">Ordenar por MEWS</option>
-                                <option value="name">Ordenar por Nome</option>
-                                <option value="prontuario">Ordenar por Prontuário</option>
-                                <option value="internment">Ordenar por Internação</option>
-                                <option value="age">Ordenar por Idade</option>
-                            </select>
-                        </div>
+                    <!-- Order By Filter -->
+                    <div class="flex min-w-0 flex-shrink-0">
+                        <select 
+                            wire:model="orderBy" 
+                            wire:change="applyOrderBy($event.target.value)"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-l-lg py-2 px-3 pr-8 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
+                        >
+                            <option value="leito">Por Leito</option>
+                            <option value="mews">Por MEWS</option>
+                            <option value="name">Por Nome</option>
+                            <option value="prontuario">Por Prontuário</option>
+                            <option value="internment">Por Internação</option>
+                            <option value="age">Por Idade</option>
+                        </select>
                         <!-- Toggle direction button -->
                         <button 
                             wire:click="toggleOrderDirection" 
-                            class="bg-white border border-gray-300 border-l-0 rounded-r-lg px-3 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:bg-gray-50"
+                            class="bg-white border border-gray-300 border-l-0 rounded-r-lg px-2 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:bg-gray-50"
                             title="{{ $orderDirection === 'asc' ? 'Ordem crescente' : 'Ordem decrescente' }}"
                         >
                             @if($orderDirection === 'asc')
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                                 </svg>
                             @else
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
                                 </svg>
                             @endif
@@ -80,12 +119,13 @@
                     <button 
                         wire:click="refreshData" 
                         @if($loading) disabled @endif
-                        class="inline-flex items-center px-4 py-2 rounded-lg text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 disabled:opacity-50"
+                        class="inline-flex items-center px-3 py-2 rounded-lg text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 disabled:opacity-50 text-sm flex-shrink-0"
                     >
-                        <svg class="w-5 h-5 mr-2 {{ $loading ? 'animate-spin' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg class="w-4 h-4 mr-1.5 {{ $loading ? 'animate-spin' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        Atualizar
+                        <span class="hidden sm:inline">Atualizar</span>
+                        <span class="sm:hidden">Refresh</span>
                     </button>
                 </div>
             </div>
@@ -187,7 +227,7 @@
                                                     @endif
                                                 </div>
                                                 
-                                                <!-- Alert Icons - Enhanced with CPOE -->
+                                                <!-- Alert Icons - PADRONIZADOS -->
                                                 <div class="flex items-center space-x-1">
                                                     @if(isset($patient->has_allergy) && $patient->has_allergy)
                                                         <div class="relative group">
@@ -205,7 +245,7 @@
                                                     
                                                     @if(isset($patient->has_isolation) && $patient->has_isolation)
                                                         <div class="relative group">
-                                                            <div class="bg-yellow-500 text-black rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente em isolamento">
+                                                            <div class="bg-yellow-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente em isolamento">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                                 </svg>
@@ -495,3 +535,14 @@
     <!-- Auto-scroll JavaScript with enhanced controls and auto-refresh -->
     <script src="{{ asset('js/sbar-autoscroll.js') }}"></script>
 </div>
+
+<script>
+// Check if welcome message should be shown (only on first visit)
+document.addEventListener('DOMContentLoaded', function() {
+    const welcomeShown = localStorage.getItem('sbar_welcome_shown');
+    if (welcomeShown) {
+        // Hide welcome modal if already shown before
+        document.querySelector('[x-data*="showWelcome"]').__x.$data.showWelcome = false;
+    }
+});
+</script>

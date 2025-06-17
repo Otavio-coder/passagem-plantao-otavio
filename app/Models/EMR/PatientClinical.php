@@ -60,6 +60,317 @@ class PatientClinical extends Model
     }
     
     /**
+     * Get surgical procedures for multiple patients (last week + next 45 days)
+     */
+    public function getSurgicalProceduresForPatients($attendanceNumbers)
+    {
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+        
+        $cacheKey = "surgical_procedures_" . md5(implode(',', $attendanceNumbers));
+        
+        return Cache::remember($cacheKey, 600, function() use ($attendanceNumbers) {
+            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
+            
+            $results = DB::connection('tasy')->select("
+                SELECT DISTINCT 
+                    b.nr_atendimento,
+                    tasy.OBTER_DESC_CARATER_CIR(pac.IE_CARATER_CIRURGIA) AS DS_CARATER_CIRURGIA,
+                    pac.cd_pessoa_fisica,
+                    pac.hr_inicio,
+                    pac.nr_minuto_duracao,
+                    tasy.OBTER_DESC_PROC_INTERNO(pac.nr_seq_proc_interno) AS DS_PROCEDIMENTO,
+                    REPLACE(pac.DS_OBSERVACAO, ' / ', ' | ') AS observacao_formatada,
+                    pac.dt_agenda,
+                    CASE 
+                        WHEN pac.dt_agenda < SYSDATE THEN 'REALIZADA'
+                        WHEN pac.dt_agenda >= SYSDATE THEN 'AGENDADA'
+                        ELSE 'INDEFINIDO'
+                    END AS status_cirurgia
+                FROM 
+                    tasy.unidade_atendimento b 
+                JOIN 
+                    tasy.atendimento_paciente atp 
+                    ON atp.nr_atendimento = b.nr_atendimento
+                JOIN 
+                    tasy.agenda_paciente pac 
+                    ON pac.cd_pessoa_fisica = atp.cd_pessoa_fisica
+                WHERE 
+                    b.ie_situacao = 'A'
+                    AND b.nr_atendimento IN ({$placeholders})
+                    AND pac.IE_CARATER_CIRURGIA IS NOT NULL
+                    AND pac.IE_CARATER_CIRURGIA <> 'X'
+                    AND (
+                        (pac.dt_agenda >= SYSDATE - 7 AND pac.dt_agenda < SYSDATE) -- Last week
+                        OR (pac.dt_agenda >= SYSDATE AND pac.dt_agenda <= SYSDATE + 45) -- Next 45 days
+                    )
+                ORDER BY 
+                    b.nr_atendimento, pac.dt_agenda DESC
+            ", $attendanceNumbers);
+            
+            $surgicalData = [];
+            foreach ($results as $result) {
+                if (!isset($surgicalData[$result->nr_atendimento])) {
+                    $surgicalData[$result->nr_atendimento] = [
+                        'has_surgery' => true,
+                        'procedures' => []
+                    ];
+                }
+                
+                $surgicalData[$result->nr_atendimento]['procedures'][] = [
+                    'carater' => $result->ds_carater_cirurgia,
+                    'procedimento' => $result->ds_procedimento,
+                    'data_agenda' => $result->dt_agenda,
+                    'hora_inicio' => $result->hr_inicio,
+                    'duracao_minutos' => $result->nr_minuto_duracao,
+                    'observacoes' => $result->observacao_formatada,
+                    'status' => $result->status_cirurgia
+                ];
+            }
+            
+            return $surgicalData;
+        });
+    }
+
+    /**
+     * Recupera procedimentos cirúrgicos de um atendimento em um intervalo de datas - ENHANCED.
+     *
+     * @param  int                $attendanceNumber  Número do atendimento
+     * @param  \Carbon\Carbon|null $startDate        Data de início (inclusiva). Padrão: hoje -7 dias
+     * @param  \Carbon\Carbon|null $endDate          Data de fim (inclusiva).   Padrão: hoje +45 dias
+     * @return array              Array de objetos com dados detalhados da cirurgia
+     */
+    private function getPatientSurgicalProcedures(
+        int $attendanceNumber,
+        ?\Carbon\Carbon $startDate = null,
+        ?\Carbon\Carbon $endDate   = null
+    ) {
+        // Definir defaults
+        $startDate = $startDate
+            ? $startDate->startOfDay()
+            : \Carbon\Carbon::now()->subDays(7)->startOfDay();
+        $endDate   = $endDate
+            ? $endDate->endOfDay()
+            : \Carbon\Carbon::now()->addDays(45)->endOfDay();
+
+        // Formatar para DD/MM/YYYY que o Oracle reconhece em TO_DATE()
+        $startStr = $startDate->format('d/m/Y');
+        $endStr   = $endDate->format('d/m/Y');
+
+        try {
+            $rows = DB::connection('tasy')->select(
+                <<<'SQL'
+    SELECT DISTINCT
+        tasy.OBTER_DESC_CARATER_CIR(pac.IE_CARATER_CIRURGIA) AS ds_carater_cirurgia,
+        pac.cd_pessoa_fisica,
+        pac.hr_inicio,
+        TO_CHAR(pac.hr_inicio, 'DD/MM/YY HH24:MI:SS') AS hr_inicio_formatada,
+        TO_CHAR(pac.hr_inicio, 'DD/MM/YYYY') AS data_cirurgia,
+        TO_CHAR(pac.hr_inicio, 'HH24:MI') AS hora_cirurgia,
+        pac.nr_minuto_duracao,
+        tasy.OBTER_DESC_PROC_INTERNO(pac.nr_seq_proc_interno) AS ds_procedimento,
+        REPLACE(pac.DS_OBSERVACAO, ' / ', ' | ') AS observacao_formatada,
+        pac.dt_agenda,
+        CASE
+            WHEN pac.dt_agenda < SYSDATE THEN 'REALIZADA'
+            ELSE 'AGENDADA'
+        END AS status_cirurgia,
+        TO_CHAR(pac.dt_agenda, 'DD/MM/YYYY') AS data_agenda_formatada,
+        TO_CHAR(pac.dt_agenda, 'HH24:MI') AS hora_agenda,
+        -- Calcular se é cirurgia de emergência (agendada no mesmo dia)
+        CASE 
+            WHEN TRUNC(pac.dt_agenda) = TRUNC(pac.hr_inicio) THEN 'EMERGÊNCIA'
+            ELSE 'ELETIVA'
+        END AS tipo_agendamento,
+        -- Duração formatada
+        CASE 
+            WHEN pac.nr_minuto_duracao IS NOT NULL THEN
+                CASE 
+                    WHEN pac.nr_minuto_duracao >= 60 THEN
+                        FLOOR(pac.nr_minuto_duracao / 60) || 'h ' || MOD(pac.nr_minuto_duracao, 60) || 'min'
+                    ELSE
+                        pac.nr_minuto_duracao || 'min'
+                END
+            ELSE 'Duração não informada'
+        END AS duracao_formatada
+    FROM tasy.unidade_atendimento b
+    JOIN tasy.atendimento_paciente   atp  ON atp.nr_atendimento = b.nr_atendimento
+    JOIN tasy.agenda_paciente        pac  ON pac.cd_pessoa_fisica = atp.cd_pessoa_fisica
+    WHERE
+        b.ie_situacao            = 'A'
+        AND b.nr_atendimento     = :attendance
+        AND pac.IE_CARATER_CIRURGIA IS NOT NULL
+        AND pac.IE_CARATER_CIRURGIA <> 'X'
+        AND pac.dt_agenda BETWEEN
+            TO_DATE(:startDate, 'DD/MM/YYYY')
+            AND TO_DATE(:endDate,   'DD/MM/YYYY')
+    ORDER BY pac.dt_agenda DESC, pac.hr_inicio DESC
+    SQL
+                ,
+                [
+                    'attendance' => $attendanceNumber,
+                    'startDate'  => $startStr,
+                    'endDate'    => $endStr,
+                ]
+            );
+
+            if (empty($rows)) {
+                return [];
+            }
+
+            // Converter para array de objetos com dados estruturados
+            $procedures = array_map(static function ($row) {
+                // Filtrar informações de custos das observações
+                $observacaoLimpa = static::filterSensitiveData($row->observacao_formatada ?? '');
+                
+                return [
+                    'carater_cirurgia' => $row->ds_carater_cirurgia ?? 'Caráter não informado',
+                    'procedimento' => $row->ds_procedimento ?? 'Procedimento não informado',
+                    'status' => $row->status_cirurgia,
+                    'tipo_agendamento' => $row->tipo_agendamento ?? 'ELETIVA',
+                    'data_agenda' => $row->data_agenda_formatada,
+                    'hora_agenda' => $row->hora_agenda,
+                    'data_cirurgia' => $row->data_cirurgia,
+                    'hora_cirurgia' => $row->hora_cirurgia,
+                    'hr_inicio_completa' => $row->hr_inicio_formatada,
+                    'duracao_minutos' => $row->nr_minuto_duracao,
+                    'duracao_formatada' => $row->duracao_formatada,
+                    'observacoes' => $observacaoLimpa,
+                    'has_observacoes' => !empty(trim($observacaoLimpa)),
+                    // Dados brutos para processamento adicional se necessário
+                    'raw_data' => [
+                        'hr_inicio' => $row->hr_inicio,
+                        'dt_agenda' => $row->dt_agenda,
+                        'cd_pessoa_fisica' => $row->cd_pessoa_fisica
+                    ]
+                ];
+            }, $rows);
+
+            return $procedures;
+
+        } catch (\Throwable $e) {
+            Log::warning(
+                "Erro ao buscar procedimentos cirúrgicos (atendimento {$attendanceNumber}): " .
+                $e->getMessage()
+            );
+            return [];
+        }
+    }
+
+    /**
+     * Filter sensitive data from surgical observations
+     * Remove cost information and other sensitive data - ENHANCED v2
+     */
+    private static function filterSensitiveData($observacao)
+    {
+        if (empty($observacao)) {
+            return '';
+        }
+        
+        // Primeiro, remover quebras de linha para facilitar o processamento
+        $observacaoLimpa = str_replace(["\r\n", "\n", "\r"], ' | ', $observacao);
+        
+        // Padrões mais agressivos para remoção de valores monetários
+        $patternsToRemove = [
+            // Valores monetários específicos
+            '/Valor\s+Total\s+Previsto\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Valor\s+Previsto\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Valor\s+Total\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Valor\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Custo\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Preço\s+R\$\s*[\d.,]+[^|]*/i',
+            '/Total\s+R\$\s*[\d.,]+[^|]*/i',
+            
+            // Padrão para capturar R$ seguido de números em qualquer contexto
+            '/R\$\s*[\d.,]+/i',
+            '/\$\s*[\d.,]+/i',
+            
+            // Termos relacionados a autorização e coordenação médica
+            '/TERMO\s+AUTORIZADO\s+PELA\s+COORDENAÇÃO\s+MÉDICA/i',
+            '/AUTORIZADO\s+PELA\s+COORDENAÇÃO/i',
+            '/COORDENAÇÃO\s+MÉDICA/i',
+            '/TERMO\s+AUTORIZADO/i',
+            
+            // Remover pipes múltiplos
+            '/\|\s*\|+/i',
+        ];
+        
+        // Aplicar filtros sequencialmente
+        foreach ($patternsToRemove as $pattern) {
+            $observacaoLimpa = preg_replace($pattern, ' ', $observacaoLimpa);
+        }
+        
+        // Processamento linha por linha mais agressivo
+        $linhas = explode('|', $observacaoLimpa);
+        $linhasLimpas = [];
+        
+        foreach ($linhas as $linha) {
+            $linha = trim($linha);
+            
+            // Skip linha se estiver vazia
+            if (empty($linha)) {
+                continue;
+            }
+            
+            // Skip linha se contém valores monetários ou termos financeiros
+            if (preg_match('/R\$\s*[\d.,]+/i', $linha) || 
+                preg_match('/\$\s*[\d.,]+/i', $linha) ||
+                preg_match('/valor.*[\d.,]+/i', $linha) ||
+                preg_match('/custo.*[\d.,]+/i', $linha) ||
+                preg_match('/preço.*[\d.,]+/i', $linha) ||
+                preg_match('/total.*[\d.,]+/i', $linha) ||
+                preg_match('/autorizado.*coordenação/i', $linha) ||
+                preg_match('/termo.*autorizado/i', $linha) ||
+                preg_match('/coordenação.*médica/i', $linha) ||
+                preg_match('/valor\s+total\s+previsto/i', $linha) ||
+                preg_match('/^[\d.,]+$/', $linha)) { // Linha só com números
+                continue; // Pula esta linha
+            }
+            
+            // Adiciona linha apenas se não estiver vazia após limpeza
+            if (!empty($linha) && strlen($linha) > 3) {
+                $linhasLimpas[] = $linha;
+            }
+        }
+        
+        // Reconstroi a observação
+        $observacaoLimpa = implode(' | ', $linhasLimpas);
+        
+        // Limpeza final mais agressiva
+        $observacaoLimpa = preg_replace('/\s*\|\s*\|\s*/', ' | ', $observacaoLimpa);
+        $observacaoLimpa = preg_replace('/^\s*\|\s*/', '', $observacaoLimpa);
+        $observacaoLimpa = preg_replace('/\s*\|\s*$/', '', $observacaoLimpa);
+        $observacaoLimpa = trim($observacaoLimpa);
+        
+        // Remove espaços duplos e múltiplos
+        $observacaoLimpa = preg_replace('/\s+/', ' ', $observacaoLimpa);
+        
+        // Limpeza final de termos que possam ter sobrado
+        $termosFiltrar = [
+            '/\bvalor\s+total\s+previsto\b/i',
+            '/\btermos?\s+autorizado\b/i',
+            '/\bcoordenação\s+médica\b/i',
+            '/\bautorizado\s+pela\b/i'
+        ];
+        
+        foreach ($termosFiltrar as $termo) {
+            $observacaoLimpa = preg_replace($termo, '', $observacaoLimpa);
+        }
+        
+        // Limpeza final
+        $observacaoLimpa = trim($observacaoLimpa);
+        $observacaoLimpa = preg_replace('/\s+/', ' ', $observacaoLimpa);
+        
+        // Se ficou muito vazio após a limpeza, retornar uma mensagem padrão
+        if (empty($observacaoLimpa) || $observacaoLimpa === '|' || strlen($observacaoLimpa) < 15) {
+            return 'Informações técnicas da cirurgia disponíveis no prontuário';
+        }
+        
+        return $observacaoLimpa;
+    }
+
+    /**
      * Get detailed clinical information for a patient - EXPANDED
      */
     public function getPatientClinicalDetails($attendanceNumber)
@@ -334,6 +645,10 @@ class PatientClinical extends Model
             // NEW: Get priority exams data
             $priorityExamsResult = $this->getPatientPriorityExams($attendanceNumber);
             $basicData->prioridade_exames = $priorityExamsResult ?: 'Nenhum exame prioritário identificado';
+            
+            // NEW: Get surgical procedures data
+            $surgicalProceduresResult = $this->getPatientSurgicalProcedures($attendanceNumber);
+            $basicData->procedimentos_cirurgicos = $surgicalProceduresResult ?: 'Nenhuma cirurgia programada ou realizada recentemente';
             
             // Default values for missing fields
             $basicData->exams = 'Nenhum exame agendado';

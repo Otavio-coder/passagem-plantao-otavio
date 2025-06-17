@@ -133,7 +133,7 @@
                         </div>
                         
                         <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Diag. ENF ou SAE:</label>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Diag. ENF.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->diag ?? 'Não informado' }}</p>
                         </div>
                         

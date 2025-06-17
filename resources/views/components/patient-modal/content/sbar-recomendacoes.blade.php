@@ -78,13 +78,157 @@
                     <!-- Procedimentos Cirúrgicos -->
                     <div class="bg-white p-4 rounded-lg border border-gray-200">
                         <h5 class="text-sm font-medium text-gray-800 mb-3 flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                             </svg>
                             Procedimentos Cirúrgicos
                         </h5>
-                        <div class="text-sm text-gray-500 p-3 bg-gray-50 rounded border">
-                            Sistema em desenvolvimento
+                        <div class="text-sm text-gray-700 p-3 bg-gray-50 rounded border">
+                            @if($patientDetails && isset($patientDetails->procedimentos_cirurgicos))
+                                @if(is_array($patientDetails->procedimentos_cirurgicos) && !empty($patientDetails->procedimentos_cirurgicos))
+                                    <div class="space-y-3" x-data="{ expandedProcedures: {} }">
+                                        @foreach($patientDetails->procedimentos_cirurgicos as $index => $procedure)
+                                            @if(is_array($procedure) && isset($procedure['procedimento']))
+                                                <div class="bg-white rounded-lg border-l-4 {{ ($procedure['status'] ?? '') === 'REALIZADA' ? 'border-green-500' : 'border-purple-500' }} shadow-sm">
+                                                    <!-- Procedure Header -->
+                                                    <div class="p-3">
+                                                        <div class="flex items-start justify-between mb-2">
+                                                            <div class="flex-1">
+                                                                <div class="flex items-center space-x-2 mb-1">
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ ($procedure['status'] ?? '') === 'REALIZADA' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800' }}">
+                                                                        {{ $procedure['status'] ?? 'Status não informado' }}
+                                                                    </span>
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ ($procedure['tipo_agendamento'] ?? '') === 'EMERGÊNCIA' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800' }}">
+                                                                        {{ $procedure['tipo_agendamento'] ?? 'ELETIVA' }}
+                                                                    </span>
+                                                                </div>
+                                                                <h6 class="font-medium text-gray-900 text-sm leading-tight">
+                                                                    {{ $procedure['procedimento'] ?? 'Procedimento não informado' }}
+                                                                </h6>
+                                                                <p class="text-xs text-gray-600 mt-1">
+                                                                    <span class="font-medium">Caráter:</span> {{ $procedure['carater_cirurgia'] ?? 'Não informado' }}
+                                                                </p>
+                                                            </div>
+                                                            @if(($procedure['has_observacoes'] ?? false))
+                                                                <button @click="expandedProcedures[{{ $index }}] = !expandedProcedures[{{ $index }}]"
+                                                                        class="ml-2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                                                        title="Ver detalhes">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform" 
+                                                                         :class="expandedProcedures[{{ $index }}] ? 'rotate-180' : ''" 
+                                                                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                                    </svg>
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                        
+                                                        <!-- Procedure Details Grid -->
+                                                        <div class="grid grid-cols-2 gap-3 text-xs">
+                                                            <div>
+                                                                <span class="font-medium text-gray-600">Data/Hora:</span>
+                                                                <div class="text-gray-800">
+                                                                    @if(($procedure['status'] ?? '') === 'REALIZADA')
+                                                                        {{ $procedure['data_cirurgia'] ?? $procedure['data_agenda'] ?? 'Não informada' }}
+                                                                        @if($procedure['hora_cirurgia'] ?? null)
+                                                                            às {{ $procedure['hora_cirurgia'] }}
+                                                                        @endif
+                                                                    @else
+                                                                        {{ $procedure['data_agenda'] ?? 'Não informada' }}
+                                                                        @if($procedure['hora_agenda'] ?? null)
+                                                                            às {{ $procedure['hora_agenda'] }}
+                                                                        @endif
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <span class="font-medium text-gray-600">Duração:</span>
+                                                                <div class="text-gray-800">{{ $procedure['duracao_formatada'] ?? 'Não informada' }}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Expandable Observations -->
+                                                    @if(($procedure['has_observacoes'] ?? false))
+                                                        <div x-show="expandedProcedures[{{ $index }}]" 
+                                                             x-transition:enter="transition ease-out duration-200"
+                                                             x-transition:enter-start="opacity-0 max-h-0"
+                                                             x-transition:enter-end="opacity-100 max-h-96"
+                                                             x-transition:leave="transition ease-in duration-150"
+                                                             x-transition:leave-start="opacity-100 max-h-96"
+                                                             x-transition:leave-end="opacity-0 max-h-0"
+                                                             class="border-t border-gray-200 p-3 bg-gray-50 overflow-hidden">
+                                                            <div class="space-y-2">
+                                                                <h6 class="font-medium text-gray-800 text-xs uppercase tracking-wide">Detalhes da Cirurgia</h6>
+                                                                <div class="bg-white p-2 rounded border text-xs leading-relaxed">
+                                                                    @php
+                                                                        // Parse the observation string into structured data
+                                                                        $observations = $procedure['observacoes'] ?? '';
+                                                                        $parsedObs = [];
+                                                                        
+                                                                        if (!empty($observations)) {
+                                                                            // Split by | and extract key-value pairs
+                                                                            $parts = explode('|', $observations);
+                                                                            foreach ($parts as $part) {
+                                                                                $part = trim($part);
+                                                                                if (strpos($part, ':') !== false) {
+                                                                                    list($key, $value) = explode(':', $part, 2);
+                                                                                    $parsedObs[trim($key)] = trim($value);
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    @endphp
+                                                                    
+                                                                    @if(!empty($parsedObs))
+                                                                        <div class="grid grid-cols-1 gap-1">
+                                                                            @foreach($parsedObs as $key => $value)
+                                                                                @if(!empty($value) && $value !== 'Não' && $value !== '')
+                                                                                    <div class="flex">
+                                                                                        <span class="font-medium text-gray-600 w-32 flex-shrink-0">{{ $key }}:</span>
+                                                                                        <span class="text-gray-800 flex-1">{{ $value }}</span>
+                                                                                    </div>
+                                                                                @endif
+                                                                            @endforeach
+                                                                        </div>
+                                                                    @else
+                                                                        <div class="text-gray-700">{{ $observations }}</div>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @elseif(is_string($procedure))
+                                                <!-- Fallback for string data -->
+                                                <div class="p-2 bg-white rounded border-l-4 {{ str_contains($procedure, 'REALIZADA') ? 'border-green-500' : 'border-purple-500' }}">
+                                                    <span class="text-xs font-medium {{ str_contains($procedure, 'REALIZADA') ? 'text-green-700' : 'text-purple-700' }}">
+                                                        {{ trim($procedure) }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                @elseif(is_string($patientDetails->procedimentos_cirurgicos))
+                                    @if($patientDetails->procedimentos_cirurgicos === 'Nenhuma cirurgia programada ou realizada recentemente')
+                                        <span class="text-gray-500">{{ $patientDetails->procedimentos_cirurgicos }}</span>
+                                    @else
+                                        <div class="space-y-2">
+                                            @foreach(explode("\n\n", $patientDetails->procedimentos_cirurgicos) as $procedure)
+                                                @if(trim($procedure))
+                                                    <div class="p-2 bg-white rounded border-l-4 {{ str_contains($procedure, 'REALIZADA') ? 'border-green-500' : 'border-purple-500' }}">
+                                                        <span class="text-xs font-medium {{ str_contains($procedure, 'REALIZADA') ? 'text-green-700' : 'text-purple-700' }}">
+                                                            {{ trim($procedure) }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                @else
+                                    <span class="text-gray-500">Nenhuma cirurgia programada ou realizada recentemente</span>
+                                @endif
+                            @else
+                                <span class="text-gray-500">Dados não disponíveis</span>
+                            @endif
                         </div>
                     </div>
                 </div>

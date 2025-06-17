@@ -20,6 +20,7 @@ class SbarReport extends Component
     
     // Filters
     public $mewsFilter = 'all';
+    public $surgicalFilter = 'all';
     public $orderBy = 'leito';
     public $orderDirection = 'asc';
     
@@ -97,6 +98,7 @@ class SbarReport extends Component
             // Preparar filtros para a query
             $filters = [
                 'mews_filter' => $this->mewsFilter,
+                'surgical_filter' => $this->surgicalFilter,
                 'order_by' => $this->orderBy,
                 'order_direction' => $this->orderDirection,
             ];
@@ -135,6 +137,15 @@ class SbarReport extends Component
     }
 
     /**
+     * Aplicar filtro cirúrgico
+     */
+    public function applySurgicalFilter($filter)
+    {
+        $this->surgicalFilter = $filter;
+        $this->loadPatientData();
+    }
+
+    /**
      * Aplicar ordenação
      */
     public function applyOrderBy($field)
@@ -163,6 +174,7 @@ class SbarReport extends Component
         // Limpar caches específicos
         Cache::forget("sbar_data_{$this->selectedSector}_" . md5(serialize([
             'mews_filter' => $this->mewsFilter,
+            'surgical_filter' => $this->surgicalFilter,
             'order_by' => $this->orderBy,
             'order_direction' => $this->orderDirection,
         ])));
@@ -304,6 +316,28 @@ class SbarReport extends Component
         // NEW: Also close alerts
         $this->showAlertsModal = false;
         $this->patientAlerts = [];
+    }
+
+    /**
+     * Reset all filters to default values
+     */
+    public function resetFilters()
+    {
+        // Reset all filter properties to their defaults
+        $this->mewsFilter = 'all';
+        $this->surgicalFilter = 'all';
+        $this->orderBy = 'leito';
+        $this->orderDirection = 'asc';
+        
+        // Clear caches
+        $this->patientDetailsCache = [];
+        
+        // Reload data with default filters
+        $this->loadingMessage = "Resetando filtros...";
+        $this->loadPatientData();
+        
+        // Optional: Show feedback message (you can remove this if not needed)
+        session()->flash('message', 'Filtros resetados com sucesso!');
     }
 
     /**

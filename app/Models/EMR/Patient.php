@@ -47,8 +47,23 @@ class Patient extends Model
             }
         }
         
-        // Basic age and internment calculations
-        $internmentDays = $hasPatient ? $bed->internment_days : null;
+        // CORREÇÃO: Cálculo mais preciso de internment_days
+        $internmentDays = null;
+        if ($hasPatient && !empty($bed->dt_entrada)) {
+            try {
+                $entryDate = \Carbon\Carbon::parse($bed->dt_entrada);
+                $today = \Carbon\Carbon::now();
+                $internmentDays = $entryDate->diffInDays($today, false); // false = não absoluto, pode ser negativo
+                
+                // Se for negativo (entrada no futuro), considerar como 0
+                if ($internmentDays < 0) {
+                    $internmentDays = 0;
+                }
+            } catch (\Exception $e) {
+                $internmentDays = null;
+            }
+        }
+        
         $ageDetailed = $hasPatient ? $this->formatDetailedAge($bed->patient_age_years, $bed->patient_age_months, $bed->patient_age_days) : '';
         $birthDateFormatted = $hasPatient && $bed->patient_birth_date ? Carbon::parse($bed->patient_birth_date)->format('d/m/Y') : '';
         

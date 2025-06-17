@@ -16,7 +16,7 @@
                 class="flex-shrink-0 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors">
             <div class="flex items-center space-x-2">
                 <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[#007D44] text-white text-xs font-bold">B</span>
-                <span>BACKGROUND</span>
+                <span>BACKGROUND (INFORMAÇÃO)</span>
             </div>
         </button>
         

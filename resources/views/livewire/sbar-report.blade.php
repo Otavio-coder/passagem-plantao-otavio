@@ -83,6 +83,18 @@
                         </select>
                     </div>
                     
+                    <!-- Surgical Filter -->
+                    <div class="min-w-0 flex-shrink-0">
+                        <select 
+                            wire:model="surgicalFilter" 
+                            wire:change="applySurgicalFilter($event.target.value)"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 pr-8 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50"
+                        >
+                            <option value="all">Todas cirurgias</option>
+                            <option value="with_surgery">Com cirurgias</option>
+                        </select>
+                    </div>
+                    
                     <!-- Order By Filter -->
                     <div class="flex min-w-0 flex-shrink-0">
                         <select 
@@ -126,6 +138,22 @@
                         </svg>
                         <span class="hidden sm:inline">Atualizar</span>
                         <span class="sm:hidden">Refresh</span>
+                    </button>
+                    
+                    <!-- Reset Filters Button -->
+                    <button 
+                        wire:click="resetFilters" 
+                        @if($loading) disabled @endif
+                        class="inline-flex items-center px-3 py-2 rounded-lg text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-400/50 disabled:opacity-50 text-sm flex-shrink-0"
+                        title="Resetar todos os filtros"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <span class="hidden sm:inline ml-1">Limpar</span>
                     </button>
                 </div>
             </div>
@@ -263,7 +291,6 @@
                                                             <div class="bg-blue-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="CPOE pendente para baixa">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                                                </svg>
                                                             </div>
                                                             <!-- Tooltip with count -->
                                                             <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-blue-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
@@ -272,6 +299,22 @@
                                                             </div>
                                                         </div>
                                                     @endif
+                                                    
+                                                    @if(isset($patient->has_surgery) && $patient->has_surgery)
+                                                        <div class="relative group">
+                                                            <div class="bg-purple-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente com cirurgias programadas/realizadas">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                                                </svg>
+                                                            </div>
+                                                            <!-- Tooltip -->
+                                                            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-purple-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
+                                                                {{ count($patient->surgical_procedures ?? []) }} cirurgia(s)
+                                                                <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-purple-600"></div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
                                                 </div>
                                                 
                                                 @if($patient->mews_score !== null && $patient->mews_score > 0)

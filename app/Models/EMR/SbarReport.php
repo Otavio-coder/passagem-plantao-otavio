@@ -55,9 +55,10 @@ class SbarReport extends Model
         $mewsData = !empty($attendanceNumbers) ? $this->patientScales->getMewsDataForPatients($attendanceNumbers) : [];
         $clinicalAlerts = !empty($attendanceNumbers) ? $this->patientClinical->getClinicalAlertsForPatients($attendanceNumbers) : [];
         $cpoeData = !empty($attendanceNumbers) ? $this->patientCPOE->getCpoePendingForPatients($attendanceNumbers) : [];
+        $surgicalData = !empty($attendanceNumbers) ? $this->patientClinical->getSurgicalProceduresForPatients($attendanceNumbers) : [];
         
         // Merge all data efficiently
-        $result = $patients->map(function($record) use ($mewsData, $clinicalAlerts, $cpoeData) {
+        $result = $patients->map(function($record) use ($mewsData, $clinicalAlerts, $cpoeData, $surgicalData) {
             if ($record->has_patient && $record->nr_atendimento) {
                 // Add MEWS data
                 $mews = $mewsData[$record->nr_atendimento] ?? ['mews_score' => null, 'mews_date' => null];
@@ -73,6 +74,11 @@ class SbarReport extends Model
                 $cpoe = $cpoeData[$record->nr_atendimento] ?? ['has_cpoe_pending' => false, 'cpoe_pending_count' => 0];
                 $record->has_cpoe_pending = $cpoe['has_cpoe_pending'];
                 $record->cpoe_pending_count = $cpoe['cpoe_pending_count'];
+                
+                // Add surgical data
+                $surgery = $surgicalData[$record->nr_atendimento] ?? ['has_surgery' => false, 'procedures' => []];
+                $record->has_surgery = $surgery['has_surgery'];
+                $record->surgical_procedures = $surgery['procedures'];
             } else {
                 // Empty bed defaults
                 $record->mews_score = null;
@@ -81,6 +87,8 @@ class SbarReport extends Model
                 $record->has_isolation = false;
                 $record->has_cpoe_pending = false;
                 $record->cpoe_pending_count = 0;
+                $record->has_surgery = false;
+                $record->surgical_procedures = [];
             }
             
             return $record;
@@ -89,6 +97,13 @@ class SbarReport extends Model
         // Apply filters using specialized models
         if (isset($filters['mews_filter']) && $filters['mews_filter'] !== 'all') {
             $result = $this->patientScales->applyMewsFilter($result, $filters['mews_filter']);
+        }
+        
+        // Apply surgical filter
+        if (isset($filters['surgical_filter']) && $filters['surgical_filter'] === 'with_surgery') {
+            $result = $result->filter(function($patient) {
+                return $patient->has_patient && $patient->has_surgery;
+            });
         }
         
         // Apply sorting

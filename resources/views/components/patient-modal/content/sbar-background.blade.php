@@ -4,11 +4,11 @@
     'patientDetails' => null
 ])
 
-<div x-show="activeTab === 'tab-b'" class="p-3 sm:p-6">
+<div x-show="activeTab === 'tab-b'" class="p-2 sm:p-3 lg:p-6">
     @if($loadingPatient)
-        <div class="flex flex-col items-center justify-center py-12 sm:py-20">
-            <div class="w-12 h-12 sm:w-16 sm:h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
-            <p class="text-gray-700 text-lg sm:text-xl">Carregando detalhes do paciente...</p>
+        <div class="flex flex-col items-center justify-center py-8 sm:py-12 lg:py-20">
+            <div class="w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
+            <p class="text-gray-700 text-sm sm:text-lg lg:text-xl">Carregando detalhes do paciente...</p>
         </div>
     @elseif($currentPatient && !$currentPatient['has_patient'])
         <!-- Empty Bed -->
@@ -21,7 +21,7 @@
         </div>
     @elseif($patientDetails)
         <!-- Background - Contexto clínico relevante -->
-        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 shadow-sm border border-gray-100">
             <h4 class="text-lg sm:text-xl font-bold text-gray-800 border-b border-gray-200 pb-3 mb-6 flex items-center">
                 <span class="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#007D44] text-white mr-3 text-sm sm:text-base font-bold">B</span>
                 <div>
@@ -113,19 +113,23 @@
                 
                 <!-- Informações Complementares -->
                 <div>
-                    <h5 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-indigo-500 pl-3 bg-indigo-50 py-2 rounded-r">
+                    <h5 class="text-xs sm:text-sm font-bold text-gray-800 mb-3 sm:mb-4 border-l-4 border-indigo-500 pl-2 sm:pl-3 bg-indigo-50 py-1.5 sm:py-2 rounded-r">
                         Informações Complementares
                     </h5>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div class="bg-gray-50 p-4 rounded-lg border">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                        <div class="bg-gray-50 p-3 sm:p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Tempo de Internação:</label>
-                            <p class="text-sm font-semibold text-gray-800">
+                            <p class="text-xs sm:text-sm font-semibold text-gray-800">
                                 @if($patientDetails->tempo_internacao_dias === null)
                                     <span class="text-gray-500">N/A</span>
                                 @elseif($patientDetails->tempo_internacao_dias == 0)
                                     <span class="text-green-600 font-bold">Recém-chegado (hoje)</span>
                                 @else
-                                    {{ $patientDetails->tempo_internacao_dias }} dia{{ $patientDetails->tempo_internacao_dias > 1 ? 's' : '' }}
+                                    @php
+                                        // FIXED: Remove decimals completely
+                                        $days = (int) round($patientDetails->tempo_internacao_dias);
+                                    @endphp
+                                    {{ $days }} dia{{ $days > 1 ? 's' : '' }}
                                 @endif
                             </p>
                         </div>

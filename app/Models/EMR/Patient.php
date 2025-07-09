@@ -41,10 +41,12 @@ class Patient extends Model
         $initials = '';
         if ($hasPatient && !empty($bed->patient_name)) {
             $words = array_filter(explode(' ', trim($bed->patient_name)));
-            $initials = strtoupper(substr($words[0] ?? '', 0, 1) . substr($words[1] ?? '', 0, 1));
-            if (strlen($initials) < 2) {
-                $initials = strtoupper(substr(trim($bed->patient_name), 0, 2));
+            $initials = '';
+            foreach ($words as $word) {
+            $initials .= strtoupper(substr($word, 0, 1));
             }
+            // Limitar a no máximo 3 iniciais
+            $initials = substr($initials, 0, 3);
         }
         
         // CORREÇÃO: Cálculo mais preciso de internment_days

@@ -10,6 +10,8 @@ class BedUnit extends Model
 {
     protected $connection = 'tasy';
     public $timestamps = false;
+    protected $primaryKey = 'cd_unidade_basica';
+    protected $table = 'tasy.unidade_atendimento';
     
     /**
      * Get all beds in a sector
@@ -278,5 +280,13 @@ class BedUnit extends Model
             
             return collect($results);
         });
+    }
+    
+    /**
+     * Get bed ID (primary key)
+     */
+    public function getIdAttribute()
+    {
+        return $this->cd_unidade_basica;
     }
 }

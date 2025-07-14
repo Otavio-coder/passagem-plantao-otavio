@@ -112,100 +112,111 @@
             <div class="flex flex-col space-y-2 lg:space-y-3">
                 <h1 class="text-sm sm:text-base lg:text-2xl font-bold text-white text-center">Sistema SBAR - Passsagem de Plantão</h1>
                 
-                <!-- Filters and controls container -->
-                <div class="flex flex-col xl:flex-row xl:justify-between xl:items-end space-y-2 xl:space-y-0 xl:gap-4">
-                    <!-- Filters grid - 2x2 on medium and smaller screens, 1 row on xl+ screens -->
-                    <div class="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-1.5 xl:gap-3">
-                        <!-- Sector Selector -->
-                        <div class="min-w-0">
-                            <label class="block text-white text-xs mb-1 font-medium">Setor:</label>
-                            <select 
-                                wire:model="selectedSector" 
-                                wire:change="changeSelector($event.target.value)" 
-                                class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 sm:py-1 px-1 sm:px-1.5 pr-4 sm:pr-5 text-xs xl:text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
-                            >
-                                @foreach($sectors as $sector)
-                                    <option value="{{ $sector['cd_setor_atendimento'] }}" class="text-gray-800 bg-white hover:bg-blue-50">{{ $sector['ds_setor_atendimento'] }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        
-                        <!-- MEWS Filter -->
-                        <div class="min-w-0">
-                            <label class="block text-white text-xs mb-1 font-medium">Criticidade (MEWS):</label>
-                            <select 
-                                wire:model="mewsFilter" 
-                                wire:change="applyMewsFilter($event.target.value)"
-                                class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 sm:py-1 px-1 sm:px-1.5 pr-4 sm:pr-5 text-xs xl:text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
-                            >
-                                <option value="all" class="text-gray-800 bg-white hover:bg-blue-50">Todos os níveis</option>
-                                <option value="critical" class="text-red-700 bg-red-50 hover:bg-red-100">CRÍTICOS (≥5)</option>
-                                <option value="warning" class="text-amber-700 bg-amber-50 hover:bg-amber-100">ALERTA (≥3)</option>
-                                <option value="normal" class="text-green-700 bg-green-50 hover:bg-green-100">NORMAIS (<3)</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Surgical Filter -->
-                        <div class="min-w-0">
-                            <label class="block text-white text-xs mb-1 font-medium">Cirurgias:</label>
-                            <select 
-                                wire:model="surgicalFilter" 
-                                wire:change="applySurgicalFilter($event.target.value)"
-                                class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 sm:py-1 px-1 sm:px-1.5 pr-4 sm:pr-5 text-xs xl:text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
-                            >
-                                <option value="all" class="text-gray-800 bg-white hover:bg-blue-50">Todos os pacientes</option>
-                                <option value="with_surgery" class="text-purple-700 bg-purple-50 hover:bg-purple-100">COM CIRURGIAS</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Order By Filter with direction toggle -->
-                        <div class="flex min-w-0">
-                            <div class="flex-1 min-w-0">
-                                <label class="block text-white text-xs mb-1 font-medium">Ordenar por:</label>
-                                <div class="flex">
-                                    <select 
-                                        wire:model="orderBy" 
-                                        wire:change="applyOrderBy($event.target.value)"
-                                        class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-l py-0.5 sm:py-1 px-1 sm:px-1.5 pr-3 sm:pr-4 text-xs xl:text-sm flex-1 focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
-                                    >
-                                        <option value="leito" class="text-gray-800 bg-white hover:bg-blue-50">Número do Leito</option>
-                                        <option value="mews" class="text-gray-800 bg-white hover:bg-blue-50">Score MEWS</option>
-                                        <option value="name" class="text-gray-800 bg-white hover:bg-blue-50">Nome do Paciente</option>
-                                        <option value="prontuario" class="text-gray-800 bg-white hover:bg-blue-50">Número do Prontuário</option>
-                                        <option value="internment" class="text-gray-800 bg-white hover:bg-blue-50">Tempo de Internação</option>
-                                        <option value="age" class="text-gray-800 bg-white hover:bg-blue-50">Idade do Paciente</option>
-                                    </select>
-                                    <!-- Toggle direction button -->
-                                    <button 
-                                        wire:click="toggleOrderDirection" 
-                                        class="bg-white border border-gray-300 border-l-0 rounded-r px-0.5 sm:px-1 xl:px-2 focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:bg-gray-50 flex-shrink-0 transition-colors"
-                                        title="{{ $orderDirection === 'asc' ? 'Ordem crescente (A→Z, 1→9)' : 'Ordem decrescente (Z→A, 9→1)' }}"
-                                    >
-                                        @if($orderDirection === 'asc')
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 sm:h-3 sm:w-3 xl:h-4 xl:w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                                            </svg>
-                                        @else
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 sm:h-3 sm:w-3 xl:h-4 xl:w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                                            </svg>
-                                        @endif
-                                    </button>
-                                </div>
+                <!-- Filtros e botões responsivos em grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 xl:grid-cols-7 gap-2 xl:gap-4 items-end">
+                    <!-- Hospital Selector -->
+                    <div class="min-w-[140px] col-span-1">
+                        <label class="block text-white text-xs mb-1 font-medium">Hospital:</label>
+                        <select 
+                            wire:model="selectedHospital" 
+                            wire:change="changeHospital($event.target.value)" 
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                        >
+                            @foreach($hospitals as $hospital)
+                                <option value="{{ data_get($hospital, 'hospital_id') }}">{{ data_get($hospital, 'hospital_name') }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Sector Selector -->
+                    <div class="min-w-[140px] col-span-1">
+                        <label class="block text-white text-xs mb-1 font-medium">Setor:</label>
+                        <select 
+                            wire:model="selectedSector" 
+                            wire:change="changeSelector($event.target.value)" 
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                        >
+                            @foreach($sectors as $sector)
+                                <option value="{{ data_get($sector, 'cd_setor_atendimento') }}" class="text-gray-800 bg-white hover:bg-blue-50">{{ data_get($sector, 'ds_setor_atendimento') }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    
+                    <!-- MEWS Filter -->
+                    <div class="min-w-[140px] col-span-1">
+                        <label class="block text-white text-xs mb-1 font-medium">Criticidade (MEWS):</label>
+                        <select 
+                            wire:model="mewsFilter" 
+                            wire:change="applyMewsFilter($event.target.value)"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                        >
+                            <option value="all" class="text-gray-800 bg-white hover:bg-blue-50">Todos os níveis</option>
+                            <option value="critical" class="text-red-700 bg-red-50 hover:bg-red-100">CRÍTICOS (≥5)</option>
+                            <option value="warning" class="text-amber-700 bg-amber-50 hover:bg-amber-100">ALERTA (≥3)</option>
+                            <option value="normal" class="text-green-700 bg-green-50 hover:bg-green-100">NORMAIS (&lt;3)</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Surgical Filter -->
+                    <div class="min-w-[140px] col-span-1">
+                        <label class="block text-white text-xs mb-1 font-medium">Cirurgias:</label>
+                        <select 
+                            wire:model="surgicalFilter" 
+                            wire:change="applySurgicalFilter($event.target.value)"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                        >
+                            <option value="all" class="text-gray-800 bg-white hover:bg-blue-50">Todos os pacientes</option>
+                            <option value="with_surgery" class="text-purple-700 bg-purple-50 hover:bg-purple-100">COM CIRURGIAS</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Order By Filter with direction toggle -->
+                    <div class="flex min-w-[180px]">
+                        <div class="flex-1 min-w-0">
+                            <label class="block text-white text-xs mb-1 font-medium">Ordenar por:</label>
+                            <div class="flex">
+                                <select 
+                                    wire:model="orderBy" 
+                                    wire:change="applyOrderBy($event.target.value)"
+                                    class="appearance-none bg-white text-gray-700 border border-gray-300 rounded-l py-0.5 px-1 pr-3 text-xs flex-1 focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                                >
+                                    <option value="leito" class="text-gray-800 bg-white hover:bg-blue-50">Número do Leito</option>
+                                    <option value="mews" class="text-gray-800 bg-white hover:bg-blue-50">Score MEWS</option>
+                                    <option value="name" class="text-gray-800 bg-white hover:bg-blue-50">Nome do Paciente</option>
+                                    <option value="prontuario" class="text-gray-800 bg-white hover:bg-blue-50">Número do Prontuário</option>
+                                    <option value="internment" class="text-gray-800 bg-white hover:bg-blue-50">Tempo de Internação</option>
+                                    <option value="age" class="text-gray-800 bg-white hover:bg-blue-50">Idade do Paciente</option>
+                                </select>
+                                <!-- Toggle direction button -->
+                                <button 
+                                    wire:click="toggleOrderDirection" 
+                                    class="bg-white border border-gray-300 border-l-0 rounded-r px-1 focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:bg-gray-50 flex-shrink-0 transition-colors"
+                                    title="{{ $orderDirection === 'asc' ? 'Ordem crescente (A→Z, 1→9)' : 'Ordem decrescente (Z→A, 9→1)' }}"
+                                >
+                                    @if($orderDirection === 'asc')
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                        </svg>
+                                    @else
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                                        </svg>
+                                    @endif
+                                </button>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Buttons container - 2x1 grid on smaller screens, inline on xl+ screens -->
-                    <div class="grid grid-cols-2 gap-1 sm:gap-1.5 xl:flex xl:gap-3 xl:flex-shrink-0">
+
+                    <!-- Buttons container -->
+                    <div class="flex gap-2 min-w-[140px]">
                         <!-- Refresh Button -->
                         <button 
                             wire:click="refreshData" 
                             @if($loading) disabled @endif
-                            class="inline-flex items-center justify-center px-1.5 sm:px-2 xl:px-3 py-1 sm:py-1.5 xl:py-2 rounded sm:rounded-md xl:rounded-lg text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 disabled:opacity-50 text-xs xl:text-sm"
+                            class="inline-flex items-center justify-center px-4 py-2 rounded text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 disabled:opacity-50 text-sm font-semibold min-w-[90px]"
                             title="Atualizar dados do setor selecionado"
                         >
-                            <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 xl:w-4 xl:h-4 mr-0.5 sm:mr-1 xl:mr-1.5 {{ $loading ? 'animate-spin' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-4 h-4 mr-2 {{ $loading ? 'animate-spin' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                             <span class="hidden sm:inline">Atualizar</span>
@@ -216,17 +227,17 @@
                         <button 
                             wire:click="resetFilters" 
                             @if($loading) disabled @endif
-                            class="inline-flex items-center justify-center px-1.5 sm:px-2 xl:px-3 py-1 sm:py-1.5 xl:py-2 rounded sm:rounded-md xl:rounded-lg text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-gray-400/50 disabled:opacity-50 text-xs xl:text-sm"
+                            class="inline-flex items-center justify-center px-4 py-2 rounded text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-gray-400/50 disabled:opacity-50 text-sm font-semibold min-w-[90px]"
                             title="Limpar todos os filtros aplicados"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-2.5 h-2.5 sm:w-3 sm:h-3 xl:w-4 xl:h-4 mr-0.5 sm:mr-1 xl:mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-1.5 w-1.5 sm:h-2 sm:w-2 xl:h-3 xl:w-3 -ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                            <span class="ml-0.5 xl:ml-1 hidden sm:inline">Limpar</span>
-                            <span class="ml-0.5 sm:hidden">LMP</span>
+                            <span class="ml-2 hidden sm:inline">Limpar</span>
+                            <span class="ml-2 sm:hidden">LMP</span>
                         </button>
                     </div>
                 </div>

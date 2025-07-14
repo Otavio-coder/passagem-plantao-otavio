@@ -8,14 +8,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
+// Modelo principal para relatórios SBAR
 class SbarReport extends Model
 {
     use HasFactory;
 
+    // Conexão com banco específico
     protected $connection = 'tasy';
     public $timestamps = false;
     
-    // Inject dependencies
+    // Dependências injetadas (modelos auxiliares)
     protected $patient;
     protected $patientScales;
     protected $patientClinical;
@@ -24,6 +26,7 @@ class SbarReport extends Model
     protected $sector;
     protected $bedUnit;
     
+    // Construtor: inicializa os modelos auxiliares
     public function __construct()
     {
         parent::__construct();
@@ -37,50 +40,50 @@ class SbarReport extends Model
     }
     
     /**
-     * Get complete patient data using modular approach - OPTIMIZED
+     * Busca dados completos dos pacientes de forma modular e otimizada
      */
     public function getBasePatientData($sectorId = null, $filters = [])
     {
-        // Get basic patient/bed data from Patient model
+        // Busca dados básicos dos pacientes/leitos
         $patients = $this->patient->getBasicPatientData($sectorId, $filters);
         
         if ($patients->isEmpty()) {
             return collect([]);
         }
         
-        // Get attendance numbers for patients only
+        // Extrai números de atendimento dos pacientes
         $attendanceNumbers = $patients->where('has_patient', true)->pluck('nr_atendimento')->filter()->toArray();
         
-        // Load additional data using specialized models
+        // Carrega dados adicionais usando modelos especializados
         $mewsData = !empty($attendanceNumbers) ? $this->patientScales->getMewsDataForPatients($attendanceNumbers) : [];
         $clinicalAlerts = !empty($attendanceNumbers) ? $this->patientClinical->getClinicalAlertsForPatients($attendanceNumbers) : [];
         $cpoeData = !empty($attendanceNumbers) ? $this->patientCPOE->getCpoePendingForPatients($attendanceNumbers) : [];
         $surgicalData = !empty($attendanceNumbers) ? $this->patientClinical->getSurgicalProceduresForPatients($attendanceNumbers) : [];
         
-        // Merge all data efficiently
+        // Mescla todos os dados nos registros dos pacientes/leitos
         $result = $patients->map(function($record) use ($mewsData, $clinicalAlerts, $cpoeData, $surgicalData) {
             if ($record->has_patient && $record->nr_atendimento) {
-                // Add MEWS data
+                // Adiciona dados MEWS
                 $mews = $mewsData[$record->nr_atendimento] ?? ['mews_score' => null, 'mews_date' => null];
                 $record->mews_score = $mews['mews_score'];
                 $record->mews_date = $mews['mews_date'];
                 
-                // Add clinical alerts
+                // Adiciona alertas clínicos
                 $alerts = $clinicalAlerts[$record->nr_atendimento] ?? ['has_allergy' => false, 'has_isolation' => false];
                 $record->has_allergy = $alerts['has_allergy'];
                 $record->has_isolation = $alerts['has_isolation'];
                 
-                // Add CPOE data
+                // Adiciona dados de pendências CPOE
                 $cpoe = $cpoeData[$record->nr_atendimento] ?? ['has_cpoe_pending' => false, 'cpoe_pending_count' => 0];
                 $record->has_cpoe_pending = $cpoe['has_cpoe_pending'];
                 $record->cpoe_pending_count = $cpoe['cpoe_pending_count'];
                 
-                // Add surgical data
+                // Adiciona dados cirúrgicos
                 $surgery = $surgicalData[$record->nr_atendimento] ?? ['has_surgery' => false, 'procedures' => []];
                 $record->has_surgery = $surgery['has_surgery'];
                 $record->surgical_procedures = $surgery['procedures'];
             } else {
-                // Empty bed defaults
+                // Valores padrão para leitos vazios
                 $record->mews_score = null;
                 $record->mews_date = null;
                 $record->has_allergy = false;
@@ -94,26 +97,26 @@ class SbarReport extends Model
             return $record;
         });
         
-        // Apply filters using specialized models
+        // Aplica filtro MEWS se necessário
         if (isset($filters['mews_filter']) && $filters['mews_filter'] !== 'all') {
             $result = $this->patientScales->applyMewsFilter($result, $filters['mews_filter']);
         }
         
-        // Apply surgical filter
+        // Aplica filtro cirúrgico
         if (isset($filters['surgical_filter']) && $filters['surgical_filter'] === 'with_surgery') {
             $result = $result->filter(function($patient) {
                 return $patient->has_patient && $patient->has_surgery;
             });
         }
         
-        // Apply sorting
+        // Aplica ordenação
         $result = $this->applySorting($result, $filters);
         
         return $result;
     }
 
     /**
-     * Apply sorting to patient data
+     * Aplica ordenação nos dados dos pacientes/leitos
      */
     private function applySorting($patients, $filters)
     {
@@ -121,7 +124,7 @@ class SbarReport extends Model
         $direction = $filters['order_direction'] ?? 'asc';
         
         $sortedPatients = $patients->sort(function($a, $b) use ($orderBy, $direction) {
-            // Always put patients before empty beds
+            // Sempre prioriza pacientes sobre leitos vazios
             if ($a->has_patient && !$b->has_patient) return -1;
             if (!$a->has_patient && $b->has_patient) return 1;
             
@@ -151,36 +154,36 @@ class SbarReport extends Model
     }
 
     /**
-     * Get complete patient details using modular approach
+     * Busca detalhes completos do paciente (com cache)
      */
     public function getPatientDetails($attendanceNumber)
     {
         $cacheKey = "patient_complete_details_{$attendanceNumber}";
         
         return Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
-            // Get basic details
+            // Dados básicos
             $basicDetails = $this->patient->getPatientBasicDetails($attendanceNumber);
             if (!$basicDetails) {
                 return null;
             }
             
-            // Get scales
+            // Escalas do paciente
             $scales = $this->patientScales->getPatientScales($attendanceNumber);
             
-            // Get clinical details
+            // Dados clínicos
             $clinical = $this->patientClinical->getPatientClinicalDetails($attendanceNumber);
             
-            // Get CPOE procedures
+            // Procedimentos CPOE
             $cpoeData = $this->patientCPOE->getPatientCpoeProcedures($attendanceNumber);
             
-            // Merge all data
+            // Mescla todos os dados
             $result = (object) array_merge(
                 (array) $basicDetails,
                 (array) $scales,
                 (array) $clinical
             );
             
-            // Add CPOE procedures data
+            // Adiciona procedimentos CPOE
             $result->cpoe_procedures = $cpoeData;
             
             return $result;
@@ -188,7 +191,7 @@ class SbarReport extends Model
     }
 
     /**
-     * Get CPOE procedures for patient
+     * Busca procedimentos CPOE do paciente
      */
     public function getPatientCpoeProcedures($attendanceNumber)
     {
@@ -196,7 +199,7 @@ class SbarReport extends Model
     }
 
     /**
-     * Get hospital name using Hospital model
+     * Busca nome do hospital via modelo Hospital
      */
     public function getHospitalName($sectorId)
     {
@@ -204,7 +207,7 @@ class SbarReport extends Model
     }
     
     /**
-     * Get sector details
+     * Busca detalhes do setor
      */
     public function getSectorDetails($sectorId)
     {
@@ -212,7 +215,7 @@ class SbarReport extends Model
     }
     
     /**
-     * Get sector statistics
+     * Busca estatísticas do setor
      */
     public function getSectorStatistics($sectorId)
     {
@@ -220,7 +223,7 @@ class SbarReport extends Model
     }
     
     /**
-     * Get hospital statistics
+     * Busca estatísticas do hospital
      */
     public function getHospitalStatistics($hospitalId = null)
     {
@@ -228,7 +231,7 @@ class SbarReport extends Model
     }
     
     /**
-     * Get all hospitals with sectors
+     * Busca todos hospitais com seus setores
      */
     public function getHospitalsWithSectors()
     {
@@ -236,14 +239,14 @@ class SbarReport extends Model
     }
     
     /**
-     * Get beds by sector
+     * Busca leitos por setor
      */
     public function getBedsBySector($sectorId)
     {
         return $this->bedUnit->getBedsBySector($sectorId);
     }
 
-    // Legacy methods for compatibility - delegate to new models
+    // Métodos legados para compatibilidade - delegam para novos modelos
     public function getCpoeProceduresData($sectorId = null, $attendanceNumber = null)
     {
         return $this->patientCPOE->getCpoeProceduresData($sectorId, $attendanceNumber);

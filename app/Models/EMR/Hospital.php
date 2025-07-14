@@ -10,6 +10,9 @@ class Hospital extends Model
 {
     protected $connection = 'tasy';
     public $timestamps = false;
+    protected $primaryKey = 'nr_sequencia';
+    protected $table = 'tasy.AGRUPAMENTO_SETOR'; // ou 'TASY.AGRUPAMENTO_SETOR' se necessário
+
     
     /**
      * Get hospital information by sector ID
@@ -128,5 +131,13 @@ class Hospital extends Model
                 ];
             });
         });
+    }
+    
+    /**
+     * Get the ID of the hospital (primary key)
+     */
+    public function getIdAttribute()
+    {
+        return $this->nr_sequencia;
     }
 }

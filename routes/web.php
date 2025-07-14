@@ -28,8 +28,10 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
         Route::middleware('can:configurar sistema')->prefix('configuracoes')->group(function () {
             Route::get('/', [SystemConfigurationController::class, 'index'])->name('system-configuration.index');
-            Route::post('/update', [SystemConfigurationController::class, 'updateConfigurations'])->name('system-configuration.update');
+            Route::post('/update', [SystemConfigurationController::class, 'update'])->name('system-configuration.update');
             Route::post('/cascade-preview', [SystemConfigurationController::class, 'getCascadePreview'])->name('system-configuration.cascade-preview');
+            Route::post('/system-configuration/sectors-by-hospital', [SystemConfigurationController::class, 'getSectorsByHospital'])->name('system-configuration.sectors-by-hospital');
+            Route::post('/system-configuration/beds-by-sector', [SystemConfigurationController::class, 'getBedsBySector'])->name('system-configuration.beds-by-sector');
             Route::get('/load-manual-beds', [SystemConfigurationController::class, 'loadManualBeds'])->name('system-configuration.load-manual-beds');
             Route::get('/sectors-for-hospital', [SystemConfigurationController::class, 'getSectorsForHospital'])->name('system-configuration.sectors-for-hospital');
             Route::get('/beds-for-sector', [SystemConfigurationController::class, 'getBedsForSector'])->name('system-configuration.beds-for-sector');
@@ -43,15 +45,6 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
         })->name('sbar.report');
     });
 
-});
-
-// Model Testing Routes
-Route::get('/test/sbar-model', function () {
-    return view('tests.sbar-model');
-});
-Route::post('/test/sbar-model/debug', [App\Http\Controllers\SbarReportController::class, 'debugModelMethod'])->name('test.sbar-model.debug');
-
-Route::get('teste', function (){
 });
 
 require __DIR__.'/auth.php';

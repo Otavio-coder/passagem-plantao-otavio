@@ -11,6 +11,17 @@ class PatientScales extends Model
     protected $connection = 'tasy';
     public $timestamps = false;
     
+
+
+
+
+
+
+
+
+
+
+    
     /**
      * Get MEWS data for multiple patients
      */

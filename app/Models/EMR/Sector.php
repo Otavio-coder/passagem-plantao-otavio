@@ -5,14 +5,16 @@ namespace App\Models\EMR;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Models\System\SystemConfiguration;
+
 
 class Sector extends Model
 {
     protected $connection = 'tasy';
     public $timestamps = false;
-    
-    // Setores permitidos no sistema
-    protected $allowedSectors = [20277, 1228, 9598, 1147, 4855];
+    protected $primaryKey = 'cd_setor_atendimento';
+    protected $table = 'tasy.setor_atendimento';
+
     
     /**
      * Get all allowed sectors with hospital information - CORRECTED
@@ -20,12 +22,16 @@ class Sector extends Model
     public function getAllowedSectors()
     {
         $cacheKey = "allowed_sectors_list";
-        
-        return Cache::remember($cacheKey, 1800, function() {
+        $allowedSectorIds = SystemConfiguration::allowedSectorCodes();
+
+        if (empty($allowedSectorIds)) {
+            return collect([]);
+        }
+
+        $placeholders = str_repeat('?,', count($allowedSectorIds) - 1) . '?';
+
+        return Cache::remember($cacheKey, 1800, function() use ($allowedSectorIds, $placeholders) {
             $hospital = new Hospital();
-            
-            $placeholders = str_repeat('?,', count($this->allowedSectors) - 1) . '?';
-            
             $results = DB::connection('tasy')->select("
                 SELECT 
                     sa.cd_setor_atendimento,
@@ -33,30 +39,27 @@ class Sector extends Model
                     sa.ds_prescricao as sector_short_name,
                     sa.nr_seq_agrupamento as hospital_id,
                     sa.ie_situacao as sector_status,
-                    
-                    -- Bed counts using unidade_atendimento
                     COUNT(ua.cd_unidade_basica) as total_beds,
                     COUNT(CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 END) as occupied_beds,
                     COUNT(CASE WHEN atp.nr_atendimento IS NULL THEN 1 END) as empty_beds
-                    
                 FROM tasy.setor_atendimento sa
                 LEFT JOIN tasy.unidade_atendimento ua ON sa.cd_setor_atendimento = ua.cd_setor_atendimento
                     AND ua.ie_situacao = 'A'
                 LEFT JOIN tasy.atendimento_paciente atp ON ua.nr_atendimento = atp.nr_atendimento
                     AND atp.dt_alta IS NULL
                 WHERE sa.cd_setor_atendimento IN ({$placeholders})
-                  AND sa.ie_situacao = 'A'
+                AND sa.ie_situacao = 'A'
                 GROUP BY sa.cd_setor_atendimento, sa.ds_setor_atendimento, sa.ds_prescricao, 
-                         sa.nr_seq_agrupamento, sa.ie_situacao
+                        sa.nr_seq_agrupamento, sa.ie_situacao
                 ORDER BY sa.nr_seq_agrupamento, sa.ds_setor_atendimento
-            ", $this->allowedSectors);
-            
+            ", $allowedSectorIds);
+
             return collect($results)->map(function($record) use ($hospital) {
                 $hospitalInfo = $hospital->getHospitalBySector($record->cd_setor_atendimento);
                 $totalBeds = intval($record->total_beds);
                 $occupiedBeds = intval($record->occupied_beds);
                 $occupancyRate = $totalBeds > 0 ? round(($occupiedBeds / $totalBeds) * 100, 2) : 0;
-                
+
                 return (object) [
                     'cd_setor_atendimento' => $record->cd_setor_atendimento,
                     'ds_setor_atendimento' => $record->ds_setor_atendimento,
@@ -102,7 +105,7 @@ class Sector extends Model
     }
     
     /**
-     * Get sectors by hospital - CORRECTED
+     * Get sectors by hospital 
      */
     public function getSectorsByHospital($hospitalId)
     {
@@ -215,5 +218,13 @@ class Sector extends Model
             
             return null;
         });
+    }
+    
+    /**
+     * Get the ID of the sector
+     */
+    public function getIdAttribute()
+    {
+        return $this->cd_setor_atendimento;
     }
 }

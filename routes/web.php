@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SystemConfigurationController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
@@ -23,6 +24,16 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             Route::get( '/', [ \App\Http\Controllers\ProfileController::class, 'index' ] )->name( 'profiles.index' );
             Route::post( 'create', [ \App\Http\Controllers\ProfileController::class, 'create' ] )->middleware('can:criar perfis')->name( 'profiles.create' );
             Route::post( 'update', [ \App\Http\Controllers\ProfileController::class, 'edit' ] )->middleware('can:editar perfis')->name( 'profiles.edit' );
+        });
+
+        Route::middleware('can:configurar sistema')->prefix('configuracoes')->group(function () {
+            Route::get('/', [SystemConfigurationController::class, 'index'])->name('system-configuration.index');
+            Route::post('/update', [SystemConfigurationController::class, 'updateConfigurations'])->name('system-configuration.update');
+            Route::post('/cascade-preview', [SystemConfigurationController::class, 'getCascadePreview'])->name('system-configuration.cascade-preview');
+            Route::get('/load-manual-beds', [SystemConfigurationController::class, 'loadManualBeds'])->name('system-configuration.load-manual-beds');
+            Route::get('/sectors-for-hospital', [SystemConfigurationController::class, 'getSectorsForHospital'])->name('system-configuration.sectors-for-hospital');
+            Route::get('/beds-for-sector', [SystemConfigurationController::class, 'getBedsForSector'])->name('system-configuration.beds-for-sector');
+            Route::get('/sector-count-for-hospital', [SystemConfigurationController::class, 'getSectorCountForHospital'])->name('system-configuration.sector-count-for-hospital');
         });
 
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );

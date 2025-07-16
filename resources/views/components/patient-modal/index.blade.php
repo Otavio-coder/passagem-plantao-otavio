@@ -33,30 +33,78 @@
                 <x-patient-modal.tabs />
 
                 <!-- Modal Body - Scrollable Content -->
-                <div class="flex-1 overflow-y-auto bg-gray-50">
-                    <!-- Tab S: Situação -->
+                <div class="flex-1 min-h-0 bg-gray-50 relative">
+                <!-- Tab S: Situação -->
+                <div
+                    x-show="activeTab === 'tab-s'"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 transform translate-y-0"
+                    x-transition:leave-end="opacity-0 transform translate-y-2"
+                    class="h-full overflow-y-auto"
+                >
                     <x-patient-modal.content.sbar-situacao 
-                        :loadingPatient="$loadingPatient"
-                        :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" />
-                    
-                    <!-- Tab B: Background -->
+                    :loadingPatient="$loadingPatient"
+                    :currentPatient="$currentPatient"
+                    :patientDetails="$patientDetails" />
+                </div>
+
+                <!-- Tab B: Background -->
+                <div
+                    x-show="activeTab === 'tab-b'"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 transform translate-y-0"
+                    x-transition:leave-end="opacity-0 transform translate-y-2"
+                    class="h-full overflow-y-auto"
+                >
                     <x-patient-modal.content.sbar-background 
-                        :loadingPatient="$loadingPatient"
-                        :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" />
-                    
-                    <!-- Tab A: Avaliação -->
+                    :loadingPatient="$loadingPatient"
+                    :currentPatient="$currentPatient"
+                    :patientDetails="$patientDetails" />
+                </div>
+
+                <!-- Tab A: Avaliação -->
+                <div
+                    x-show="activeTab === 'tab-a'"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 transform translate-y-0"
+                    x-transition:leave-end="opacity-0 transform translate-y-2"
+                    class="h-full overflow-y-auto"
+                >
                     <x-patient-modal.content.sbar-avaliacao 
-                        :loadingPatient="$loadingPatient"
-                        :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" />
-                    
-                    <!-- Tab R: Recomendações (includes CPOE) -->
+                    :loadingPatient="$loadingPatient"
+                    :currentPatient="$currentPatient"
+                    :patientDetails="$patientDetails" />
+                </div>
+
+                <!-- Tab R: Recomendações (includes CPOE) -->
+                <div
+                    x-show="activeTab === 'tab-r'"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 transform translate-y-2"
+                    x-transition:enter-end="opacity-100 transform translate-y-0"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 transform translate-y-0"
+                    x-transition:leave-end="opacity-0 transform translate-y-2"
+                    class="h-full overflow-y-auto"
+                >
                     <x-patient-modal.content.sbar-recomendacoes 
-                        :loadingPatient="$loadingPatient"
-                        :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" />
+                    :loadingPatient="$loadingPatient"
+                    :currentPatient="$currentPatient"
+                    :patientDetails="$patientDetails" />
+                </div>
                 </div>
                 
                 <!-- Modal Footer -->

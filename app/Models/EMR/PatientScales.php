@@ -12,18 +12,9 @@ class PatientScales extends Model
     public $timestamps = false;
     
 
-
-
-
-
-
-
-
-
-
-    
     /**
-     * Get MEWS data for multiple patients
+     * Get today's most recent MEWS data for multiple patients
+     * Returns "Não Medido" if not available for today
      */
     public function getMewsDataForPatients($attendanceNumbers)
     {
@@ -31,7 +22,7 @@ class PatientScales extends Model
             return [];
         }
         
-        $cacheKey = "mews_data_" . md5(implode(',', $attendanceNumbers));
+        $cacheKey = "mews_data_today_" . md5(implode(',', $attendanceNumbers));
         
         return Cache::remember($cacheKey, 300, function() use ($attendanceNumbers) {
             $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
@@ -47,17 +38,30 @@ class PatientScales extends Model
                     ) AS rn
                 FROM tasy.escala_mews xm
                 WHERE xm.nr_atendimento IN ({$placeholders})
-                  AND xm.dt_inativacao IS NULL 
-                  AND xm.dt_liberacao IS NOT NULL
-                  AND xm.dt_avaliacao >= SYSDATE - 7
+                AND xm.dt_inativacao IS NULL 
+                AND xm.dt_liberacao IS NOT NULL
+                AND xm.dt_avaliacao >= TRUNC(SYSDATE)
+                AND xm.dt_avaliacao < TRUNC(SYSDATE) + 1
             ", $attendanceNumbers);
             
             $mewsData = [];
+            foreach ($attendanceNumbers as $nr_atendimento) {
+                $mewsData[$nr_atendimento] = [
+                    'mews_score' => null,
+                    'mews_date' => null,
+                    'mews_alert' => 'Não aferido', // alerta curto
+                    'mews_display' => 'MEWS: não aferido'
+                ];
+            }
             foreach ($results as $result) {
-                if ($result->rn == 1) { // Only latest
+                if ($result->rn == 1) { // Only latest for today
+                    $hora = date('H:i', strtotime($result->dt_avaliacao));
+                    $pontuacao = $result->qt_pontuacao;
                     $mewsData[$result->nr_atendimento] = [
-                        'mews_score' => $result->qt_pontuacao,
-                        'mews_date' => $result->dt_avaliacao
+                        'mews_score' => $pontuacao,
+                        'mews_date' => $result->dt_avaliacao,
+                        'mews_alert' => null,
+                        'mews_display' => "MEWS: {$pontuacao} ({$hora})"
                     ];
                 }
             }
@@ -67,7 +71,7 @@ class PatientScales extends Model
     }
     
     /**
-     * Get all scales for a specific patient - REFACTORED FOR EFFICIENCY
+     * Get all scales for a specific patient 
      */
     public function getPatientScales($attendanceNumber)
     {
@@ -87,7 +91,8 @@ class PatientScales extends Model
     }
     
     /**
-     * Get MEWS score for a patient
+     * Get MEWS score for a patient (only today's most recent)
+     * Returns "Não Medido" if not available for today
      */
     private function getMewsScore($attendanceNumber)
     {
@@ -95,15 +100,18 @@ class PatientScales extends Model
             SELECT qt_pontuacao 
             FROM tasy.escala_mews 
             WHERE nr_atendimento = ? 
-              AND dt_liberacao IS NOT NULL 
-              AND dt_inativacao IS NULL
+            AND dt_liberacao IS NOT NULL 
+            AND dt_inativacao IS NULL
+            AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
             ORDER BY dt_avaliacao DESC 
             FETCH FIRST 1 ROWS ONLY
         ", [$attendanceNumber]);
         
-        return $result ? $result[0]->qt_pontuacao : null;
+        return $result && isset($result[0]->qt_pontuacao)
+            ? $result[0]->qt_pontuacao
+            : null;
     }
-    
+
     /**
      * Get MEWS description for a patient - OPTIMIZED
      */
@@ -111,45 +119,42 @@ class PatientScales extends Model
     {
         $result = DB::connection('tasy')->select("
             SELECT
-                -- Check if patient arrived today
                 CASE WHEN TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) = 0 THEN 1 ELSE 0 END AS is_new_patient,
-                
-                -- Get latest MEWS data
                 em.qt_pontuacao AS mews_score,
                 em.dt_avaliacao AS mews_date
-                
             FROM tasy.atendimento_paciente atp
             LEFT JOIN (
                 SELECT nr_atendimento, qt_pontuacao, dt_avaliacao,
-                       ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) AS rn
+                    ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) AS rn
                 FROM tasy.escala_mews 
                 WHERE nr_atendimento = ?
-                  AND dt_liberacao IS NOT NULL 
-                  AND dt_inativacao IS NULL
+                AND dt_liberacao IS NOT NULL 
+                AND dt_inativacao IS NULL
+                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
             ) em ON em.nr_atendimento = atp.nr_atendimento AND em.rn = 1
             WHERE atp.nr_atendimento = ?
         ", [$attendanceNumber, $attendanceNumber]);
-        
+
         if (!$result) {
-            return 'MEWS não realizado';
+            return 'MEWS não realizado hoje';
         }
-        
+
         $data = $result[0];
-        
-        // New patient logic
+
+        // Novo paciente
         if ($data->is_new_patient) {
             return 'Paciente recém-chegado - MEWS pendente';
         }
-        
-        // No MEWS found
+
+        // Sem MEWS para hoje
         if ($data->mews_score === null) {
-            return 'MEWS não realizado';
+            return 'ALERTA: MEWS não preenchido para o dia de hoje!';
         }
-        
-        // Format MEWS description
-        $date = date('d/m', strtotime($data->mews_date));
+
+        // Formata descrição
+        $date = date('d/m H:i', strtotime($data->mews_date));
         $classification = $this->getMewsClassification($data->mews_score);
-        
+
         return "{$date} - {$classification} (MEWS: {$data->mews_score})";
     }
     

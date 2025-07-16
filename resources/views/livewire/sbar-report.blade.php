@@ -1,11 +1,21 @@
 <div class="font-montserrat relative">
     
-    {{-- Overlay de carregamento profissional --}}
-    <div wire:loading class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-        <div class="text-center">
-            <div class="border-4 border-white border-t-transparent rounded-full h-16 w-16 animate-spin mx-auto"></div>
-            <p class="mt-4 text-white font-semibold">Carregando, aguarde...</p>
-        </div>
+    {{-- Overlay de carregamento --}}
+    <div
+    wire:loading
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#004D9D]/20"
+    role="status"
+    aria-live="polite"
+    >
+    <div class="flex flex-col items-center space-y-2">
+        {{-- Spinner minimalista --}}
+        <div
+        class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin"
+        aria-hidden="true"
+        ></div>
+        {{-- Texto simples --}}
+        <span class="text-[#004D9D] font-medium">Carregando...</span>
+    </div>
     </div>
 
     <!-- Sistema de Aviso - Aparece sempre -->
@@ -390,14 +400,13 @@
                                 @if(isset($patient->has_surgery) && $patient->has_surgery)
                                 <div class="relative group">
                                     <div class="bg-purple-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente com cirurgias programadas/realizadas">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                    </svg>
+                                        <!-- Ícone SVG de tesoura para cirurgia -->
+                                        @svg('healthicons-o-surgical-sterilization', 'h-3 w-3 sm:h-4 sm:w-4')
                                     </div>
                                     <!-- Tooltip -->
                                     <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-purple-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
-                                    {{ count($patient->surgical_procedures ?? []) }} cirurgia(s)
-                                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-purple-600"></div>
+                                        {{ count($patient->surgical_procedures ?? []) }} cirurgia(s)
+                                        <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-purple-600"></div>
                                     </div>
                                 </div>
                                 @endif
@@ -405,28 +414,26 @@
                             
                             <!-- Right side: MEWS Score -->
                             <div class="flex-shrink-0">
-                                @if($patient->mews_score !== null && $patient->mews_score > 0)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $textColorClass }} bg-white/70 whitespace-nowrap">
-                                    MEWS: {{ $patient->mews_score }}
-                                </span>
+                                @if($patient->mews_score !== null)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $textColorClass }} bg-white/70 whitespace-nowrap">
+                                        {{ $patient->mews_display }}
+                                    </span>
                                 @elseif($isNewPatient)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-white/70 whitespace-nowrap">
-                                    MEWS: Pendente
-                                </span>
-                                @elseif($patient->mews_score === null || $patient->mews_score === 0)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-white/70 whitespace-nowrap">
-                                    MEWS: N/R
-                                </span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-white/70 whitespace-nowrap">
+                                        MEWS: Pendente
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-white/70 whitespace-nowrap">
+                                        MEWS: não aferido
+                                    </span>
                                 @endif
                             </div>
                             </div>
                             
                             <!-- Patient Info -->
                             <div class="mb-3 flex items-center">
-                            <div class="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center bg-gray-200 text-gray-700 font-semibold flex-shrink-0">
-                                <span class="text-xs sm:text-sm">{{ $patient->initials }}</span>
-                            </div>
                             <div class="ml-3 truncate flex-1 min-w-0">
+                                <p class="text-gray-600 text-xs truncate"><strong>{{ $patient->nm_pessoa_fisica ?? 'N/A' }}</strong></p>
                                 <p class="text-gray-600 text-xs truncate">Atend: {{ $patient->nr_atendimento ?? 'N/A' }}</p>
                                 <p class="text-gray-600 text-xs truncate">Pront: {{ $patient->nr_prontuario ?? 'N/A' }}</p>
                             </div>
@@ -437,13 +444,32 @@
                             <div class="space-y-1.5">
                                 <!-- Sexo e Idade detalhada -->
                                 <div class="text-xs text-gray-600">
-                                <span class="font-medium">
+                                <span class="flex items-center gap-2 font-normal text-xs text-gray-600">
                                     @if($patient->sexo === 'F')
-                                    <span class="text-pink-600">♀</span> Feminino
+                                        <span class="inline-flex items-center justify-center rounded-full text-pink-600" style="width: 1.5em; height: 1.5em;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                                                <line x1="12" y1="12" x2="12" y2="20" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="9" y1="17" x2="15" y2="17" stroke="currentColor" stroke-width="2"/>
+                                            </svg>
+                                        </span>
+                                        <span class="opacity-70">Feminino</span>
                                     @elseif($patient->sexo === 'M')
-                                    <span class="text-blue-600">♂</span> Masculino
+                                        <span class="inline-flex items-center justify-center rounded-full bg-blue-100" style="width: 1.5em; height: 1.5em;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <circle cx="10" cy="14" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                                                <path stroke="currentColor" stroke-width="2" d="M14 10l6-6m0 0h-4m4 0v4"/>
+                                            </svg>
+                                        </span>
+                                        <span class="opacity-70">Masculino</span>
                                     @else
-                                    Sexo: N/I
+                                        <span class="inline-flex items-center justify-center rounded-full bg-gray-100" style="width: 1.5em; height: 1.5em;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                                                <path stroke="currentColor" stroke-width="2" d="M12 16v2"/>
+                                            </svg>
+                                        </span>
+                                        <span class="opacity-70">Sexo: N/I</span>
                                     @endif
                                 </span>
                                 </div>
@@ -460,13 +486,10 @@
                                 <span class="font-medium">Internação:</span> 
                                 @if($patient->tempo_internacao_dias === null)
                                     <span class="text-gray-500">N/A</span>
-                                @elseif($patient->tempo_internacao_dias === 0)
+                                @elseif($patient->tempo_internacao_dias >= 0 && $patient->tempo_internacao_dias < 1)
                                     <span class="text-green-600 font-semibold">Recém-chegado (hoje)</span>
                                 @else
-                                    @php
-                                    // Always round to whole number for cleaner display
-                                    $days = ceil($patient->tempo_internacao_dias);
-                                    @endphp
+                                    @php $days = ceil($patient->tempo_internacao_dias); @endphp
                                     {{ $days }} dia{{ $days != 1 ? 's' : '' }}
                                 @endif
                                 </div>
@@ -571,22 +594,21 @@
         </div>
     </div>
     
-    <!-- Enhanced Floating Action Button (FAB) for Auto-Scroll with improved positioning -->
+    <!-- Floating Action Button (FAB) for Auto-Scroll - Only Cíclico mode with speed controls -->
     <div id="fabContainer" class="hidden lg:block fixed bottom-6 right-6 z-50" style="position: fixed !important; will-change: auto !important;">
-        <!-- Main FAB button with nested controls -->
         <div class="relative">
-            <!-- Main expandable button -->
+            <!-- Main FAB button -->
             <button id="mainFabButton" 
                 class="p-4 bg-[#0071B9] hover:bg-[#004D9D] text-white rounded-full shadow-lg transition-all duration-200 flex items-center justify-center"
-                title="Controle de rolagem automática (duplo-clique para debug)">
+                title="Controle de rolagem automática">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
                 </svg>
             </button>
 
-            <!-- FAB Controls panel - initially hidden -->
+            <!-- FAB Controls panel - only speed controls -->
             <div id="fabControlsPanel" class="absolute bottom-16 right-0 bg-white rounded-lg shadow-xl p-3 hidden min-w-[240px] transition-all duration-300">
-                <div class="mb-4">
+                <div class="mb-2">
                     <h3 class="text-gray-700 font-semibold mb-2 border-b pb-1">Velocidade</h3>
                     <div class="flex space-x-2">
                         <button id="speedSlow" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-speed="slow" data-delay="80">
@@ -600,19 +622,6 @@
                         </button>
                     </div>
                 </div>
-                
-                <div class="mb-4">
-                    <h3 class="text-gray-700 font-semibold mb-2 border-b pb-1">Modo</h3>
-                    <div class="flex space-x-2">
-                        <button id="modeCycle" class="mode-btn flex-1 px-3 py-1 rounded-full text-xs bg-[#0071B9] text-white hover:bg-[#004D9D] transition-colors" data-mode="cycle">
-                            Cíclico
-                        </button>
-                        <button id="modeRestart" class="mode-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-mode="restart">
-                            Reinício
-                        </button>
-                    </div>
-                </div>
-                               
                 <!-- Close Button for control panel -->
                 <button id="closeFabPanel" class="w-full mt-1 text-xs text-gray-500 hover:text-gray-700 flex items-center justify-center">
                     <span>Fechar</span>
@@ -622,7 +631,7 @@
                 </button>
             </div>
             
-            <!-- Start/Stop button - Active even during scrolling -->
+            <!-- Start/Stop button -->
             <button id="autoScrollButton" 
                 class="absolute top-0 left-0 w-full h-full rounded-full flex items-center justify-center transition-opacity duration-300"
                 title="Iniciar/Parar rolagem automática">
@@ -636,20 +645,17 @@
                 </div>
             </button>
             
-            <!-- Settings button - Always visible -->
+            <!-- Settings button -->
             <button id="settingsButton" 
                 class="absolute -top-3 -right-3 bg-gray-100 text-gray-600 rounded-full p-1.5 shadow-md hover:bg-gray-200"
                 title="Configurações de rolagem">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                @svg('mdi-mouse-scroll-wheel', 'h-4 w-4')
             </button>
             
             <!-- Status indicator -->
             <div id="scrollStatusIndicator" class="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-green-500 hidden animate-pulse"></div>
             
-            <!-- Refresh indicator - shows when auto-refresh happens -->
+            <!-- Refresh indicator -->
             <div id="refreshIndicator" class="absolute -top-1 -right-6 h-3 w-3 rounded-full bg-blue-500 hidden animate-ping"></div>
         </div>
     </div>

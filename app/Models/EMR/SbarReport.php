@@ -64,9 +64,11 @@ class SbarReport extends Model
         $result = $patients->map(function($record) use ($mewsData, $clinicalAlerts, $cpoeData, $surgicalData) {
             if ($record->has_patient && $record->nr_atendimento) {
                 // Adiciona dados MEWS
-                $mews = $mewsData[$record->nr_atendimento] ?? ['mews_score' => null, 'mews_date' => null];
+                $mews = $mewsData[$record->nr_atendimento] ?? ['mews_score' => null, 'mews_date' => null, 'mews_alert' => null];
                 $record->mews_score = $mews['mews_score'];
                 $record->mews_date = $mews['mews_date'];
+                $record->mews_alert = $mews['mews_alert'];
+                $record->mews_display = $mews['mews_display'];
                 
                 // Adiciona alertas clínicos
                 $alerts = $clinicalAlerts[$record->nr_atendimento] ?? ['has_allergy' => false, 'has_isolation' => false];

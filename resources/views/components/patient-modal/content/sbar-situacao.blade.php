@@ -68,13 +68,28 @@
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Sexo:</label>
-                            <p class="text-sm font-semibold text-gray-800">
+                            <p class="text-sm font-semibold text-gray-800 flex items-center gap-2">
                                 @if($patientDetails->sexo === 'F')
-                                    <span class="text-pink-600">♀</span> Feminino
+                                    <span class="inline-flex items-center justify-center text-pink-600" style="font-size:1.75rem;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                                            <line x1="12" y1="12" x2="12" y2="20" stroke="currentColor" stroke-width="2"/>
+                                            <line x1="9" y1="17" x2="15" y2="17" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                    </span>
+                                    <span class="text-xs text-gray-500 font-normal">Feminino</span>
                                 @elseif($patientDetails->sexo === 'M')
-                                    <span class="text-blue-600">♂</span> Masculino
+                                    <span class="inline-flex items-center justify-center text-blue-600" style="font-size:1.75rem;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
+                                            <line x1="16" y1="8" x2="20" y2="4" stroke="currentColor" stroke-width="2"/>
+                                            <line x1="20" y1="4" x2="20" y2="8" stroke="currentColor" stroke-width="2"/>
+                                            <line x1="20" y1="4" x2="16" y2="4" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                    </span>
+                                    <span class="text-xs text-gray-500 font-normal">Masculino</span>
                                 @else
-                                    Não informado
+                                    <span class="text-xs text-gray-500 font-normal">Não informado</span>
                                 @endif
                             </p>
                         </div>
@@ -84,19 +99,23 @@
                             <p class="text-sm font-semibold text-gray-800">
                                 @if($patientDetails->tempo_internacao_dias === null)
                                     <span class="text-gray-500">N/A</span>
-                                @elseif($patientDetails->tempo_internacao_dias == 0)
-                                    <span class="text-green-600 font-bold">Recém-chegado (hoje)</span>
+                                @elseif(is_numeric($patientDetails->tempo_internacao_dias) && $patientDetails->tempo_internacao_dias >= 0 && $patientDetails->tempo_internacao_dias < 1)
+                                    <span class="text-green-600 font-bold">
+                                        Recém-chegado (hoje)
+                                    </span>
                                 @else
-                                    {{ $patientDetails->tempo_internacao_dias }} dia(s)
+                                    @php $days = ceil($patientDetails->tempo_internacao_dias); @endphp
+                                    {{ $days }} dia{{ $days != 1 ? 's' : '' }}
                                 @endif
                             </p>
                         </div>
-                        
+                    </div>
+                    <!-- Médico Responsável e Convênio lado a lado -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Médico Responsável:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->medico_responsavel ?? 'Não informado' }}</p>
                         </div>
-                        
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Convênio:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->convenio ?? 'Não informado' }}</p>
@@ -126,17 +145,17 @@
                             <label class="block text-xs font-medium text-gray-600 mb-1">Plano Educ.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->plano_educ ?? 'Não realizado' }}</p>
                         </div>
-                        
+                    </div>
+                    <!-- PE, Diag. ENF. e Queda lado a lado -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">PE:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->pe_data ?? 'Não realizado' }}</p>
                         </div>
-                        
-                        <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg border">
+                        <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Diag. ENF.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->diag ?? 'Não informado' }}</p>
                         </div>
-                        
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Queda:</label>
                             <p class="text-sm font-bold {{ $patientDetails->ds_queda !== 'Não' ? 'text-red-700' : 'text-green-700' }}">

@@ -88,9 +88,7 @@
                     <!-- Procedimentos Cirúrgicos - Full width on all screens -->
                     <div class="bg-white p-4 rounded-lg border border-gray-200 lg:col-span-2">
                         <h5 class="text-sm font-medium text-gray-800 mb-3 flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                            </svg>
+                            @svg('healthicons-o-surgical-sterilization', 'h-3 w-3 sm:h-4 sm:w-4 mr-2 text-purple-600')
                             Procedimentos Cirúrgicos
                         </h5>
                         <div class="text-sm text-gray-700 p-3 bg-gray-50 rounded border">
@@ -395,7 +393,20 @@
             </div>
         </div>
     @else
-        <!-- ...existing error state... -->
+        <!-- Error State -->
+        <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
+            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
+            
+            <button 
+                wire:click="showPatientDetails('{{ $currentPatient['nr_atendimento'] ?? '' }}')"
+                class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+            >
+                Tentar novamente
+            </button>
+        </div>
     @endif
 </div>
 

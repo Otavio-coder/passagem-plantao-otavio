@@ -57,8 +57,8 @@
             }
         @endphp
 
-        <!-- Tight Container for Chat System -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 h-[calc(100vh-9rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-11rem)] flex flex-col overflow-hidden">
+        <!-- Tight Container for Chat System (smaller height) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 h-[440px] sm:h-[480px] lg:h-[560px] flex flex-col overflow-hidden">
             
             <!-- Compact Header Section -->
             <div class="flex-shrink-0 bg-gradient-to-r {{ $headerBg }} text-white p-2 sm:p-3 rounded-t-lg">
@@ -264,7 +264,7 @@
             </div>
 
             <!-- Compact Messages Area -->
-            <div class="flex-1 overflow-y-auto p-2 bg-gray-50 min-h-0" id="messages-container">
+            <div class="flex-1 overflow-y-auto p-2 bg-gray-50 min-h-[120px] max-h-[220px] h-[120px] sm:min-h-[140px] sm:max-h-[260px] sm:h-[140px] lg:min-h-[160px] lg:max-h-[300px] lg:h-[160px]" id="messages-container">
                 @if(count($this->shiftMessages) > 0)
                     <!-- Compact Pinned Messages -->
                     @php $pinnedMessages = collect($this->shiftMessages)->where('is_pinned', true) @endphp
@@ -362,13 +362,13 @@
                         </div>
                     @endif
                 @else
-                    <!-- Compact Empty State -->
-                    <div class="text-center py-6">
-                        <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Compact Empty State (always small height) -->
+                    <div class="flex flex-col items-center justify-center h-full min-h-[120px] sm:min-h-[140px] lg:min-h-[160px]">
+                        <svg class="mx-auto h-5 w-5 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                         </svg>
-                        <p class="text-gray-500 text-sm font-medium">Nenhuma mensagem registrada</p>
-                        <p class="text-gray-400 text-xs mt-1">
+                        <p class="text-gray-500 text-xs font-medium">Nenhuma mensagem registrada</p>
+                        <p class="text-gray-400 text-xs mt-0.5">
                             {{ $this->viewingHistory ? 'Sem anotações neste período' : 'Inicie registrando a primeira mensagem' }}
                         </p>
                     </div>

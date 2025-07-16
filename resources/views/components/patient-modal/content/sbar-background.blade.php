@@ -37,15 +37,23 @@
                         Diagnóstico e Comorbidades
                     </h5>
                     <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
-                        <div class="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
-                            @php
-                                $diagnosticos = $patientDetails->diagnosticos_comorbidades ?? 'Não informado';
-                                // Organizar melhor o texto dos diagnósticos
-                                $diagnosticos = str_replace(['>', '<'], ['• ', ''], $diagnosticos);
-                                $diagnosticos = str_replace(['|', ' - '], ["\n• ", ' → '], $diagnosticos);
-                            @endphp
-                            {{ $diagnosticos }}
-                        </div>
+                        @php
+                            $diagnosticos = $patientDetails->diagnosticos_comorbidades ?? 'Não informado';
+                            $diagnosticosList = array_filter(array_map('trim', preg_split('/\|/', $diagnosticos)));
+                        @endphp
+
+                        @if(count($diagnosticosList) > 1)
+                            <div class="space-y-2">
+                                @foreach($diagnosticosList as $diag)
+                                    <div class="flex items-center space-x-2 text-sm text-gray-800">
+                                        <span class="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
+                                        <span class="font-medium">{{ $diag }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-sm text-gray-800 font-medium">{{ $diagnosticos }}</p>
+                        @endif
                     </div>
                 </div>
                 
@@ -86,20 +94,18 @@
                     <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
                         @php
                             $alergias = $patientDetails->alergias_detalhadas ?? 'Nenhuma alergia registrada';
-                            // Remover "- Não informado/desconhecido" como você sugeriu
                             $alergias = preg_replace('/\s*-\s*(Não informado|desconhecido|N\/A)[^;]*/i', '', $alergias);
-                            $alergias = preg_replace('/;\s*;/', ';', $alergias); // Remove ; duplos
-                            $alergias = trim($alergias, '; '); // Remove ; no início/fim
-                            
+                            $alergias = preg_replace('/;\s*;/', ';', $alergias);
+                            $alergias = trim($alergias, '; ');
                             $alergiasList = array_filter(array_map('trim', explode(';', $alergias)));
                         @endphp
-                        
+
                         @if(count($alergiasList) > 1 && !in_array(strtolower($alergias), ['nenhuma alergia registrada', 'sem alergias registradas']))
-                            <div class="space-y-2">
+                            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
                                 @foreach($alergiasList as $alergia)
                                     @if(!empty(trim($alergia)))
-                                        <div class="flex items-start space-x-2 text-sm text-gray-800">
-                                            <span class="inline-block w-2 h-2 bg-red-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                                        <div class="flex items-center space-x-2 text-sm text-gray-800">
+                                            <span class="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
                                             <span class="font-medium">{{ trim($alergia) }}</span>
                                         </div>
                                     @endif
@@ -110,58 +116,22 @@
                         @endif
                     </div>
                 </div>
-                
-                <!-- Informações Complementares -->
-                <div>
-                    <h5 class="text-xs sm:text-sm font-bold text-gray-800 mb-3 sm:mb-4 border-l-4 border-indigo-500 pl-2 sm:pl-3 bg-indigo-50 py-1.5 sm:py-2 rounded-r">
-                        Informações Complementares
-                    </h5>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                        <div class="bg-gray-50 p-3 sm:p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Tempo de Internação:</label>
-                            <p class="text-xs sm:text-sm font-semibold text-gray-800">
-                                @if($patientDetails->tempo_internacao_dias === null)
-                                    <span class="text-gray-500">N/A</span>
-                                @elseif($patientDetails->tempo_internacao_dias == 0)
-                                    <span class="text-green-600 font-bold">Recém-chegado (hoje)</span>
-                                @else
-                                    @php
-                                        // FIXED: Remove decimals completely
-                                        $days = (int) round($patientDetails->tempo_internacao_dias);
-                                    @endphp
-                                    {{ $days }} dia{{ $days > 1 ? 's' : '' }}
-                                @endif
-                            </p>
-                        </div>
-                        
-                        <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Histórico de Quedas:</label>
-                            <p class="text-sm font-bold {{ $patientDetails->ds_queda !== 'Não' ? 'text-red-700' : 'text-green-700' }}">
-                                {{ $patientDetails->ds_queda ?? 'Não avaliado' }}
-                            </p>
-                        </div>
-                        
-                        <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1 flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                </svg>
-                                Medida de Bloqueio:
-                            </label>
-                            <p class="text-sm font-bold {{ $patientDetails->medida_bloqueio === 'Sim' ? 'text-yellow-700' : 'text-green-700' }}">
-                                {{ $patientDetails->medida_bloqueio ?? 'Não informado' }}
-                                @if($patientDetails->medida_bloqueio === 'Sim' && $patientDetails->motivos_isolamento)
-                                    <span class="block text-xs text-yellow-600 mt-1 font-normal">
-                                        {{ $patientDetails->motivos_isolamento }}
-                                    </span>
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     @else
-        <!-- ...existing error state... -->
+        <!-- Error State -->
+        <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
+            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
+            
+            <button 
+                wire:click="showPatientDetails('{{ $currentPatient['nr_atendimento'] ?? '' }}')"
+                class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+            >
+                Tentar novamente
+            </button>
+        </div>
     @endif
 </div>

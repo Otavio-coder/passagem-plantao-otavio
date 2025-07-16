@@ -55,6 +55,8 @@ class SystemConfiguration extends Model
 
     public static function allowedBedCodes()
     {
-        return self::beds()->pluck('bed_code')->toArray();
+        return self::beds()->get()->map(function($item) {
+            return $item->bed_code . '|' . $item->sector_code;
+        })->toArray();
     }
 }

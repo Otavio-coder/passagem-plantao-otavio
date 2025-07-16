@@ -55,12 +55,15 @@
                 <div x-show="openTab === 'leitos'" class="transition-all duration-300">
                     <label class="block text-[#004D9D] text-sm font-semibold mb-2">Leitos Permitidos:</label>
                     <div class="max-h-64 overflow-y-auto border rounded-lg bg-blue-50/40 p-2">
+                        <button type="button" id="selectAllBeds" class="mb-2 px-3 py-1 bg-[#0071B9] text-white rounded text-xs hover:bg-[#004D9D]">
+                            Selecionar Todos os Leitos Visíveis
+                        </button>
                         <select name="bed_codes[]" id="bedSelect" multiple class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-2 pr-4 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors">
                         @foreach($bedunits as $bed)
                             @if(in_array($bed->cd_setor_atendimento, $selectedSectors))
-                                <option value="{{ $bed->code }}"
-                                    @if(in_array($bed->code, $selectedBeds)) selected @endif>
-                                    {{ $bed->name }} ({{ $bed->code }})
+                                <option value="{{ $bed->code }}|{{ $bed->cd_setor_atendimento }}"
+                                    @if(in_array($bed->code . '|' . $bed->cd_setor_atendimento, $selectedBeds)) selected @endif>
+                                    {{ $bed->name }} ({{ $bed->code }}) - Setor {{ $bed->cd_setor_atendimento }}
                                 </option>
                             @endif
                         @endforeach
@@ -93,7 +96,18 @@ var csrfToken = "{{ csrf_token() }}";
 document.addEventListener('DOMContentLoaded', function() {
     const hospitalSelect = document.getElementById('hospitalSelect');
     const sectorSelect = document.getElementById('sectorSelect');
+
     const bedSelect = document.getElementById('bedSelect');
+    const selectAllBedsBtn = document.getElementById('selectAllBeds');
+
+    if (selectAllBedsBtn && bedSelect) {
+        selectAllBedsBtn.addEventListener('click', function() {
+            for (let i = 0; i < bedSelect.options.length; i++) {
+                bedSelect.options[i].selected = true;
+            }
+            bedSelect.dispatchEvent(new Event('change'));
+        });
+    }
 
     hospitalSelect.addEventListener('change', function() {
         const selectedHospitals = Array.from(hospitalSelect.selectedOptions).map(opt => opt.value);
@@ -133,12 +147,13 @@ document.addEventListener('DOMContentLoaded', function() {
             bedSelect.innerHTML = '';
             beds.forEach(bed => {
                 const option = document.createElement('option');
-                option.value = bed.code;
-                option.textContent = `${bed.name} (${bed.code})`;
+                option.value = bed.code + '|' + bed.cd_setor_atendimento;
+                option.textContent = `${bed.name} (${bed.code}) - Setor ${bed.cd_setor_atendimento}`;
                 bedSelect.appendChild(option);
             });
         });
     });
+    
 });
 </script>
 @endpush

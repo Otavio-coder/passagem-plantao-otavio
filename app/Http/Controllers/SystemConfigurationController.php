@@ -52,7 +52,7 @@ class SystemConfigurationController extends Controller
         $selectedSectors   = SystemConfiguration::allowedSectorCodes();
         $selectedBeds      = SystemConfiguration::allowedBedCodes();
 
-        return view('system_configuration.edit', compact(
+        return view('system-configuration.index', compact(
             'hospitals','sectors','bedunits',
             'selectedHospitals','selectedSectors','selectedBeds'
         ));
@@ -62,11 +62,18 @@ class SystemConfigurationController extends Controller
     {
         $hospitalIds = $request->input('hospital_ids', []);
         $sectors = DB::connection('tasy')->select("
-            SELECT cd_setor_atendimento AS code, ds_setor_atendimento AS name, nr_seq_agrupamento AS hospital_id
-            FROM TASY.SETOR_ATENDIMENTO
-            WHERE ie_situacao = 'A'
-            AND nr_seq_agrupamento IN (" . implode(',', $hospitalIds) . ")
-            ORDER BY ds_setor_atendimento
+            SELECT 
+                s.cd_setor_atendimento AS code, 
+                s.ds_setor_atendimento AS name,
+                s.nr_seq_agrupamento AS hospital_id
+            FROM TASY.SETOR_ATENDIMENTO s
+            WHERE s.ie_situacao = 'A'
+            AND EXISTS (
+                SELECT 1 FROM TASY.UNIDADE_ATENDIMENTO u
+                WHERE u.cd_setor_atendimento = s.cd_setor_atendimento
+                    AND u.ie_situacao = 'A'
+            )
+            ORDER BY s.ds_setor_atendimento
         ");
         return response()->json($sectors);
     }
@@ -89,7 +96,6 @@ class SystemConfigurationController extends Controller
     {
         Log::debug('SystemConfig update payload', $request->all());
 
-        // Remove antigas configurações
         SystemConfiguration::whereIn('configuration_type', ['hospital','sector','bed'])->delete();
 
         // Hospitais
@@ -134,22 +140,23 @@ class SystemConfigurationController extends Controller
         }
 
         $allowedSectors = $request->input('sector_codes', []);
-        foreach ($request->input('bed_codes', []) as $code) {
+        foreach ($request->input('bed_codes', []) as $bedComposite) {
+            [$code, $sector] = explode('|', $bedComposite);
             $bed = DB::connection('tasy')->selectOne("
                 SELECT cd_unidade_basica, cd_unidade_basica AS name, cd_setor_atendimento
                 FROM TASY.UNIDADE_ATENDIMENTO
-                WHERE cd_unidade_basica = :code
-            ", ['code' => $code]);
+                WHERE cd_unidade_basica = :code AND cd_setor_atendimento = :sector
+            ", ['code' => $code, 'sector' => $sector]);
             $name = $bed->name ?? null;
 
-            // Só salva leito se o setor estiver permitido
-            if (!in_array($bed->cd_setor_atendimento, $allowedSectors)) {
+            if (!in_array($sector, $allowedSectors)) {
                 continue;
             }
 
             SystemConfiguration::create([
                 'bed_code'           => $code,
                 'bed_name'           => $name,
+                'sector_code'        => $sector,
                 'configuration_type' => 'bed',
                 'is_active'          => true,
                 'configured_by'      => auth()->user()->id ?? 0,

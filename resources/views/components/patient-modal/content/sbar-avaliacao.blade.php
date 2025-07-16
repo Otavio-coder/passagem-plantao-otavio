@@ -4,12 +4,15 @@
     'patientDetails' => null
 ])
 
+<!-- SBAR Avaliação Modal Content -->
 <div x-show="activeTab === 'tab-a'" class="p-1 sm:p-2 lg:p-3 h-full">
+    {{-- Loading State --}}
     @if($loadingPatient)
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 lg:py-8">
             <div class="w-6 h-6 sm:w-8 sm:h-8 border-t-2 border-r-2 border-blue-400 border-solid rounded-full animate-spin mb-2"></div>
             <p class="text-gray-600 text-xs sm:text-sm">Carregando detalhes do paciente...</p>
         </div>
+    {{-- Empty Bed State --}}
     @elseif($currentPatient && !$currentPatient['has_patient'])
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 text-gray-600">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -18,8 +21,9 @@
             <p class="text-gray-700 text-sm sm:text-base">Leito Vazio</p>
             <p class="text-gray-500 text-xs">Este leito não possui paciente internado no momento.</p>
         </div>
+    {{-- Patient Details and Chat System --}}
     @elseif($patientDetails)
-        <!-- Development Warning -->
+        <!-- Aviso de desenvolvimento -->
         <div class="mb-2 bg-amber-50 border-l-2 border-amber-300 p-2 rounded-r text-xs">
             <div class="flex items-start">
                 <svg class="h-3 w-3 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -31,19 +35,17 @@
             </div>
         </div>
 
-        <!-- Shift-based Color Scheme -->
         @php
+            // Shift and color scheme logic
             $now = \Carbon\Carbon::now('America/Sao_Paulo');
             $currentHour = $now->hour;
             $isShiftClosed = false;
-            
             if ($this->currentShift === 'dia' && ($currentHour < 7 || $currentHour >= 19)) {
                 $isShiftClosed = true;
             } elseif ($this->currentShift === 'noite' && ($currentHour >= 7 && $currentHour < 19)) {
                 $isShiftClosed = true;
             }
-            
-            // Define colors based on shift
+            // Color variables for UI
             if ($this->currentShift === 'dia') {
                 $headerBg = 'from-sky-400 to-sky-500';
                 $accentColor = 'sky-500';
@@ -57,13 +59,13 @@
             }
         @endphp
 
-        <!-- Tight Container for Chat System (smaller height) -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 h-[440px] sm:h-[480px] lg:h-[560px] flex flex-col overflow-hidden">
+        <!-- Container principal do chat -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 h-[462px] sm:h-[506px] lg:h-[583px] flex flex-col overflow-hidden">
             
-            <!-- Compact Header Section -->
+            <!-- Cabeçalho compacto -->
             <div class="flex-shrink-0 bg-gradient-to-r {{ $headerBg }} text-white p-2 sm:p-3 rounded-t-lg">
                 <div class="space-y-2">
-                    <!-- Title and Patient Info in compact layout -->
+                    <!-- Título e info do paciente -->
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2 min-w-0 flex-1">
                             <span class="inline-flex items-center justify-center h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-white/20 text-white text-xs font-bold flex-shrink-0">P</span>
@@ -74,17 +76,15 @@
                                 </p>
                             </div>
                         </div>
-                        
-                        <!-- Compact time display -->
+                        <!-- Horário atual -->
                         <div class="text-right flex-shrink-0">
                             <div id="current-time-display" class="text-white text-xs font-medium">{{ now()->format('H:i') }}</div>
                             <div class="text-white/70 text-xs">{{ now()->format('d/m') }}</div>
                         </div>
                     </div>
                     
-                    <!-- Compact shift info and controls -->
+                    <!-- Info do turno e controles de histórico -->
                     <div class="flex flex-col space-y-2 border-t border-white/20 pt-2">
-                        <!-- Current shift in one line -->
                         <div class="flex items-center justify-between text-xs">
                             <div class="flex items-center space-x-2 min-w-0 flex-1">
                                 <div class="w-2 h-2 rounded-full bg-green-300 animate-pulse flex-shrink-0"></div>
@@ -94,38 +94,27 @@
                                 </span>
                             </div>
                         </div>
-                        
-                        <!-- Compact history navigation -->
+                        <!-- Navegação de histórico -->
                         <div class="flex items-center space-x-1 sm:space-x-2">
                             <span class="text-xs text-white/80 flex-shrink-0">Histórico:</span>
-                            
-                            <!-- Simplified Calendar Dropdown -->
+                            <!-- Dropdown de datas -->
                             <div class="relative" x-data="{ 
                                 showCalendar: false,
                                 availableDates: [],
                                 selectedDate: @entangle('selectedHistoryDate'),
-                                
                                 formatShortDate(date) {
-                                    return new Date(date).toLocaleDateString('pt-BR', { 
-                                        day: '2-digit', 
-                                        month: '2-digit'
-                                    });
+                                    return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                                 },
-                                
                                 isToday(date) {
                                     return date === new Date().toISOString().split('T')[0];
                                 },
-                                
                                 generateMockDates() {
                                     const dates = [];
                                     const today = new Date();
-                                    
-                                    // Últimos 7 dias apenas
                                     for (let i = 0; i < 7; i++) {
                                         const date = new Date(today);
                                         date.setDate(date.getDate() - i);
                                         const dateStr = date.toISOString().split('T')[0];
-                                        
                                         dates.push({
                                             date: dateStr,
                                             count: Math.floor(Math.random() * 10) + 1,
@@ -134,7 +123,6 @@
                                     }
                                     return dates;
                                 },
-                                
                                 init() {
                                     this.availableDates = this.generateMockDates();
                                 }
@@ -148,7 +136,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </button>
-                                
+                                <!-- Lista de datas -->
                                 <div 
                                     x-show="showCalendar" 
                                     @click.outside="showCalendar = false"
@@ -158,12 +146,9 @@
                                     class="absolute top-full left-0 mt-1 bg-white rounded-md shadow-lg border border-gray-300 z-50 w-40"
                                     style="display: none;"
                                 >
-                                    <!-- Simple Header -->
                                     <div class="px-2 py-1.5 border-b border-gray-200 bg-gray-100">
                                         <div class="text-xs font-medium text-gray-700 text-center">Últimos 7 dias</div>
                                     </div>
-                                    
-                                    <!-- Date List -->
                                     <div class="py-1 max-h-32 overflow-y-auto">
                                         <template x-for="dateInfo in availableDates" :key="dateInfo.date">
                                             <button 
@@ -192,7 +177,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+                            <!-- Seleção de turno -->
                             <select 
                                 wire:model.live="selectedHistoryShift"
                                 class="w-12 sm:w-14 px-1 py-1 text-xs border border-white/30 rounded bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -200,7 +185,7 @@
                                 <option value="dia" class="text-gray-800">Dia</option>
                                 <option value="noite" class="text-gray-800">Noite</option>
                             </select>
-                            
+                            <!-- Botão para retornar ao turno atual -->
                             @if($this->viewingHistory)
                                 <button 
                                     wire:click="returnToCurrentShift"
@@ -217,7 +202,7 @@
                 </div>
             </div>
 
-            <!-- Professional Warning Banner -->
+            <!-- Banner de ambiente profissional -->
             @if(!$this->viewingHistory && !$isShiftClosed)
                 <div class="flex-shrink-0 px-2 py-1.5 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
                     <div class="flex items-center space-x-2 text-xs">
@@ -232,7 +217,7 @@
                 </div>
             @endif
 
-            <!-- Compact Status Indicator -->
+            <!-- Indicador de status do turno/histórico -->
             <div class="flex-shrink-0 px-2 py-1 border-b border-gray-200 bg-gray-50">
                 @if($this->viewingHistory)
                     <div class="flex items-center justify-start">
@@ -263,10 +248,10 @@
                 @endif
             </div>
 
-            <!-- Compact Messages Area -->
+            <!-- Área de mensagens -->
             <div class="flex-1 overflow-y-auto p-2 bg-gray-50 min-h-[120px] max-h-[220px] h-[120px] sm:min-h-[140px] sm:max-h-[260px] sm:h-[140px] lg:min-h-[160px] lg:max-h-[300px] lg:h-[160px]" id="messages-container">
                 @if(count($this->shiftMessages) > 0)
-                    <!-- Compact Pinned Messages -->
+                    {{-- Mensagens fixadas --}}
                     @php $pinnedMessages = collect($this->shiftMessages)->where('is_pinned', true) @endphp
                     @if($pinnedMessages->count() > 0)
                         <div class="mb-3">
@@ -277,7 +262,6 @@
                                 <h4 class="text-xs font-semibold text-gray-700">Fixadas</h4>
                                 <span class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full">{{ $pinnedMessages->count() }}</span>
                             </div>
-                            
                             @foreach($pinnedMessages as $message)
                                 <div class="bg-{{ $lightAccent }} border-l-2 border-{{ $accentColor }} rounded p-2 mb-2 shadow-sm">
                                     <div class="flex items-start justify-between">
@@ -316,7 +300,7 @@
                         </div>
                     @endif
 
-                    <!-- Compact Regular Messages -->
+                    {{-- Mensagens regulares --}}
                     @php $regularMessages = collect($this->shiftMessages)->where('is_pinned', false) @endphp
                     @if($regularMessages->count() > 0)
                         @if($pinnedMessages->count() > 0)
@@ -326,7 +310,6 @@
                                 <div class="flex-1 border-t border-gray-300"></div>
                             </div>
                         @endif
-                        
                         <div class="space-y-2">
                             @foreach($regularMessages as $message)
                                 <div class="flex items-start space-x-2">
@@ -362,7 +345,7 @@
                         </div>
                     @endif
                 @else
-                    <!-- Compact Empty State (always small height) -->
+                    <!-- Estado vazio de mensagens -->
                     <div class="flex flex-col items-center justify-center h-full min-h-[120px] sm:min-h-[140px] lg:min-h-[160px]">
                         <svg class="mx-auto h-5 w-5 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
@@ -375,7 +358,7 @@
                 @endif
             </div>
 
-            <!-- Compact Message Input Area -->
+            <!-- Área de input de mensagem -->
             @if(!$this->viewingHistory && !$isShiftClosed)
                 <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2">
                     <form wire:submit.prevent="sendChatMessage">
@@ -392,7 +375,6 @@
                                     maxlength="1000"
                                     {{ $this->messageLoading ? 'disabled' : '' }}
                                 ></textarea>
-                                
                                 <div class="flex justify-between items-center">
                                     <div class="text-xs text-gray-500">
                                         <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($this->currentUser['name'] ?? 'Usuário', 15) }}
@@ -400,7 +382,6 @@
                                             {{ strlen($this->newChatMessage ?? '') }}/1000
                                         </span>
                                     </div>
-                                    
                                     <button 
                                         type="submit"
                                         class="px-3 py-1.5 text-white text-xs rounded transition-all duration-200 inline-flex items-center justify-center space-x-1 min-w-[80px] {{ 
@@ -429,7 +410,7 @@
                     </form>
                 </div>
             @else
-                <!-- Compact Read-only Footer -->
+                <!-- Rodapé somente leitura -->
                 <div class="flex-shrink-0 border-t border-gray-200 bg-gray-100 p-2">
                     <p class="text-center text-xs text-gray-600 flex items-center justify-center space-x-1">
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -442,13 +423,13 @@
                 </div>
             @endif
         </div>
+    {{-- Erro ao carregar paciente --}}
     @else
         <div class="flex flex-col items-center justify-center py-4 text-gray-600">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-red-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <p class="text-gray-700 text-sm">Erro ao carregar detalhes do paciente</p>
-            
             <button 
                 wire:click="showPatientDetails('{{ $currentPatient['nr_atendimento'] ?? '' }}')"
                 class="mt-2 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs"
@@ -458,73 +439,3 @@
         </div>
     @endif
 </div>
-
-<script>
-document.addEventListener('livewire:navigated', function () {
-    initializeChatSystem();
-});
-
-function initializeChatSystem() {
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    updateRealTimeClock();
-    setInterval(updateRealTimeClock, 30000);
-}
-
-function updateRealTimeClock() {
-    const currentTime = new Date().toLocaleTimeString('pt-BR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    const timeDisplay = document.getElementById('current-time-display');
-    if (timeDisplay) timeDisplay.textContent = currentTime;
-    
-    const inputTime = document.getElementById('input-time');
-    if (inputTime) inputTime.textContent = currentTime;
-}
-
-document.addEventListener('input', function(e) {
-    if (e.target.matches('textarea[wire\\:model\\.defer="newChatMessage"]')) {
-        e.target.style.height = 'auto';
-        e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px';
-        
-        const charCount = e.target.value.length;
-        const counter = e.target.closest('form').querySelector('[class*="bg-gray-100"]');
-        if (counter) {
-            counter.textContent = charCount + '/1000';
-            
-            if (charCount > 900) {
-                counter.className = counter.className.replace('bg-gray-100 text-gray-600', 'bg-red-100 text-red-600');
-            } else if (charCount > 800) {
-                counter.className = counter.className.replace('bg-gray-100 text-gray-600', 'bg-yellow-100 text-yellow-600');
-            } else {
-                counter.className = counter.className.replace(/bg-(red|yellow)-100 text-(red|yellow)-600/, 'bg-gray-100 text-gray-600');
-            }
-        }
-    }
-});
-
-document.addEventListener('livewire:component.updated', function(e) {
-    if (e.detail.component.name === 'sbar-report') {
-        const messagesContainer = document.getElementById('messages-container');
-        if (messagesContainer) {
-            setTimeout(() => {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }, 100);
-        }
-    }
-});
-
-document.addEventListener('submit', function(e) {
-    if (e.target.matches('form[wire\\:submit\\.prevent="sendChatMessage"]')) {
-        const textarea = e.target.querySelector('textarea');
-        if (!textarea.value.trim()) {
-            e.preventDefault();
-        }
-    }
-});
-</script>

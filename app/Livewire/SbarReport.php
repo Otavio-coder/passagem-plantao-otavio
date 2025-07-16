@@ -12,7 +12,7 @@ use App\Services\ChatSystem;
 class SbarReport extends Component
 {
     // Propriedades principais
-    protected ChatSystem $chatSystem;
+    protected ?ChatSystem $chatSystem = null;
     public $loading = true;
     public $loadingMessage = 'Carregando dados...';
     public $errorMessage = null;
@@ -437,6 +437,7 @@ class SbarReport extends Component
     // Atualiza data do histórico
     public function updatedSelectedHistoryDate()
     {
+        $this->ensureChatSystem(); // Garante inicialização do chatSystem
         $this->chatSystem->selectedHistoryDate = $this->selectedHistoryDate;
         $this->chatSystem->updatedSelectedHistoryDate();
         $this->syncChatProperties();
@@ -445,6 +446,7 @@ class SbarReport extends Component
     // Atualiza turno do histórico
     public function updatedSelectedHistoryShift()
     {
+        $this->ensureChatSystem(); 
         $this->chatSystem->selectedHistoryShift = $this->selectedHistoryShift;
         $this->chatSystem->updatedSelectedHistoryShift();
         $this->syncChatProperties();
@@ -453,6 +455,7 @@ class SbarReport extends Component
     // Volta para o turno atual
     public function returnToCurrentShift()
     {
+        $this->ensureChatSystem(); // Garante inicialização
         $this->chatSystem->returnToCurrentShift();
         $this->syncChatProperties();
     }

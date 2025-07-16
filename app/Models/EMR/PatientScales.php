@@ -141,11 +141,6 @@ class PatientScales extends Model
 
         $data = $result[0];
 
-        // Novo paciente
-        if ($data->is_new_patient) {
-            return 'Paciente recém-chegado - MEWS pendente';
-        }
-
         // Sem MEWS para hoje
         if ($data->mews_score === null) {
             return 'ALERTA: MEWS não preenchido para o dia de hoje!';

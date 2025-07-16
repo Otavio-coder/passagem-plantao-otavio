@@ -311,29 +311,26 @@
                         </div>
                         @else
                         @php 
-                            // MEWS-based gradient and border styling
                             $gradientClass = 'from-blue-50 to-blue-100';
                             $borderClass = 'border border-gray-200';
                             $textColorClass = 'text-sky-800';
-                            
-                            // CORREÇÃO: Paciente novo APENAS se internado há exatamente 0 dias
-                            $isNewPatient = ($patient->internment_days !== null && $patient->internment_days === 0);
-                            
-                            // Apply special styling for new patients
+
+                            $isNewPatient = ($patient->tempo_internacao_dias !== null && $patient->tempo_internacao_dias >= 0 && $patient->tempo_internacao_dias < 1);
+
                             if ($isNewPatient) {
-                            $gradientClass = 'from-green-50 to-green-100';
-                            $borderClass = 'border-2 border-green-400';
-                            $textColorClass = 'text-green-800';
+                                $gradientClass = 'from-green-50 to-green-100';
+                                $borderClass = 'border-2 border-green-400';
+                                $textColorClass = 'text-green-800';
                             } elseif ($patient->mews_score !== null) {
-                            if ($patient->mews_score >= 5) {
-                                $gradientClass = 'from-red-50 to-red-100';
-                                $borderClass = 'border-2 border-red-500';
-                                $textColorClass = 'text-red-800';
-                            } elseif ($patient->mews_score >= 3) {
-                                $gradientClass = 'from-amber-50 to-amber-100';
-                                $borderClass = 'border-2 border-amber-500';
-                                $textColorClass = 'text-amber-800';
-                            }
+                                if ($patient->mews_score >= 5) {
+                                    $gradientClass = 'from-red-50 to-red-100';
+                                    $borderClass = 'border-2 border-red-500';
+                                    $textColorClass = 'text-red-800';
+                                } elseif ($patient->mews_score >= 3) {
+                                    $gradientClass = 'from-amber-50 to-amber-100';
+                                    $borderClass = 'border-2 border-amber-500';
+                                    $textColorClass = 'text-amber-800';
+                                }
                             }
                         @endphp
                         <div class="h-full bg-gradient-to-br {{ $gradientClass }} p-3 sm:p-4 flex flex-col {{ $borderClass }}">
@@ -344,11 +341,6 @@
                                 <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
                                 Leito {{ $patient->cd_unidade_basica }}
                                 </span>
-                                @if($isNewPatient)
-                                <span class="bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-                                    NOVO
-                                </span>
-                                @endif
                             </div>
                             
                             <!-- Center: Alert Icons -->
@@ -669,41 +661,5 @@
         :currentHospitalName="$currentHospitalName"
         :showAlertsModal="$showAlertsModal ?? false"
         :patientAlerts="$patientAlerts ?? []" />
-
-    <!-- Auto-scroll JavaScript with enhanced controls and auto-refresh -->
-    <script src="{{ asset('js/sbar-autoscroll.js') }}"></script>
 </div>
 
-<script>
-// Simplified initialization
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if welcome message should be shown (only on first visit)
-    const welcomeShown = localStorage.getItem('sbar_welcome_shown');
-    if (welcomeShown) {
-        const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
-        if (welcomeElement && welcomeElement.__x) {
-            welcomeElement.__x.$data.showWelcome = false;
-        }
-    }
-});
-</script>
-<script>
-// Simplified initialization without Alpine conflicts
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if welcome message should be shown (only on first visit)
-    const welcomeShown = localStorage.getItem('sbar_welcome_shown');
-    if (welcomeShown) {
-        // Hide welcome modal if already shown before
-        const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
-        if (welcomeElement && welcomeElement.__x) {
-            welcomeElement.__x.$data.showWelcome = false;
-        }
-    }
-
-    // Ensure Livewire is loaded before attempting lazy loading
-    if (window.Livewire) {
-        // Additional initialization if needed
-        console.log('Livewire loaded successfully');
-    }
-});
-</script>

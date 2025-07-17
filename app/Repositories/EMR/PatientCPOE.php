@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Models\EMR;
+namespace App\Repositories\EMR;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
-class PatientCPOE extends Model
+class PatientCPOE 
 {
     protected $connection = 'tasy';
     public $timestamps = false;

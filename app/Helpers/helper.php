@@ -1,9 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\File\Exception\FileNotFoundException;
+use Illuminate\Support\Facades\Route;
 
 if (!function_exists('nameFormat')) {
 
@@ -405,6 +403,7 @@ if (!function_exists('hospital')) {
             'PPF' => 'PAVILHÃO PEREIRA FILHO',
             'HDJB' => 'HOSPITAL DOM JOÃO BECKER',
             'HSAP' => 'HOSPITAL DE SANTO ANTÔNIO DA PATRULHA',
+            'HNT' => 'HOSPITAL NORA TEIXEIRA',
             'MULTICENTROS' => 'MULTICENTROS',
         ];
 

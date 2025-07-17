@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Models\EMR;
+namespace App\Repositories\EMR;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
-class PatientScales extends Model
+class PatientScales 
 {
     protected $connection = 'tasy';
     public $timestamps = false;

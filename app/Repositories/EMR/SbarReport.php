@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Models\EMR;
+namespace App\Repositories\EMR;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
+use App\Models\EMR\Patient;
+use App\Repositories\EMR\PatientScales;
+use App\Repositories\EMR\PatientClinical;
+use App\Repositories\EMR\PatientCPOE;
+use App\Models\EMR\Hospital;
+use App\Models\EMR\Sector;
+use App\Models\EMR\BedUnit;
 
 // Modelo principal para relatórios SBAR
-class SbarReport extends Model
+class SbarReport 
 {
-    use HasFactory;
-
-    // Conexão com banco específico
     protected $connection = 'tasy';
     public $timestamps = false;
     
@@ -29,7 +29,6 @@ class SbarReport extends Model
     // Construtor: inicializa os modelos auxiliares
     public function __construct()
     {
-        parent::__construct();
         $this->patient = new Patient();
         $this->patientScales = new PatientScales();
         $this->patientClinical = new PatientClinical();

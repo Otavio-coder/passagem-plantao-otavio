@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Models\EMR\SbarReport as SbarReportModel;
+use App\Repositories\EMR\SbarReport as SbarReportModel;
 use App\Models\System\SystemConfiguration;
 use Livewire\Component;
 use Illuminate\Support\Facades\Cache;

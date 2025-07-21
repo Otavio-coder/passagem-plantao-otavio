@@ -660,6 +660,16 @@
         :loadingPatient="$loadingPatient"
         :currentHospitalName="$currentHospitalName"
         :showAlertsModal="$showAlertsModal ?? false"
-        :patientAlerts="$patientAlerts ?? []" />
+        :patientAlerts="$patientAlerts ?? []"
+        :currentShift="$currentShift"
+        :currentUser="$currentUser"
+        :viewingHistory="$viewingHistory"
+        :shiftMessages="$shiftMessages"
+        :newChatMessage="$newChatMessage"
+        :messageLoading="$messageLoading"
+        :selectedHistoryDate="$selectedHistoryDate"
+        :selectedHistoryShift="$selectedHistoryShift" />
 </div>
+
+
 

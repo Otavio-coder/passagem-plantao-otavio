@@ -38,9 +38,12 @@ function startClockInterval() {
 function scrollMessagesContainer() {
     const messagesContainer = document.getElementById('messages-container');
     if (messagesContainer) {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }, 100);
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 100);
+        });
     }
 }
 
@@ -125,6 +128,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.Livewire) {
         // Livewire carregado
         console.log('Livewire loaded successfully');
+    }
+});
+</script>
+
+<script>
+    document.addEventListener('livewire:component.updated', function() {
+    const modal = document.querySelector('.relative[data-patient-id][data-shift]');
+    if (modal && window.bindChatEchoListeners) {
+        const patientId = modal.getAttribute('data-patient-id');
+        const shift = modal.getAttribute('data-shift');
+        if (patientId && shift) {
+            window.bindChatEchoListeners(patientId, shift);
+        }
     }
 });
 </script>

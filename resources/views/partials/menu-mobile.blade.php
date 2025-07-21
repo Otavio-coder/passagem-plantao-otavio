@@ -68,6 +68,17 @@
                     </svg>
                 </a>
             @endcan
+            @can('configurar sistema')
+                <a href="{{ route('sbar.chat-auditoria') }}" class="flex justify-between items-center text-sm text-sky-600">
+                    <div class="px-2 pt-2 pb-3 flex flex-col">
+                        <span class="font-semibold">Auditoria do Chat</span>
+                        <span class="text-xs text-gray-400">Histórico de ações do chat</span>
+                    </div>
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+                    </svg>
+                </a>
+            @endcan
             <a href="#" class="flex justify-between items-center text-sm text-sky-600">
                 <div class="px-2 pt-2 pb-3 flex flex-col">
                     <span class="font-semibold">Manual de Uso</span>

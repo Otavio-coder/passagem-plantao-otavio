@@ -7,12 +7,16 @@ use App\Models\System\SystemConfiguration;
 use Livewire\Component;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use App\Services\ChatSystem;
+use Illuminate\Support\Facades\Auth;
+use App\Repositories\MySQL\ChatRepository;
 
 class SbarReport extends Component
 {
-    // Propriedades principais
-    protected ?ChatSystem $chatSystem = null;
+    protected $listeners = [
+    'chatMessageReceived' => 'onChatMessageReceived',
+    'chatMessagePinned' => 'onChatMessagePinned',
+    ];
+
     public $loading = true;
     public $loadingMessage = 'Carregando dados...';
     public $errorMessage = null;
@@ -47,8 +51,8 @@ class SbarReport extends Component
     protected $allowedHospitals = [];
     protected $allowedSectors = [];
     protected $allowedBedUnits = [];
-
-    // Propriedades do sistema de chat
+    
+    // Propriedades do chat
     public $currentShift;
     public $currentDate;
     public $currentUser;
@@ -58,6 +62,7 @@ class SbarReport extends Component
     public $shiftMessages = [];
     public $newChatMessage = '';
     public $messageLoading = false;
+    public $chatMessagesCache = [];
 
     // Inicializa o componente
     public function mount()
@@ -93,10 +98,25 @@ class SbarReport extends Component
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
         }
 
-        // Inicializa chat e carrega pacientes
-        $this->chatSystem = new ChatSystem();
-        $this->chatSystem->initialize();
-        $this->syncChatProperties();
+        // Inicializa propriedades do chat
+        $user = Auth::user();
+        $this->currentUser = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'username' => $user->username,
+            'role' => $user->getRoleNames()->first() ?? '',
+            'photo' => $user->photo() ?? '',
+        ];
+
+        $hour = now()->hour;
+        $this->currentShift = ($hour >= 7 && $hour < 19) ? 'dia' : 'noite';
+        $this->currentDate = now()->toDateString();
+        $this->selectedHistoryDate = $this->currentDate;
+        $this->selectedHistoryShift = $this->currentShift;
+        $this->viewingHistory = false;
+        $this->shiftMessages = [];
+        $this->newChatMessage = '';
+        $this->messageLoading = false;
 
         // Carrega pacientes do setor inicial
         $this->loadPatientData();
@@ -106,32 +126,51 @@ class SbarReport extends Component
     public function render()
     {
         return view('livewire.sbar-report', [
-            'patients' => $this->patients,
-            'hospitals' => $this->hospitals,
-            'pagination' => [
-                'total' => count($this->patients),
+            // Modal e chat props
+            'showModal'            => $this->showModal,
+            'currentPatient'       => $this->currentPatient,
+            'patientDetails'       => $this->patientDetails,
+            'loadingPatient'       => $this->loadingPatient,
+            'currentHospitalName'  => $this->currentHospitalName,
+            'showAlertsModal'      => $this->showAlertsModal,
+            'patientAlerts'        => $this->patientAlerts,
+            'currentShift'         => $this->currentShift,
+            'currentUser'          => $this->currentUser,
+            'viewingHistory'       => $this->viewingHistory,
+            'shiftMessages'        => $this->shiftMessages,
+            'newChatMessage'       => $this->newChatMessage,
+            'messageLoading'       => $this->messageLoading,
+            'selectedHistoryDate'  => $this->selectedHistoryDate,
+            'selectedHistoryShift' => $this->selectedHistoryShift,
+            // Filtros e listagem
+            'patients'             => $this->patients,
+            'hospitals'            => $this->hospitals,
+            'sectors'              => $this->sectors,
+            'beds'                 => $this->beds,
+            'errorMessage'         => $this->errorMessage,
+            'loadingMessage'       => $this->loadingMessage,
+            'mewsFilter'           => $this->mewsFilter,
+            'surgicalFilter'       => $this->surgicalFilter,
+            'orderBy'              => $this->orderBy,
+            'orderDirection'       => $this->orderDirection,
+            'selectedHospital'     => $this->selectedHospital,
+            'selectedSector'       => $this->selectedSector,
+            'pagination'           => [
+                'total'        => count($this->patients),
                 'current_page' => 1,
-                'per_page' => count($this->patients),
-                'last_page' => 1
-            ]
+                'per_page'     => count($this->patients),
+                'last_page'    => 1
+            ],
         ]);
     }
 
     // Carrega hospitais, setores e leitos permitidos
     private function loadAllowed()
     {
-        // Busca os IDs permitidos do banco de configurações
         $this->allowedHospitals = SystemConfiguration::allowedHospitalCodes();
         $this->allowedSectors   = SystemConfiguration::allowedSectorCodes();
         $this->allowedBedUnits  = SystemConfiguration::allowedBedCodes();
 
-        Log::debug('Allowed IDs', [
-            'hospitals' => $this->allowedHospitals,
-            'sectors' => $this->allowedSectors,
-            'beds' => $this->allowedBedUnits,
-        ]);
-
-        // 1. Hospitais permitidos
         $hospitalModel = new \App\Models\EMR\Hospital();
         $allHospitals = $hospitalModel->getAllHospitalsWithSectors();
         $filteredHospitals = $allHospitals->filter(function($hospital) {
@@ -139,7 +178,6 @@ class SbarReport extends Component
         })->values();
         $this->hospitals = $filteredHospitals->toArray();
 
-        // 2. Setores permitidos
         $sectorModel = new \App\Models\EMR\Sector();
 
         if ($this->selectedHospital && empty($this->selectedSector)) {
@@ -152,12 +190,10 @@ class SbarReport extends Component
             $sectors = $sectorModel->getAllowedSectors()
                 ->filter(fn($sector) => in_array($sector->cd_setor_atendimento, $this->allowedSectors))->values();
         }
-        // Troque para objeto
         $this->sectors = $sectors->map(function($sector) {
             return (array) $sector;
         })->toArray();
 
-        // 3. Leitos permitidos (BedUnits)
         $bedModel = new \App\Models\EMR\BedUnit();
 
         if (!empty($this->selectedSector)) {
@@ -165,13 +201,11 @@ class SbarReport extends Component
         } elseif (!empty($this->sectors)) {
             $beds = collect();
             foreach ($this->sectors as $sector) {
-                // Troque para objeto
                 $beds = $beds->merge($bedModel->getBedsBySector($sector['cd_setor_atendimento'] ?? $sector->cd_setor_atendimento));
             }
         } elseif (!empty($this->hospitals)) {
             $beds = collect();
             foreach ($this->hospitals as $hospital) {
-                // Troque para objeto
                 $hospitalId = $hospital['hospital_id'] ?? $hospital->hospital_id;
                 $hospitalSectors = $sectorModel->getSectorsByHospital($hospitalId);
                 foreach ($hospitalSectors as $sector) {
@@ -189,7 +223,6 @@ class SbarReport extends Component
             }
         }
 
-        // Filtra leitos permitidos se $allowedBedUnits não estiver vazio
         if (empty($this->allowedBedUnits)) {
             $this->beds = $beds->toArray();
         } else {
@@ -212,13 +245,6 @@ class SbarReport extends Component
                 'order_direction' => $this->orderDirection,
             ];
             $rawPatients = $model->getBasePatientData($this->selectedSector, $filters);
-
-            Log::debug('Pacientes carregados:', [
-                'selectedSector' => $this->selectedSector,
-                'filters' => $filters,
-                'rawPatientsCount' => $rawPatients->count(),
-                'rawPatientsSample' => $rawPatients->take(3)->toArray(),
-            ]);
 
             $this->patients = $rawPatients->map(function($patient) {
                 if (isset($patient->internment_days) && !isset($patient->tempo_internacao_dias)) {
@@ -255,14 +281,12 @@ class SbarReport extends Component
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
         $this->loadAllowed();
-        // Se não houver setor permitido para o hospital, seleciona o primeiro disponível
         if (!empty($this->sectors)) {
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
         }
         $this->loadPatientData();
     }
 
-    // Troca o setor selecionado
     public function changeSelector($sectorId)
     {
         $this->selectedSector = $sectorId;
@@ -270,35 +294,30 @@ class SbarReport extends Component
         $this->loadPatientData();
     }
 
-    // Aplica filtro MEWS
     public function applyMewsFilter($filter)
     {
         $this->mewsFilter = $filter;
         $this->loadPatientData();
     }
 
-    // Aplica filtro cirúrgico
     public function applySurgicalFilter($filter)
     {
         $this->surgicalFilter = $filter;
         $this->loadPatientData();
     }
 
-    // Aplica ordenação
     public function applyOrderBy($field)
     {
         $this->orderBy = $field;
         $this->loadPatientData();
     }
 
-    // Alterna direção da ordenação
     public function toggleOrderDirection()
     {
         $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
         $this->loadPatientData();
     }
 
-    // Atualiza dados dos pacientes
     public function refreshData()
     {
         $this->loadingMessage = "Atualizando dados...";
@@ -314,7 +333,6 @@ class SbarReport extends Component
         $this->loadPatientData();
     }
 
-    // Abre modal do paciente
     public function openModal($attendanceNumber, $personId, $hasPatient)
     {
         $this->showModal = true;
@@ -324,14 +342,12 @@ class SbarReport extends Component
             'has_patient' => $hasPatient,
             'hospital_name' => $this->currentHospitalName ?? 'Hospital não identificado'
         ];
-        $this->ensureChatSystem();
         $this->loadShiftMessages();
         if ($hasPatient) {
             $this->showPatientDetails($attendanceNumber);
         }
     }
 
-    // Mostra detalhes do paciente (com cache)
     public function showPatientDetails($attendanceNumber)
     {
         if (empty($attendanceNumber)) {
@@ -362,7 +378,6 @@ class SbarReport extends Component
         $this->loadingPatient = false;
     }
 
-    // Verifica alertas ativos do paciente
     private function checkPatientAlerts($attendanceNumber)
     {
         if (!$this->currentPatient || empty($this->currentPatient['cd_pessoa_fisica'])) {
@@ -372,7 +387,7 @@ class SbarReport extends Component
             return;
         }
         try {
-            $clinicalModel = new \App\Models\EMR\PatientClinical();
+            $clinicalModel = new \App\Repositories\EMR\PatientClinical();
             $this->patientAlerts = $clinicalModel->getPatientActiveAlerts(
                 $attendanceNumber,
                 $this->currentPatient['cd_pessoa_fisica']
@@ -402,14 +417,12 @@ class SbarReport extends Component
         }
     }
 
-    // Fecha modal de alertas
     public function closeAlertsModal()
     {
         $this->showAlertsModal = false;
         $this->patientAlerts = [];
     }
 
-    // Fecha modal do paciente
     public function closeModal()
     {
         $this->showModal = false;
@@ -418,94 +431,262 @@ class SbarReport extends Component
         $this->errorMessage = null;
         $this->showAlertsModal = false;
         $this->patientAlerts = [];
+        $this->shiftMessages = [];
+        $this->chatMessagesCache = [];
+        $this->skipRender(); 
     }
 
-    // Sincroniza propriedades do ChatSystem para o componente
-    private function syncChatProperties()
+    public function onChatMessageReceived($event = null)
     {
-        $this->currentShift = $this->chatSystem->currentShift;
-        $this->currentDate = $this->chatSystem->currentDate;
-        $this->currentUser = $this->chatSystem->currentUser; // Se for array simples, ok
-        $this->selectedHistoryDate = $this->chatSystem->selectedHistoryDate;
-        $this->selectedHistoryShift = $this->chatSystem->selectedHistoryShift;
-        $this->viewingHistory = $this->chatSystem->viewingHistory;
-        $this->shiftMessages = $this->chatSystem->shiftMessages;
-        $this->newChatMessage = $this->chatSystem->newChatMessage;
-        $this->messageLoading = $this->chatSystem->messageLoading;
+        if ($event && isset($event['id'])) {
+            $user = \App\Models\System\User::find($event['usuario_id']);
+            $event['author'] = $user ? $user->name : 'Usuário';
+            $event['role'] = $user ? $user->getRoleNames()->first() : '';
+            $event['photo'] = $user ? $user->photo() : '';
+            $event['time'] = \Carbon\Carbon::parse($event['created_at'] ?? $event['dt_criacao'])->format('H:i');
+            $event['is_pinned'] = $event['is_fixed'] ?? false;
+
+            // Only add if not already present (avoid duplicates)
+            if (!collect($this->shiftMessages)->contains('id', $event['id'])) {
+                $this->shiftMessages[] = $event;
+                $this->shiftMessages = array_values($this->shiftMessages); 
+            }
+        }
+        $this->messageLoading = false;
     }
 
-    // Atualiza data do histórico
-    public function updatedSelectedHistoryDate()
+    public function onChatMessagePinned($event = null)
     {
-        $this->ensureChatSystem(); // Garante inicialização do chatSystem
-        $this->chatSystem->selectedHistoryDate = $this->selectedHistoryDate;
-        $this->chatSystem->updatedSelectedHistoryDate();
-        $this->syncChatProperties();
-    }
-
-    // Atualiza turno do histórico
-    public function updatedSelectedHistoryShift()
-    {
-        $this->ensureChatSystem(); 
-        $this->chatSystem->selectedHistoryShift = $this->selectedHistoryShift;
-        $this->chatSystem->updatedSelectedHistoryShift();
-        $this->syncChatProperties();
-    }
-
-    // Volta para o turno atual
-    public function returnToCurrentShift()
-    {
-        $this->ensureChatSystem(); // Garante inicialização
-        $this->chatSystem->returnToCurrentShift();
-        $this->syncChatProperties();
-    }
-
-    private function ensureChatSystem()
-    {
-        if (!isset($this->chatSystem)) {
-            $this->chatSystem = new \App\Services\ChatSystem();
-            $this->chatSystem->initialize();
+        if ($event && isset($event['id'])) {
+            // Update the pinned status for the message
+            foreach ($this->shiftMessages as &$msg) {
+                if ($msg['id'] == $event['id']) {
+                    $msg['is_pinned'] = $event['is_fixed'];
+                    $msg['fixed_by'] = $event['fixed_by'];
+                    $msg['fixed_at'] = $event['fixed_at'];
+                } else {
+                    $msg['is_pinned'] = false;
+                }
+            }
         }
     }
 
-    // Carrega mensagens do turno
     public function loadShiftMessages()
     {
-        $this->ensureChatSystem();
-        $this->chatSystem->loadShiftMessages();
-        $this->syncChatProperties();
+        $this->listenerEvent(); // Ensure listeners are set
+
+        $cacheKey = $this->currentPatient['nr_atendimento'] . '_' . $this->currentShift;
+        if (isset($this->chatMessagesCache[$cacheKey])) {
+            $this->shiftMessages = $this->chatMessagesCache[$cacheKey];
+        } else {
+            $repo = new ChatRepository();
+            $result = $repo->getMessages(
+                $this->currentPatient['nr_atendimento'],
+                $this->currentShift,
+                $this->currentDate, // <-- FIX: pass date here!
+                50
+            );
+            if (method_exists($result, 'items')) {
+                $messages = $result->items();
+            } elseif ($result instanceof \Illuminate\Pagination\LengthAwarePaginator || $result instanceof \Illuminate\Pagination\Paginator) {
+                $messages = $result->toArray()['data'];
+            } else {
+                $messages = $result->toArray();
+            }
+            foreach ($messages as &$msg) {
+                $user = \App\Models\System\User::find($msg['usuario_id']);
+                $msg['author'] = $user ? $user->name : 'Usuário';
+                $msg['role'] = $user ? $user->getRoleNames()->first() : '';
+                $msg['photo'] = $user ? $user->photo() : '';
+                $msg['time'] = \Carbon\Carbon::parse($msg['dt_criacao'])->format('H:i');
+            }
+            $this->shiftMessages = $messages;
+            $this->chatMessagesCache[$cacheKey] = $messages;
+        }
     }
 
-    // Envia mensagem do chat
     public function sendChatMessage()
     {
-        $this->chatSystem->sendChatMessage(
-            $this->chatSystem->currentUser,
-            $this->chatSystem->currentShift,
-            $this->chatSystem->currentDate,
-            $this->chatSystem->viewingHistory,
-            $this->newChatMessage,
-            $this->chatSystem->shiftMessages,
-            $this->chatSystem->messageLoading
-        );
+        if (empty(trim($this->newChatMessage))) {
+            $this->messageLoading = false;
+            return;
+        }
+        $this->messageLoading = true;
+        $sessao = \App\Models\ChatSessao::firstOrCreate([
+            'nr_atendimento' => $this->currentPatient['nr_atendimento'],
+            'turno_id' => $this->currentShift,
+            'data_sessao' => $this->currentDate,
+        ], [
+            'inicio' => now(),
+            'encerrada' => false,
+        ]);
+
+        $repo = new \App\Repositories\MySQL\ChatRepository();
+        $msg = $repo->storeMessage([
+            'sessao_id' => $sessao->id,
+            'nr_atendimento' => $this->currentPatient['nr_atendimento'],
+            'turno_id' => $this->currentShift,
+            'usuario_id' => $this->currentUser['id'],
+            'mensagem' => $this->newChatMessage,
+            'dt_criacao' => now(),
+        ]);
+
+        // Optimistically add the message to the UI
+        $this->shiftMessages[] = [
+            'id' => $msg->id,
+            'mensagem' => $msg->mensagem,
+            'usuario_id' => $msg->usuario_id,
+            'author' => $this->currentUser['name'],
+            'photo' => $this->currentUser['photo'],
+            'time' => now()->format('H:i'),
+            'is_pinned' => false,
+        ];
+
         $this->newChatMessage = '';
-        $this->syncChatProperties();
+        $this->messageLoading = false;
+        $this->skipRender();
     }
 
-    // Alterna fixação de mensagem
+    public function closeChatSession()
+    {
+        $sessao = \App\Models\ChatSessao::where([
+            'nr_atendimento' => $this->currentPatient['nr_atendimento'],
+            'turno_id' => $this->currentShift,
+            'data_sessao' => $this->currentDate,
+            'encerrada' => false,
+        ])->first();
+
+        if ($sessao) {
+            $sessao->fim = now();
+            $sessao->encerrada = true;
+            $sessao->save();
+
+            \Log::debug('ChatSessao encerrada', [
+                'sessao_id' => $sessao->id,
+                'nr_atendimento' => $sessao->nr_atendimento,
+                'turno_id' => $sessao->turno_id,
+                'data_sessao' => $sessao->data_sessao,
+                'fim' => $sessao->fim,
+            ]);
+        }
+    }
+
+    public function loadHistoryMessages($date, $shift)
+    {
+        // Atualiza propriedades de histórico
+        $this->selectedHistoryDate = $date;
+        $this->selectedHistoryShift = $shift;
+        $this->viewingHistory = true;
+
+        // Busca mensagens do histórico
+        $repo = new \App\Repositories\MySQL\ChatRepository();
+        $messages = $repo->getMessages(
+            $this->currentPatient['nr_atendimento'],
+            $shift,
+            50
+        )->items();
+
+        $this->shiftMessages = $messages;
+    }
+
+    public function returnToCurrentShift()
+    {
+        $this->selectedHistoryDate = $this->currentDate;
+        $this->selectedHistoryShift = $this->currentShift;
+        $this->viewingHistory = false;
+        $this->loadShiftMessages();
+    }
+
+    public function listenerEvent()
+    {
+        
+        return [
+            "echo:chat.{$this->currentPatient['nr_atendimento']}.{$this->currentShift}" => 'openChatSession',
+        ];
+    }
+
+    public function startMessage()
+    {
+        \Log::debug('Mensagem recebida');
+    }
+
+    public function openChatSession()
+    {
+        if (!$this->currentPatient || !$this->currentPatient['has_patient']) {
+            \Log::debug('openChatSession: paciente inválido ou leito vazio', [
+                'currentPatient' => $this->currentPatient
+            ]);
+            return;
+        }
+        
+        $sessao = \App\Models\ChatSessao::firstOrCreate([
+            'nr_atendimento' => $this->currentPatient['nr_atendimento'],
+            'turno_id' => $this->currentShift,
+            'data_sessao' => $this->currentDate,
+        ], [
+            'inicio' => now(),
+            'encerrada' => false,
+        ]);
+
+        \Log::debug('ChatSessao aberta ao entrar na aba Avaliação', [
+            'sessao_id' => $sessao->id,
+            'nr_atendimento' => $sessao->nr_atendimento,
+            'turno_id' => $sessao->turno_id,
+            'data_sessao' => $sessao->data_sessao,
+            'encerrada' => $sessao->encerrada,
+        ]);
+        
+        $this->loadShiftMessages();
+    }
+
     public function toggleMessagePin($messageId)
     {
-        $this->chatSystem->toggleMessagePin(
-            $messageId,
-            $this->chatSystem->shiftMessages,
-            $this->chatSystem->viewingHistory,
-            $this->chatSystem->currentShift,
-            $this->chatSystem->currentUser
-        );
-        $this->syncChatProperties();
+        $sessaoId = \App\Models\ChatMensagem::find($messageId)->sessao_id;
+        $fixedMsg = \App\Models\ChatMensagem::where('sessao_id', $sessaoId)->where('is_fixed', true)->first();
+
+        if ($fixedMsg && $fixedMsg->id !== $messageId) {
+            $this->dispatch('confirmPinSwap', [
+                'currentFixedId' => $fixedMsg->id,
+                'newPinId' => $messageId,
+                'author' => $fixedMsg->usuario->name ?? '',
+                'fixedAt' => $fixedMsg->fixed_at,
+            ]);
+            return;
+        }
+
+        $repo = new \App\Repositories\MySQL\ChatRepository();
+        $repo->pinMessage($messageId, $this->currentUser['id']);
+        $this->updateChatCache();
     }
 
-    // Reseta filtros para valores padrão
+    public function updateChatCache()
+    {
+        $repo = new ChatRepository();
+        $result = $repo->getMessages(
+            $this->currentPatient['nr_atendimento'],
+            $this->currentShift,
+            $this->currentDate, 
+            50
+        );
+        if (method_exists($result, 'items')) {
+            $messages = $result->items();
+        } elseif ($result instanceof \Illuminate\Pagination\LengthAwarePaginator || $result instanceof \Illuminate\Pagination\Paginator) {
+            $messages = $result->toArray()['data'];
+        } else {
+            $messages = $result->toArray();
+        }
+        foreach ($messages as &$msg) {
+            $user = \App\Models\System\User::find($msg['usuario_id']);
+            $msg['author'] = $user ? $user->name : 'Usuário';
+            $msg['role'] = $user ? $user->getRoleNames()->first() : '';
+            $msg['photo'] = $user ? $user->photo() : '';
+            $msg['time'] = \Carbon\Carbon::parse($msg['dt_criacao'])->format('H:i');
+        }
+        $cacheKey = $this->currentPatient['nr_atendimento'] . '_' . $this->currentShift;
+        $this->shiftMessages = $messages;
+        $this->chatMessagesCache[$cacheKey] = $messages;
+    }
+
     public function resetFilters()
     {
         $this->mewsFilter = 'all';

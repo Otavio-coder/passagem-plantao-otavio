@@ -3,10 +3,36 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SystemConfigurationController;
 use Illuminate\Support\Facades\Route;
+use App\Models\ChatMensagem; 
+use App\Events\ChatMessageSent;
 
 Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
     Route::view( '/', 'index' )->name( 'home' );
+
+    Route::get('/teste-chat-evento', function () {
+        // Cria ou recupera a sessão do chat
+        $sessao = \App\Models\ChatSessao::firstOrCreate([
+            'nr_atendimento' => '21355125',
+            'turno_id' => 'noite',
+            'data_sessao' => now()->toDateString(),
+        ], [
+            'inicio' => now(),
+            'encerrada' => false,
+        ]);
+
+        // Agora cria a mensagem vinculada à sessão correta
+        $mensagem = \App\Models\ChatMensagem::create([
+            'mensagem' => 'Mensagem de teste via Soketi!',
+            'usuario_id' => 1,
+            'nr_atendimento' => '21355125',
+            'turno_id' => 'noite',
+            'dt_criacao' => now(),
+            'is_fixed' => false,
+            'sessao_id' => $sessao->id
+        ]);
+        return response()->json(['success' => true, 'mensagem' => $mensagem]);
+    });
 
     /* Rotas de Administração do Sistema */
 
@@ -43,6 +69,10 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
         Route::get('/sbar', function() {
             return view('sbar.report');
         })->name('sbar.report');
+
+        Route::get('/sbar/auditoria', function() {
+            return view('sbar.chat-auditoria');
+        })->middleware('can:configurar sistema')->name('sbar.chat-auditoria');
     });
 
 });

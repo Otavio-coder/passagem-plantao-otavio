@@ -1,18 +1,30 @@
 @props([
     'loadingPatient' => false,
     'currentPatient' => null,
-    'patientDetails' => null
+    'patientDetails' => null,
+    'currentShift' => null,
+    'currentUser' => null,
+    'viewingHistory' => false,
+    'shiftMessages' => [],
+    'newChatMessage' => '',
+    'messageLoading' => false,
+    'selectedHistoryDate' => null,
+    'selectedHistoryShift' => null,
+    'availableDates' => [],
 ])
 
 <!-- SBAR Avaliação Modal Content -->
-<div x-show="activeTab === 'tab-a'" class="p-1 sm:p-2 lg:p-3 h-full">
+<div x-show="activeTab === 'tab-a'" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-end="opacity-100 transform translate-y-0"
+     @after-enter="setTimeout(() => { if (typeof scrollMessagesContainer === 'function') scrollMessagesContainer(); }, 50)" 
+     class="p-1 sm:p-2 lg:p-3">
     {{-- Loading State --}}
     @if($loadingPatient)
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 lg:py-8">
             <div class="w-6 h-6 sm:w-8 sm:h-8 border-t-2 border-r-2 border-blue-400 border-solid rounded-full animate-spin mb-2"></div>
             <p class="text-gray-600 text-xs sm:text-sm">Carregando detalhes do paciente...</p>
         </div>
-    {{-- Empty Bed State --}}
     @elseif($currentPatient && !$currentPatient['has_patient'])
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 text-gray-600">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -21,32 +33,17 @@
             <p class="text-gray-700 text-sm sm:text-base">Leito Vazio</p>
             <p class="text-gray-500 text-xs">Este leito não possui paciente internado no momento.</p>
         </div>
-    {{-- Patient Details and Chat System --}}
     @elseif($patientDetails)
-        <!-- Aviso de desenvolvimento -->
-        <div class="mb-2 bg-amber-50 border-l-2 border-amber-300 p-2 rounded-r text-xs">
-            <div class="flex items-start">
-                <svg class="h-3 w-3 text-amber-500 mt-0.5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                <p class="text-amber-800">
-                    <strong>MÓDULO EM DESENVOLVIMENTO</strong> - Funcionalidade demonstrativa sem integração completa.
-                </p>
-            </div>
-        </div>
-
         @php
-            // Shift and color scheme logic
             $now = \Carbon\Carbon::now('America/Sao_Paulo');
             $currentHour = $now->hour;
             $isShiftClosed = false;
-            if ($this->currentShift === 'dia' && ($currentHour < 7 || $currentHour >= 19)) {
+            if ($currentShift === 'dia' && ($currentHour < 7 || $currentHour >= 19)) {
                 $isShiftClosed = true;
-            } elseif ($this->currentShift === 'noite' && ($currentHour >= 7 && $currentHour < 19)) {
+            } elseif ($currentShift === 'noite' && ($currentHour >= 7 && $currentHour < 19)) {
                 $isShiftClosed = true;
             }
-            // Color variables for UI
-            if ($this->currentShift === 'dia') {
+            if ($currentShift === 'dia') {
                 $headerBg = 'from-sky-400 to-sky-500';
                 $accentColor = 'sky-500';
                 $lightAccent = 'sky-100';
@@ -89,7 +86,7 @@
                             <div class="flex items-center space-x-2 min-w-0 flex-1">
                                 <div class="w-2 h-2 rounded-full bg-green-300 animate-pulse flex-shrink-0"></div>
                                 <span class="text-white/80">
-                                    {{ $this->currentShift === 'dia' ? 'Dia (07-19h)' : 'Noite (19-07h)' }} | 
+                                    {{ $currentShift === 'dia' ? 'Dia (07-19h)' : 'Noite (19-07h)' }} | 
                                     {{ Str::limit($this->currentUser['name'] ?? 'Não identificado', 20) }}
                                 </span>
                             </div>
@@ -100,31 +97,13 @@
                             <!-- Dropdown de datas -->
                             <div class="relative" x-data="{ 
                                 showCalendar: false,
-                                availableDates: [],
+                                availableDates: @js($availableDates),
                                 selectedDate: @entangle('selectedHistoryDate'),
                                 formatShortDate(date) {
                                     return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                                 },
                                 isToday(date) {
                                     return date === new Date().toISOString().split('T')[0];
-                                },
-                                generateMockDates() {
-                                    const dates = [];
-                                    const today = new Date();
-                                    for (let i = 0; i < 7; i++) {
-                                        const date = new Date(today);
-                                        date.setDate(date.getDate() - i);
-                                        const dateStr = date.toISOString().split('T')[0];
-                                        dates.push({
-                                            date: dateStr,
-                                            count: Math.floor(Math.random() * 10) + 1,
-                                            hasData: Math.random() > 0.2
-                                        });
-                                    }
-                                    return dates;
-                                },
-                                init() {
-                                    this.availableDates = this.generateMockDates();
                                 }
                             }">
                                 <button 
@@ -152,7 +131,7 @@
                                     <div class="py-1 max-h-32 overflow-y-auto">
                                         <template x-for="dateInfo in availableDates" :key="dateInfo.date">
                                             <button 
-                                                @click="selectedDate = dateInfo.date; showCalendar = false; $wire.set('selectedHistoryDate', dateInfo.date)"
+                                                @click="selectedDate = dateInfo.date; showCalendar = false; $wire.call('loadHistoryMessages', dateInfo.date, $wire.selectedHistoryShift)"
                                                 class="w-full px-2 py-1.5 text-xs hover:bg-gray-100 text-left flex items-center justify-between"
                                                 :class="{
                                                     'bg-blue-100 text-blue-800': selectedDate === dateInfo.date,
@@ -179,14 +158,15 @@
                             </div>
                             <!-- Seleção de turno -->
                             <select 
-                                wire:model.live="selectedHistoryShift"
+                                wire:model="selectedHistoryShift"
+                                wire:change="loadHistoryMessages(selectedHistoryDate, selectedHistoryShift)"
                                 class="w-12 sm:w-14 px-1 py-1 text-xs border border-white/30 rounded bg-white/10 text-white hover:bg-white/20 transition-colors"
                             >
                                 <option value="dia" class="text-gray-800">Dia</option>
                                 <option value="noite" class="text-gray-800">Noite</option>
                             </select>
                             <!-- Botão para retornar ao turno atual -->
-                            @if($this->viewingHistory)
+                            @if($viewingHistory)
                                 <button 
                                     wire:click="returnToCurrentShift"
                                     class="px-1.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1"
@@ -203,7 +183,7 @@
             </div>
 
             <!-- Banner de ambiente profissional -->
-            @if(!$this->viewingHistory && !$isShiftClosed)
+            @if(!$viewingHistory && !$isShiftClosed)
                 <div class="flex-shrink-0 px-2 py-1.5 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
                     <div class="flex items-center space-x-2 text-xs">
                         <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -219,15 +199,15 @@
 
             <!-- Indicador de status do turno/histórico -->
             <div class="flex-shrink-0 px-2 py-1 border-b border-gray-200 bg-gray-50">
-                @if($this->viewingHistory)
+                @if($viewingHistory)
                     <div class="flex items-center justify-start">
                         <div class="inline-flex items-center space-x-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
                             <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
                             </svg>
                             <span class="font-medium whitespace-nowrap">
-                                {{ \Carbon\Carbon::parse($this->selectedHistoryDate)->format('d/m') }} - 
-                                {{ $this->selectedHistoryShift === 'dia' ? 'Dia' : 'Noite' }}
+                                {{ \Carbon\Carbon::parse($selectedHistoryDate)->format('d/m') }} - 
+                                {{ $selectedHistoryShift === 'dia' ? 'Dia' : 'Noite' }}
                             </span>
                         </div>
                     </div>
@@ -250,9 +230,13 @@
 
             <!-- Área de mensagens -->
             <div class="flex-1 overflow-y-auto p-2 bg-gray-50 min-h-[120px] max-h-[220px] h-[120px] sm:min-h-[140px] sm:max-h-[260px] sm:h-[140px] lg:min-h-[160px] lg:max-h-[300px] lg:h-[160px]" id="messages-container">
-                @if(count($this->shiftMessages) > 0)
+                @if(count($shiftMessages) > 0)
+                    @php
+                        $pinnedMessages = collect($shiftMessages)->where('is_pinned', true);
+                        $regularMessages = collect($shiftMessages)->where('is_pinned', false);
+                    @endphp
+
                     {{-- Mensagens fixadas --}}
-                    @php $pinnedMessages = collect($this->shiftMessages)->where('is_pinned', true) @endphp
                     @if($pinnedMessages->count() > 0)
                         <div class="mb-3">
                             <div class="flex items-center space-x-2 mb-2">
@@ -263,16 +247,26 @@
                                 <span class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full">{{ $pinnedMessages->count() }}</span>
                             </div>
                             @foreach($pinnedMessages as $message)
-                                <div class="bg-{{ $lightAccent }} border-l-2 border-{{ $accentColor }} rounded p-2 mb-2 shadow-sm">
-                                    <div class="flex items-start justify-between">
-                                        <div class="flex items-start space-x-2 flex-1 min-w-0">
-                                            <div class="w-5 h-5 bg-{{ $accentColor }}/20 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <span class="text-xs font-medium text-{{ $darkAccent }}">{{ substr($message['role'], 0, 1) }}</span>
+                                @php
+                                    $user = \App\Models\System\User::find($message['usuario_id']);
+                                    $isOwn = $message['usuario_id'] == ($currentUser['id'] ?? null);
+                                    $author = $user ? $user->name : 'Usuário';
+                                    $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
+                                @endphp
+                                <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }} mb-2">
+                                    <div class="flex items-start space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }}">
+                                        @if(!empty($photo))
+                                            <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                                        @else
+                                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                                                {{ substr($author, 0, 1) }}
                                             </div>
-                                            <div class="flex-1 min-w-0">
+                                        @endif
+                                        <div class="flex-1 min-w-0">
+                                            <div class="bg-{{ $lightAccent }} border-l-2 border-{{ $accentColor }} rounded p-2 shadow-sm">
                                                 <div class="flex items-center space-x-2 mb-1">
-                                                    <p class="text-xs font-semibold text-gray-800 truncate">{{ $message['author'] }}</p>
-                                                    <span class="text-xs text-gray-500">{{ $message['time'] }}</span>
+                                                    <p class="text-xs font-semibold text-gray-800 truncate">{{ $author }}</p>
+                                                    <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
                                                     <span class="inline-flex items-center text-xs text-{{ $darkAccent }} bg-{{ $accentColor }}/20 px-1.5 py-0.5 rounded-full">
                                                         <svg class="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
@@ -280,20 +274,9 @@
                                                         FIXO
                                                     </span>
                                                 </div>
-                                                <p class="text-xs text-gray-700 leading-relaxed">{{ $message['message'] }}</p>
+                                                <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
                                             </div>
                                         </div>
-                                        @if(!$this->viewingHistory && !$isShiftClosed)
-                                            <button 
-                                                wire:click="toggleMessagePin({{ $message['id'] }})"
-                                                class="text-{{ $accentColor }} hover:text-{{ $darkAccent }} p-1 rounded hover:bg-{{ $lightAccent }} transition-colors ml-2" 
-                                                title="Desfixar"
-                                            >
-                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                                </svg>
-                                            </button>
-                                        @endif
                                     </div>
                                 </div>
                             @endforeach
@@ -301,43 +284,32 @@
                     @endif
 
                     {{-- Mensagens regulares --}}
-                    @php $regularMessages = collect($this->shiftMessages)->where('is_pinned', false) @endphp
                     @if($regularMessages->count() > 0)
-                        @if($pinnedMessages->count() > 0)
-                            <div class="flex items-center my-2">
-                                <div class="flex-1 border-t border-gray-300"></div>
-                                <span class="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border mx-2">Demais</span>
-                                <div class="flex-1 border-t border-gray-300"></div>
-                            </div>
-                        @endif
                         <div class="space-y-2">
                             @foreach($regularMessages as $message)
-                                <div class="flex items-start space-x-2">
-                                    <div class="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                        <span class="text-xs font-medium text-gray-600">{{ substr($message['role'], 0, 1) }}</span>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="bg-white rounded p-2 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                                            <div class="flex items-center justify-between mb-1">
-                                                <div class="flex items-center space-x-2 min-w-0 flex-1">
-                                                    <p class="text-xs font-medium text-gray-800 truncate">{{ $message['author'] }}</p>
-                                                    <span class="text-xs text-gray-500">{{ $message['time'] }}</span>
-                                                </div>
-                                                @if(!$this->viewingHistory && !$isShiftClosed)
-                                                    <div class="flex items-center space-x-1 flex-shrink-0">
-                                                        <button 
-                                                            wire:click="toggleMessagePin({{ $message['id'] }})"
-                                                            class="text-gray-400 hover:text-{{ $accentColor }} p-1 rounded hover:bg-gray-100 transition-colors" 
-                                                            title="Fixar"
-                                                        >
-                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                @endif
+                                @php
+                                    $user = \App\Models\System\User::find($message['usuario_id']);
+                                    $isOwn = $message['usuario_id'] == ($currentUser['id'] ?? null);
+                                    $author = $user ? $user->name : 'Usuário';
+                                    $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
+                                @endphp
+                                <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }}">
+                                    <div class="flex items-start space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }}">
+                                        @if(!empty($photo))
+                                            <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                                        @else
+                                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                                                {{ substr($author, 0, 1) }}
                                             </div>
-                                            <p class="text-xs text-gray-700 leading-relaxed">{{ $message['message'] }}</p>
+                                        @endif
+                                        <div class="flex-1 min-w-0">
+                                            <div class="bg-white rounded p-2 shadow-sm border border-gray-200 hover:shadow-md transition-shadow {{ $isOwn ? 'bg-blue-50 border-blue-200' : '' }}">
+                                                <div class="flex items-center space-x-2 mb-1">
+                                                    <p class="text-xs font-medium text-gray-800 truncate">{{ $author }}</p>
+                                                    <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
+                                                </div>
+                                                <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -352,59 +324,78 @@
                         </svg>
                         <p class="text-gray-500 text-xs font-medium">Nenhuma mensagem registrada</p>
                         <p class="text-gray-400 text-xs mt-0.5">
-                            {{ $this->viewingHistory ? 'Sem anotações neste período' : 'Inicie registrando a primeira mensagem' }}
+                            {{ $viewingHistory ? 'Sem anotações neste período' : 'Inicie registrando a primeira mensagem' }}
                         </p>
                     </div>
                 @endif
             </div>
 
             <!-- Área de input de mensagem -->
-            @if(!$this->viewingHistory && !$isShiftClosed)
-                <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2">
-                    <form wire:submit.prevent="sendChatMessage">
-                        <div class="flex space-x-2">
-                            <div class="w-5 h-5 bg-{{ $lightAccent }} rounded-full flex items-center justify-center flex-shrink-0">
-                                <span class="text-xs font-bold text-{{ $darkAccent }}">EU</span>
-                            </div>
-                            <div class="flex-1 space-y-2">
-                                <textarea 
-                                    wire:model.defer="newChatMessage"
-                                    placeholder="Digite sua anotação..."
-                                    class="w-full p-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none"
-                                    rows="2"
-                                    maxlength="1000"
-                                    {{ $this->messageLoading ? 'disabled' : '' }}
-                                ></textarea>
-                                <div class="flex justify-between items-center">
-                                    <div class="text-xs text-gray-500">
-                                        <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($this->currentUser['name'] ?? 'Usuário', 15) }}
-                                        <span class="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
-                                            {{ strlen($this->newChatMessage ?? '') }}/1000
-                                        </span>
-                                    </div>
-                                    <button 
-                                        type="submit"
-                                        class="px-3 py-1.5 text-white text-xs rounded transition-all duration-200 inline-flex items-center justify-center space-x-1 min-w-[80px] {{ 
-                                            $this->messageLoading || empty(trim($this->newChatMessage ?? '')) 
-                                                ? 'bg-gray-400 cursor-not-allowed' 
-                                                : 'bg-' . $accentColor . ' hover:bg-' . $darkAccent . ' shadow-sm hover:shadow-md' 
-                                        }}"
-                                        disabled="{{ $this->messageLoading || empty(trim($this->newChatMessage ?? '')) ? 'true' : 'false' }}"
-                                    >
-                                        @if($this->messageLoading)
-                                            <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            <span>Enviando...</span>
-                                        @else
-                                            <span>Registrar</span>
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                            </svg>
-                                        @endif
-                                    </button>
+           @if(!$viewingHistory && !$isShiftClosed)
+                <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2"
+                    x-data="{
+                        message: @entangle('newChatMessage').defer || '',
+                        loading: @entangle('messageLoading')
+                    }"
+                >
+                    <form 
+                        wire:submit.prevent="sendChatMessage"
+                        @submit.prevent="
+                            $wire.sendChatMessage();
+                            message = '';
+                            setTimeout(() => { $refs.textarea?.focus(); }, 100);
+                        "
+                    >
+                        <div class="flex items-end space-x-2">
+                            @if(!empty($currentUser['photo']))
+                                <img src="data:image/jpeg;base64,{{ $currentUser['photo'] }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                            @else
+                                <div class="w-6 h-6 bg-{{ $lightAccent }} rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span class="text-xs font-bold text-{{ $darkAccent }}">EU</span>
                                 </div>
+                            @endif
+                            <textarea 
+                                x-model="message"
+                                wire:model.defer="newChatMessage"
+                                placeholder="Digite sua anotação..."
+                                class="p-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none basis-[90%]"  
+                                rows="1"
+                                maxlength="1000"
+                                :disabled="loading"
+                            ></textarea>
+                            <button
+                                type="submit"
+                                class="px-3 py-1.5 text-xs rounded transition-all duration-200 inline-flex items-center justify-center space-x-1 whitespace-nowrap"
+                                :class="(loading || !message || !message.trim())
+                                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'"
+                                :disabled="loading || !message || !message.trim()"
+                            >
+                                <template x-if="loading">
+                                    <span class="flex items-center space-x-1">
+                                        <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Enviando...</span>
+                                    </span>
+                                </template>
+                                <template x-if="!loading">
+                                    <span class="flex items-center space-x-1">
+                                        <span>Registrar</span>
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                        </svg>
+                                    </span>
+                                </template>
+                            </button>
+                        </div>
+                        <div class="flex justify-between items-center mt-1">
+                            <div class="text-xs text-gray-500">
+                                <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($currentUser['name'] ?? 'Usuário', 15) }}
+                                <span class="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                                    <span x-text="message ? message.length : 0"></span>/1000
+                                </span>
                             </div>
                         </div>
                     </form>
@@ -417,11 +408,23 @@
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                         </svg>
                         <span>
-                            {{ $this->viewingHistory ? 'Consulta de histórico' : 'Turno encerrado - Apenas visualização' }}
+                            {{ $viewingHistory ? 'Consulta de histórico' : 'Turno encerrado - Apenas visualização' }}
                         </span>
                     </p>
                 </div>
             @endif
+            <!-- Modal de confirmação para troca de fixação -->
+                <div x-data="{ showConfirm: false, pendingPinId: null }"
+                    @show-pin-confirm.window="pendingPinId = $event.detail.newPinId; showConfirm = true"
+                >
+                    <div x-show="showConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                        <div class="bg-white p-4 rounded shadow">
+                            <p class="mb-2 text-sm">Já existe uma mensagem fixada. Deseja desfixar e fixar esta?</p>
+                            <button @click="$wire.call('toggleMessagePin', pendingPinId); showConfirm = false" class="bg-blue-600 text-white px-3 py-1 rounded mr-2">Sim</button>
+                            <button @click="showConfirm = false" class="bg-gray-300 px-3 py-1 rounded">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
         </div>
     {{-- Erro ao carregar paciente --}}
     @else

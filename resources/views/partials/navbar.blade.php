@@ -54,7 +54,6 @@
                                     <p class="ml-3 text-sm">Perfis</p>
                                 </a>
                             @endcan
-
                             @can('configurar sistema')
                                 <a href="{{ route('system-configuration.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-4 lg:py-2 flex items-center text-xs rounded" role="menuitem">
                                     <svg class="w-5 h-5 text-sky-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,6 +63,17 @@
                                     <p class="ml-3 text-sm">Configurações</p>
                                 </a>
                             @endcan
+
+                            @can('configurar sistema')
+                                <a href="{{ route('sbar.chat-auditoria') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-4 lg:py-2 flex items-center text-xs rounded" role="menuitem">
+                                    <svg class="w-5 h-5 text-sky-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17l4 4 4-4m-4-5v9"></path>
+                                        <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2" fill="none"></circle>
+                                    </svg>
+                                    <p class="ml-3 text-sm">Auditoria do Chat</p>
+                                </a>
+                            @endcan
+                            
 
                             @can( 'ver logs' )
                                 <a href="{{ route( 'logs' ) }}" target="_blank" class="text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-4 lg:py-2 flex items-center text-xs rounded" role="menuitem">

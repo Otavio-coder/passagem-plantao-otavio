@@ -268,20 +268,20 @@
             @endif
             
             @if($loading)
-            <div class="flex flex-col items-center justify-center py-20">
-                <div class="w-16 h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
-                <p class="text-gray-700 text-xl">{{ $loadingMessage }}</p>
-            </div>
-            @elseif($pagination['total'] === 0)
-            <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg">
-                <div class="flex items-center">
-                <svg class="w-6 h-6 mr-2 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Nenhum paciente encontrado para o filtro.
+                <div class="flex flex-col items-center justify-center py-20">
+                    <div class="w-16 h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
+                    <p class="text-gray-700 text-xl">{{ $loadingMessage }}</p>
                 </div>
-            </div>
-            @elseif($pagination['total'] > 0)
+            @elseif(empty($patients))
+                <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg">
+                    <div class="flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Nenhum paciente encontrado para o filtro.
+                    </div>
+                </div>
+            @else
             <!-- Patient Cards Grid - wider cards with responsive layout -->
             <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 @foreach($patients as $index => $patient)
@@ -653,22 +653,7 @@
     </div>
 
     <!-- Patient Modal using only Livewire -->
-    <x-patient-modal.index 
-        :showModal="$showModal"
-        :currentPatient="$currentPatient"
-        :patientDetails="$patientDetails"
-        :loadingPatient="$loadingPatient"
-        :currentHospitalName="$currentHospitalName"
-        :showAlertsModal="$showAlertsModal ?? false"
-        :patientAlerts="$patientAlerts ?? []"
-        :currentShift="$currentShift"
-        :currentUser="$currentUser"
-        :viewingHistory="$viewingHistory"
-        :shiftMessages="$shiftMessages"
-        :newChatMessage="$newChatMessage"
-        :messageLoading="$messageLoading"
-        :selectedHistoryDate="$selectedHistoryDate"
-        :selectedHistoryShift="$selectedHistoryShift" />
+    @livewire('patient-modal')
 </div>
 
 

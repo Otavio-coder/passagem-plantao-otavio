@@ -4,7 +4,10 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
-use App\Repositories\EMR\SbarReport as SbarReportModel;
+use App\Models\EMR\Patient;
+use App\Models\EMR\BedUnit;
+use App\Models\EMR\Sector;
+use App\Models\EMR\Hospital;
 use App\Repositories\MySQL\ChatRepository;
 
 class PatientModal extends Component
@@ -57,7 +60,10 @@ class PatientModal extends Component
         $this->showModal = true;
         $this->currentPatient = $patient;
         $this->currentHospitalName = $currentHospitalName;
-        $this->loadPatientDetails($patient['nr_atendimento']);
+        $this->loadingPatient = true;
+
+        // Carrega todos os detalhes do paciente via Model Patient (centralizado)
+        $this->loadPatientDetails($patient['nr_atendimento'] ?? null);
         $this->loadShiftMessages();
     }
 
@@ -75,19 +81,29 @@ class PatientModal extends Component
     public function loadPatientDetails($attendanceNumber)
     {
         $this->loadingPatient = true;
-        $model = new SbarReportModel();
-        $this->patientDetails = $model->getPatientDetails($attendanceNumber);
+        $model = new Patient();
+        $this->patientDetails = $model->getFullPatientData($attendanceNumber);
         $this->loadingPatient = false;
         $this->checkPatientAlerts($attendanceNumber);
     }
 
-    private function checkPatientAlerts($attendanceNumber)
+     private function checkPatientAlerts($attendanceNumber)
     {
-        $clinicalModel = new \App\Repositories\EMR\PatientClinical();
-        $this->patientAlerts = $clinicalModel->getPatientActiveAlerts(
-            $attendanceNumber,
-            $this->currentPatient['cd_pessoa_fisica']
-        );
+        $this->patientAlerts = [];
+        if (!empty($this->patientDetails)) {
+            if (!empty($this->patientDetails->has_allergy)) {
+                $this->patientAlerts[] = [
+                    'type' => 'ALERGIA',
+                    'message' => 'Paciente com alergia registrada',
+                ];
+            }
+            if (!empty($this->patientDetails->has_isolation)) {
+                $this->patientAlerts[] = [
+                    'type' => 'ISOLAMENTO',
+                    'message' => 'Paciente em isolamento',
+                ];
+            }
+        }
         $this->showAlertsModal = !empty($this->patientAlerts);
     }
 

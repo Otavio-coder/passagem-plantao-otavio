@@ -15,6 +15,8 @@ class BedUnit extends Model
     
     /**
      * Get all beds in a sector
+     * 
+     * Retorna apenas dados do leito e ocupação, sem dados clínicos/detalhados do paciente.
      */
     public function getBedsBySector($sectorId)
     {
@@ -30,12 +32,13 @@ class BedUnit extends Model
                     ua.ie_situacao as bed_status,
                     ua.cd_setor_atendimento,
                     sa.ds_setor_atendimento,
+                    ags.ds_agrupamento as hospital_name,
                     
                     -- Current occupancy
                     ua.nr_atendimento as current_attendance,
                     CASE WHEN ua.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
                     
-                    -- Patient basic info if occupied
+                    -- Patient minimal info if occupied
                     atp.cd_pessoa_fisica,
                     tasy.obter_nome_paciente(ua.nr_atendimento) AS patient_name,
                     atp.dt_entrada,
@@ -43,6 +46,7 @@ class BedUnit extends Model
                     
                 FROM tasy.unidade_atendimento ua
                 JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
+                LEFT JOIN tasy.agrupamento_setor ags ON sa.nr_seq_agrupamento = ags.nr_sequencia
                 LEFT JOIN tasy.atendimento_paciente atp ON ua.nr_atendimento = atp.nr_atendimento
                     AND atp.dt_alta IS NULL
                 WHERE ua.cd_setor_atendimento = :sector_id
@@ -57,19 +61,21 @@ class BedUnit extends Model
             
             return collect($results)->map(function($record) {
                 return (object) [
-                    'cd_unidade_basica' => $record->cd_unidade_basica,
-                    'bed_name' => $record->bed_name,
-                    'bed_sequence' => $record->bed_sequence,
-                    'display_order' => $record->display_order,
-                    'bed_status' => $record->bed_status,
-                    'cd_setor_atendimento' => $record->cd_setor_atendimento,
-                    'ds_setor_atendimento' => $record->ds_setor_atendimento,
-                    'current_attendance' => $record->current_attendance,
-                    'is_occupied' => (bool)$record->is_occupied,
-                    'cd_pessoa_fisica' => $record->cd_pessoa_fisica,
-                    'patient_name' => $record->patient_name,
-                    'dt_entrada' => $record->dt_entrada,
-                    'internment_days' => $record->internment_days ? intval($record->internment_days) : null
+                    'cd_unidade_basica'      => $record->cd_unidade_basica,
+                    'bed_name'               => $record->bed_name,
+                    'bed_sequence'           => $record->bed_sequence,
+                    'display_order'          => $record->display_order,
+                    'bed_status'             => $record->bed_status,
+                    'cd_setor_atendimento'   => $record->cd_setor_atendimento,
+                    'ds_setor_atendimento'   => $record->ds_setor_atendimento,
+                    'hospital_name'          => property_exists($record, 'hospital_name') ? $record->hospital_name : null,
+                    'current_attendance'     => $record->current_attendance,
+                    'nr_atendimento'         => $record->current_attendance,
+                    'is_occupied'            => (bool)$record->is_occupied,
+                    'cd_pessoa_fisica'       => $record->cd_pessoa_fisica,
+                    'patient_name'           => $record->patient_name,
+                    'dt_entrada'             => $record->dt_entrada,
+                    'internment_days'        => $record->internment_days ? intval($record->internment_days) : null
                 ];
             });
         });
@@ -98,7 +104,7 @@ class BedUnit extends Model
                     ua.nr_atendimento as current_attendance,
                     CASE WHEN ua.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
                     
-                    -- Patient info if occupied
+                    -- Patient minimal info if occupied
                     atp.cd_pessoa_fisica,
                     tasy.obter_nome_paciente(ua.nr_atendimento) AS patient_name,
                     atp.dt_entrada,
@@ -221,64 +227,6 @@ class BedUnit extends Model
                     'avg_length_of_stay' => $record->avg_length_of_stay ? round(floatval($record->avg_length_of_stay), 1) : 0
                 ];
             });
-        });
-    }
-    
-    /**
-     * Get beds with basic patient info - CORRECTED STRUCTURE
-     */
-    public function getBedsWithBasicPatientInfo($sectorId)
-    {
-        $cacheKey = "beds_basic_patient_info_{$sectorId}";
-        
-        return Cache::remember($cacheKey, 300, function() use ($sectorId) {
-            $results = DB::connection('tasy')->select("
-                SELECT 
-                    ua.cd_unidade_basica,
-                    ua.nr_seq_interno as display_order,
-                    ua.cd_setor_atendimento,
-                    sa.ds_setor_atendimento,
-                    ags.ds_agrupamento as hospital_name,
-                    
-                    -- Current occupancy
-                    ua.nr_atendimento as current_attendance,
-                    CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
-                    
-                    -- Basic patient info
-                    atp.cd_pessoa_fisica,
-                    tasy.obter_nome_paciente(ua.nr_atendimento) AS patient_name,
-                    pf.nr_prontuario as patient_record_number,
-                    pf.ie_sexo as patient_gender,
-                    pf.dt_nascimento as patient_birth_date,
-                    atp.dt_entrada,
-                    
-                    -- Age calculations
-                    FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS patient_age_years,
-                    MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)), 12) AS patient_age_months,
-                    FLOOR(SYSDATE - ADD_MONTHS(pf.dt_nascimento, FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)))) AS patient_age_days,
-                    TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) AS internment_days,
-                    
-                    -- Medical info
-                    tasy.obter_medico_resp_atend(ua.nr_atendimento, 'N') AS responsible_doctor,
-                    tasy.obter_desc_convenio(tasy.obter_convenio_atendimento(ua.nr_atendimento)) AS insurance_plan
-                    
-                FROM tasy.unidade_atendimento ua
-                JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
-                LEFT JOIN tasy.agrupamento_setor ags ON sa.nr_seq_agrupamento = ags.nr_sequencia
-                LEFT JOIN tasy.atendimento_paciente atp ON ua.nr_atendimento = atp.nr_atendimento
-                    AND atp.dt_alta IS NULL
-                LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
-                WHERE ua.cd_setor_atendimento = :sector_id
-                  AND ua.ie_situacao = 'A'
-                ORDER BY 
-                    CASE 
-                        WHEN ua.nr_seq_interno IS NOT NULL THEN ua.nr_seq_interno 
-                        ELSE 999999 
-                    END ASC,
-                    ua.cd_unidade_basica ASC
-            ", ['sector_id' => $sectorId]);
-            
-            return collect($results);
         });
     }
     

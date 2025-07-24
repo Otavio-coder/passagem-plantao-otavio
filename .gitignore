@@ -57,6 +57,8 @@ yarn-error.log
 /.DS_Store
 Thumbs.db
 
+/.github
+
 # For dependency files that should be tracked but changes ignored locally:
 # Run these commands to ignore local changes:
 # git update-index --skip-worktree composer.json composer.lock package.json package-lock.json

@@ -2,7 +2,10 @@
 
 namespace App\Livewire;
 
-use App\Repositories\EMR\SbarReport as SbarReportModel;
+use App\Models\EMR\Patient;
+use App\Models\EMR\BedUnit;
+use App\Models\EMR\Sector;
+use App\Models\EMR\Hospital;
 use App\Models\System\SystemConfiguration;
 use Livewire\Component;
 use Illuminate\Support\Facades\Cache;
@@ -171,24 +174,80 @@ class SbarReport extends Component
             $this->loading = true;
             $this->errorMessage = null;
             $this->loadingMessage = "Carregando dados dos pacientes...";
-            $model = new SbarReportModel();
-            $filters = [
+
+            $cacheKey = "sbar_data_{$this->selectedSector}_" . md5(serialize([
                 'mews_filter' => $this->mewsFilter,
                 'surgical_filter' => $this->surgicalFilter,
                 'order_by' => $this->orderBy,
                 'order_direction' => $this->orderDirection,
-            ];
-            $rawPatients = $model->getBasePatientData($this->selectedSector, $filters);
+            ]));
 
-            $this->patients = $rawPatients->map(function($patient) {
-                if (isset($patient->internment_days) && !isset($patient->tempo_internacao_dias)) {
-                    $patient->tempo_internacao_dias = $patient->internment_days;
-                } elseif (!isset($patient->internment_days) && isset($patient->tempo_internacao_dias)) {
-                    $patient->internment_days = $patient->tempo_internacao_dias;
+            // Tenta buscar do cache primeiro
+            $patients = Cache::get($cacheKey);
+
+            if (!$patients) {
+                $patientModel = new Patient();
+                // Busca todos os pacientes/leitos do setor (dados completos)
+                $allPatients = $patientModel->getAllPatientsInSector($this->selectedSector);
+
+                // Filtros em memória
+                $filtered = collect($allPatients);
+
+                // Filtro MEWS
+                if ($this->mewsFilter !== 'all') {
+                    $filtered = $filtered->filter(function($p) {
+                        if (!$p->has_patient) return false;
+                        $score = $p->mews_score;
+                        if ($this->mewsFilter === 'critical') return $score !== null && $score >= 5;
+                        if ($this->mewsFilter === 'warning') return $score !== null && $score >= 3 && $score < 5;
+                        if ($this->mewsFilter === 'normal') return $score === null || $score < 3;
+                        return true;
+                    });
                 }
-                return $patient;
-            })->toArray();
-            $this->currentHospitalName = $model->getHospitalName($this->selectedSector);
+
+                // Filtro cirurgia
+                if ($this->surgicalFilter === 'with_surgery') {
+                    $filtered = $filtered->filter(function($p) {
+                        return $p->has_patient && $p->has_surgery;
+                    });
+                }
+
+                // Ordenação em memória
+                $filtered = $filtered->sort(function($a, $b) {
+                    $dir = $this->orderDirection === 'asc' ? 1 : -1;
+                    switch ($this->orderBy) {
+                        case 'leito':
+                            return $dir * strcmp((string)($a->cd_unidade_basica ?? ''), (string)($b->cd_unidade_basica ?? ''));
+                        case 'mews':
+                            return $dir * ((int)($b->mews_score ?? 0) <=> (int)($a->mews_score ?? 0));
+                        case 'name':
+                            return $dir * strcmp((string)($a->nm_pessoa_fisica ?? ''), (string)($b->nm_pessoa_fisica ?? ''));
+                        case 'prontuario':
+                            return $dir * strcmp((string)($a->nr_prontuario ?? ''), (string)($b->nr_prontuario ?? ''));
+                        case 'internment':
+                            return $dir * ((int)($a->internment_days ?? 0) <=> (int)($b->internment_days ?? 0));
+                        case 'age':
+                            return $dir * ((int)($a->age ?? 0) <=> (int)($b->age ?? 0));
+                        default:
+                            return 0;
+                    }
+                })->values();
+
+                $patients = $filtered->toArray();
+                // Salva no cache para próximas chamadas
+                Cache::put($cacheKey, $patients, 60); // 1 min
+            }
+
+            $this->patients = $patients;
+
+            // Hospital name pelo setor (cache separado)
+            $sectorModel = new Sector();
+            $sector = collect($sectorModel->getAllowedSectors())
+                ->first(fn($s) => $s->cd_setor_atendimento == $this->selectedSector);
+            $hospitalModel = new Hospital();
+            $hospital = $hospitalModel->getAllHospitalsWithSectors()
+                ->first(fn($h) => $h->hospital_id == ($sector->hospital_id ?? null));
+            $this->currentHospitalName = $hospital->hospital_name ?? 'Hospital';
 
             Log::info("Patient data loaded successfully", [
                 'sector' => $this->selectedSector,
@@ -280,13 +339,11 @@ class SbarReport extends Component
 
     public function openModal($nr_atendimento, $cd_pessoa_fisica, $has_patient = true)
     {
-        // Find the patient summary from the loaded patients
         $patient = collect($this->patients)->first(function ($p) use ($nr_atendimento) {
             return isset($p->nr_atendimento) && $p->nr_atendimento == $nr_atendimento;
         });
 
         if (!$patient) {
-            // fallback for empty bed or not found
             $patient = [
                 'nr_atendimento' => $nr_atendimento,
                 'cd_pessoa_fisica' => $cd_pessoa_fisica,
@@ -302,7 +359,7 @@ class SbarReport extends Component
         $this->loadingPatient = false;
 
         $this->dispatch('openPatientModal', $patient, $this->currentHospitalName);
-}
+    }
 
     public function closePatientModal()
     {

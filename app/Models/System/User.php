@@ -11,6 +11,11 @@ use LdapRecord\Laravel\Auth\HasLdapUser;
 use LdapRecord\Laravel\Auth\LdapAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * @method \Illuminate\Support\Collection getRoleNames()
+ * @method string photo(string $size = "64x64")
+ */
+
 class User extends Authenticatable implements LdapAuthenticatable
 {
 

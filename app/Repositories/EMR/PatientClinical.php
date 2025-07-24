@@ -380,18 +380,6 @@ class PatientClinical
         return Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
             $result = DB::connection('tasy')->select("
                 SELECT
-                    -- Basic patient info (enhanced)
-                    atp.cd_pessoa_fisica,
-                    tasy.obter_nome_paciente(atp.nr_atendimento) AS nm_pessoa_fisica,
-                    pf.dt_nascimento,
-                    FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS idade_anos,
-                    MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)), 12) AS idade_meses,
-                    FLOOR(SYSDATE - ADD_MONTHS(pf.dt_nascimento, FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)))) AS idade_dias,
-                    pf.ie_sexo AS sexo,
-                    TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) AS tempo_internacao_dias,
-                    tasy.obter_medico_resp_atend(atp.nr_atendimento, 'N') AS medico_responsavel,
-                    tasy.obter_desc_convenio(tasy.obter_convenio_atendimento(atp.nr_atendimento)) AS convenio,
-                    
                     -- Isolation check
                     (SELECT DECODE(
                         COUNT(nr_sequencia),

@@ -61,7 +61,7 @@
         </div>
     </div>
 
-    @if($loading)
+    @if(isset($loading) && $loading)
     <!-- Skeleton Loading melhorado -->
     <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden">
         <!-- Header Skeleton -->
@@ -118,14 +118,14 @@
     <!-- Main container with more subtle gradient background -->
     <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden">
         <!-- Header section with more professional look - NOW FIXED -->
-        <div class="bg-[#004D9D]/90 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 lg:py-4 top-0 z-50 shadow-lg">
+        <div class="bg-[#004D9D]/90 px-3 sm:px-4 lg:px-5 py-2 sm:py-3 lg:py-4 top-0 z-50 shadow-lg">
             <div class="flex flex-col space-y-2 lg:space-y-3">
                 <h1 class="text-sm sm:text-base lg:text-2xl font-bold text-white text-center">Sistema SBAR - Passsagem de Plantão</h1>
                 
                 <!-- Filtros e botões responsivos em grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 xl:grid-cols-7 gap-2 xl:gap-4 items-end">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 xl:gap-4 items-end">
                     <!-- Hospital Selector -->
-                    <div class="min-w-[140px] col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-white text-xs mb-1 font-medium">Hospital:</label>
                         <select 
                             wire:model="selectedHospital" 
@@ -133,32 +133,36 @@
                             class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
                         >
                             @foreach($hospitals as $hospital)
-                                <option value="{{ data_get($hospital, 'hospital_id') }}">{{ data_get($hospital, 'hospital_name') }}</option>
+                                <option value="{{ (is_array($hospital) && isset($hospital['hospital_id'])) ? $hospital['hospital_id'] : (property_exists($hospital, 'hospital_id') ? $hospital->hospital_id : '') }}">{{ (is_array($hospital) && isset($hospital['hospital_name'])) ? $hospital['hospital_name'] : (property_exists($hospital, 'hospital_name') ? $hospital->hospital_name : '') }}</option>
                             @endforeach
                         </select>
                     </div>
 
-                    <!-- Sector Selector -->
-                    <div class="min-w-[140px] col-span-1">
+                    <!-- Sector Selector  -->
+                    <div class="col-span-1">
                         <label class="block text-white text-xs mb-1 font-medium">Setor:</label>
-                        <select 
-                            wire:model="selectedSector" 
-                            wire:change="changeSelector($event.target.value)" 
-                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
-                        >
-                            @foreach($sectors as $sector)
-                                <option value="{{ data_get($sector, 'cd_setor_atendimento') }}" class="text-gray-800 bg-white hover:bg-blue-50">{{ data_get($sector, 'ds_setor_atendimento') }}</option>
-                            @endforeach
-                        </select>
+                            <select 
+                                wire:model="selectedSector" 
+                                wire:change="changeSelector($event.target.value)" 
+                                class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-8 text-xs w-full min-w-[180px] max-w-[220px] focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                                style="min-width:120px; max-width:100%;"
+                            >
+                                @foreach($sectors as $sector)
+                                    <option value="{{ (is_array($sector) && isset($sector['cd_setor_atendimento'])) ? $sector['cd_setor_atendimento'] : (property_exists($sector, 'cd_setor_atendimento') ? $sector->cd_setor_atendimento : '') }}" class="text-gray-800 bg-white hover:bg-blue-50">
+                                        {{ (is_array($sector) && isset($sector['ds_setor_atendimento'])) ? $sector['ds_setor_atendimento'] : (property_exists($sector, 'ds_setor_atendimento') ? $sector->ds_setor_atendimento : '') }}
+                                    </option>
+                                @endforeach
+                            </select>
                     </div>
                     
-                    <!-- MEWS Filter -->
-                    <div class="min-w-[140px] col-span-1">
+                    <!-- MEWS Filter (always mx-2, min-w-0, flex-1, prevent overlap) -->
+                    <div class="col-span-1 mx-2 min-w-0 flex-1">
                         <label class="block text-white text-xs mb-1 font-medium">Criticidade (MEWS):</label>
                         <select 
                             wire:model="mewsFilter" 
                             wire:change="applyMewsFilter($event.target.value)"
-                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                            class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full min-w-[120px] max-w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
+                            style="min-width:120px; max-width:100%;"
                         >
                             <option value="all" class="text-gray-800 bg-white hover:bg-blue-50">Todos os níveis</option>
                             <option value="critical" class="text-red-700 bg-red-50 hover:bg-red-100">CRÍTICOS (≥5)</option>
@@ -168,7 +172,7 @@
                     </div>
                     
                     <!-- Surgical Filter -->
-                    <div class="min-w-[140px] col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-white text-xs mb-1 font-medium">Cirurgias:</label>
                         <select 
                             wire:model="surgicalFilter" 
@@ -201,9 +205,9 @@
                                 <button 
                                     wire:click="toggleOrderDirection" 
                                     class="bg-white border border-gray-300 border-l-0 rounded-r px-1 focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:bg-gray-50 flex-shrink-0 transition-colors"
-                                    title="{{ $orderDirection === 'asc' ? 'Ordem crescente (A→Z, 1→9)' : 'Ordem decrescente (Z→A, 9→1)' }}"
+                                    title="{{ (isset($orderDirection) && $orderDirection === 'asc') ? 'Ordem crescente (A→Z, 1→9)' : 'Ordem decrescente (Z→A, 9→1)' }}"
                                 >
-                                    @if($orderDirection === 'asc')
+                                    @if(isset($orderDirection) && $orderDirection === 'asc')
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                                         </svg>
@@ -218,45 +222,32 @@
                     </div>
 
                     <!-- Buttons container -->
-                    <div class="flex gap-2 min-w-[140px]">
-                        <!-- Refresh Button -->
-                        <button 
-                            wire:click="refreshData" 
-                            @if($loading) disabled @endif
-                            class="inline-flex items-center justify-center px-4 py-2 rounded text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 disabled:opacity-50 text-sm font-semibold min-w-[90px]"
+                    <div class="flex flex-row justify-center items-center gap-3 mt-3 mx-2">
+                        <button
+                            wire:click="refreshData"
+                            @if(isset($loading) && $loading) disabled @endif
+                            class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0071B9]/40 disabled:opacity-50 text-sm font-semibold min-w-[50px]"
                             title="Atualizar dados do setor selecionado"
                         >
-                            <svg class="w-4 h-4 mr-2 {{ $loading ? 'animate-spin' : '' }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            <span class="hidden sm:inline">Atualizar</span>
-                            <span class="sm:hidden">ATZ</span>
+                            @svg('iconpark-updaterotation-o', 'w-5 h-5 mr-2')
+                            <span>Atualizar</span>
                         </button>
-                        
-                        <!-- Reset Filters Button -->
-                        <button 
-                            wire:click="resetFilters" 
-                            @if($loading) disabled @endif
-                            class="inline-flex items-center justify-center px-4 py-2 rounded text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-1 focus:ring-gray-400/50 disabled:opacity-50 text-sm font-semibold min-w-[90px]"
+                        <button
+                            wire:click="resetFilters"
+                            @if(isset($loading) && $loading) disabled @endif
+                            class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-400/40 disabled:opacity-50 text-sm font-semibold min-w-[50px]"
                             title="Limpar todos os filtros aplicados"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            <span class="ml-2 hidden sm:inline">Limpar</span>
-                            <span class="ml-2 sm:hidden">LMP</span>
+                            @svg('eos-filter-alt-off', 'w-5 h-5 mr-2')
+                            <span class="ml-2">Limpar</span>
                         </button>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Add padding to account for fixed header -->
         <div id="patientsContainer" class="p-3 sm:p-4 lg:p-6 xl:p-8 bg-white">
-            @if($errorMessage)
+            @if(isset($errorMessage) && $errorMessage)
             <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">
                 <div class="flex items-center">
                 <svg class="w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -267,10 +258,10 @@
             </div>
             @endif
             
-            @if($loading)
+            @if(isset($loading) && $loading)
                 <div class="flex flex-col items-center justify-center py-20">
                     <div class="w-16 h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
-                    <p class="text-gray-700 text-xl">{{ $loadingMessage }}</p>
+                    <p class="text-gray-700 text-xl">{{ isset($loadingMessage) ? $loadingMessage : '' }}</p>
                 </div>
             @elseif(empty($patients))
                 <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg">
@@ -285,18 +276,18 @@
             <!-- Patient Cards Grid - wider cards with responsive layout -->
             <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 @foreach($patients as $index => $patient)
-                <div wire:key="patient-{{ $patient->nr_atendimento ?? 'empty-'.$index }}" class="relative patient-card">
+                <div wire:key="patient-{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : ('empty-'.$index) }}" class="relative patient-card">
                     <!-- Patient Card - simplified for Livewire only -->
-                    <div wire:click="openModal('{{ $patient->nr_atendimento }}', '{{ $patient->cd_pessoa_fisica }}', {{ $patient->has_patient ? 'true' : 'false' }})" 
+                    <div wire:click="openModal('{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : '' }}', '{{ (is_object($patient) && property_exists($patient, 'cd_pessoa_fisica')) ? $patient->cd_pessoa_fisica : '' }}', {{ (is_object($patient) && property_exists($patient, 'has_patient') && $patient->has_patient) ? 'true' : 'false' }})" 
                     class="cursor-pointer transform transition-all duration-300 hover:scale-105 focus:outline-none h-full">
                     <div class="rounded-xl shadow-lg h-64 sm:h-72 md:h-80 lg:h-80">
                         <!-- Card Header with gradient color based on status -->
-                        @if(!$patient->has_patient)
+                        @if(!(is_object($patient) && property_exists($patient, 'has_patient') && $patient->has_patient))
                         <!-- Empty Bed -->
                         <div class="h-full bg-gradient-to-br from-gray-200 to-gray-300 p-3 sm:p-4 flex flex-col">
                             <div class="flex justify-between items-center mb-3">
                             <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                                Leito {{ $patient->cd_unidade_basica }}
+                                Leito {{ (is_object($patient) && property_exists($patient, 'cd_unidade_basica')) ? $patient->cd_unidade_basica : '' }}
                             </span>
                             </div>
                             
@@ -315,13 +306,13 @@
                             $borderClass = 'border border-gray-200';
                             $textColorClass = 'text-sky-800';
 
-                            $isNewPatient = ($patient->tempo_internacao_dias !== null && $patient->tempo_internacao_dias >= 0 && $patient->tempo_internacao_dias < 1);
+                            $isNewPatient = (is_object($patient) && property_exists($patient, 'internment_days') && $patient->internment_days !== null && $patient->internment_days >= 0 && $patient->internment_days < 1);
 
                             if ($isNewPatient) {
                                 $gradientClass = 'from-green-50 to-green-100';
                                 $borderClass = 'border-2 border-green-400';
                                 $textColorClass = 'text-green-800';
-                            } elseif ($patient->mews_score !== null) {
+                            } elseif (is_object($patient) && property_exists($patient, 'mews_score') && $patient->mews_score !== null) {
                                 if ($patient->mews_score >= 5) {
                                     $gradientClass = 'from-red-50 to-red-100';
                                     $borderClass = 'border-2 border-red-500';
@@ -339,13 +330,13 @@
                             <!-- Left side: Bed number and NEW badge -->
                             <div class="flex items-center space-x-2 flex-shrink-0">
                                 <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                                Leito {{ $patient->cd_unidade_basica }}
+                                Leito {{ (is_object($patient) && property_exists($patient, 'cd_unidade_basica')) ? $patient->cd_unidade_basica : '' }}
                                 </span>
                             </div>
                             
                             <!-- Center: Alert Icons -->
                             <div class="flex items-center justify-center space-x-1 flex-1 px-2">
-                                @if(isset($patient->has_allergy) && $patient->has_allergy)
+                                @if(is_object($patient) && property_exists($patient, 'has_allergy') && $patient->has_allergy)
                                 <div class="relative group">
                                     <div class="bg-red-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente com alergias">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -360,7 +351,7 @@
                                 </div>
                                 @endif
                                 
-                                @if(isset($patient->has_isolation) && $patient->has_isolation)
+                                @if(is_object($patient) && property_exists($patient, 'has_isolation') && $patient->has_isolation)
                                 <div class="relative group">
                                     <div class="bg-yellow-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente em isolamento">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -375,7 +366,7 @@
                                 </div>
                                 @endif
                                 
-                                @if(isset($patient->has_cpoe_pending) && $patient->has_cpoe_pending)
+                                @if(is_object($patient) && property_exists($patient, 'has_cpoe_pending') && $patient->has_cpoe_pending)
                                 <div class="relative group">
                                     <div class="bg-blue-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="CPOE pendente para baixa">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -383,13 +374,13 @@
                                     </div>
                                     <!-- Tooltip with count -->
                                     <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-blue-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
-                                    {{ $patient->cpoe_pending_count ?? 0 }} CPOE pendente(s)
+                                    {{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }} CPOE pendente(s)
                                     <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-blue-600"></div>
                                     </div>
                                 </div>
                                 @endif
                                 
-                                @if(isset($patient->has_surgery) && $patient->has_surgery)
+                                @if(is_object($patient) && property_exists($patient, 'has_surgery') && $patient->has_surgery)
                                 <div class="relative group">
                                     <div class="bg-purple-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="Paciente com cirurgias programadas/realizadas">
                                         <!-- Ícone SVG de tesoura para cirurgia -->
@@ -397,7 +388,7 @@
                                     </div>
                                     <!-- Tooltip -->
                                     <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-purple-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
-                                        {{ count($patient->surgical_procedures ?? []) }} cirurgia(s)
+                                        {{ (is_object($patient) && property_exists($patient, 'surgical_procedures') && is_array($patient->surgical_procedures)) ? count($patient->surgical_procedures) : 0 }} cirurgia(s)
                                         <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-purple-600"></div>
                                     </div>
                                 </div>
@@ -406,9 +397,9 @@
                             
                             <!-- Right side: MEWS Score -->
                             <div class="flex-shrink-0">
-                                @if($patient->mews_score !== null)
+                                @if(is_object($patient) && property_exists($patient, 'mews_score') && $patient->mews_score !== null)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $textColorClass }} bg-white/70 whitespace-nowrap">
-                                        {{ $patient->mews_display }}
+                                        {{ (is_object($patient) && property_exists($patient, 'mews_display')) ? $patient->mews_display : '' }}
                                     </span>
                                 @elseif($isNewPatient)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-white/70 whitespace-nowrap">
@@ -425,9 +416,9 @@
                             <!-- Patient Info -->
                             <div class="mb-3 flex items-center">
                             <div class="ml-3 truncate flex-1 min-w-0">
-                                <p class="text-gray-600 text-xs truncate"><strong>{{ $patient->nm_pessoa_fisica ?? 'N/A' }}</strong></p>
-                                <p class="text-gray-600 text-xs truncate">Atend: {{ $patient->nr_atendimento ?? 'N/A' }}</p>
-                                <p class="text-gray-600 text-xs truncate">Pront: {{ $patient->nr_prontuario ?? 'N/A' }}</p>
+                                <p class="text-gray-600 text-xs truncate"><strong>{{ (is_object($patient) && property_exists($patient, 'nm_pessoa_fisica')) ? $patient->nm_pessoa_fisica : 'N/A' }}</strong></p>
+                                <p class="text-gray-600 text-xs truncate">Atend: {{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : 'N/A' }}</p>
+                                <p class="text-gray-600 text-xs truncate">Pront: {{ (is_object($patient) && property_exists($patient, 'nr_prontuario')) ? $patient->nr_prontuario : 'N/A' }}</p>
                             </div>
                             </div>
 
@@ -437,7 +428,7 @@
                                 <!-- Sexo e Idade detalhada -->
                                 <div class="text-xs text-gray-600">
                                 <span class="flex items-center gap-2 font-normal text-xs text-gray-600">
-                                    @if($patient->sexo === 'F')
+                                    @if(is_object($patient) && property_exists($patient, 'sexo') && $patient->sexo === 'F')
                                         <span class="inline-flex items-center justify-center rounded-full text-pink-600" style="width: 1.5em; height: 1.5em;">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
@@ -446,7 +437,7 @@
                                             </svg>
                                         </span>
                                         <span class="opacity-70">Feminino</span>
-                                    @elseif($patient->sexo === 'M')
+                                    @elseif(is_object($patient) && property_exists($patient, 'sexo') && $patient->sexo === 'M')
                                         <span class="inline-flex items-center justify-center rounded-full bg-blue-100" style="width: 1.5em; height: 1.5em;">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <circle cx="10" cy="14" r="4" stroke="currentColor" stroke-width="2" fill="none"/>
@@ -468,32 +459,32 @@
                                 
                                 <div class="text-xs text-gray-600">
                                 <span class="font-medium">Idade:</span> 
-                                <span class="truncate">{{ $patient->age_detailed ?? ($patient->age ?? 'N/A') }}</span>
-                                @if($patient->birth_date)
-                                    <span class="text-gray-500 block sm:inline">({{ $patient->birth_date }})</span>
+                                <span class="truncate">{{ (is_object($patient) && property_exists($patient, 'age_detailed') && $patient->age_detailed) ? $patient->age_detailed : ((is_object($patient) && property_exists($patient, 'age')) ? $patient->age : 'N/A') }}</span>
+                                @if(is_object($patient) && property_exists($patient, 'age_detailed') && $patient->age_detailed)
+                                    <span class="text-gray-500 block sm:inline">{{ (is_object($patient) && property_exists($patient, 'birth_date')) ? '(' . $patient->birth_date . ')' : '' }}</span>
                                 @endif
                                 </div>
                                 
                                 <div class="text-xs text-gray-600">
                                 <span class="font-medium">Internação:</span> 
-                                @if($patient->tempo_internacao_dias === null)
+                                @if(!(is_object($patient) && property_exists($patient, 'internment_days')) || $patient->internment_days === null)
                                     <span class="text-gray-500">N/A</span>
-                                @elseif($patient->tempo_internacao_dias >= 0 && $patient->tempo_internacao_dias < 1)
+                                @elseif($patient->internment_days >= 0 && $patient->internment_days < 1)
                                     <span class="text-green-600 font-semibold">Recém-chegado (hoje)</span>
                                 @else
-                                    @php $days = ceil($patient->tempo_internacao_dias); @endphp
+                                    @php $days = ceil($patient->internment_days); @endphp
                                     {{ $days }} dia{{ $days != 1 ? 's' : '' }}
                                 @endif
                                 </div>
                                 
-                                @if($patient->medico_responsavel)
+                                @if(is_object($patient) && property_exists($patient, 'medico_responsavel') && $patient->medico_responsavel)
                                 <div class="text-xs text-gray-600 truncate">
                                     <span class="font-medium">Médico:</span> 
                                     <span class="truncate">{{ $patient->medico_responsavel }}</span>
                                 </div>
                                 @endif
                                 
-                                @if($patient->convenio)
+                                @if(is_object($patient) && property_exists($patient, 'convenio') && $patient->convenio)
                                 <div class="text-xs text-gray-600 truncate">
                                     <span class="font-medium">Convênio:</span> 
                                     <span class="truncate">{{ $patient->convenio }}</span>
@@ -519,23 +510,6 @@
                 </div>
                 @endforeach
             </div>
-                
-                <!-- Mobile/Tablet Pagination Controls - Only visible on small screens -->
-                <div id="cardPaginationControls" class="mt-6 flex items-center justify-between lg:hidden">
-                    <button id="prevPageBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                    <div class="text-sm">
-                        <span id="currentPageIndicator">Página <span id="currentPage">1</span> de <span id="totalPages">1</span></span>
-                    </div>
-                    <button id="nextPageBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
             @endif
         </div>
     </div>
@@ -586,75 +560,74 @@
         </div>
     </div>
     
-    <!-- Floating Action Button (FAB) for Auto-Scroll - Only Cíclico mode with speed controls -->
-    <div id="fabContainer" class="hidden lg:block fixed bottom-6 right-6 z-50" style="position: fixed !important; will-change: auto !important;">
-        <div class="relative">
-            <!-- Main FAB button -->
-            <button id="mainFabButton" 
-                class="p-4 bg-[#0071B9] hover:bg-[#004D9D] text-white rounded-full shadow-lg transition-all duration-200 flex items-center justify-center"
-                title="Controle de rolagem automática">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
-                </svg>
-            </button>
-
-            <!-- FAB Controls panel - only speed controls -->
-            <div id="fabControlsPanel" class="absolute bottom-16 right-0 bg-white rounded-lg shadow-xl p-3 hidden min-w-[240px] transition-all duration-300">
-                <div class="mb-2">
-                    <h3 class="text-gray-700 font-semibold mb-2 border-b pb-1">Velocidade</h3>
-                    <div class="flex space-x-2">
-                        <button id="speedSlow" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-speed="slow" data-delay="80">
-                            Lenta
-                        </button>
-                        <button id="speedMedium" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-[#0071B9] text-white hover:bg-[#004D9D] transition-colors" data-speed="medium" data-delay="40">
-                            Média
-                        </button>
-                        <button id="speedFast" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-speed="fast" data-delay="15">
-                            Rápida
-                        </button>
-                    </div>
-                </div>
-                <!-- Close Button for control panel -->
-                <button id="closeFabPanel" class="w-full mt-1 text-xs text-gray-500 hover:text-gray-700 flex items-center justify-center">
-                    <span>Fechar</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+    @if(empty($isMobileOrTablet) || !$isMobileOrTablet)
+        <!-- Floating Action Button (FAB) for Auto-Scroll - Only Cíclico mode with speed controls -->
+        <div id="fabContainer" class="fixed bottom-6 right-6 z-50" style="position: fixed !important; will-change: auto !important;">
+            <div class="relative">
+                <!-- Main FAB button -->
+                <button id="mainFabButton" 
+                    class="p-4 bg-[#0071B9] hover:bg-[#004D9D] text-white rounded-full shadow-lg transition-all duration-200 flex items-center justify-center"
+                    title="Controle de rolagem automática">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
                     </svg>
                 </button>
-            </div>
-            
-            <!-- Start/Stop button -->
-            <button id="autoScrollButton" 
-                class="absolute top-0 left-0 w-full h-full rounded-full flex items-center justify-center transition-opacity duration-300"
-                title="Iniciar/Parar rolagem automática">
-                <div class="bg-[#0071B9] hover:bg-[#004D9D] rounded-full w-full h-full flex items-center justify-center">
-                    <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    </svg>
-                    <svg id="pauseIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
-                    </svg>
+
+                <!-- FAB Controls panel - only speed controls -->
+                <div id="fabControlsPanel" class="absolute bottom-16 right-0 bg-white rounded-lg shadow-xl p-3 hidden min-w-[240px] transition-all duration-300">
+                    <div class="mb-2">
+                        <h3 class="text-gray-700 font-semibold mb-2 border-b pb-1">Velocidade</h3>
+                        <div class="flex space-x-2">
+                            <button id="speedSlow" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-speed="slow" data-delay="80">
+                                Lenta
+                            </button>
+                            <button id="speedMedium" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-[#0071B9] text-white hover:bg-[#004D9D] transition-colors" data-speed="medium" data-delay="40">
+                                Média
+                            </button>
+                            <button id="speedFast" class="speed-btn flex-1 px-3 py-1 rounded-full text-xs bg-gray-200 hover:bg-gray-300 transition-colors" data-speed="fast" data-delay="15">
+                                Rápida
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Close Button for control panel -->
+                    <button id="closeFabPanel" class="w-full mt-1 text-xs text-gray-500 hover:text-gray-700 flex items-center justify-center">
+                        <span>Fechar</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </button>
                 </div>
-            </button>
-            
-            <!-- Settings button -->
-            <button id="settingsButton" 
-                class="absolute -top-3 -right-3 bg-gray-100 text-gray-600 rounded-full p-1.5 shadow-md hover:bg-gray-200"
-                title="Configurações de rolagem">
-                @svg('mdi-mouse-scroll-wheel', 'h-4 w-4')
-            </button>
-            
-            <!-- Status indicator -->
-            <div id="scrollStatusIndicator" class="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-green-500 hidden animate-pulse"></div>
-            
-            <!-- Refresh indicator -->
-            <div id="refreshIndicator" class="absolute -top-1 -right-6 h-3 w-3 rounded-full bg-blue-500 hidden animate-ping"></div>
+                
+                <!-- Start/Stop button -->
+                <button id="autoScrollButton" 
+                    class="absolute top-0 left-0 w-full h-full rounded-full flex items-center justify-center transition-opacity duration-300"
+                    title="Iniciar/Parar rolagem automática">
+                    <div class="bg-[#0071B9] hover:bg-[#004D9D] rounded-full w-full h-full flex items-center justify-center">
+                        <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        </svg>
+                        <svg id="pauseIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
+                        </svg>
+                    </div>
+                </button>
+                
+                <!-- Settings button -->
+                <button id="settingsButton" 
+                    class="absolute -top-3 -right-3 bg-gray-100 text-gray-600 rounded-full p-1.5 shadow-md hover:bg-gray-200"
+                    title="Configurações de rolagem">
+                    @svg('mdi-mouse-scroll-wheel', 'h-4 w-4')
+                </button>
+                
+                <!-- Status indicator -->
+                <div id="scrollStatusIndicator" class="absolute -top-1 -left-1 h-3 w-3 rounded-full bg-green-500 hidden animate-pulse"></div>
+                
+                <!-- Refresh indicator -->
+                <div id="refreshIndicator" class="absolute -top-1 -right-6 h-3 w-3 rounded-full bg-blue-500 hidden animate-ping"></div>
+            </div>
         </div>
-    </div>
+    @endif
 
     <!-- Patient Modal using only Livewire -->
     @livewire('patient-modal')
 </div>
-
-
-

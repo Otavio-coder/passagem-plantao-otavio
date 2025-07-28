@@ -470,3 +470,73 @@ if ( !function_exists( 'attendanceSession' ) ) {
     }
 
 }
+
+function extractScaleScore($value) {
+    if (is_numeric($value)) return intval($value);
+    if (is_string($value)) {
+        // Para dor, prioriza o número entre os dois primeiros " - "
+        if (preg_match('/-\s*(\d+)\s*-/', $value, $m)) return intval($m[1]);
+        // Prioriza número dentro de (MEWS: X)
+        if (preg_match('/\(MEWS:\s*(\d+)\)/', $value, $m)) return intval($m[1]);
+        // Número após ":"
+        if (preg_match('/:\s*(\d+)/', $value, $m)) return intval($m[1]);
+        // Número após "-"
+        if (preg_match('/-\s*(\d+)/', $value, $m)) return intval($m[1]);
+        // Senão, extrai o último número
+        if (preg_match_all('/(\d+)/', $value, $m)) return intval(end($m[1]));
+    }
+    return null;
+}
+
+function getMewsRiskStyling($score) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        if ($num >= 5) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+        if ($num >= 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+function getBradenRiskStyling($score) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        if ($num <= 12) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+        if ($num >= 13 && $num <= 18) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+        if ($num >= 19) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+function getMorseRiskStyling($score) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        if ($num < 25) {
+            // Baixo risco
+            return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+        } elseif ($num <= 45) {
+            // Risco moderado
+            return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+        } else {
+            // Risco elevado
+            return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+        }
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+function getPainRiskStyling($score) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        if ($num >= 7) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+        if ($num >= 4 && $num <= 6) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+        if ($num >= 0 && $num <= 3) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+function getTevRiskStyling($score) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        if ($num >= 3) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+        if ($num == 2) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+        if ($num == 0 || $num == 1) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}

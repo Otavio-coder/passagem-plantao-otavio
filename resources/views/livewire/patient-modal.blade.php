@@ -6,7 +6,11 @@
         :currentPatient="$currentPatient" 
     />
 
-    @if($showModal)
+    <div 
+        x-data="{ showModal: @entangle('showModal'), loadingPatient: @entangle('loadingPatient') }"
+        x-show="showModal"
+        x-cloak
+    >
         <div class="fixed inset-0 z-50 overflow-y-auto" style="overflow: hidden;">
             <style>
                 body { overflow: hidden !important; }
@@ -119,6 +123,9 @@
                                 :messageLoading="$messageLoading"
                                 :selectedHistoryDate="$selectedHistoryDate"
                                 :selectedHistoryShift="$selectedHistoryShift"
+                                :availableSessions="$availableSessions"
+                                :selectedSession="$selectedSession"
+                                :loadingMessages="$loadingMessages"
                             />
                         </div>
 
@@ -147,14 +154,17 @@
                 </div>
             </div>
         </div>
-        <script>
-            setTimeout(scrollMessagesContainer, 300);
-        </script>
-    @else
-        <script>
-            if (window.unbindChatEchoListeners) {
-                window.unbindChatEchoListeners();
-            }
-        </script>
-    @endif
+    </div>
+    <script>
+        // Unbind listeners when modal is hidden
+        document.addEventListener('alpine:init', () => {
+            Alpine.effect(() => {
+                if (!Alpine.store('showModal')) {
+                    if (window.unbindChatEchoListeners) {
+                        window.unbindChatEchoListeners();
+                    }
+                }
+            });
+        });
+    </script>
 </div>

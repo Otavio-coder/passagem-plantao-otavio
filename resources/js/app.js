@@ -1,11 +1,11 @@
 import './bootstrap';
 
-
-import Alpine from 'alpinejs';
-
-window.Alpine = Alpine;
-
-Alpine.start();
+window.scrollMessagesContainer = function() {
+    // Implemente o scroll automático do container de mensagens aqui
+    // Exemplo:
+    const el = document.getElementById('messagesContainer');
+    if (el) el.scrollTop = el.scrollHeight;
+};
 
 window.bindChatEchoListeners = function(nr_atendimento, turno_id) {
     if (!nr_atendimento || !turno_id) return;
@@ -19,9 +19,9 @@ window.bindChatEchoListeners = function(nr_atendimento, turno_id) {
     // Listen for new messages and pinned messages
     window.Echo.channel(`chat.${nr_atendimento}.${turno_id}`)
         .listen('ChatMessageSent', (e) => {
-            console.log('Mensagem Recebida', e);
             if (window.Livewire) {
-                window.Livewire.dispatch('chatMessageReceived', e);
+                // Convert to plain object for Livewire
+                window.Livewire.dispatch('chatMessageReceived', JSON.parse(JSON.stringify(e)));
             }
             setTimeout(() => {
                 if (typeof scrollMessagesContainer === 'function') scrollMessagesContainer();

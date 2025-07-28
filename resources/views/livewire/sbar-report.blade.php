@@ -1,23 +1,18 @@
-<div class="font-montserrat relative">
-    
-    {{-- Overlay de carregamento --}}
+<div class="relative">
+    {{-- Spinner centralizado e acima de tudo --}}
     <div
-    wire:loading
-    class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#004D9D]/20"
-    role="status"
-    aria-live="polite"
+        wire:loading
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#004D9D]/20"
+        role="status"
+        aria-live="polite"
     >
-    <div class="flex flex-col items-center space-y-2">
-        {{-- Spinner minimalista --}}
-        <div
-        class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin"
-        aria-hidden="true"
-        ></div>
-        {{-- Texto simples --}}
-        <span class="text-[#004D9D] font-medium">Carregando...</span>
-    </div>
+        <div class="flex flex-col items-center justify-center space-y-2 min-h-screen">
+            <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin" aria-hidden="true"></div>
+            <span class="text-[#004D9D] font-medium">Carregando...</span>
+        </div>
     </div>
 
+    <div class="font-montserrat relative">
     <!-- Sistema de Aviso - Aparece sempre -->
     <div x-data="{ showAlert: true }" 
          x-show="showAlert" 
@@ -630,4 +625,5 @@
 
     <!-- Patient Modal using only Livewire -->
     @livewire('patient-modal')
-</div>
+    </div> {{-- fecha .font-montserrat.relative --}}
+</div> {{-- fecha .relative --}}

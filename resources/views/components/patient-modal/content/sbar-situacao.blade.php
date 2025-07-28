@@ -45,8 +45,8 @@
                         <div class="bg-gray-50 p-4 rounded-lg border">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Data de Nascimento:</label>
                             <p class="text-sm font-semibold text-gray-800">
-                                @if(isset($patientDetails->age_detailed) && $patientDetails->age_detailed)
-                                    {{ $patientDetails->age_detailed }}
+                                @if(isset($patientDetails->birth_date) && $patientDetails->birth_date)
+                                    {{ $patientDetails->birth_date }}
                                 @else
                                     Não informado
                                 @endif
@@ -198,65 +198,70 @@
                         <!-- MEWS Scale (para pacientes adultos) -->
                         @if(!$isPediatricPatient)
                             @php
-                                $mewsScore = null;
-                                if (isset($patientDetails->ds_mews)) {
-                                    preg_match('/MEWS:\s*(\d+)/', $patientDetails->ds_mews, $matches);
-                                    $mewsScore = isset($matches[1]) ? intval($matches[1]) : null;
-                                }
-                                $mewsStyling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($mewsScore) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                                $mewsStyling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patientDetails->ds_mews ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
                             @endphp
-                            <div class="{{ $mewsStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $mewsStyling['border'] ?? 'border-gray-200' }}">
+                            <div class="{{ $mewsStyling['bg'] }} p-4 rounded-lg border {{ $mewsStyling['border'] }}">
                                 <label class="block text-xs font-medium text-gray-600 mb-1">MEWS (Modified Early Warning Score):</label>
-                                <p class="text-sm font-bold {{ $mewsStyling['text'] ?? 'text-gray-800' }}">
-                                    {{ isset($patientDetails->ds_mews) ? $patientDetails->ds_mews : 'Não avaliado' }}
+                                <p class="text-sm font-bold {{ $mewsStyling['text'] }}">
+                                    {{ $patientDetails->ds_mews ?? 'Não avaliado' }}
                                 </p>
                             </div>
                         @endif
                         
                         <!-- PEWS Scale (para pacientes pediátricos) -->
                         @if($isPediatricPatient)
-                            @php $pewsStyling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patientDetails->ds_pews ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800']; @endphp
-                            <div class="{{ $pewsStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $pewsStyling['border'] ?? 'border-gray-200' }}">
+                            @php
+                                $pewsStyling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patientDetails->ds_pews ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            @endphp
+                            <div class="{{ $pewsStyling['bg'] }} p-4 rounded-lg border {{ $pewsStyling['border'] }}">
                                 <label class="block text-xs font-medium text-gray-600 mb-1">PEWS (Pediatric Early Warning Score):</label>
-                                <p class="text-sm font-bold {{ $pewsStyling['text'] ?? 'text-gray-800' }}">
-                                    {{ isset($patientDetails->ds_pews) ? $patientDetails->ds_pews : 'Não avaliado' }}
+                                <p class="text-sm font-bold {{ $pewsStyling['text'] }}">
+                                    {{ $patientDetails->ds_pews ?? 'Não avaliado' }}
                                 </p>
                             </div>
                         @endif
                         
                         <!-- Braden Scale -->
-                        @php $bradenStyling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patientDetails->ds_braden ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800']; @endphp
-                        <div class="{{ $bradenStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $bradenStyling['border'] ?? 'border-gray-200' }}">
+                        @php
+                            $bradenStyling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patientDetails->ds_braden ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                        @endphp
+                        <div class="{{ $bradenStyling['bg'] }} p-4 rounded-lg border {{ $bradenStyling['border'] }}">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Braden (Escala de Braden):</label>
-                            <p class="text-sm font-bold {{ $bradenStyling['text'] ?? 'text-gray-800' }}">
-                                {{ isset($patientDetails->ds_braden) ? $patientDetails->ds_braden : 'Não avaliado' }}
+                            <p class="text-sm font-bold {{ $bradenStyling['text'] }}">
+                                {{ $patientDetails->ds_braden ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- Morse Scale -->
-                        @php $morseStyling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patientDetails->ds_morse ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800']; @endphp
-                        <div class="{{ $morseStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $morseStyling['border'] ?? 'border-gray-200' }}">
+                        @php
+                            $morseStyling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patientDetails->ds_morse ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                        @endphp
+                        <div class="{{ $morseStyling['bg'] }} p-4 rounded-lg border {{ $morseStyling['border'] }}">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Morse (Risco de Queda):</label>
-                            <p class="text-sm font-bold {{ $morseStyling['text'] ?? 'text-gray-800' }}">
-                                {{ isset($patientDetails->ds_morse) ? $patientDetails->ds_morse : 'Não avaliado' }}
+                            <p class="text-sm font-bold {{ $morseStyling['text'] }}">
+                                {{ $patientDetails->ds_morse ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- Pain Scale (Escala de Dor) -->
-                        @php $painStyling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patientDetails->ds_dor ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800']; @endphp
-                        <div class="{{ $painStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $painStyling['border'] ?? 'border-gray-200' }}">
+                        @php
+                            $painStyling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patientDetails->ds_dor ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                        @endphp
+                        <div class="{{ $painStyling['bg'] }} p-4 rounded-lg border {{ $painStyling['border'] }}">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Dor (Pain Scale):</label>
-                            <p class="text-sm font-bold {{ $painStyling['text'] ?? 'text-gray-800' }}">
-                                {{ isset($patientDetails->ds_dor) ? $patientDetails->ds_dor : 'Não avaliado' }}
+                            <p class="text-sm font-bold {{ $painStyling['text'] }}">
+                                {{ $patientDetails->ds_dor ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- TEV Scale -->
-                        @php $tevStyling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patientDetails->ds_tev ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800']; @endphp
-                        <div class="{{ $tevStyling['bg'] ?? 'bg-gray-50' }} p-4 rounded-lg border {{ $tevStyling['border'] ?? 'border-gray-200' }}">
+                        @php
+                            $tevStyling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patientDetails->ds_tev ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                        @endphp
+                        <div class="{{ $tevStyling['bg'] }} p-4 rounded-lg border {{ $tevStyling['border'] }}">
                             <label class="block text-xs font-medium text-gray-600 mb-1">TEV (Tromboembolismo Venoso):</label>
-                            <p class="text-sm font-bold {{ $tevStyling['text'] ?? 'text-gray-800' }}">
-                                {{ isset($patientDetails->ds_tev) ? $patientDetails->ds_tev : 'Não avaliado' }}
+                            <p class="text-sm font-bold {{ $tevStyling['text'] }}">
+                                {{ $patientDetails->ds_tev ?? 'Não avaliado' }}
                             </p>
                         </div>
                     </div>
@@ -272,7 +277,9 @@
             <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
             
             <button 
-                wire:click="showPatientDetails('{{ is_array($currentPatient) ? ($currentPatient['nr_atendimento'] ?? '') : (property_exists($currentPatient, 'nr_atendimento') ? $currentPatient->nr_atendimento : '') }}')"
+                wire:click="showPatientDetails(
+                    '{{ is_array($currentPatient) ? ($currentPatient['nr_atendimento'] ?? '') : (is_object($currentPatient) && property_exists($currentPatient, 'nr_atendimento') ? $currentPatient->nr_atendimento : '') }}'
+                )"
                 class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
             >
                 Tentar novamente

@@ -35,19 +35,6 @@ class SbarReport extends Component
     protected $allowedSectors = [];
     protected $allowedBedUnits = [];
 
-    // PatientModal integration
-    public $showPatientModal = false;
-    public $currentPatient = null;        
-    public $loadingPatient = false;       
-
-    // Alerts for modal
-    public $showAlertsModal = false;
-    public $patientAlerts = [];
-
-    protected $listeners = [
-        'closePatientModal' => 'closePatientModal',
-    ];
-
     public function mount()
     {
         $this->allowedHospitals = SystemConfiguration::allowedHospitalCodes();
@@ -94,12 +81,6 @@ class SbarReport extends Component
             'selectedHospital' => $this->selectedHospital,
             'selectedSector'   => $this->selectedSector,
             'currentHospitalName' => $this->currentHospitalName,
-            // Modal props
-            'showModal'        => $this->showPatientModal,
-            'currentPatient'   => $this->currentPatient,
-            'loadingPatient'   => $this->loadingPatient,
-            'showAlertsModal'  => $this->showAlertsModal,
-            'patientAlerts'    => $this->patientAlerts,
         ]);
     }
 
@@ -322,6 +303,7 @@ class SbarReport extends Component
         ])));
         Cache::forget("hospital_name_{$this->selectedSector}");
         $this->loadPatientData();
+        $this->closeInvalidChatSessions(); 
     }
 
     public function resetFilters()
@@ -339,34 +321,31 @@ class SbarReport extends Component
 
     public function openModal($nr_atendimento, $cd_pessoa_fisica, $has_patient = true)
     {
-        $patient = collect($this->patients)->first(function ($p) use ($nr_atendimento) {
-            return isset($p->nr_atendimento) && $p->nr_atendimento == $nr_atendimento;
-        });
+        $this->dispatch('openPatientModal', [
+            'nr_atendimento' => $nr_atendimento,
+            'cd_pessoa_fisica' => $cd_pessoa_fisica,
+            'has_patient' => $has_patient,
+        ], $this->currentHospitalName);
 
-        if (!$patient) {
-            $patient = [
-                'nr_atendimento' => $nr_atendimento,
-                'cd_pessoa_fisica' => $cd_pessoa_fisica,
-                'has_patient' => $has_patient,
-            ];
-        } else {
-            $patient = (array) $patient;
-            $patient['has_patient'] = $has_patient;
-        }
-
-        $this->showPatientModal = true;
-        $this->currentPatient = $patient;
-        $this->loadingPatient = false;
-
-        $this->dispatch('openPatientModal', $patient, $this->currentHospitalName);
+        $this->skipRender(); // <-- Adicione esta linha
     }
 
-    public function closePatientModal()
+    public function closeInvalidChatSessions()
     {
-        $this->showPatientModal = false;
-        $this->currentPatient = null;
-        $this->loadingPatient = false;
-        $this->showAlertsModal = false;
-        $this->patientAlerts = [];
+        $now = now();
+        $hour = $now->hour;
+        $currentShift = ($hour >= 7 && $hour < 19) ? 'dia' : 'noite';
+        $currentDate = $now->toDateString();
+
+        // Fecha TODAS as sessões abertas que não sejam do turno/data atual
+        \App\Models\ChatSessao::where('encerrada', false)
+            ->where(function($query) use ($currentShift, $currentDate) {
+                $query->where('turno_id', '!=', $currentShift)
+                    ->orWhere('data_sessao', '!=', $currentDate);
+            })
+            ->get()
+            ->each(function($sessao) {
+                $sessao->fecharSessao();
+            });
     }
 }

@@ -31,6 +31,61 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // --- Scroll to pinned message on event ---
+    window.addEventListener('scroll-to-message', function (e) {
+        const id = e.detail && e.detail.messageId ? e.detail.messageId : null;
+        if (id) {
+            const el = document.getElementById('msg-' + id);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('ring-2', 'ring-yellow-400');
+                setTimeout(() => el.classList.remove('ring-2', 'ring-yellow-400'), 1200);
+            }
+        }
+    });
+
+    // --- Click on pinned bar scrolls to message ---
+    document.addEventListener('click', function (e) {
+        // Pinned bar click
+        const pinnedBar = e.target.closest('.pinned-message-bar');
+        if (pinnedBar && pinnedBar.dataset.messageId) {
+            window.dispatchEvent(new CustomEvent('scroll-to-message', { detail: { messageId: pinnedBar.dataset.messageId } }));
+        }
+        // Pin/unpin button click
+        const pinBtn = e.target.closest('.pin-btn');
+        if (pinBtn && pinBtn.dataset.messageId) {
+            e.preventDefault();
+            if (window.Alpine) {
+                // Find Alpine component and call pinMessage
+                let root = pinBtn.closest('[x-data]');
+                if (root && root.__x && root.__x.$data && typeof root.__x.$data.pinMessage === 'function') {
+                    root.__x.$data.pinMessage(Number(pinBtn.dataset.messageId));
+                }
+            }
+        }
+    });
+
+    // --- Modal-specific Livewire/Alpine listeners ---
+    document.addEventListener('livewire:component.updated', function () {
+        startClockInterval();
+        scrollMessagesContainer();
+
+        // Re-bind chat listeners if needed
+        const modal = document.querySelector('.relative[data-patient-id][data-shift]');
+        if (modal && window.bindChatEchoListeners) {
+            const patientId = modal.getAttribute('data-patient-id');
+            const shift = modal.getAttribute('data-shift');
+            if (patientId && shift) {
+                window.bindChatEchoListeners(patientId, shift);
+            }
+        }
+    });
+
+    // --- Listen for pin confirmation event (from Livewire) ---
+    window.addEventListener('show-pin-confirm', function (e) {
+        // This is handled by Alpine in the Blade, but you can add extra JS here if needed
+    });
+
     // --- Auto-resize textarea and character counter ---
     function handleTextareaInput(e) {
         if (e.target.matches('textarea[wire\\:model\\.defer="newChatMessage"]')) {

@@ -169,34 +169,38 @@ class PatientScales
     private function getBradenDescription($attendanceNumber)
     {
         $result = DB::connection('tasy')->select("
-            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.obter_resultado_braden(qt_ponto), 1, 50) AS ds_braden
+            SELECT 
+                TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - ' || 
+                qt_ponto || ' - ' || 
+                INITCAP(SUBSTR(tasy.obter_resultado_braden(qt_ponto), 1, 50)) AS ds_braden
             FROM tasy.ATEND_ESCALA_BRADEN 
             WHERE nr_atendimento = ? 
-              AND dt_liberacao IS NOT NULL 
-              AND dt_inativacao IS NULL
-            ORDER BY dt_avaliacao DESC 
+                AND dt_liberacao IS NOT NULL 
+                AND dt_inativacao IS NULL
+                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
             FETCH FIRST 1 ROWS ONLY
         ", [$attendanceNumber]);
         
-        return $result ? $result[0]->ds_braden : 'Não avaliado';
+        return $result ? $result[0]->ds_braden : 'Sem avaliação para hoje.';
     }
     
     /**
      * Get Morse scale description for a patient
+     * Uses SYSDATE instead of ORDER BY for performance
      */
     private function getMorseDescription($attendanceNumber)
     {
         $result = DB::connection('tasy')->select("
-            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - ' || SUBSTR(tasy.Obter_desc_escala_morse(qt_pontuacao), 1, 20) AS ds_morse
+            SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - ' || qt_pontuacao  || ' - ' || SUBSTR(tasy.Obter_desc_escala_morse(qt_pontuacao), 1, 20) AS ds_morse
             FROM tasy.escala_morse 
             WHERE nr_atendimento = ? 
               AND dt_liberacao IS NOT NULL 
               AND dt_inativacao IS NULL
-            ORDER BY dt_avaliacao DESC 
+              AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
             FETCH FIRST 1 ROWS ONLY
         ", [$attendanceNumber]);
         
-        return $result ? $result[0]->ds_morse : 'Não avaliado';
+        return $result ? $result[0]->ds_morse : 'Sem Avaliação para hoje';
     }
     
     /**
@@ -218,39 +222,46 @@ class PatientScales
         
         // Get PEWS data for pediatric patient
         $result = DB::connection('tasy')->select("
-            SELECT TO_CHAR(dt_avaliacao, 'DD/MM') || ' - PEWS: ' || qt_pontuacao AS ds_pews
+            SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - PEWS: ' || qt_pontuacao AS ds_pews
             FROM tasy.escala_pews 
             WHERE nr_atendimento = ? 
               AND dt_liberacao IS NOT NULL 
               AND dt_inativacao IS NULL
-            ORDER BY dt_avaliacao DESC 
+                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
             FETCH FIRST 1 ROWS ONLY
         ", [$attendanceNumber]);
         
-        return $result ? $result[0]->ds_pews : 'Não avaliado';
+        return $result ? $result[0]->ds_pews : 'Sem Avaliação para hoje';
     }
     
     /**
      * Get Pain scale description for a patient - NEW
+     * If qt_escala_dor is 0, returns "Sem Dor"
      */
     private function getPainScaleDescription($attendanceNumber)
     {
         $result = DB::connection('tasy')->select("
             SELECT DISTINCT
-                TO_CHAR(TRUNC(asv.dt_sinal_vital), 'DD/MM') || ' - Dor: ' || asv.qt_escala_dor AS ds_dor
+                TO_CHAR(asv.dt_sinal_vital, 'DD/MM HH24:MI') || ' - ' || 
+                asv.qt_escala_dor || ' - ' ||
+                CASE 
+                    WHEN asv.qt_escala_dor = 0 THEN 'Sem Dor'
+                    ELSE SUBSTR(tasy.obter_valor_dominio(1234, asv.qt_escala_dor), 1, 255)
+                END AS ds_dor
             FROM tasy.atendimento_sinal_vital asv
             WHERE asv.nr_atendimento = ?
-              AND asv.nr_sequencia = (
-                  SELECT MAX(sub_asv.nr_sequencia)
-                  FROM tasy.atendimento_sinal_vital sub_asv
-                  WHERE sub_asv.nr_atendimento = ?
+            AND asv.nr_sequencia = (
+                SELECT MAX(sub_asv.nr_sequencia)
+                FROM tasy.atendimento_sinal_vital sub_asv
+                WHERE sub_asv.nr_atendimento = ?
                     AND sub_asv.dt_inativacao IS NULL
                     AND sub_asv.qt_escala_dor IS NOT NULL
                     AND sub_asv.dt_liberacao IS NOT NULL
-              )
+                    AND TRUNC(sub_asv.dt_sinal_vital) = TRUNC(SYSDATE)
+            )
         ", [$attendanceNumber, $attendanceNumber]);
         
-        return $result ? $result[0]->ds_dor : 'Não avaliado';
+        return $result ? $result[0]->ds_dor : 'Sem Avaliação para hoje';
     }
     
     /**
@@ -260,21 +271,23 @@ class PatientScales
     {
         $result = DB::connection('tasy')->select("
             SELECT
-                TO_CHAR(dt_avaliacao, 'DD/MM') || ' - TEV: ' || 
+                TO_CHAR(et.dt_avaliacao, 'DD/MM HH24:MI') || ' - ' ||
+                et.qt_pontuacao || ' - ' ||
                 SUBSTR(tasy.obter_valor_dominio(2900, et.ie_risco), 1, 255) AS ds_tev
             FROM tasy.escala_tev et
             WHERE et.nr_atendimento = ?
-              AND et.dt_inativacao IS NULL
-              AND et.nr_sequencia = (
-                  SELECT MAX(e.nr_sequencia)
-                  FROM tasy.escala_tev e
-                  WHERE e.nr_atendimento = ?
+            AND et.dt_inativacao IS NULL
+            AND et.nr_sequencia = (
+                SELECT MAX(e.nr_sequencia)
+                FROM tasy.escala_tev e
+                WHERE e.nr_atendimento = ?
                     AND e.dt_liberacao IS NOT NULL
                     AND e.dt_inativacao IS NULL
-              )
+                    AND TRUNC(e.dt_avaliacao) = TRUNC(SYSDATE)
+            )
         ", [$attendanceNumber, $attendanceNumber]);
         
-        return $result ? $result[0]->ds_tev : 'Não avaliado';
+        return $result ? $result[0]->ds_tev : 'Sem Avaliação para hoje';
     }
     
     /**

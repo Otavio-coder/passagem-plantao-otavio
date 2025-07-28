@@ -8,9 +8,9 @@
     'shiftMessages' => [],
     'newChatMessage' => '',
     'messageLoading' => false,
-    'selectedHistoryDate' => null,
-    'selectedHistoryShift' => null,
-    'availableDates' => [],
+    'availableSessions' => [],
+    'selectedSession' => null,
+    'loadingMessages' => false,
 ])
 
 <!-- SBAR Avaliação Modal Content -->
@@ -18,15 +18,16 @@
      x-transition:enter="transition ease-out duration-300"
      x-transition:enter-end="opacity-100 transform translate-y-0"
      @after-enter="setTimeout(() => { if (typeof scrollMessagesContainer === 'function') scrollMessagesContainer(); }, 50)" 
-     class="p-1 sm:p-2 lg:p-3">
+     class="p-1 sm:p-2 lg:p-3 h-full flex flex-col"
+     style="min-height: 0;">
     {{-- Loading State --}}
     @if($loadingPatient)
-        <div class="flex flex-col items-center justify-center py-4 sm:py-6 lg:py-8">
+        <div class="flex flex-col items-center justify-center py-4 sm:py-6 lg:py-8 flex-1">
             <div class="w-6 h-6 sm:w-8 sm:h-8 border-t-2 border-r-2 border-blue-400 border-solid rounded-full animate-spin mb-2"></div>
             <p class="text-gray-600 text-xs sm:text-sm">Carregando detalhes do paciente...</p>
         </div>
     @elseif($currentPatient && !$currentPatient['has_patient'])
-        <div class="flex flex-col items-center justify-center py-4 sm:py-6 text-gray-600">
+        <div class="flex flex-col items-center justify-center py-4 sm:py-6 text-gray-600 flex-1">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
@@ -54,16 +55,19 @@
                 $lightAccent = 'indigo-100';
                 $darkAccent = 'indigo-600';
             }
+
+            $pinned = collect($shiftMessages)->filter(fn($msg) => (bool)($msg['is_pinned'] ?? $msg['is_fixed'] ?? false));
+            $regular = collect($shiftMessages)->filter(fn($msg) => !(bool)($msg['is_pinned'] ?? $msg['is_fixed'] ?? false));
         @endphp
 
         <!-- Container principal do chat -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 h-[462px] sm:h-[506px] lg:h-[583px] flex flex-col overflow-hidden">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden flex-1 min-h-0 h-full">
             
             <!-- Cabeçalho compacto -->
             <div class="flex-shrink-0 bg-gradient-to-r {{ $headerBg }} text-white p-2 sm:p-3 rounded-t-lg">
                 <div class="space-y-2">
                     <!-- Título e info do paciente -->
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center space-x-2 min-w-0 flex-1">
                             <span class="inline-flex items-center justify-center h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-white/20 text-white text-xs font-bold flex-shrink-0">P</span>
                             <div class="min-w-0 flex-1">
@@ -87,89 +91,42 @@
                                 <div class="w-2 h-2 rounded-full bg-green-300 animate-pulse flex-shrink-0"></div>
                                 <span class="text-white/80">
                                     {{ $currentShift === 'dia' ? 'Dia (07-19h)' : 'Noite (19-07h)' }} | 
-                                    {{ Str::limit($this->currentUser['name'] ?? 'Não identificado', 20) }}
+                                    {{ Str::limit($currentUser['name'] ?? 'Não identificado', 20) }}
                                 </span>
                             </div>
                         </div>
                         <!-- Navegação de histórico -->
-                        <div class="flex items-center space-x-1 sm:space-x-2">
+                        <div class="flex flex-wrap items-center gap-1 sm:gap-2">
                             <span class="text-xs text-white/80 flex-shrink-0">Histórico:</span>
-                            <!-- Dropdown de datas -->
-                            <div class="relative" x-data="{ 
-                                showCalendar: false,
-                                availableDates: @js($availableDates),
-                                selectedDate: @entangle('selectedHistoryDate'),
-                                formatShortDate(date) {
-                                    return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                                },
-                                isToday(date) {
-                                    return date === new Date().toISOString().split('T')[0];
-                                }
-                            }">
-                                <button 
-                                    @click="showCalendar = !showCalendar"
-                                    class="w-16 sm:w-20 px-1 py-1 text-xs border border-white/30 rounded bg-white/10 text-white hover:bg-white/20 transition-colors flex items-center justify-between"
+                            <div class="relative">
+                                <select
+                                    wire:model.defer="selectedSession"
+                                    class="w-32 sm:w-44 md:w-56 px-1 py-1 text-xs border border-white/30 rounded bg-white text-gray-900 hover:bg-gray-100 transition-colors"
                                 >
-                                    <span x-text="selectedDate ? formatShortDate(selectedDate) : 'Data'"></span>
-                                    <svg class="w-2.5 h-2.5 transition-transform" :class="showCalendar && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
-                                </button>
-                                <!-- Lista de datas -->
-                                <div 
-                                    x-show="showCalendar" 
-                                    @click.outside="showCalendar = false"
-                                    x-transition:enter="transition ease-out duration-150"
-                                    x-transition:enter-start="opacity-0 scale-95"
-                                    x-transition:enter-end="opacity-100 scale-100"
-                                    class="absolute top-full left-0 mt-1 bg-white rounded-md shadow-lg border border-gray-300 z-50 w-40"
-                                    style="display: none;"
-                                >
-                                    <div class="px-2 py-1.5 border-b border-gray-200 bg-gray-100">
-                                        <div class="text-xs font-medium text-gray-700 text-center">Últimos 7 dias</div>
-                                    </div>
-                                    <div class="py-1 max-h-32 overflow-y-auto">
-                                        <template x-for="dateInfo in availableDates" :key="dateInfo.date">
-                                            <button 
-                                                @click="selectedDate = dateInfo.date; showCalendar = false; $wire.call('loadHistoryMessages', dateInfo.date, $wire.selectedHistoryShift)"
-                                                class="w-full px-2 py-1.5 text-xs hover:bg-gray-100 text-left flex items-center justify-between"
-                                                :class="{
-                                                    'bg-blue-100 text-blue-800': selectedDate === dateInfo.date,
-                                                    'text-gray-600': !dateInfo.hasData,
-                                                    'text-gray-900': dateInfo.hasData
-                                                }"
-                                            >
-                                                <div class="flex items-center space-x-1.5">
-                                                    <span x-text="formatShortDate(dateInfo.date)"></span>
-                                                    <template x-if="isToday(dateInfo.date)">
-                                                        <span class="bg-green-600 text-white px-1 py-0.5 rounded text-xs font-medium">hoje</span>
-                                                    </template>
-                                                </div>
-                                                <template x-if="dateInfo.hasData">
-                                                    <span class="bg-gray-600 text-white px-1 py-0.5 rounded text-xs" x-text="dateInfo.count"></span>
-                                                </template>
-                                                <template x-if="!dateInfo.hasData">
-                                                    <span class="text-gray-400 text-xs">-</span>
-                                                </template>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </div>
+                                    <option value="">Selecione uma sessão</option>
+                                    @foreach($availableSessions as $session)
+                                        <option value="{{ $session['key'] }}">
+                                            {{ $session['label'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <!-- Seleção de turno -->
-                            <select 
-                                wire:model="selectedHistoryShift"
-                                wire:change="loadHistoryMessages(selectedHistoryDate, selectedHistoryShift)"
-                                class="w-12 sm:w-14 px-1 py-1 text-xs border border-white/30 rounded bg-white/10 text-white hover:bg-white/20 transition-colors"
+                            <button
+                                wire:click="applySessionFilter"
+                                class="px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1"
+                                title="Aplicar filtro"
                             >
-                                <option value="dia" class="text-gray-800">Dia</option>
-                                <option value="noite" class="text-gray-800">Noite</option>
-                            </select>
-                            <!-- Botão para retornar ao turno atual -->
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                                <span>Aplicar Filtro</span>
+                            </button>
                             @if($viewingHistory)
-                                <button 
+                                <button
                                     wire:click="returnToCurrentShift"
                                     class="px-1.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1"
+                                    title="Voltar para sessão atual"
                                 >
                                     <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -182,32 +139,19 @@
                 </div>
             </div>
 
-            <!-- Banner de ambiente profissional -->
-            @if(!$viewingHistory && !$isShiftClosed)
-                <div class="flex-shrink-0 px-2 py-1.5 border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50">
-                    <div class="flex items-center space-x-2 text-xs">
-                        <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                        </svg>
-                        <div class="flex-1">
-                            <span class="text-amber-800 font-medium">AMBIENTE PROFISSIONAL:</span>
-                            <span class="text-amber-700 ml-1">Mantenha clareza e objetividade nas comunicações para garantir a segurança do paciente e continuidade do cuidado.</span>
-                        </div>
-                    </div>
-                </div>
-            @endif
-
             <!-- Indicador de status do turno/histórico -->
             <div class="flex-shrink-0 px-2 py-1 border-b border-gray-200 bg-gray-50">
-                @if($viewingHistory)
+                @if($viewingHistory && $selectedSession)
+                    @php
+                        $session = collect($availableSessions)->firstWhere('key', $selectedSession);
+                    @endphp
                     <div class="flex items-center justify-start">
                         <div class="inline-flex items-center space-x-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
                             <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
                             </svg>
                             <span class="font-medium whitespace-nowrap">
-                                {{ \Carbon\Carbon::parse($selectedHistoryDate)->format('d/m') }} - 
-                                {{ $selectedHistoryShift === 'dia' ? 'Dia' : 'Noite' }}
+                                {{ $session['label'] ?? 'Sessão histórica' }}
                             </span>
                         </div>
                     </div>
@@ -227,95 +171,134 @@
                     </div>
                 @endif
             </div>
-
+            <div 
             <!-- Área de mensagens -->
-            <div class="flex-1 overflow-y-auto p-2 bg-gray-50 min-h-[120px] max-h-[220px] h-[120px] sm:min-h-[140px] sm:max-h-[260px] sm:h-[140px] lg:min-h-[160px] lg:max-h-[300px] lg:h-[160px]" id="messages-container">
-                @if(count($shiftMessages) > 0)
-                    @php
-                        $pinnedMessages = collect($shiftMessages)->where('is_pinned', true);
-                        $regularMessages = collect($shiftMessages)->where('is_pinned', false);
-                    @endphp
-
-                    {{-- Mensagens fixadas --}}
-                    @if($pinnedMessages->count() > 0)
-                        <div class="mb-3">
-                            <div class="flex items-center space-x-2 mb-2">
-                                <svg class="w-3 h-3 text-{{ $accentColor }} flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                                <h4 class="text-xs font-semibold text-gray-700">Fixadas</h4>
-                                <span class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full">{{ $pinnedMessages->count() }}</span>
+            <div 
+                class="flex-1 overflow-y-auto p-2 bg-gray-50"
+                id="messages-container"
+                x-init="
+                    $el.setMaxHeight = function() {
+                        var h = window.innerHeight;
+                        var w = window.innerWidth;
+                        var maxH;
+                        if (w < 480) { maxH = h > w ? (w < 400 ? '32vh' : '38vh') : '30vh'; }
+                        else if (w < 640) { maxH = h > w ? '45vh' : '32vh'; }
+                        else if (w < 768) { maxH = h > w ? '55vh' : '40vh'; }
+                        else if (w < 1024) { maxH = h > w ? '60vh' : '45vh'; }
+                        else { maxH = h > w ? '65vh' : '55vh'; }
+                        $el.style.maxHeight = maxH;
+                    };
+                    $el.setMaxHeight();
+                    window.addEventListener('resize', $el.setMaxHeight);
+                "
+                style="
+                    min-height: 28vh;
+                    height: 20vh;
+                "
+            >
+                @if($loadingMessages)
+                    <!-- Skeleton loading para mensagens -->
+                    <div class="space-y-3">
+                        @for($i = 0; $i < 4; $i++)
+                            <div class="flex items-start space-x-2 animate-pulse">
+                                <div class="w-6 h-6 rounded-full bg-gray-200"></div>
+                                <div class="flex-1 space-y-2">
+                                    <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                                </div>
                             </div>
-                            @foreach($pinnedMessages as $message)
-                                @php
-                                    $user = \App\Models\System\User::find($message['usuario_id']);
-                                    $isOwn = $message['usuario_id'] == ($currentUser['id'] ?? null);
-                                    $author = $user ? $user->name : 'Usuário';
-                                    $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
-                                @endphp
-                                <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }} mb-2">
-                                    <div class="flex items-start space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }}">
-                                        @if(!empty($photo))
-                                            <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-                                        @else
-                                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
-                                                {{ substr($author, 0, 1) }}
-                                            </div>
-                                        @endif
-                                        <div class="flex-1 min-w-0">
-                                            <div class="bg-{{ $lightAccent }} border-l-2 border-{{ $accentColor }} rounded p-2 shadow-sm">
-                                                <div class="flex items-center space-x-2 mb-1">
-                                                    <p class="text-xs font-semibold text-gray-800 truncate">{{ $author }}</p>
-                                                    <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
-                                                    <span class="inline-flex items-center text-xs text-{{ $darkAccent }} bg-{{ $accentColor }}/20 px-1.5 py-0.5 rounded-full">
-                                                        <svg class="w-2.5 h-2.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                                        </svg>
-                                                        FIXO
-                                                    </span>
-                                                </div>
-                                                <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
-                                            </div>
+                        @endfor
+                    </div>
+                @elseif(count($shiftMessages) > 0)
+                    {{-- Pinned message at the top --}}
+                    @if(!$viewingHistory && $pinned->count() > 0)
+                        @php 
+                            $message = $pinned->first(); 
+                            $user = \App\Models\System\User::find($message['usuario_id']);
+                            $author = $user ? $user->name : 'Usuário';
+                            $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
+                        @endphp
+                        <div class="sticky top-0 z-10 mb-2" id="msg-{{ $message['id'] }}">
+                            <div class="border-2 border-yellow-400 bg-yellow-50 rounded-lg shadow p-2 flex items-start relative">
+                                <div class="flex-shrink-0 mr-2">
+                                    @if(!empty($photo))
+                                        <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                                    @else
+                                        <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                                            {{ substr($author, 0, 1) }}
                                         </div>
-                                    </div>
+                                    @endif
                                 </div>
-                            @endforeach
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="inline-flex items-center text-xs font-bold text-yellow-600">
+                                            Mensagem fixada
+                                        </span>
+                                        <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
+                                        @if(!$viewingHistory && !$isShiftClosed)
+                                            <button
+                                                wire:click="toggleMessagePin({{ $message['id'] }})"
+                                                class="ml-2 focus:outline-none"
+                                                title="Desfixar mensagem"
+                                            >
+                                                @svg('heroicon-s-star', 'w-5 h-5 text-yellow-400')
+                                            </button>
+                                        @endif
+                                    </div>
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <p class="text-xs font-semibold text-gray-800 truncate">{{ $message['author'] }}</p>
+                                    </div>
+                                    <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
+                                </div>
+                            </div>
                         </div>
                     @endif
 
-                    {{-- Mensagens regulares --}}
-                    @if($regularMessages->count() > 0)
-                        <div class="space-y-2">
-                            @foreach($regularMessages as $message)
-                                @php
-                                    $user = \App\Models\System\User::find($message['usuario_id']);
-                                    $isOwn = $message['usuario_id'] == ($currentUser['id'] ?? null);
-                                    $author = $user ? $user->name : 'Usuário';
-                                    $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
-                                @endphp
-                                <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }}">
-                                    <div class="flex items-start space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }}">
-                                        @if(!empty($photo))
-                                            <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-                                        @else
-                                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
-                                                {{ substr($author, 0, 1) }}
+                    {{-- Regular messages --}}
+                    <div class="space-y-2">
+                        @foreach($regular as $message)
+                            @php
+                                $user = \App\Models\System\User::find($message['usuario_id']);
+                                $isOwn = $message['usuario_id'] == ($currentUser['id'] ?? null);
+                                $author = $user ? $user->name : 'Usuário';
+                                $photo = $user && method_exists($user, 'photo') ? $user->photo() : '';
+                                $isPinned = $message['is_pinned'] ?? $message['is_fixed'] ?? false;
+                            @endphp
+                            <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }}" id="msg-{{ $message['id'] }}">
+                                <div class="flex items-start space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }}">
+                                    @if(!empty($photo))
+                                        <img src="data:image/jpeg;base64,{{ $photo }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                                    @else
+                                        <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                                            {{ substr($author, 0, 1) }}
+                                        </div>
+                                    @endif
+                                    <div class="flex-1 min-w-0">
+                                        <div class="bg-white rounded p-2 shadow-sm border border-gray-200 hover:shadow-md transition-shadow {{ $isOwn ? 'bg-blue-50 border-blue-200' : '' }}">
+                                            <div class="flex items-center space-x-2 mb-1">
+                                                <p class="text-xs font-medium text-gray-800 truncate">{{ $author }}</p>
+                                                <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
+                                                @if(!$viewingHistory && !$isShiftClosed)
+                                                    <button
+                                                        wire:click="toggleMessagePin({{ $message['id'] }})"
+                                                        class="ml-1 focus:outline-none"
+                                                        title="Fixar mensagem"
+                                                    >
+                                                        @if($isPinned)
+                                                            @svg('heroicon-s-star', 'w-4 h-4 text-yellow-400')
+                                                        @else
+                                                            @svg('heroicon-o-star', 'w-4 h-4 text-gray-400 hover:text-yellow-400')
+                                                        @endif
+                                                    </button>
+                                                @endif
                                             </div>
-                                        @endif
-                                        <div class="flex-1 min-w-0">
-                                            <div class="bg-white rounded p-2 shadow-sm border border-gray-200 hover:shadow-md transition-shadow {{ $isOwn ? 'bg-blue-50 border-blue-200' : '' }}">
-                                                <div class="flex items-center space-x-2 mb-1">
-                                                    <p class="text-xs font-medium text-gray-800 truncate">{{ $author }}</p>
-                                                    <span class="text-xs text-gray-500">{{ $message['time'] ?? '' }}</span>
-                                                </div>
-                                                <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
-                                            </div>
+                                            <p class="text-xs text-gray-700 leading-relaxed">{{ $message['mensagem'] }}</p>
                                         </div>
                                     </div>
                                 </div>
-                            @endforeach
-                        </div>
-                    @endif
+                            </div>
+                        @endforeach
+                    </div>
                 @else
                     <!-- Estado vazio de mensagens -->
                     <div class="flex flex-col items-center justify-center h-full min-h-[120px] sm:min-h-[140px] lg:min-h-[160px]">
@@ -331,7 +314,7 @@
             </div>
 
             <!-- Área de input de mensagem -->
-           @if(!$viewingHistory && !$isShiftClosed)
+            @if(!$viewingHistory && !$isShiftClosed)
                 <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2"
                     x-data="{
                         message: @entangle('newChatMessage').defer || '',
@@ -346,7 +329,7 @@
                             setTimeout(() => { $refs.textarea?.focus(); }, 100);
                         "
                     >
-                        <div class="flex items-end space-x-2">
+                        <div class="flex items-end space-x-2 flex-wrap">
                             @if(!empty($currentUser['photo']))
                                 <img src="data:image/jpeg;base64,{{ $currentUser['photo'] }}" alt="Foto" class="w-6 h-6 rounded-full object-cover flex-shrink-0" />
                             @else
@@ -358,10 +341,12 @@
                                 x-model="message"
                                 wire:model.defer="newChatMessage"
                                 placeholder="Digite sua anotação..."
-                                class="p-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none basis-[90%]"  
+                                class="p-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none flex-1 min-w-0"  
                                 rows="1"
                                 maxlength="1000"
                                 :disabled="loading"
+                                x-ref="textarea"
+                                style="min-width: 0;"
                             ></textarea>
                             <button
                                 type="submit"
@@ -390,8 +375,8 @@
                                 </template>
                             </button>
                         </div>
-                        <div class="flex justify-between items-center mt-1">
-                            <div class="text-xs text-gray-500">
+                        <div class="flex justify-between items-center mt-1 flex-wrap gap-y-1">
+                            <div class="text-xs text-gray-500 truncate">
                                 <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($currentUser['name'] ?? 'Usuário', 15) }}
                                 <span class="ml-2 px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
                                     <span x-text="message ? message.length : 0"></span>/1000
@@ -414,23 +399,22 @@
                 </div>
             @endif
             <!-- Modal de confirmação para troca de fixação -->
-                <div x-data="{ showConfirm: false, pendingPinId: null }"
-                    @show-pin-confirm.window="pendingPinId = $event.detail.newPinId; showConfirm = true"
-                >
-                    <div x-show="showConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div class="bg-white p-4 rounded shadow">
-                            <p class="mb-2 text-sm">Já existe uma mensagem fixada. Deseja desfixar e fixar esta?</p>
-                            <button @click="$wire.call('toggleMessagePin', pendingPinId); showConfirm = false" class="bg-blue-600 text-white px-3 py-1 rounded mr-2">Sim</button>
-                            <button @click="showConfirm = false" class="bg-gray-300 px-3 py-1 rounded">Cancelar</button>
-                        </div>
+            <div x-data="{ showConfirm: false, pendingPinId: null }"
+                @show-pin-confirm.window="pendingPinId = $event.detail.newPinId; showConfirm = true"
+            >
+                <div x-show="showConfirm" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div class="bg-white p-4 rounded shadow">
+                        <p class="mb-2 text-sm">Já existe uma mensagem fixada. Deseja desfixar e fixar esta?</p>
+                        <button @click="$wire.call('toggleMessagePin', pendingPinId); showConfirm = false" class="bg-blue-600 text-white px-3 py-1 rounded mr-2">Sim</button>
+                        <button @click="showConfirm = false" class="bg-gray-300 px-3 py-1 rounded">Cancelar</button>
                     </div>
                 </div>
+            </div>
         </div>
-    {{-- Erro ao carregar paciente --}}
     @else
-        <div class="flex flex-col items-center justify-center py-4 text-gray-600">
+        <div class="flex flex-col items-center justify-center py-4 text-gray-600 flex-1">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-red-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77-1.333.192 3 1.732 3z" />
             </svg>
             <p class="text-gray-700 text-sm">Erro ao carregar detalhes do paciente</p>
             <button 

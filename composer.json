@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.2",
         "andreiio/blade-remix-icon": "^3.6",
+        "blade-ui-kit/blade-heroicons": "^2.6",
         "codeat3/blade-eos-icons": "^1.15",
         "codeat3/blade-iconpark": "^1.7",
         "directorytree/ldaprecord-laravel": "^3.3",
@@ -16,6 +17,7 @@
         "laravel/tinker": "^2.9",
         "laravel/ui": "^4.5",
         "livewire/livewire": "^3.6",
+        "maiden-voyage-software/blade-emojis": "^0.1.5",
         "mobiledetect/mobiledetectlib": "^4.8",
         "opcodesio/log-viewer": "^3.12",
         "postare/blade-mdi": "^1.1",

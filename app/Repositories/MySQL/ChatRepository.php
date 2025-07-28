@@ -38,13 +38,18 @@ class ChatRepository
     public function pinMessage($id, $fixed_by)
     {
         $msg = ChatMensagem::findOrFail($id);
-        $msg->is_fixed = !$msg->is_fixed;
-        $msg->fixed_by = $msg->is_fixed ? $fixed_by : null;
-        $msg->fixed_at = $msg->is_fixed ? now() : null;
+
+        // Unpin all others in the same session
+        ChatMensagem::where('sessao_id', $msg->sessao_id)->update(['is_fixed' => false, 'fixed_by' => null, 'fixed_at' => null]);
+
+        $msg->is_fixed = true;
+        $msg->fixed_by = $fixed_by;
+        $msg->fixed_at = now();
         $msg->save();
+
         ChatAuditoria::create([
             'mensagem_id' => $msg->id,
-            'acao' => $msg->is_fixed ? 'fixada' : 'desfixada',
+            'acao' => 'fixada',
             'usuario_id' => $fixed_by,
             'detalhes' => json_encode(['ip' => request()->ip()])
         ]);

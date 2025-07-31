@@ -7,7 +7,9 @@
 <div x-show="activeTab === 'tab-s'" class="p-3 sm:p-6">
     @if($loadingPatient)
         <div class="flex flex-col items-center justify-center py-12 sm:py-20">
-            <div class="w-12 h-12 sm:w-16 sm:h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
+            <span class="text-blue-500 opacity-75 top-1/2 mx-auto block relative text-center" style="top: 50%;">
+                <i class="fas fa-spinner fa-3x animate-spin"></i>
+            </span>
             <p class="text-gray-700 text-lg sm:text-xl">Carregando detalhes do paciente...</p>
         </div>
     @elseif($currentPatient && (is_array($currentPatient) ? (isset($currentPatient['has_patient']) && !$currentPatient['has_patient']) : (property_exists($currentPatient, 'has_patient') && !$currentPatient->has_patient)))

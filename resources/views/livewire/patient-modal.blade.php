@@ -1,26 +1,33 @@
 <div>
-    {{-- Alerts Modal --}}
+    
+    <div
+            wire:loading
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#004D9D]/20"
+            role="status"
+            aria-live="polite"
+        >
+            <div class="flex flex-col items-center justify-center space-y-2 min-h-screen">
+                <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin" aria-hidden="true"></div>
+                <span class="text-[#004D9D] font-medium">Carregando...</span>
+            </div>
+    </div>
     <x-patient-modal.alerts-modal 
         :showAlertsModal="$showAlertsModal"
         :patientAlerts="$patientAlerts"
         :currentPatient="$currentPatient" 
     />
 
-    <div 
-        x-data="{ showModal: @entangle('showModal'), loadingPatient: @entangle('loadingPatient') }"
-        x-show="showModal"
-        x-cloak
-    >
+    @if($showModal)
         <div class="fixed inset-0 z-50 overflow-y-auto" style="overflow: hidden;">
             <style>
                 body { overflow: hidden !important; }
             </style>
             <div class="flex items-center justify-center min-h-screen p-2 sm:p-4">
                 <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"></div>
-                <div                 
+                <div
                     class="relative bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto h-[95vh] sm:h-[90vh] transition-all flex flex-col overflow-hidden"
                     x-data="{
-                        activeTab: 'tab-s',
+                        activeTab: $persist('tab-s').as('patientModalTab'),
                         activeCpoeCategory: 'cpoe-exames',
                         tabChanged(tab) {
                             if(tab === 'tab-a') {
@@ -49,19 +56,15 @@
                     data-patient-id="{{ $currentPatient['nr_atendimento'] ?? '' }}"
                     data-shift="{{ $currentShift ?? '' }}"
                 >
-                    {{-- Modal Header --}}
                     <x-patient-modal.header 
                         :currentHospitalName="$currentHospitalName"
                         :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails" 
                     />
 
-                    {{-- Tabs --}}
                     <x-patient-modal.tabs x-on:tab-change="tabChanged($event.detail)" />
 
-                    {{-- Modal Content --}}
                     <div class="flex-1 min-h-0 bg-gray-50 relative">
-                        {{-- Situação Tab --}}
                         <div
                             x-show="activeTab === 'tab-s'"
                             x-cloak
@@ -79,8 +82,6 @@
                                 :patientDetails="$patientDetails" 
                             />
                         </div>
-
-                        {{-- Background Tab --}}
                         <div
                             x-show="activeTab === 'tab-b'"
                             x-cloak
@@ -98,8 +99,6 @@
                                 :patientDetails="$patientDetails" 
                             />
                         </div>
-
-                        {{-- Avaliação Tab --}}
                         <div
                             x-show="activeTab === 'tab-a'"
                             x-cloak
@@ -109,7 +108,7 @@
                             x-transition:leave="transition ease-in duration-200"
                             x-transition:leave-start="opacity-100 transform translate-y-0"
                             x-transition:leave-end="opacity-0 transform translate-y-2"
-                            class="overflow-y-auto"
+                            class="h-full overflow-y-auto"
                         >
                             <x-patient-modal.content.sbar-avaliacao 
                                 :loadingPatient="$loadingPatient"
@@ -154,17 +153,14 @@
                 </div>
             </div>
         </div>
-    </div>
-    <script>
-        // Unbind listeners when modal is hidden
-        document.addEventListener('alpine:init', () => {
-            Alpine.effect(() => {
-                if (!Alpine.store('showModal')) {
-                    if (window.unbindChatEchoListeners) {
-                        window.unbindChatEchoListeners();
-                    }
-                }
-            });
-        });
-    </script>
+        <script>
+            setTimeout(scrollMessagesContainer, 300);
+        </script>
+    @else
+        <script>
+            if (window.unbindChatEchoListeners) {
+                window.unbindChatEchoListeners();
+            }
+        </script>
+    @endif
 </div>

@@ -7,7 +7,9 @@
 <div x-show="activeTab === 'tab-b'" class="p-2 sm:p-3 lg:p-6">
     @if($loadingPatient)
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 lg:py-20">
-            <div class="w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
+            <span class="text-blue-500 opacity-75 top-1/2 mx-auto block relative text-center" style="top: 50%;">
+                <i class="fas fa-spinner fa-3x animate-spin"></i>
+            </span>
             <p class="text-gray-700 text-sm sm:text-lg lg:text-xl">Carregando detalhes do paciente...</p>
         </div>
     @elseif($currentPatient && !$currentPatient['has_patient'])

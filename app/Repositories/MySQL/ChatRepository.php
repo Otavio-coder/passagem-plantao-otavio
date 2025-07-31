@@ -17,7 +17,8 @@ class ChatRepository
 
         if (!$sessao) return collect();
 
-        return ChatMensagem::where('sessao_id', $sessao->id)
+        return ChatMensagem::with(['usuario.roles'])
+            ->where('sessao_id', $sessao->id)
             ->orderBy('dt_criacao', 'asc')
             ->paginate($perPage);
     }

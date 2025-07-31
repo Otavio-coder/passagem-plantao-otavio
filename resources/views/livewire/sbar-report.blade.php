@@ -128,7 +128,7 @@
                             class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-0.5 px-1 pr-4 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors"
                         >
                             @foreach($hospitals as $hospital)
-                                <option value="{{ (is_array($hospital) && isset($hospital['hospital_id'])) ? $hospital['hospital_id'] : (property_exists($hospital, 'hospital_id') ? $hospital->hospital_id : '') }}">{{ (is_array($hospital) && isset($hospital['hospital_name'])) ? $hospital['hospital_name'] : (property_exists($hospital, 'hospital_name') ? $hospital->hospital_name : '') }}</option>
+                                <option value="{{ (is_array($hospital) && isset($hospital['hospital_id'])) ? $hospital['hospital_id'] : (isset($hospital->hospital_id) ? $hospital->hospital_id : '') }}">{{ (is_array($hospital) && isset($hospital['hospital_name'])) ? $hospital['hospital_name'] : (isset($hospital->hospital_name) ? $hospital->hospital_name : '') }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -143,8 +143,8 @@
                                 style="min-width:120px; max-width:100%;"
                             >
                                 @foreach($sectors as $sector)
-                                    <option value="{{ (is_array($sector) && isset($sector['cd_setor_atendimento'])) ? $sector['cd_setor_atendimento'] : (property_exists($sector, 'cd_setor_atendimento') ? $sector->cd_setor_atendimento : '') }}" class="text-gray-800 bg-white hover:bg-blue-50">
-                                        {{ (is_array($sector) && isset($sector['ds_setor_atendimento'])) ? $sector['ds_setor_atendimento'] : (property_exists($sector, 'ds_setor_atendimento') ? $sector->ds_setor_atendimento : '') }}
+                                    <option value="{{ (is_array($sector) && isset($sector['cd_setor_atendimento'])) ? $sector['cd_setor_atendimento'] : (isset($sector->cd_setor_atendimento) ? $sector->cd_setor_atendimento : '') }}" class="text-gray-800 bg-white hover:bg-blue-50">
+                                        {{ (is_array($sector) && isset($sector['ds_setor_atendimento'])) ? $sector['ds_setor_atendimento'] : (isset($sector->ds_setor_atendimento) ? $sector->ds_setor_atendimento : '') }}
                                     </option>
                                 @endforeach
                             </select>
@@ -271,11 +271,16 @@
             <!-- Patient Cards Grid - wider cards with responsive layout -->
             <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 @foreach($patients as $index => $patient)
-                <div wire:key="patient-{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : ('empty-'.$index) }}" class="relative patient-card">
-                    <!-- Patient Card - simplified for Livewire only -->
-                    <div wire:click="openModal('{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : '' }}', '{{ (is_object($patient) && property_exists($patient, 'cd_pessoa_fisica')) ? $patient->cd_pessoa_fisica : '' }}', {{ (is_object($patient) && property_exists($patient, 'has_patient') && $patient->has_patient) ? 'true' : 'false' }})" 
-                    class="cursor-pointer transform transition-all duration-300 hover:scale-105 focus:outline-none h-full">
-                    <div class="rounded-xl shadow-lg h-64 sm:h-72 md:h-80 lg:h-80">
+                        <div 
+                            wire:key="patient-{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : ('empty-'.$index) }}" 
+                            class="relative patient-card"
+                            x-data
+                        >
+                            <div 
+                                wire:click="$dispatch('openPatientModal', { patient: @js($patient), hospital: @js($currentHospitalName) })"
+                                class="cursor-pointer {{ $loading ? 'pointer-events-none opacity-60' : '' }} transform transition-all duration-300 hover:scale-105 focus:outline-none h-full"
+                            >
+                            <div class="rounded-xl shadow-lg h-64 sm:h-72 md:h-80 lg:h-80">
                         <!-- Card Header with gradient color based on status -->
                         @if(!(is_object($patient) && property_exists($patient, 'has_patient') && $patient->has_patient))
                         <!-- Empty Bed -->
@@ -501,8 +506,8 @@
                         </div>
                         @endif
                     </div>
-                    </div>
                 </div>
+            </div>
                 @endforeach
             </div>
             @endif
@@ -624,6 +629,6 @@
     @endif
 
     <!-- Patient Modal using only Livewire -->
-    @livewire('patient-modal')
+    @livewire('patient-modal', [], key('patient-modal'))->ref('patientModal')
     </div> {{-- fecha .font-montserrat.relative --}}
 </div> {{-- fecha .relative --}}

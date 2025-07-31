@@ -11,6 +11,7 @@
     'availableSessions' => [],
     'selectedSession' => null,
     'loadingMessages' => false,
+    'currentDate' => null,   
 ])
 
 <!-- SBAR Avaliação Modal Content -->
@@ -23,7 +24,9 @@
     {{-- Loading State --}}
     @if($loadingPatient)
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 lg:py-8 flex-1">
-            <div class="w-6 h-6 sm:w-8 sm:h-8 border-t-2 border-r-2 border-blue-400 border-solid rounded-full animate-spin mb-2"></div>
+            <span class="text-blue-500 opacity-75 top-1/2 mx-auto block relative text-center" style="top: 50%;">
+                <i class="fas fa-spinner fa-3x animate-spin"></i>
+            </span>
             <p class="text-gray-600 text-xs sm:text-sm">Carregando detalhes do paciente...</p>
         </div>
     @elseif($currentPatient && !$currentPatient['has_patient'])
@@ -69,7 +72,7 @@
                     <!-- Título e info do paciente -->
                     <div class="flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center space-x-2 min-w-0 flex-1">
-                            <span class="inline-flex items-center justify-center h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-white/20 text-white text-xs font-bold flex-shrink-0">P</span>
+                            @svg('fluentui-shifts-team-24', ['class' => 'w-6 h-6 sm:w-8 sm:h-8 text-white flex-shrink-0'])
                             <div class="min-w-0 flex-1">
                                 <h3 class="text-xs sm:text-sm font-bold truncate">PASSAGEM DE PLANTÃO</h3>
                                 <p class="text-xs text-white/80 truncate">
@@ -111,10 +114,14 @@
                                     @endforeach
                                 </select>
                             </div>
+                            @php
+                                $currentKey = ($currentPatient['nr_atendimento'] ?? '') ? ($selectedHistoryDate ?? now()->toDateString()) . '|' . ($selectedHistoryShift ?? $currentShift) : '';
+                                $isCurrentSession = $selectedSession === ($currentDate . '|' . $currentShift);
+                            @endphp
                             <button
                                 wire:click="applySessionFilter"
-                                class="px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1"
-                                title="Aplicar filtro"
+                                @if(!$selectedSession || $isCurrentSession) disabled @endif
+                                class="px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
@@ -171,7 +178,6 @@
                     </div>
                 @endif
             </div>
-            <div 
             <!-- Área de mensagens -->
             <div 
                 class="flex-1 overflow-y-auto p-2 bg-gray-50"
@@ -367,10 +373,8 @@
                                 </template>
                                 <template x-if="!loading">
                                     <span class="flex items-center space-x-1">
-                                        <span>Registrar</span>
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                        </svg>
+                                        <span>Enviar</span>
+                                        @svg('iconoir-send', 'w-3 h-3 text-white')
                                     </span>
                                 </template>
                             </button>

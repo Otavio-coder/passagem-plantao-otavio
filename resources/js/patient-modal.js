@@ -1,7 +1,60 @@
+// --- Global optimistic messages store ---
+window.optimisticMessages = {};
+
+// --- Add an optimistic (pending) chat message to the UI ---
+function addOptimisticMessage(msg) {
+    const messagesContainer = document.getElementById('messages-container');
+    if (!messagesContainer) return;
+    const tempId = 'temp-' + Date.now();
+    window.optimisticMessages[tempId] = msg;
+    const div = document.createElement('div');
+    div.id = 'msg-' + tempId;
+    div.className = 'flex justify-end opacity-60';
+    div.innerHTML = `
+        <div class="flex items-start space-x-2 flex-row-reverse space-x-reverse">
+            <div class="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center text-xs text-blue-700 flex-shrink-0">EU</div>
+            <div class="flex-1 min-w-0">
+                <div class="bg-blue-50 rounded p-2 shadow-sm border border-blue-200">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <p class="text-xs font-medium text-gray-800 truncate">${msg.author}</p>
+                        <span class="text-xs text-gray-500">${msg.time}</span>
+                        <span class="text-xs text-blue-400">(enviando...)</span>
+                    </div>
+                    <p class="text-xs text-gray-700 leading-relaxed">${msg.mensagem}</p>
+                </div>
+            </div>
+        </div>
+    `;
+    messagesContainer.appendChild(div);
+    scrollMessagesContainer();
+    return tempId;
+}
+
+// --- Handle chat form submission for optimistic UI ---
+document.addEventListener('submit', function(e) {
+    if (e.target.matches('form[wire\\:submit\\.prevent="sendChatMessage"]')) {
+        const textarea = e.target.querySelector('textarea');
+        const msg = textarea.value.trim();
+        if (msg) {
+            const now = new Date();
+            const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const author = window.currentUserName || 'EU';
+            const tempId = addOptimisticMessage({ mensagem: msg, author, time });
+            textarea.value = '';
+            window.addEventListener('chatMessageReceived', function handler(e) {
+                const tempDiv = document.getElementById('msg-' + tempId);
+                if (tempDiv) tempDiv.remove();
+                window.removeEventListener('chatMessageReceived', handler);
+            });
+        }
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
-    // --- Real-time clock for modal (if needed) ---
+    // --- Real-time clock for modal ---
     let clockInterval = null;
 
+    // Atualiza o relógio em tempo real
     function updateRealTimeClock() {
         const currentTime = new Date().toLocaleTimeString('pt-BR', {
             hour: '2-digit',
@@ -12,13 +65,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Inicia o intervalo do relógio
     function startClockInterval() {
         if (clockInterval) clearInterval(clockInterval);
         updateRealTimeClock();
         clockInterval = setInterval(updateRealTimeClock, 1000);
     }
 
-    // --- Scroll messages container to bottom ---
+    // --- Scrolla o container de mensagens para o final ---
     function scrollMessagesContainer() {
         const messagesContainer = document.getElementById('messages-container');
         if (messagesContainer) {
@@ -31,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // --- Scroll to pinned message on event ---
+    // --- Scrolla até uma mensagem fixada ao receber o evento ---
     window.addEventListener('scroll-to-message', function (e) {
         const id = e.detail && e.detail.messageId ? e.detail.messageId : null;
         if (id) {
@@ -44,19 +98,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // --- Click on pinned bar scrolls to message ---
+    // --- Clique na barra fixada ou botão de fixar/desfixar mensagem ---
     document.addEventListener('click', function (e) {
-        // Pinned bar click
+        // Clique na barra fixada
         const pinnedBar = e.target.closest('.pinned-message-bar');
         if (pinnedBar && pinnedBar.dataset.messageId) {
             window.dispatchEvent(new CustomEvent('scroll-to-message', { detail: { messageId: pinnedBar.dataset.messageId } }));
         }
-        // Pin/unpin button click
+        // Clique no botão de fixar/desfixar
         const pinBtn = e.target.closest('.pin-btn');
         if (pinBtn && pinBtn.dataset.messageId) {
             e.preventDefault();
             if (window.Alpine) {
-                // Find Alpine component and call pinMessage
                 let root = pinBtn.closest('[x-data]');
                 if (root && root.__x && root.__x.$data && typeof root.__x.$data.pinMessage === 'function') {
                     root.__x.$data.pinMessage(Number(pinBtn.dataset.messageId));
@@ -65,28 +118,31 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // --- Modal-specific Livewire/Alpine listeners ---
+    // --- Listeners Livewire/Alpine específicos do modal ---
     document.addEventListener('livewire:component.updated', function () {
         startClockInterval();
         scrollMessagesContainer();
 
-        // Re-bind chat listeners if needed
+        // Detecta se está em histórico
         const modal = document.querySelector('.relative[data-patient-id][data-shift]');
+        const isViewingHistory = window.Livewire?.find(modal?.getAttribute('wire:id'))?.get('viewingHistory');
         if (modal && window.bindChatEchoListeners) {
             const patientId = modal.getAttribute('data-patient-id');
             const shift = modal.getAttribute('data-shift');
-            if (patientId && shift) {
+            if (patientId && shift && !isViewingHistory) {
                 window.bindChatEchoListeners(patientId, shift);
+            } else {
+                window.unbindChatEchoListeners();
             }
         }
     });
 
-    // --- Listen for pin confirmation event (from Livewire) ---
+    // --- Evento de confirmação de fixação de mensagem (Livewire) ---
     window.addEventListener('show-pin-confirm', function (e) {
-        // This is handled by Alpine in the Blade, but you can add extra JS here if needed
+        // Pode adicionar JS extra aqui se necessário
     });
 
-    // --- Auto-resize textarea and character counter ---
+    // --- Auto-resize do textarea e contador de caracteres ---
     function handleTextareaInput(e) {
         if (e.target.matches('textarea[wire\\:model\\.defer="newChatMessage"]')) {
             e.target.style.height = 'auto';
@@ -95,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const counter = e.target.closest('form').querySelector('[class*="bg-gray-100"]');
             if (counter) {
                 counter.textContent = charCount + '/1000';
-                // Change color based on char count
+                // Muda cor do contador conforme quantidade de caracteres
                 if (charCount > 900) {
                     counter.className = counter.className.replace('bg-gray-100 text-gray-600', 'bg-red-100 text-red-600');
                 } else if (charCount > 800) {
@@ -107,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // --- Prevent empty chat message submission ---
+    // --- Impede envio de mensagem vazia no chat ---
     function handleFormSubmit(e) {
         if (e.target.matches('form[wire\\:submit\\.prevent="sendChatMessage"]')) {
             const textarea = e.target.querySelector('textarea');
@@ -117,12 +173,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // --- Modal-specific Livewire/Alpine listeners ---
+    // --- Listeners Livewire/Alpine específicos do modal (duplicado para garantir rebind) ---
     document.addEventListener('livewire:component.updated', function () {
         startClockInterval();
         scrollMessagesContainer();
 
-        // Re-bind chat listeners if needed
+        // Re-bind chat listeners se necessário
         const modal = document.querySelector('.relative[data-patient-id][data-shift]');
         if (modal && window.bindChatEchoListeners) {
             const patientId = modal.getAttribute('data-patient-id');
@@ -133,11 +189,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // --- Input and submit listeners for chat ---
+    // --- Listeners de input e submit para o chat ---
     document.addEventListener('input', handleTextareaInput);
     document.addEventListener('submit', handleFormSubmit);
 
-    // --- Initial run on DOM ready ---
+    // --- Execução inicial ao carregar DOM ---
     startClockInterval();
     scrollMessagesContainer();
 });

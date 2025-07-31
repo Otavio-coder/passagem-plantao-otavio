@@ -163,15 +163,22 @@ class SbarReport extends Component
                 'order_direction' => $this->orderDirection,
             ]));
 
+            // Hospital name pelo setor (cache separado) - ATUALIZE ANTES DE $this->patients
+            $sectorModel = new \App\Models\EMR\Sector();
+            $sector = collect($sectorModel->getAllowedSectors())
+                ->first(fn($s) => $s->cd_setor_atendimento == $this->selectedSector);
+            $hospitalModel = new \App\Models\EMR\Hospital();
+            $hospital = $hospitalModel->getAllHospitalsWithSectors()
+                ->first(fn($h) => $h->hospital_id == ($sector->hospital_id ?? null));
+            $this->currentHospitalName = $hospital->hospital_name ?? 'Hospital';
+
             // Tenta buscar do cache primeiro
-            $patients = Cache::get($cacheKey);
+            $patients = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
             if (!$patients) {
-                $patientModel = new Patient();
-                // Busca todos os pacientes/leitos do setor (dados completos)
+                $patientModel = new \App\Models\EMR\Patient();
                 $allPatients = $patientModel->getAllPatientsInSector($this->selectedSector);
 
-                // Filtros em memória
                 $filtered = collect($allPatients);
 
                 // Filtro MEWS
@@ -215,29 +222,19 @@ class SbarReport extends Component
                 })->values();
 
                 $patients = $filtered->toArray();
-                // Salva no cache para próximas chamadas
-                Cache::put($cacheKey, $patients, 60); // 1 min
+                \Illuminate\Support\Facades\Cache::put($cacheKey, $patients, 60); // 1 min
             }
 
             $this->patients = $patients;
 
-            // Hospital name pelo setor (cache separado)
-            $sectorModel = new Sector();
-            $sector = collect($sectorModel->getAllowedSectors())
-                ->first(fn($s) => $s->cd_setor_atendimento == $this->selectedSector);
-            $hospitalModel = new Hospital();
-            $hospital = $hospitalModel->getAllHospitalsWithSectors()
-                ->first(fn($h) => $h->hospital_id == ($sector->hospital_id ?? null));
-            $this->currentHospitalName = $hospital->hospital_name ?? 'Hospital';
-
-            Log::info("Patient data loaded successfully", [
+            \Illuminate\Support\Facades\Log::info("Patient data loaded successfully", [
                 'sector' => $this->selectedSector,
                 'patient_count' => count($this->patients)
             ]);
         } catch (\Exception $e) {
             $this->patients = [];
             $this->errorMessage = "Erro ao carregar dados: " . $e->getMessage();
-            Log::error("Error loading patient data: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Error loading patient data: " . $e->getMessage());
         } finally {
             $this->loading = false;
         }
@@ -315,37 +312,5 @@ class SbarReport extends Component
         $this->loadingMessage = "Resetando filtros...";
         $this->loadPatientData();
         session()->flash('message', 'Filtros resetados com sucesso!');
-    }
-
-    // --- PatientModal Integration ---
-
-    public function openModal($nr_atendimento, $cd_pessoa_fisica, $has_patient = true)
-    {
-        $this->dispatch('openPatientModal', [
-            'nr_atendimento' => $nr_atendimento,
-            'cd_pessoa_fisica' => $cd_pessoa_fisica,
-            'has_patient' => $has_patient,
-        ], $this->currentHospitalName);
-
-        $this->skipRender(); // <-- Adicione esta linha
-    }
-
-    public function closeInvalidChatSessions()
-    {
-        $now = now();
-        $hour = $now->hour;
-        $currentShift = ($hour >= 7 && $hour < 19) ? 'dia' : 'noite';
-        $currentDate = $now->toDateString();
-
-        // Fecha TODAS as sessões abertas que não sejam do turno/data atual
-        \App\Models\ChatSessao::where('encerrada', false)
-            ->where(function($query) use ($currentShift, $currentDate) {
-                $query->where('turno_id', '!=', $currentShift)
-                    ->orWhere('data_sessao', '!=', $currentDate);
-            })
-            ->get()
-            ->each(function($sessao) {
-                $sessao->fecharSessao();
-            });
     }
 }

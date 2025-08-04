@@ -30,8 +30,15 @@ class ChatMessagePinned implements ShouldBroadcast
             'id' => $this->mensagem->id,
             'is_fixed' => $this->mensagem->is_fixed,
             'fixed_by' => $this->mensagem->fixed_by,
-            'fixed_at' => $this->mensagem->fixed_at,
+            'fixed_at' => $this->mensagem->fixed_at?->toISOString(),
             'sessao_id' => $this->mensagem->sessao_id,
+            'nr_atendimento' => $this->mensagem->nr_atendimento,
+            'turno_id' => $this->mensagem->turno_id,
         ];
+    }
+
+    public function broadcastAs()
+    {
+        return 'ChatMessagePinned';
     }
 }

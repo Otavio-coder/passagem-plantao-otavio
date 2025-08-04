@@ -26,14 +26,25 @@ class ChatMessageSent implements ShouldBroadcast
 
     public function broadcastWith()
     {
+        // Enhanced payload with user data for immediate UI update
+        $user = $this->mensagem->usuario;
+        
         return [
             'id' => $this->mensagem->id,
             'mensagem' => $this->mensagem->mensagem,
             'usuario_id' => $this->mensagem->usuario_id,
-            'author' => $this->mensagem->usuario->name ?? '',
-            'created_at' => $this->mensagem->dt_criacao,
+            'author' => $user ? $user->name : 'Usuário',
+            'photo' => $user && method_exists($user, 'photo') ? $user->photo() : '',
+            'created_at' => $this->mensagem->dt_criacao->toISOString(),
             'is_fixed' => $this->mensagem->is_fixed,
             'sessao_id' => $this->mensagem->sessao_id,
+            'nr_atendimento' => $this->mensagem->nr_atendimento,
+            'turno_id' => $this->mensagem->turno_id,
         ];
+    }
+
+    public function broadcastAs()
+    {
+        return 'ChatMessageSent';
     }
 }

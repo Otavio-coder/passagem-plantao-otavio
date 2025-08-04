@@ -10,6 +10,7 @@ use App\Models\System\SystemConfiguration;
 use Livewire\Component;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class SbarReport extends Component
 {
@@ -30,39 +31,67 @@ class SbarReport extends Component
     public $orderBy = 'leito';
     public $orderDirection = 'asc';
 
-    // IDs permitidos
-    protected $allowedHospitals = [];
-    protected $allowedSectors = [];
-    protected $allowedBedUnits = [];
-
     public function mount()
     {
-        $this->allowedHospitals = SystemConfiguration::allowedHospitalCodes();
-        $this->allowedSectors   = SystemConfiguration::allowedSectorCodes();
-        $this->allowedBedUnits  = SystemConfiguration::allowedBedCodes();
+        try {
+            // Carregue uma vez e reutilize
+            $allowedHospitals = \App\Models\System\SystemConfiguration::allowedHospitalCodes();
+            $allowedSectors   = \App\Models\System\SystemConfiguration::allowedSectorCodes();
+            $allowedBedUnits  = \App\Models\System\SystemConfiguration::allowedBedCodes();
 
-        if (empty($this->allowedHospitals)) {
-            $this->errorMessage = "Nenhum hospital permitido. Solicite ao gestor a configuração pelo painel de administração.";
+            if (empty($allowedHospitals)) {
+                $this->errorMessage = "Nenhum hospital permitido. Solicite ao gestor a configuração pelo painel de administração.";
+                $this->loading = false;
+                return;
+            }
+
+            $hospitalModel = new \App\Models\EMR\Hospital();
+            $hospitalsAll = $hospitalModel->getAllHospitalsWithSectors();
+            $this->hospitals = $hospitalsAll
+                ->filter(fn($h) => in_array($h->hospital_id, $allowedHospitals))
+                ->values()
+                ->toArray();
+
+            $sectorModel = new \App\Models\EMR\Sector();
+            $sectorsAll = collect($sectorModel->getAllowedSectors());
+            // Use $allowedSectors já carregado
+            $this->sectors = $sectorsAll
+                ->filter(fn($s) => in_array($s->cd_setor_atendimento, $allowedSectors))
+                ->map(fn($s) => (array)$s)
+                ->values()
+                ->toArray();
+
+            $bedModel = new \App\Models\EMR\BedUnit();
+            // Use $allowedBedUnits já carregado
+            $this->beds = collect($this->sectors)
+                ->flatMap(fn($sector) => $bedModel->getBedsBySector($sector['cd_setor_atendimento']))
+                ->filter(fn($bed) => in_array($bed->cd_unidade_basica . '|' . $bed->cd_setor_atendimento, $allowedBedUnits))
+                ->values()
+                ->toArray();
+
+            $this->selectedHospital = $allowedHospitals[0];
+            $sectorsOfHospital = collect($this->sectors)->filter(fn($sector) =>
+                $sector['hospital_id'] == $this->selectedHospital
+            )->values();
+            $firstAllowed = $sectorsOfHospital->first();
+            $this->selectedSector = $firstAllowed['cd_setor_atendimento'] ?? null;
+            if (empty($this->selectedSector) && !empty($this->sectors)) {
+                $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
+            }
+
+            // FIXED: Automatically load patient data after mount
+            if ($this->selectedSector) {
+                $this->loadPatientData();
+            } else {
+                $this->loading = false;
+                $this->errorMessage = "Nenhum setor válido encontrado para carregar dados.";
+            }
+
+        } catch (\Exception $e) {
             $this->loading = false;
-            return;
+            $this->errorMessage = "Erro durante a inicialização: " . $e->getMessage();
+            Log::error("SbarReport mount error: " . $e->getMessage());
         }
-
-        $this->selectedHospital = $this->allowedHospitals[0];
-        $this->loadAllowed();
-
-        $sectorsOfHospital = collect($this->sectors)->filter(function($sector) {
-            $hospitalId = is_array($sector) ? $sector['hospital_id'] ?? null : $sector->hospital_id ?? null;
-            return $hospitalId == $this->selectedHospital;
-        })->values();
-
-        $firstAllowed = $sectorsOfHospital->first();
-        $this->selectedSector = $firstAllowed['cd_setor_atendimento'] ?? ($firstAllowed->cd_setor_atendimento ?? null);
-
-        if (empty($this->selectedSector) && !empty($this->sectors)) {
-            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
-        }
-
-        $this->loadPatientData();
     }
 
     public function render()
@@ -81,71 +110,31 @@ class SbarReport extends Component
             'selectedHospital' => $this->selectedHospital,
             'selectedSector'   => $this->selectedSector,
             'currentHospitalName' => $this->currentHospitalName,
+            'loading'          => $this->loading,
         ]);
     }
 
-    private function loadAllowed()
+    public function openPatientModal($patient, $hospital = '')
     {
-        $this->allowedHospitals = SystemConfiguration::allowedHospitalCodes();
-        $this->allowedSectors   = SystemConfiguration::allowedSectorCodes();
-        $this->allowedBedUnits  = SystemConfiguration::allowedBedCodes();
-
-        $hospitalModel = new \App\Models\EMR\Hospital();
-        $allHospitals = $hospitalModel->getAllHospitalsWithSectors();
-        $filteredHospitals = $allHospitals->filter(function($hospital) {
-            return in_array($hospital->hospital_id, $this->allowedHospitals);
-        })->values();
-        $this->hospitals = $filteredHospitals->toArray();
-
-        $sectorModel = new \App\Models\EMR\Sector();
-
-        if ($this->selectedHospital && empty($this->selectedSector)) {
-            $sectors = $sectorModel->getSectorsByHospital($this->selectedHospital)
-                ->filter(fn($sector) => in_array($sector->cd_setor_atendimento, $this->allowedSectors))->values();
-        } elseif ($this->selectedSector) {
-            $sectors = $sectorModel->getAllowedSectors()
-                ->filter(fn($sector) => $sector->cd_setor_atendimento == $this->selectedSector && in_array($sector->cd_setor_atendimento, $this->allowedSectors))->values();
-        } else {
-            $sectors = $sectorModel->getAllowedSectors()
-                ->filter(fn($sector) => in_array($sector->cd_setor_atendimento, $this->allowedSectors))->values();
-        }
-        $this->sectors = $sectors->map(function($sector) {
-            return (array) $sector;
-        })->toArray();
-
-        $bedModel = new \App\Models\EMR\BedUnit();
-
-        if (!empty($this->selectedSector)) {
-            $beds = $bedModel->getBedsBySector($this->selectedSector);
-        } elseif (!empty($this->sectors)) {
-            $beds = collect();
-            foreach ($this->sectors as $sector) {
-                $beds = $beds->merge($bedModel->getBedsBySector($sector['cd_setor_atendimento'] ?? $sector->cd_setor_atendimento));
-            }
-        } elseif (!empty($this->hospitals)) {
-            $beds = collect();
-            foreach ($this->hospitals as $hospital) {
-                $hospitalId = $hospital['hospital_id'] ?? $hospital->hospital_id;
-                $hospitalSectors = $sectorModel->getSectorsByHospital($hospitalId);
-                foreach ($hospitalSectors as $sector) {
-                    if (in_array($sector->cd_setor_atendimento, $this->allowedSectors)) {
-                        $beds = $beds->merge($bedModel->getBedsBySector($sector->cd_setor_atendimento));
-                    }
-                }
-            }
-        } else {
-            $beds = collect();
-            foreach ($sectorModel->getAllowedSectors() as $sector) {
-                if (in_array($sector->cd_setor_atendimento, $this->allowedSectors)) {
-                    $beds = $beds->merge($bedModel->getBedsBySector($sector->cd_setor_atendimento));
-                }
-            }
-        }
-
-        if (empty($this->allowedBedUnits)) {
-            $this->beds = $beds->toArray();
-        } else {
-            $this->beds = $beds->filter(fn($bed) => in_array($bed->cd_unidade_basica, $this->allowedBedUnits))->values()->toArray();
+        try {
+            Log::info('🔄 SbarReport: openPatientModal called', [
+                'patient_id' => $patient['nr_atendimento'] ?? 'N/A',
+                'hospital' => $hospital
+            ]);
+            
+            // Dispatch event with proper data structure
+            $this->dispatch('openPatientModal', [
+                'patient' => $patient,
+                'hospital' => $hospital
+            ]);
+            
+            Log::info('✅ SbarReport: Event dispatched successfully');
+            
+        } catch (\Exception $e) {
+            Log::error('❌ SbarReport: Error dispatching modal event', [
+                'error' => $e->getMessage(),
+                'patient' => $patient ?? 'null'
+            ]);
         }
     }
 
@@ -156,86 +145,77 @@ class SbarReport extends Component
             $this->errorMessage = null;
             $this->loadingMessage = "Carregando dados dos pacientes...";
 
-            $cacheKey = "sbar_data_{$this->selectedSector}_" . md5(serialize([
-                'mews_filter' => $this->mewsFilter,
-                'surgical_filter' => $this->surgicalFilter,
-                'order_by' => $this->orderBy,
-                'order_direction' => $this->orderDirection,
-            ]));
-
-            // Hospital name pelo setor (cache separado) - ATUALIZE ANTES DE $this->patients
+            // FIXED: Hospital name loading - moved to beginning and ensured it's always set
             $sectorModel = new \App\Models\EMR\Sector();
             $sector = collect($sectorModel->getAllowedSectors())
                 ->first(fn($s) => $s->cd_setor_atendimento == $this->selectedSector);
+            
             $hospitalModel = new \App\Models\EMR\Hospital();
             $hospital = $hospitalModel->getAllHospitalsWithSectors()
                 ->first(fn($h) => $h->hospital_id == ($sector->hospital_id ?? null));
-            $this->currentHospitalName = $hospital->hospital_name ?? 'Hospital';
+            
+            // Ensure hospital name is always set
+            $this->currentHospitalName = $hospital->hospital_name ?? 'Hospital Não Identificado';
 
-            // Tenta buscar do cache primeiro
-            $patients = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            // Load patient data
+            $patientModel = new \App\Models\EMR\Patient();
+            $allPatients = $patientModel->getAllPatientsInSector($this->selectedSector);
 
-            if (!$patients) {
-                $patientModel = new \App\Models\EMR\Patient();
-                $allPatients = $patientModel->getAllPatientsInSector($this->selectedSector);
+            $filtered = collect($allPatients);
 
-                $filtered = collect($allPatients);
-
-                // Filtro MEWS
-                if ($this->mewsFilter !== 'all') {
-                    $filtered = $filtered->filter(function($p) {
-                        if (!$p->has_patient) return false;
-                        $score = $p->mews_score;
-                        if ($this->mewsFilter === 'critical') return $score !== null && $score >= 5;
-                        if ($this->mewsFilter === 'warning') return $score !== null && $score >= 3 && $score < 5;
-                        if ($this->mewsFilter === 'normal') return $score === null || $score < 3;
-                        return true;
-                    });
-                }
-
-                // Filtro cirurgia
-                if ($this->surgicalFilter === 'with_surgery') {
-                    $filtered = $filtered->filter(function($p) {
-                        return $p->has_patient && $p->has_surgery;
-                    });
-                }
-
-                // Ordenação em memória
-                $filtered = $filtered->sort(function($a, $b) {
-                    $dir = $this->orderDirection === 'asc' ? 1 : -1;
-                    switch ($this->orderBy) {
-                        case 'leito':
-                            return $dir * strcmp((string)($a->cd_unidade_basica ?? ''), (string)($b->cd_unidade_basica ?? ''));
-                        case 'mews':
-                            return $dir * ((int)($b->mews_score ?? 0) <=> (int)($a->mews_score ?? 0));
-                        case 'name':
-                            return $dir * strcmp((string)($a->nm_pessoa_fisica ?? ''), (string)($b->nm_pessoa_fisica ?? ''));
-                        case 'prontuario':
-                            return $dir * strcmp((string)($a->nr_prontuario ?? ''), (string)($b->nr_prontuario ?? ''));
-                        case 'internment':
-                            return $dir * ((int)($a->internment_days ?? 0) <=> (int)($b->internment_days ?? 0));
-                        case 'age':
-                            return $dir * ((int)($a->age ?? 0) <=> (int)($b->age ?? 0));
-                        default:
-                            return 0;
-                    }
-                })->values();
-
-                $patients = $filtered->toArray();
-                \Illuminate\Support\Facades\Cache::put($cacheKey, $patients, 60); // 1 min
+            // Apply filters...
+            if ($this->mewsFilter !== 'all') {
+                $filtered = $filtered->filter(function($p) {
+                    if (!$p->has_patient) return false;
+                    $score = $p->mews_score;
+                    if ($this->mewsFilter === 'critical') return $score !== null && $score >= 5;
+                    if ($this->mewsFilter === 'warning') return $score !== null && $score >= 3 && $score < 5;
+                    if ($this->mewsFilter === 'normal') return $score === null || $score < 3;
+                    return true;
+                });
             }
 
-            $this->patients = $patients;
+            if ($this->surgicalFilter === 'with_surgery') {
+                $filtered = $filtered->filter(function($p) {
+                    return $p->has_patient && $p->has_surgery;
+                });
+            }
 
-            \Illuminate\Support\Facades\Log::info("Patient data loaded successfully", [
+            // Apply sorting...
+            $filtered = $filtered->sort(function($a, $b) {
+                $dir = $this->orderDirection === 'asc' ? 1 : -1;
+                switch ($this->orderBy) {
+                    case 'leito':
+                        return $dir * strcmp((string)($a->cd_unidade_basica ?? ''), (string)($b->cd_unidade_basica ?? ''));
+                    case 'mews':
+                        return $dir * ((int)($b->mews_score ?? 0) <=> (int)($a->mews_score ?? 0));
+                    case 'name':
+                        return $dir * strcmp((string)($a->nm_pessoa_fisica ?? ''), (string)($b->nm_pessoa_fisica ?? ''));
+                    case 'prontuario':
+                        return $dir * strcmp((string)($a->nr_prontuario ?? ''), (string)($b->nr_prontuario ?? ''));
+                    case 'internment':
+                        return $dir * ((int)($a->internment_days ?? 0) <=> (int)($b->internment_days ?? 0));
+                    case 'age':
+                        return $dir * ((int)($a->age ?? 0) <=> (int)($b->age ?? 0));
+                    default:
+                        return 0;
+                }
+            })->values();
+
+            $this->patients = $filtered->toArray();
+
+            Log::info("Patient data loaded successfully", [
                 'sector' => $this->selectedSector,
+                'hospital' => $this->currentHospitalName,
                 'patient_count' => count($this->patients)
             ]);
+            
         } catch (\Exception $e) {
             $this->patients = [];
             $this->errorMessage = "Erro ao carregar dados: " . $e->getMessage();
-            \Illuminate\Support\Facades\Log::error("Error loading patient data: " . $e->getMessage());
+            Log::error("Error loading patient data: " . $e->getMessage());
         } finally {
+            // FIXED: Always set loading to false when done
             $this->loading = false;
         }
     }
@@ -251,10 +231,12 @@ class SbarReport extends Component
     {
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
-        $this->loadAllowed();
-        if (!empty($this->sectors)) {
-            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
-        }
+        // Use setores já carregados
+        $sectorsOfHospital = collect($this->sectors)->filter(fn($sector) =>
+            $sector['hospital_id'] == $this->selectedHospital
+        )->values();
+        $firstAllowed = $sectorsOfHospital->first();
+        $this->selectedSector = $firstAllowed['cd_setor_atendimento'] ?? null;
         $this->loadPatientData();
     }
 
@@ -288,7 +270,7 @@ class SbarReport extends Component
         $this->loadPatientData();
     }
 
-    public function refreshData()
+     public function refreshData()
     {
         $this->loadingMessage = "Atualizando dados...";
         $this->errorMessage = null;
@@ -300,7 +282,6 @@ class SbarReport extends Component
         ])));
         Cache::forget("hospital_name_{$this->selectedSector}");
         $this->loadPatientData();
-        $this->closeInvalidChatSessions(); 
     }
 
     public function resetFilters()

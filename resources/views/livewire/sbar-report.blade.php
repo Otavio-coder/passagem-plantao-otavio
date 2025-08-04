@@ -277,8 +277,11 @@
                             x-data
                         >
                             <div 
-                                wire:click="$dispatch('openPatientModal', { patient: @js($patient), hospital: @js($currentHospitalName) })"
+                                {{-- FIXED: Use proper wire:click method call --}}
+                                wire:click="openPatientModal({{ json_encode($patient) }}, '{{ $currentHospitalName }}')"
                                 class="cursor-pointer {{ $loading ? 'pointer-events-none opacity-60' : '' }} transform transition-all duration-300 hover:scale-105 focus:outline-none h-full"
+                                {{-- FIXED: Add onclick for debugging --}}
+                                onclick="console.log('🔄 Card clicked:', {{ json_encode($patient) }})"
                             >
                             <div class="rounded-xl shadow-lg h-64 sm:h-72 md:h-80 lg:h-80">
                         <!-- Card Header with gradient color based on status -->

@@ -18,12 +18,16 @@ class ChatAuditoria extends Model
 
     public function mensagem()
     {
-        return $this->belongsTo(\App\Models\ChatMensagem::class, 'mensagem_id');
+        return $this->belongsTo(ChatMensagem::class, 'mensagem_id');
     }
+
     public function usuario()
     {
         return $this->belongsTo(\App\Models\System\User::class, 'usuario_id');
     }
 
-    public $timestamps = false;
+    protected $casts = [
+        'dt_acao' => 'datetime',
+        'detalhes' => 'array',
+    ];
 }

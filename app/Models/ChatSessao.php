@@ -15,27 +15,26 @@ class ChatSessao extends Model
         'inicio',
         'fim',
         'encerrada',
+        'usuarios_participantes',
+        'total_mensagens'
     ];
 
-    public function fecharSessao()
-    {
-        $this->fim = now();
-        $this->encerrada = true;
-        $this->save();
-
-        \Log::debug('ChatSessao encerrada', [
-            'sessao_id' => $this->id,
-            'nr_atendimento' => $this->nr_atendimento,
-            'turno_id' => $this->turno_id,
-            'data_sessao' => $this->data_sessao,
-            'encerrada' => $this->encerrada,
-        ]);
-    }
-    
-    public $timestamps = true;
-
-    public function mensagens()
+    public function messages()
     {
         return $this->hasMany(ChatMensagem::class, 'sessao_id');
     }
+
+    public function auditoria()
+    {
+        return $this->hasManyThrough(ChatAuditoria::class, ChatMensagem::class, 'sessao_id', 'mensagem_id');
+    }
+
+    protected $casts = [
+        'data_sessao' => 'date',
+        'inicio' => 'datetime',
+        'fim' => 'datetime',
+        'encerrada' => 'boolean',
+        'usuarios_participantes' => 'array',
+        'total_mensagens' => 'integer',
+    ];
 }

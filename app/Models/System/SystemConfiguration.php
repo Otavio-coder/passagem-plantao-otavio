@@ -42,21 +42,26 @@ class SystemConfiguration extends Model
         return $query->where('configuration_type', 'bed')->where('is_active', true);
     }
 
-    // Retorna arrays de códigos permitidos
     public static function allowedHospitalCodes()
     {
-        return self::hospitals()->pluck('hospital_code')->toArray();
+        return cache()->rememberForever('allowed_hospital_codes', function () {
+            return self::hospitals()->pluck('hospital_code')->toArray();
+        });
     }
 
     public static function allowedSectorCodes()
     {
-        return self::sectors()->pluck('sector_code')->toArray();
+        return cache()->rememberForever('allowed_sector_codes', function () {
+            return self::sectors()->pluck('sector_code')->toArray();
+        });
     }
 
     public static function allowedBedCodes()
     {
-        return self::beds()->get()->map(function($item) {
-            return $item->bed_code . '|' . $item->sector_code;
-        })->toArray();
+        return cache()->rememberForever('allowed_bed_codes', function () {
+            return self::beds()->get()->map(function($item) {
+                return $item->bed_code . '|' . $item->sector_code;
+            })->toArray();
+        });
     }
 }

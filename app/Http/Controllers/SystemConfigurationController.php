@@ -163,6 +163,9 @@ class SystemConfigurationController extends Controller
             ]);
         }
 
+        Cache::forget('allowed_hospital_codes');
+        Cache::forget('allowed_sector_codes');
+        Cache::forget('allowed_bed_codes');
         Cache::forget('allowed_sectors_list');
         Cache::forget('hospitals_with_sectors');
 

@@ -7,23 +7,21 @@ use Livewire\Attributes\On;
 use App\Models\EMR\Patient;
 use App\Repositories\EMR\PatientClinical;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class PatientModal extends Component
 {
     public $showModal = false;
-    public $loadingPatient = false;
+    public $isLoading = false;
+    public $loadingStage = 'initial'; // initial, fetching, processing, rendering, complete
+    public $loadingMessage = '';
     public $currentPatient = null;
     public $currentHospitalName = '';
     public $patientDetails = null;
     public $patientAlerts = [];
     public $showAlertsModal = false;
     public $currentShift = 'dia';
-
-    // FIXED: Use both attributes and property for Livewire compatibility
-    protected $listeners = [
-        'openPatientModal' => 'openModal',
-        'closePatientModal' => 'closeModal'
-    ];
+    public $dataLoaded = false;
 
     public function mount()
     {
@@ -31,130 +29,138 @@ class PatientModal extends Component
         $this->currentShift = ($hour >= 7 && $hour < 19) ? 'dia' : 'noite';
     }
 
-    // FIXED: Use both attribute and method for maximum compatibility
-    #[On('openPatientModal')]
-    public function openModal($data = null)
+    #[On('openModal')]
+    public function openModal($attendanceNumber, $hospital = '')
     {
-        try {
-            Log::info('🔄 PatientModal: openModal called', ['data' => $data]);
-            
-            // Handle both array and direct parameters
-            if (is_array($data) && isset($data['patient'])) {
-                $patient = $data['patient'];
-                $hospital = $data['hospital'] ?? '';
-            } else {
-                // Fallback for direct parameters (legacy compatibility)
-                $patient = $data;
-                $hospital = func_get_args()[1] ?? '';
-            }
-            
-            if (!$patient) {
-                Log::warning('❌ PatientModal: No patient data provided');
-                return;
-            }
-            
-            // Set basic modal state first
-            $this->showModal = true;
-            $this->loadingPatient = true;
-            $this->currentPatient = $patient;
-            $this->currentHospitalName = $hospital;
-            
-            Log::info('✅ PatientModal: Modal opened', [
-                'patient_id' => $patient['nr_atendimento'] ?? 'N/A',
-                'hospital' => $hospital
-            ]);
-            
-            // Dispatch event to disable auto-scroll
-            $this->dispatch('openPatientModal');
-            
-            // Load detailed patient data if patient exists
-            if (isset($patient['has_patient']) && $patient['has_patient'] && isset($patient['nr_atendimento'])) {
-                $this->loadPatientDetails($patient['nr_atendimento']);
-            } else {
-                // For empty beds, just stop loading
-                $this->loadingPatient = false;
-                Log::info('ℹ️ PatientModal: Empty bed, no details to load');
-            }
-            
-        } catch (\Exception $e) {
-            Log::error('❌ PatientModal: Error opening modal', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            $this->loadingPatient = false;
-            $this->showModal = false;
+        if (!$attendanceNumber) {
+            return;
         }
+
+        // Reset all states
+        $this->resetModalState();
+        
+        // Inicia o loading imediatamente
+        $this->isLoading = true;
+        $this->showModal = true;
+        $this->loadingStage = 'fetching';
+        $this->loadingMessage = 'Buscando dados do paciente...';
+        $this->dataLoaded = false;
+
+        // Set basic patient info
+        $this->currentPatient = [
+            'nr_atendimento' => $attendanceNumber,
+            'has_patient' => true,
+        ];
+        $this->currentHospitalName = $hospital;
+
+        // Force render to show loading state
+        $this->dispatch('modal-state-changed', ['loading' => true]);
+
+        // Load data asynchronously
+        $this->loadPatientDataAsync($attendanceNumber);
     }
 
-    public function loadPatientDetails($attendanceNumber)
+    #[On('showAlertsModal')]
+    public function showAlertsModal()
+    {
+        $this->showAlertsModal = true;
+    }
+
+    public function loadPatientDataAsync($attendanceNumber)
     {
         try {
-            $this->loadingPatient = true;
+            $this->loadingStage = 'processing';
+            $this->loadingMessage = 'Processando informações clínicas...';
             
-            Log::info('🔄 PatientModal: Loading patient details', ['attendance' => $attendanceNumber]);
-            
-            // Get full patient data
-            $patientModel = new Patient();
-            $this->patientDetails = $patientModel->getFullPatientData($attendanceNumber);
-            
+            // Simulate processing delay for better UX
+            usleep(500000); // 0.5 seconds
+
+            // Load patient details
+            $cacheKey = "patient_full_data_{$attendanceNumber}";
+            $this->patientDetails = Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
+                $patientModel = new Patient();
+                return $patientModel->getFullPatientData($attendanceNumber);
+            });
+
+            $this->loadingStage = 'alerts';
+            $this->loadingMessage = 'Carregando alertas clínicos...';
+
             // Load patient alerts
-            if ($this->patientDetails) {
+            $alertsCacheKey = "patient_alerts_{$attendanceNumber}";
+            $this->patientAlerts = Cache::remember($alertsCacheKey, 300, function() use ($attendanceNumber) {
                 $clinicalRepo = new PatientClinical();
-                $this->patientAlerts = $clinicalRepo->getPatientActiveAlerts(
+                return $clinicalRepo->getPatientActiveAlerts(
                     $attendanceNumber, 
                     $this->patientDetails->cd_pessoa_fisica ?? null
                 );
-                
-                Log::info('✅ PatientModal: Patient details loaded successfully', [
-                    'attendance' => $attendanceNumber,
-                    'alerts_count' => count($this->patientAlerts)
-                ]);
-            } else {
-                Log::warning('⚠️ PatientModal: No patient details found', ['attendance' => $attendanceNumber]);
-            }
-            
-        } catch (\Exception $e) {
-            Log::error('❌ PatientModal: Error loading patient details', [
-                'attendance' => $attendanceNumber,
-                'error' => $e->getMessage()
+            });
+
+            $this->loadingStage = 'rendering';
+            $this->loadingMessage = 'Preparando interface...';
+            $this->dataLoaded = true;
+
+            // Delay before showing content for smooth transition
+            usleep(800000); // 0.8 seconds
+
+            $this->loadingStage = 'complete';
+            $this->isLoading = false;
+            $this->loadingMessage = '';
+
+            // Dispatch event to trigger any client-side initialization
+            $this->dispatch('patient-data-loaded', [
+                'patientId' => $attendanceNumber,
+                'shift' => $this->currentShift
             ]);
-            $this->patientDetails = null;
-            $this->patientAlerts = [];
-        } finally {
-            $this->loadingPatient = false;
+
+        } catch (\Exception $e) {
+            $this->loadingStage = 'error';
+            $this->loadingMessage = 'Erro ao carregar dados';
+            $this->isLoading = false;
+            
+            Log::error('PatientModal: Error loading patient data', [
+                'attendance' => $attendanceNumber,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Show error state
+            $this->dispatch('patient-load-error', ['message' => $e->getMessage()]);
         }
     }
 
-    public function closeModal()
+    private function resetModalState()
     {
-        Log::info('🔄 PatientModal: Closing modal');
-        
-        $this->showModal = false;
-        $this->loadingPatient = false;
+        $this->isLoading = false;
+        $this->loadingStage = 'initial';
+        $this->loadingMessage = '';
         $this->currentPatient = null;
         $this->currentHospitalName = '';
         $this->patientDetails = null;
         $this->patientAlerts = [];
         $this->showAlertsModal = false;
-        
-        // Dispatch close event to re-enable auto-scroll
-        $this->dispatch('closePatientModal');
-        
-        Log::info('✅ PatientModal: Modal closed');
+        $this->dataLoaded = false;
     }
 
-    public function showAlerts()
-    {
-        if (!empty($this->patientAlerts)) {
-            $this->showAlertsModal = true;
-            Log::info('🔄 PatientModal: Alerts modal opened', ['alerts_count' => count($this->patientAlerts)]);
-        }
-    }
-
-    public function closeAlertsModal()
+    #[On('hideAlertsModal')]
+    public function hideAlertsModal()
     {
         $this->showAlertsModal = false;
-        Log::info('✅ PatientModal: Alerts modal closed');
+    }
+
+    public function closeModal()
+    {
+        $this->showModal = false;
+        $this->resetModalState();
+        
+        $this->dispatch('closePatientModal');
+    }
+
+    // Method to check if modal is ready to display content
+    public function isContentReady()
+    {
+        return $this->dataLoaded && 
+               $this->patientDetails !== null && 
+               $this->loadingStage === 'complete';
     }
 
     public function render()

@@ -46,9 +46,10 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             return view('sbar.report');
         })->name('sbar.report');
 
-        Route::get('/sbar/auditoria', function() {
-            return view('sbar.chat-auditoria');
-        })->middleware('can:configurar sistema')->name('sbar.chat-auditoria');
+       // Auditoria do Chat
+        Route::get('/chat-auditoria', [\App\Http\Controllers\ChatAuditoriaController::class, 'index'])
+            ->middleware('can:configurar sistema')
+            ->name('chat-auditoria');
     });
 
 });

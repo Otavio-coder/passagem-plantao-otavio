@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\ChatSessao;
 use App\Models\ChatMensagem;
 use App\Repositories\MySQL\ChatRepository;
+use App\Services\ChatAuditoriaService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
@@ -35,6 +36,8 @@ class ChatComponent extends Component
     public $initialized = false;
     private $messageProcessing = false;
     
+    private $sessionStartTime;
+
     protected $listeners = [
         'onChatMessageReceived' => 'handleNewMessage',
         'onChatMessagePinned' => 'handleMessagePinned',
@@ -52,7 +55,7 @@ class ChatComponent extends Component
         $this->currentUser = [
             'id' => $user->id,
             'name' => $user->name,
-            'photo' => method_exists($user, 'photo') ? $user->photo() : '',
+            'photo' => method_exists($user, 'getUserPhoto') ? $user->getUserPhoto() : '',
         ];
         
         // Set shift data
@@ -62,6 +65,8 @@ class ChatComponent extends Component
         
         // Check if shift is closed
         $this->isShiftClosed = $this->checkIfShiftClosed();
+
+        $this->sessionStartTime = now();
     }
 
     public function initialize()
@@ -76,7 +81,6 @@ class ChatComponent extends Component
             $this->loadAvailableSessions();
             $this->initialized = true;
             
-            // Dispatch event to bind Echo listeners
             $this->dispatch('chat-initialized', [
                 'patientId' => $this->patientId,
                 'shift' => $this->currentShift,
@@ -117,16 +121,16 @@ class ChatComponent extends Component
                 'dt_criacao' => now(),
             ]);
 
-            // Add message immediately to local state for instant UI feedback
+            // Registrar auditoria
+            ChatAuditoriaService::registrarEnvioMensagem($newMessage);
+
             $this->addMessageToLocal($newMessage);
-            
-            // Dispatch scroll event immediately
             $this->dispatch('scroll-to-bottom');
             $this->dispatch('message-sent');
             
         } catch (\Exception $e) {
             Log::error('Error sending message', ['error' => $e->getMessage()]);
-            $this->newMessage = $message; // Restore on error
+            $this->newMessage = $message;
         } finally {
             $this->messageProcessing = false;
             $this->messageLoading = false;
@@ -138,15 +142,20 @@ class ChatComponent extends Component
         if ($this->viewingHistory || $this->isShiftClosed || !$this->patientId) return;
         
         try {
-            // Update local state immediately
+            $message = ChatMensagem::find($messageId);
+            if (!$message) return;
+
+            $wasFixed = $message->is_fixed;
             $this->updateMessagePinState($messageId);
             
             $repo = new ChatRepository();
             $repo->pinMessage($messageId, $this->currentUser['id']);
             
+            // Registrar auditoria
+            ChatAuditoriaService::registrarFixacaoMensagem($message, !$wasFixed);
+            
         } catch (\Exception $e) {
             Log::error('Error pinning message', ['error' => $e->getMessage()]);
-            // Revert local state on error
             $this->updateMessagePinState($messageId);
         }
     }
@@ -162,6 +171,9 @@ class ChatComponent extends Component
             
             $this->loadingMessages = true;
             $this->viewingHistory = true;
+            
+            // Registrar acesso ao histórico
+            ChatAuditoriaService::registrarCarregamentoHistorico($this->patientId, $shift, $date);
             
             $repo = new ChatRepository();
             $messages = $repo->getMessagesForSession($this->patientId, $shift, $date, 100);
@@ -298,7 +310,7 @@ class ChatComponent extends Component
                 'mensagem' => $this->formatMessageText($msg['mensagem'] ?? ''),
                 'usuario_id' => $msg['usuario_id'] ?? null,
                 'author' => $user ? $user->name : 'Usuário',
-                'photo' => $user && method_exists($user, 'photo') ? $user->photo() : '',
+                'photo' => $user && $user->photo() ? $user->photo() : '',
                 'time' => isset($msg['dt_criacao']) ? \Carbon\Carbon::parse($msg['dt_criacao'])->format('H:i') : '',
                 'is_pinned' => $msg['is_fixed'] ?? false,
                 'is_fixed' => $msg['is_fixed'] ?? false,

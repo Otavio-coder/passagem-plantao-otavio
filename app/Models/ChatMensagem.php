@@ -46,4 +46,25 @@ class ChatMensagem extends Model
         'expiracao' => 'datetime',
         'is_fixed' => 'boolean',
     ];
+
+    /**
+     * Safely decrypt message content for display
+     */
+    public function getDecryptedMessageAttribute()
+    {
+        return \App\Services\ChatAuditoriaService::safeDecryptMessage($this->mensagem);
+    }
+
+    /**
+     * Check if message can be decrypted
+     */
+    public function canDecrypt()
+    {
+        try {
+            \Illuminate\Support\Facades\Crypt::decryptString($this->mensagem);
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Models\System;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class SystemConfiguration extends Model
 {
@@ -44,24 +45,45 @@ class SystemConfiguration extends Model
 
     public static function allowedHospitalCodes()
     {
-        return cache()->rememberForever('allowed_hospital_codes', function () {
-            return self::hospitals()->pluck('hospital_code')->toArray();
+        return Cache::rememberForever('allowed_hospital_codes_v2', function () {
+            return self::hospitals()->pluck('hospital_code')->filter()->values()->toArray();
         });
     }
 
     public static function allowedSectorCodes()
     {
-        return cache()->rememberForever('allowed_sector_codes', function () {
-            return self::sectors()->pluck('sector_code')->toArray();
+        return Cache::rememberForever('allowed_sector_codes_v2', function () {
+            return self::sectors()->pluck('sector_code')->filter()->values()->toArray();
         });
     }
 
     public static function allowedBedCodes()
     {
-        return cache()->rememberForever('allowed_bed_codes', function () {
+        return Cache::rememberForever('allowed_bed_codes_v2', function () {
             return self::beds()->get()->map(function($item) {
                 return $item->bed_code . '|' . $item->sector_code;
-            })->toArray();
+            })->filter()->values()->toArray();
+        });
+    }
+
+    // Clear cache when configuration changes
+    public static function clearConfigCache()
+    {
+        Cache::forget('allowed_hospital_codes_v2');
+        Cache::forget('allowed_sector_codes_v2');
+        Cache::forget('allowed_bed_codes_v2');
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::saved(function () {
+            self::clearConfigCache();
+        });
+        
+        static::deleted(function () {
+            self::clearConfigCache();
         });
     }
 }

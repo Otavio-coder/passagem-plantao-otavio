@@ -1,14 +1,14 @@
 <div class="relative">
     {{-- Spinner centralizado e acima de tudo --}}
     <div
-        wire:loading
-        class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#004D9D]/20"
+        wire:loading.delay.longer
+        class="fixed inset-0 z-[9998] flex items-center justify-center bg-[#004D9D]/20"
         role="status"
         aria-live="polite"
     >
         <div class="flex flex-col items-center justify-center space-y-2 min-h-screen">
             <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin" aria-hidden="true"></div>
-            <span class="text-[#004D9D] font-medium">Carregando...</span>
+            <span class="text-[#004D9D] font-medium">{{ $loadingMessage ?? 'Carregando...' }}</span>
         </div>
     </div>
 
@@ -220,21 +220,33 @@
                     <div class="flex flex-row justify-center items-center gap-3 mt-3 mx-2">
                         <button
                             wire:click="refreshData"
-                            @if(isset($loading) && $loading) disabled @endif
+                            wire:loading.attr="disabled"
                             class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-white transition-all duration-200 bg-[#0071B9] hover:bg-[#004D9D] shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[#0071B9]/40 disabled:opacity-50 text-sm font-semibold min-w-[50px]"
                             title="Atualizar dados do setor selecionado"
                         >
-                            @svg('iconpark-updaterotation-o', 'w-5 h-5 mr-2')
-                            <span>Atualizar</span>
+                            <span wire:loading.remove wire:target="refreshData">
+                                @svg('iconpark-updaterotation-o', 'w-5 h-5 mr-2')
+                                Atualizar
+                            </span>
+                            <span wire:loading wire:target="refreshData" class="flex items-center">
+                                <div class="w-4 h-4 border-2 border-t-white border-white/30 rounded-full animate-spin mr-2"></div>
+                                Atualizando...
+                            </span>
                         </button>
                         <button
                             wire:click="resetFilters"
-                            @if(isset($loading) && $loading) disabled @endif
+                            wire:loading.attr="disabled"
                             class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-gray-700 bg-gray-100 border border-gray-300 transition-all duration-200 hover:bg-gray-200 hover:border-gray-400 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-400/40 disabled:opacity-50 text-sm font-semibold min-w-[50px]"
                             title="Limpar todos os filtros aplicados"
                         >
-                            @svg('eos-filter-alt-off', 'w-5 h-5 mr-2')
-                            <span class="ml-2">Limpar</span>
+                            <span wire:loading.remove wire:target="resetFilters">
+                                @svg('eos-filter-alt-off', 'w-5 h-5 mr-2')
+                                Limpar
+                            </span>
+                            <span wire:loading wire:target="resetFilters" class="flex items-center">
+                                <div class="w-4 h-4 border-2 border-t-gray-600 border-gray-600/30 rounded-full animate-spin mr-2"></div>
+                                Limpando...
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -271,17 +283,10 @@
             <!-- Patient Cards Grid - wider cards with responsive layout -->
             <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 @foreach($patients as $index => $patient)
-                        <div 
-                            wire:key="patient-{{ (is_object($patient) && property_exists($patient, 'nr_atendimento')) ? $patient->nr_atendimento : ('empty-'.$index) }}" 
-                            class="relative patient-card"
-                            x-data
-                        >
-                            <div 
-                                {{-- FIXED: Use proper wire:click method call --}}
-                                wire:click="openPatientModal({{ json_encode($patient) }}, '{{ $currentHospitalName }}')"
-                                class="cursor-pointer {{ $loading ? 'pointer-events-none opacity-60' : '' }} transform transition-all duration-300 hover:scale-105 focus:outline-none h-full"
-                                {{-- FIXED: Add onclick for debugging --}}
-                                onclick="console.log('🔄 Card clicked:', {{ json_encode($patient) }})"
+                        <div wire:key="patient-{{ $patient->nr_atendimento }}" class="relative patient-card" x-data>
+                            <div
+                                class="cursor-pointer transform transition-all duration-300 hover:scale-105"
+                                wire:click="$dispatch('openModal', { attendanceNumber: {{ $patient->nr_atendimento }}, hospital: '{{ $currentHospitalName }}' })"
                             >
                             <div class="rounded-xl shadow-lg h-64 sm:h-72 md:h-80 lg:h-80">
                         <!-- Card Header with gradient color based on status -->
@@ -632,6 +637,6 @@
     @endif
 
     <!-- Patient Modal using only Livewire -->
-    @livewire('patient-modal', [], key('patient-modal'))->ref('patientModal')
+    @livewire('patient-modal', [], key('patient-modal'))
     </div> {{-- fecha .font-montserrat.relative --}}
 </div> {{-- fecha .relative --}}

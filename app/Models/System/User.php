@@ -13,7 +13,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @method \Illuminate\Support\Collection getRoleNames()
- * @method string photo(string $size = "64x64")
+ * @method string getUserPhoto(string $size = "64x64")
  */
 
 class User extends Authenticatable implements LdapAuthenticatable
@@ -71,5 +71,64 @@ class User extends Authenticatable implements LdapAuthenticatable
         ];
 
         return $status[$this->status];
+    }
+
+    /**
+     * Check if user has a valid photo (not error data)
+     */
+    public function hasValidPhoto(): bool
+    {
+        if (empty($this->photo)) {
+            return false;
+        }
+        
+        // Check if the photo data contains error information
+        $decoded = base64_decode($this->photo, true);
+        if ($decoded === false) {
+            return false;
+        }
+        
+        // Check if it's JSON error data from MS Graph
+        $jsonData = json_decode($decoded, true);
+        if (json_last_error() === JSON_ERROR_NONE && isset($jsonData['error'])) {
+            return false;
+        }
+        
+        // Additional check for error strings in the data
+        if (strpos($decoded, '"error":{') !== false || strpos($decoded, 'ErrorBadRequestInvalidTargetIdentity') !== false) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Get user photo - wrapper method to use trait or return stored photo
+     */
+    public function getUserPhoto($size = "64x64")
+    {
+        // Se já tem foto válida no banco, retorna
+        if ($this->hasValidPhoto()) {
+            return $this->getOriginal('photo');
+        }
+        
+        // Usa o trait para buscar nova foto
+        return $this->photo($size);
+    }
+
+    /**
+     * Check if user has a photo
+     */
+    public function hasPhoto(): bool
+    {
+        return $this->hasValidPhoto();
+    }
+
+    /**
+     * Get photo for display in templates
+     */
+    public function getPhotoAttribute($value)
+    {
+        return $value;
     }
 }

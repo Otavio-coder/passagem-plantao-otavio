@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="scroll-smooth" lang="pt-BR">
 <head>
-    <!-- ... --->
+    <!-- ...existing head content... -->
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/noty.css' ) }}"/>
@@ -30,80 +30,109 @@
 
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
 
-<div class="w-full h-full fixed block bg-white z-50" id="pre-loader">
-    <span class="text-blue-500 opacity-75 top-1/2 mx-auto block relative text-center" style="top: 50%;">
-        <i class="fas fa-spinner fa-3x animate-spin"></i>
-    </span>
+<!-- Global Loading Overlay - Lower z-index and more specific targeting -->
+<div class="w-full h-full fixed block bg-white/90 backdrop-blur-sm z-[9998]" 
+     id="pre-loader" 
+     x-data="{ show: true }"
+     x-show="show"
+     x-init="
+         // Hide after DOM ready
+         document.addEventListener('DOMContentLoaded', () => {
+             setTimeout(() => show = false, 450);
+         });
+         
+         // Don't show during modal operations
+         window.addEventListener('modal-opening', () => show = false);
+     ">
+    <div class="flex flex-col items-center justify-center min-h-screen">
+        <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin mb-4"></div>
+        <span class="text-[#004D9D] font-medium">Carregando sistema...</span>
+    </div>
 </div>
 
-<!-- NAVBAR - Make it fixed -->
+<!-- NAVBAR -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
     @include('partials.navbar')
 </header>
-<!-- NAVBAR -->
 
 <!-- MENU MOBILE -->
 @include('partials.menu-mobile')
-<!-- MENU MOBILE -->
 
 <!-- PRINCIPAL -->
-<main class="flex-grow bg-gray-50 pt-2"> <!-- Added pt-2 to account for the fixed header -->
-
-    <div class="relative pt-4 md:pt-6 pb-4 md:pb-10 flex justify-center"> <!-- Reduced padding from pt-10 to pt-6 -->
-
+<main class="flex-grow bg-gray-50 pt-2">
+    <div class="relative pt-4 md:pt-6 pb-4 md:pb-10 flex justify-center">
         <div class="container relative p-2 rounded pb-6">
             <div class="items-center flex flex-wrap">
-
-                @if ( $errors->any() )
-                    <div class="w-full px-4">
-                        <div class="bg-red-100 border border-red-500 rounded text-red-900 px-4 py-3 mb-3 shadow-md" role="alert">
-                            <div class="flex items-center">
-                                <div class="py-1"><svg class="fill-current h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/></svg></div>
-                                <div>
-                                    @foreach ( $errors->all() as $error )
-                                        <p class="text-sm">{!! errorMessageFormat( $error ) !!}</p>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                @if( session()->has( 'status' ) )
-                    @php ( $color = color( session( 'status' ) ) )
-                    <div class="w-full px-4">
-                        <div class="hidden border-orange-500 bg-orange-100 text-orange-500 text-orange-900 border-red-500 bg-red-100 text-red-500 text-red-900 border-teal-500 bg-teal-100 text-teal-500 text-teal-900 bg-green-600 hover:bg-green-400 bg-sky-600 hover:bg-sky-400"></div>
-                        <div class="bg-{{ $color }}-100 border border-{{ $color }}-500 rounded text-{{ $color }}-900 px-4 py-3 mb-3 shadow-md" role="alert">
-                            <div class="flex items-center">
-                                <div class="py-1"><svg class="fill-current h-6 w-6 text-{{ $color }}-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/></svg></div>
-                                <div>
-                                    <p class="text-sm">{!! errorMessageFormat( session('message') ) !!}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                @yield( 'content' )
+                @yield('content')
             </div>
         </div>
     </div>
 </main>
-<!-- PRINCIPAL -->
-@include( 'partials.footer' )
 
-<script type="text/javascript" src="{{ asset( 'js/jquery.js' ) }}"></script>
-<script src="{{ asset( '/js/common.js' . preventCache() ) }}"></script>
-<script src="{{ asset( '/vendor/noty/noty.min.js' ) }}"></script>
+@include('partials.footer')
+
+<!-- Scripts -->
+<script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>
+<script src="{{ asset('/js/common.js' . preventCache()) }}"></script>
+<script src="{{ asset('/vendor/noty/noty.min.js') }}"></script>
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.min.js"></script>
 
-@stack( 'scripts' )
+@stack('scripts')
 
-<!-- Moved from report.blade.php -->
 <script src="{{ asset('js/sbar-autoscroll.js') }}"></script>
+
 <script>
-// Inicialização do modal de boas-vindas (primeira visita)
 document.addEventListener('DOMContentLoaded', function() {
+    const preLoader = document.getElementById('pre-loader');
+    
+    // Hide initial loader after DOM is ready
+    setTimeout(() => {
+        if (preLoader) {
+            preLoader.style.display = 'none';
+        }
+    }, 450);
+
+    // Livewire loading control - BUT NOT FOR MODALS
+    if (typeof Livewire !== 'undefined') {
+        let isModalOperation = false;
+        
+        // Listen for modal events
+        window.addEventListener('modal-opening', () => {
+            isModalOperation = true;
+            console.log('Modal operation detected - disabling global loader');
+        });
+        
+        document.addEventListener('livewire:init', () => {
+            // Hook into Livewire navigation events
+            Livewire.hook('request', ({ uri, options, payload, respond, succeed, fail }) => {
+                // Don't show global loader for modal operations
+                if (!isModalOperation && preLoader) {
+                    preLoader.style.display = 'block';
+                }
+            });
+
+            // Hide loading when request completes
+            Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
+                setTimeout(() => {
+                    if (preLoader) {
+                        preLoader.style.display = 'none';
+                    }
+                    isModalOperation = false; // Reset flag
+                }, 100);
+            });
+
+            // Also hide on morph completion
+            Livewire.hook('morph.updated', ({ el, component }) => {
+                setTimeout(() => {
+                    if (preLoader) {
+                        preLoader.style.display = 'none';
+                    }
+                }, 50);
+            });
+        });
+    }
+
+    // Welcome modal logic
     const welcomeShown = localStorage.getItem('sbar_welcome_shown');
     if (welcomeShown) {
         const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
@@ -112,28 +141,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
-</script>
-<script>
-// Inicialização adicional e verificação do Livewire
-document.addEventListener('DOMContentLoaded', function() {
-    const welcomeShown = localStorage.getItem('sbar_welcome_shown');
-    if (welcomeShown) {
-        const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
-        if (welcomeElement && welcomeElement.__x) {
-            welcomeElement.__x.$data.showWelcome = false;
-        }
-    }
 
-    if (window.Livewire) {
-        // Livewire carregado
-        console.log('Livewire loaded successfully');
-    }
-});
-</script>
-<!-- End moved scripts -->
-
-<script>
-    // Previne que o usuário envie mais de uma requisição de formulário
+// Form submission prevention
+if (typeof $ !== 'undefined') {
     $(document).ready(function(){
         $("form").submit(function(){
             setTimeout(function() {
@@ -143,10 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 50);
         });
     });
-
-    $(function () {
-        $( '#pre-loader' ).delay( 450 ).fadeOut( 'slow' );
-    });
+}
 </script>
 
 </body>

@@ -3,43 +3,35 @@ window.modalState = {
     scrollingDisabled: false,
     currentPatientId: null,
     currentShift: null,
-    echoChannel: null,
-    loadingComplete: false
+    echoChannel: null
 };
 
-window.modalLoadingManager = {
-    stages: ['initial', 'fetching', 'processing', 'alerts', 'rendering', 'complete'],
-    currentStage: 'initial',
-    
-    updateStage(stage) {
-        this.currentStage = stage;
-        this.notifyStageChange(stage);
+// Global loading overlay management
+window.modalLoading = {
+    show: function() {
+        const overlay = document.getElementById('modal-global-loading');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            console.log('Global modal loading shown');
+        }
     },
     
-    notifyStageChange(stage) {
-        // Dispatch custom event for stage changes
-        window.dispatchEvent(new CustomEvent('modal-loading-stage-changed', {
-            detail: { stage, timestamp: Date.now() }
-        }));
-        
-        console.log(`Modal loading stage: ${stage}`);
-    },
-    
-    isComplete() {
-        return this.currentStage === 'complete';
+    hide: function() {
+        const overlay = document.getElementById('modal-global-loading');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            console.log('Global modal loading hidden');
+        }
     }
 };
 
-
-
-// Optimized Echo binding with connection pooling
+// Optimized Echo binding
 window.bindChatEchoListeners = (patientId, shift, componentId) => {
     if (!window.Echo || !window.Livewire || !patientId || !shift) {
         console.warn('Echo binding failed: missing dependencies');
         return;
     }
     
-    // Cleanup existing channel first
     if (window.modalState.echoChannel) {
         try {
             window.Echo.leave(window.modalState.echoChannel);
@@ -75,24 +67,23 @@ window.bindChatEchoListeners = (patientId, shift, componentId) => {
     }
 };
 
-// Optimized cleanup
+// Simplified modal lifecycle manager
 const modalLifecycleManager = {
     onModalOpen(patientId, shift) {
         console.log(`Modal opening for patient ${patientId}, shift ${shift}`);
         window.modalState.scrollingDisabled = true;
         window.modalState.currentPatientId = patientId;
         window.modalState.currentShift = shift;
-        window.modalState.loadingComplete = false;
-        
-        window.modalLoadingManager.updateStage('fetching');
+    },
+    
+    onLoadingStarted(data) {
+        console.log('Patient loading started:', data);
     },
     
     onDataLoaded(data) {
         console.log('Patient data loaded:', data);
-        window.modalLoadingManager.updateStage('complete');
-        window.modalState.loadingComplete = true;
+        window.modalLoading.hide();
         
-        // Initialize chat listeners after data is loaded
         if (data.patientId && data.shift) {
             setTimeout(() => {
                 const chatComponent = document.querySelector('[wire\\:id*="chat"]');
@@ -107,11 +98,8 @@ const modalLifecycleManager = {
     onModalClose() {
         console.log('Modal closing');
         window.modalState.scrollingDisabled = false;
-        window.modalState.loadingComplete = false;
-        window.modalLoadingManager.updateStage('initial');
         window.cleanupChatEcho();
-        
-        // Reset patient state
+        window.modalLoading.hide();
         window.modalState.currentPatientId = null;
         window.modalState.currentShift = null;
     }
@@ -130,11 +118,46 @@ window.cleanupChatEcho = () => {
     }
 };
 
-// Throttled clock update
-let clockUpdateTimeout;
-const updateClock = () => {
-    clearTimeout(clockUpdateTimeout);
-    clockUpdateTimeout = setTimeout(() => {
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('openModal', () => {
+            console.log('openModal event received');
+            window.modalState.scrollingDisabled = true;
+        });
+        
+        Livewire.on('closeModal', () => {
+            console.log('closeModal event received');
+            modalLifecycleManager.onModalClose();
+        });
+
+        Livewire.on('patient-loading-started', (data) => {
+            console.log('patient-loading-started event received:', data);
+            modalLifecycleManager.onLoadingStarted(data);
+        });
+
+        Livewire.on('patient-data-loaded', (data) => {
+            console.log('patient-data-loaded event received:', data);
+            modalLifecycleManager.onDataLoaded(data);
+        });
+    });
+
+    // Show loading on patient card click
+    document.addEventListener('click', function(e) {
+        const patientCard = e.target.closest('.patient-card');
+        if (patientCard) {
+            console.log('Patient card clicked, showing global loading');
+            window.modalLoading.show();
+            
+            setTimeout(() => {
+                console.log('Safety timeout reached, hiding loading');
+                window.modalLoading.hide();
+            }, 5000);
+        }
+    }, true);
+
+    // Clock update
+    const updateClock = () => {
         const now = new Date().toLocaleTimeString('pt-BR', {
             hour: '2-digit', 
             minute: '2-digit'
@@ -146,19 +169,15 @@ const updateClock = () => {
                 el.textContent = now;
             }
         });
-    }, 100);
-};
+    };
 
-// Optimized auto-scroll with performance throttling
-let scrollAnimationFrame;
-const triggerAutoScroll = () => {
-    if (window.modalState.scrollingDisabled) return;
-    
-    if (scrollAnimationFrame) {
-        cancelAnimationFrame(scrollAnimationFrame);
-    }
-    
-    scrollAnimationFrame = requestAnimationFrame(() => {
+    updateClock();
+    setInterval(updateClock, 30000);
+
+    // Auto scroll
+    const triggerAutoScroll = () => {
+        if (window.modalState.scrollingDisabled) return;
+        
         const container = document.getElementById('messages-container');
         if (container) {
             const isUserScrolledUp = container.scrollTop < (container.scrollHeight - container.clientHeight - 100);
@@ -170,74 +189,48 @@ const triggerAutoScroll = () => {
                 });
             }
         }
-    });
-};
+    };
 
-// Optimized text formatting
-const insertFormatting = (textarea, before, after) => {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end);
-    const replacement = before + selectedText + after;
-    
-    textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
-    textarea.focus();
-    textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-    
-    // Trigger Livewire update
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-};
-
-const insertBulletPoint = (textarea) => {
-    const start = textarea.selectionStart;
-    const beforeCursor = textarea.value.substring(0, start);
-    const afterCursor = textarea.value.substring(start);
-    
-    const isStartOfLine = start === 0 || beforeCursor.endsWith('\n');
-    const bullet = isStartOfLine ? '- ' : '\n- ';
-    
-    textarea.value = beforeCursor + bullet + afterCursor;
-    textarea.focus();
-    textarea.setSelectionRange(start + bullet.length, start + bullet.length);
-    
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-};
-
-// Initialize with performance optimizations
-document.addEventListener('DOMContentLoaded', () => {
-    // Livewire event listeners
-    document.addEventListener('livewire:init', () => {
-        Livewire.on('openPatientModal', () => {
-            window.modalState.scrollingDisabled = true;
-        });
-        
-        Livewire.on('closePatientModal', () => {
-            window.modalState.scrollingDisabled = false;
-            window.cleanupChatEcho();
-        });
-    });
-
-    // Clock update - reduce frequency
-    updateClock();
-    setInterval(updateClock, 30000); // Every 30 seconds instead of every minute
-
-    // Scroll events
     window.addEventListener('scroll-to-bottom', triggerAutoScroll);
 
-    // Optimized textarea handling with debouncing
-    let textareaTimeout;
+    // Textarea auto-resize
     document.addEventListener('input', (e) => {
         if (e.target.matches('textarea[wire\\:model\\.defer="newMessage"]')) {
-            clearTimeout(textareaTimeout);
-            textareaTimeout = setTimeout(() => {
-                const textarea = e.target;
-                textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-            }, 50);
+            const textarea = e.target;
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
         }
     });
 
     // Keyboard shortcuts
+    const insertFormatting = (textarea, before, after) => {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+        const replacement = before + selectedText + after;
+        
+        textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+        textarea.focus();
+        textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
+        
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    const insertBulletPoint = (textarea) => {
+        const start = textarea.selectionStart;
+        const beforeCursor = textarea.value.substring(0, start);
+        const afterCursor = textarea.value.substring(start);
+        
+        const isStartOfLine = start === 0 || beforeCursor.endsWith('\n');
+        const bullet = isStartOfLine ? '- ' : '\n- ';
+        
+        textarea.value = beforeCursor + bullet + afterCursor;
+        textarea.focus();
+        textarea.setSelectionRange(start + bullet.length, start + bullet.length);
+        
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
     document.addEventListener('keydown', (e) => {
         const textarea = document.querySelector('textarea[wire\\:model\\.defer="newMessage"]');
         if (!textarea || e.target !== textarea) return;
@@ -255,33 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Cleanup on page unload
-    window.addEventListener('beforeunload', window.cleanupChatEcho);
-
-    // Optimized message animations with Intersection Observer
-    const messageObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting && entry.target.id && entry.target.id.startsWith('msg-')) {
-                entry.target.style.transform = 'translateY(0)';
-                entry.target.style.opacity = '1';
-                messageObserver.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.1 });
-
-    // Observe new messages
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer) {
-        new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === 1 && node.id && node.id.startsWith('msg-')) {
-                        node.style.transform = 'translateY(20px)';
-                        node.style.opacity = '0';
-                        node.style.transition = 'all 0.3s ease-out';
-                        messageObserver.observe(node);
-                    }
-                });
-            });
-        }).observe(messagesContainer, { childList: true, subtree: true });
-    }
+    window.addEventListener('beforeunload', () => {
+        window.modalLoading.hide();
+        window.cleanupChatEcho();
+    });
 });

@@ -30,26 +30,6 @@
 
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
 
-<!-- Global Loading Overlay - Lower z-index and more specific targeting -->
-<div class="w-full h-full fixed block bg-white/90 backdrop-blur-sm z-[9998]" 
-     id="pre-loader" 
-     x-data="{ show: true }"
-     x-show="show"
-     x-init="
-         // Hide after DOM ready
-         document.addEventListener('DOMContentLoaded', () => {
-             setTimeout(() => show = false, 450);
-         });
-         
-         // Don't show during modal operations
-         window.addEventListener('modal-opening', () => show = false);
-     ">
-    <div class="flex flex-col items-center justify-center min-h-screen">
-        <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin mb-4"></div>
-        <span class="text-[#004D9D] font-medium">Carregando sistema...</span>
-    </div>
-</div>
-
 <!-- NAVBAR -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
     @include('partials.navbar')
@@ -57,6 +37,34 @@
 
 <!-- MENU MOBILE -->
 @include('partials.menu-mobile')
+
+    <!-- Global Modal Loading Overlay - IMPROVED -->
+    <div id="modal-global-loading" class="fixed inset-0 z-[99999] hidden">
+        <!-- Backdrop com blur mais intenso -->
+        <div class="absolute inset-0 bg-[#004D9D]/40 backdrop-blur-sm"></div>
+        
+        <!-- Loading content centralizado -->
+        <div class="relative flex items-center justify-center min-h-screen">
+            <div class="bg-white rounded-xl shadow-2xl p-6 flex flex-col items-center space-y-4 mx-4">
+                <!-- Spinner animado -->
+                <div class="relative">
+                    <div class="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
+                    <div class="w-16 h-16 border-4 border-t-[#004D9D] border-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+                </div>
+                
+                <!-- Texto de loading -->
+                <div class="text-center">
+                    <h3 class="text-lg font-semibold text-[#004D9D] mb-1">Carregando Paciente</h3>
+                    <p class="text-sm text-gray-600">Aguarde enquanto carregamos os dados...</p>
+                </div>
+                
+                <!-- Indicador de progresso (opcional) -->
+                <div class="w-48 h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-[#004D9D] rounded-full animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 <!-- PRINCIPAL -->
 <main class="flex-grow bg-gray-50 pt-2">
@@ -83,55 +91,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const preLoader = document.getElementById('pre-loader');
-    
-    // Hide initial loader after DOM is ready
-    setTimeout(() => {
-        if (preLoader) {
-            preLoader.style.display = 'none';
-        }
-    }, 450);
-
-    // Livewire loading control - BUT NOT FOR MODALS
-    if (typeof Livewire !== 'undefined') {
-        let isModalOperation = false;
-        
-        // Listen for modal events
-        window.addEventListener('modal-opening', () => {
-            isModalOperation = true;
-            console.log('Modal operation detected - disabling global loader');
-        });
-        
-        document.addEventListener('livewire:init', () => {
-            // Hook into Livewire navigation events
-            Livewire.hook('request', ({ uri, options, payload, respond, succeed, fail }) => {
-                // Don't show global loader for modal operations
-                if (!isModalOperation && preLoader) {
-                    preLoader.style.display = 'block';
-                }
-            });
-
-            // Hide loading when request completes
-            Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
-                setTimeout(() => {
-                    if (preLoader) {
-                        preLoader.style.display = 'none';
-                    }
-                    isModalOperation = false; // Reset flag
-                }, 100);
-            });
-
-            // Also hide on morph completion
-            Livewire.hook('morph.updated', ({ el, component }) => {
-                setTimeout(() => {
-                    if (preLoader) {
-                        preLoader.style.display = 'none';
-                    }
-                }, 50);
-            });
-        });
-    }
-
     // Welcome modal logic
     const welcomeShown = localStorage.getItem('sbar_welcome_shown');
     if (welcomeShown) {
@@ -139,6 +98,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (welcomeElement && welcomeElement.__x) {
             welcomeElement.__x.$data.showWelcome = false;
         }
+    }
+    
+    // Debugging: Log when overlay element is found
+    const overlay = document.getElementById('modal-global-loading');
+    if (overlay) {
+        console.log('Global modal loading overlay found in DOM');
+    } else {
+        console.warn('Global modal loading overlay NOT found in DOM');
     }
 });
 

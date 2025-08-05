@@ -5,13 +5,32 @@
 ])
 
 @if($showAlertsModal && !empty($patientAlerts))
-    <div class="fixed inset-0 z-[60] overflow-y-auto" style="z-index: 9999 !important;">
-        <!-- Backdrop with higher opacity -->
-        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-[60] overflow-y-auto" 
+         style="z-index: 9999 !important;"
+         x-data="{ show: true }"
+         x-show="show"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+        
+        <!-- Backdrop com fechamento instantâneo -->
+        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+             @click="show = false; setTimeout(() => $wire.set('showAlertsModal', false), 150)"></div>
         
         <!-- Alert Modal Content -->
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-auto transform transition-all">
+            <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-auto transform transition-all"
+                 @click.stop
+                 x-show="show"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95">
                 
                 <!-- Alert Header -->
                 <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 rounded-t-xl">
@@ -29,7 +48,7 @@
                         </div>
                         
                         <button 
-                            wire:click="closeAlertsModal"
+                            @click="show = false; setTimeout(() => $wire.set('showAlertsModal', false), 150)"
                             class="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
                             title="Fechar alertas"
                         >
@@ -62,7 +81,6 @@
                         @else
                             @foreach($alertsByType as $type => $alerts)
                                 @php
-                                    // Filter only active alerts for display
                                     $activeAlerts = collect($alerts)->filter(function($alert) {
                                         return !isset($alert['end_date']) || $alert['end_date'] === null || \Carbon\Carbon::parse($alert['end_date'])->isFuture();
                                     });
@@ -70,7 +88,7 @@
                                 
                                 @if($activeAlerts->count() > 0)
                                     <div class="mb-6">
-                                        <!-- Type Header - PADRONIZADO -->
+                                        <!-- Type Header -->
                                         <div class="flex items-center mb-3">
                                             @if($type === 'ISOLAMENTO')
                                                 <div class="bg-yellow-100 rounded-full p-2 mr-3">
@@ -129,7 +147,7 @@
                                                         </div>
                                                     </div>
                                                     
-                                                    <!-- Alert Message with justified text -->
+                                                    <!-- Alert Message -->
                                                     <div class="text-sm {{ $alert['type'] === 'ISOLAMENTO' ? 'text-yellow-800' : 'text-red-800' }} leading-relaxed text-justify bg-white/50 p-3 rounded border">
                                                         {{ $alert['message'] }}
                                                     </div>
@@ -154,12 +172,10 @@
                         </div>
                         
                         <button 
-                            wire:click="closeAlertsModal"
-                            class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 flex items-center"
+                            @click="show = false; setTimeout(() => $wire.set('showAlertsModal', false), 150)"
+                            class="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm transition-colors"
+                            title="Fechar alertas"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
                             Fechar
                         </button>
                     </div>

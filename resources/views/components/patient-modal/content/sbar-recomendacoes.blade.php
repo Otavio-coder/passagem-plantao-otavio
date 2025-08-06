@@ -352,24 +352,306 @@
                 
                 <!-- Medicamentos -->
                 <div x-show="activeCpoeCategory === 'cpoe-medicamentos'">
-                    <div class="text-center py-8 bg-gray-50 rounded border">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
-                        <p class="text-gray-600 text-sm font-medium">Medicamentos e Soluções</p>
-                        <p class="text-gray-500 text-xs">Módulo em desenvolvimento</p>
-                    </div>
+                    @if($patientDetails && isset($patientDetails->cpoe_medications) && $patientDetails->cpoe_medications['total_count'] > 0)
+                        <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+                            <span>{{ $patientDetails->cpoe_medications['total_count'] }} medicamento(s) prescrito(s)</span>
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto">{{ date('d/m/Y') }}</span>
+                        </div>
+                        
+                        <div class="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3" x-data="{ selectedMedication: null }">
+                            @foreach(['MANHÃ', 'TARDE', 'NOITE'] as $shift)
+                                @php
+                                    $shiftData = $patientDetails->cpoe_medications['shifts'][$shift] ?? ['count' => 0, 'medications' => []];
+                                @endphp
+                                
+                                <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="px-3 py-2.5 border-b border-gray-200 bg-gray-50">
+                                        <div class="flex items-center justify-between">
+                                            <h6 class="font-medium text-gray-800 text-sm uppercase tracking-wide">{{ $shift }}</h6>
+                                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
+                                                {{ $shiftData['count'] }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="p-3 lg:max-h-80 lg:overflow-y-auto custom-scroll">
+                                        @if($shiftData['count'] > 0)
+                                            <div class="space-y-2">
+                                                @foreach($shiftData['medications'] as $index => $medication)
+                                                    <div class="bg-gray-50 rounded-lg border p-3 hover:bg-gray-100 transition-colors shadow-sm cursor-pointer"
+                                                         @click="selectedMedication = selectedMedication === '{{ $shift }}_{{ $index }}' ? null : '{{ $shift }}_{{ $index }}'">
+                                                        <div class="flex items-start justify-between">
+                                                            <div class="flex-1 min-w-0">
+                                                                <div class="text-xs font-medium text-gray-800 mb-1 leading-tight break-words">
+                                                                    {{ $medication['medicamento'] }}
+                                                                </div>
+                                                                <div class="text-xs text-gray-600">
+                                                                    <span class="font-mono bg-white px-1.5 py-0.5 rounded border mr-2">{{ $medication['horario'] }}</span>
+                                                                    <span class="font-medium">{{ $medication['dose'] }}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="flex flex-col items-end space-y-1 ml-2">
+                                                                @if($medication['is_administered'])
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                                                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
+                                                                        Aplicado
+                                                                    </span>
+                                                                @elseif($medication['is_suspended'])
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                                                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full mr-1"></span>
+                                                                        Suspenso
+                                                                    </span>
+                                                                @else
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                                                                        <span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1"></span>
+                                                                        Pendente
+                                                                    </span>
+                                                                @endif
+                                                                
+                                                                <svg class="w-3 h-3 text-gray-400 transform transition-transform" 
+                                                                     :class="selectedMedication === '{{ $shift }}_{{ $index }}' ? 'rotate-180' : ''" 
+                                                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- Detalhes expandidos -->
+                                                        <div x-show="selectedMedication === '{{ $shift }}_{{ $index }}'" 
+                                                             x-transition:enter="transition ease-out duration-200"
+                                                             x-transition:enter-start="opacity-0 max-h-0"
+                                                             x-transition:enter-end="opacity-100 max-h-96"
+                                                             x-transition:leave="transition ease-in duration-150"
+                                                             x-transition:leave-start="opacity-100 max-h-96"
+                                                             x-transition:leave-end="opacity-0 max-h-0"
+                                                             class="overflow-hidden mt-3 pt-3 border-t border-gray-200">
+                                                            <div class="space-y-3">
+                                                                <!-- Informações detalhadas -->
+                                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                                    <div class="bg-white p-2 rounded border">
+                                                                        <div class="font-medium text-gray-600 mb-1">Administração</div>
+                                                                        <div class="space-y-1">
+                                                                            <div><span class="font-medium">Via:</span> {{ $medication['via_aplicacao'] }}</div>
+                                                                            <div><span class="font-medium">Dispensar:</span> {{ $medication['dispensar'] }}</div>
+                                                                            @if($medication['devolucao'])
+                                                                                <div class="text-orange-600"><span class="font-medium">Devolução:</span> {{ $medication['devolucao'] }}</div>
+                                                                            @endif
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div class="bg-white p-2 rounded border">
+                                                                        <div class="font-medium text-gray-600 mb-1">Prescrição</div>
+                                                                        <div class="space-y-1">
+                                                                            <div><span class="font-medium">Nº:</span> {{ $medication['nr_prescricao'] }}</div>
+                                                                            @if($medication['funcao_prescritor'])
+                                                                                <div><span class="font-medium">Prescritor:</span> {{ $medication['funcao_prescritor'] }}</div>
+                                                                            @endif
+                                                                            @if($medication['dt_prescricao'])
+                                                                                <div><span class="font-medium">Data:</span> {{ \Carbon\Carbon::parse($medication['dt_prescricao'])->format('d/m/Y H:i') }}</div>
+                                                                            @endif
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                @if($medication['profissional'] || ($medication['evento'] && $medication['evento'] !== 'Sem Evento'))
+                                                                    <div class="bg-blue-50 p-2 rounded border border-blue-200">
+                                                                        <div class="font-medium text-blue-800 text-xs mb-1">Responsável/Eventos</div>
+                                                                        <div class="text-xs text-blue-700 space-y-1">
+                                                                            @if($medication['profissional'])
+                                                                                <div><span class="font-medium">Responsável:</span> {{ $medication['profissional'] }}</div>
+                                                                            @endif
+                                                                            @if($medication['evento'] && $medication['evento'] !== 'Sem Evento')
+                                                                                <div><span class="font-medium">Evento:</span> {{ $medication['evento'] }}</div>
+                                                                            @endif
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+                                                                
+                                                                @if($medication['resumo_formatado'])
+                                                                    <div class="bg-gray-100 p-2 rounded border">
+                                                                        <div class="font-medium text-gray-600 text-xs mb-1">Resumo Formatado</div>
+                                                                        <div class="text-xs text-gray-700 font-mono break-words leading-relaxed">
+                                                                            {{ $medication['resumo_formatado'] }}
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <div class="flex flex-col items-center justify-center text-center py-8">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                                </svg>
+                                                <div class="text-gray-500 text-sm">Nenhum medicamento</div>
+                                                <div class="text-gray-400 text-xs">neste turno</div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-8 bg-gray-50 rounded border">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                            </svg>
+                            <p class="text-gray-600 text-sm font-medium">Nenhum medicamento prescrito</p>
+                            <p class="text-gray-500 text-xs">para o dia {{ date('d/m/Y') }}</p>
+                        </div>
+                    @endif
                 </div>
                 
                 <!-- Nutrição -->
                 <div x-show="activeCpoeCategory === 'cpoe-nutricao'">
-                    <div class="text-center py-8 bg-gray-50 rounded border">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-3m-3 3l-3-3" />
-                        </svg>
-                        <p class="text-gray-600 text-sm font-medium">Prescrição Nutricional</p>
-                        <p class="text-gray-500 text-xs">Módulo em desenvolvimento</p>
-                    </div>
+                    @if($patientDetails && isset($patientDetails->cpoe_nutrition) && $patientDetails->cpoe_nutrition['total_count'] > 0)
+                        <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+                            <span>{{ $patientDetails->cpoe_nutrition['total_count'] }} prescrição(ões) nutricional(is)</span>
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto">{{ date('d/m/Y') }}</span>
+                        </div>
+                        
+                        <div class="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3" x-data="{ selectedNutrition: null }">
+                            @foreach(['MANHÃ', 'TARDE', 'NOITE'] as $shift)
+                                @php
+                                    $shiftData = $patientDetails->cpoe_nutrition['shifts'][$shift] ?? ['count' => 0, 'prescriptions' => []];
+                                @endphp
+                                
+                                <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                    <div class="px-3 py-2.5 border-b border-gray-200 bg-gray-50">
+                                        <div class="flex items-center justify-between">
+                                            <h6 class="font-medium text-gray-800 text-sm uppercase tracking-wide">{{ $shift }}</h6>
+                                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
+                                                {{ $shiftData['count'] }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="p-3 lg:max-h-80 lg:overflow-y-auto custom-scroll">
+                                        @if($shiftData['count'] > 0)
+                                            <div class="space-y-2">
+                                                @foreach($shiftData['prescriptions'] as $index => $prescription)
+                                                    <div class="bg-gray-50 rounded-lg border p-3 hover:bg-gray-100 transition-colors shadow-sm {{ $prescription['has_details'] ? 'cursor-pointer' : '' }}"
+                                                         @if($prescription['has_details'])
+                                                             @click="selectedNutrition = selectedNutrition === '{{ $shift }}_{{ $index }}' ? null : '{{ $shift }}_{{ $index }}'"
+                                                         @endif>
+                                                        <div class="flex items-start justify-between">
+                                                            <div class="flex-1 min-w-0">
+                                                                <div class="text-xs font-medium text-gray-800 mb-1 leading-tight break-words">
+                                                                    {{ $prescription['prescricao'] }}
+                                                                </div>
+                                                                <div class="text-xs text-gray-600">
+                                                                    @if($prescription['periodo_completo'])
+                                                                        <span class="font-mono bg-white px-1.5 py-0.5 rounded border">{{ $prescription['periodo_completo'] }}</span>
+                                                                    @endif
+                                                                    @if($prescription['tipo_nutricao'])
+                                                                        <span class="ml-2 font-medium">Tipo: {{ $prescription['tipo_nutricao'] }}</span>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                            <div class="flex flex-col items-end space-y-1 ml-2">
+                                                                @if($prescription['is_active'])
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                                                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
+                                                                        Ativo
+                                                                    </span>
+                                                                @else
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                                                                        <span class="w-1.5 h-1.5 bg-gray-500 rounded-full mr-1"></span>
+                                                                        Inativo
+                                                                    </span>
+                                                                @endif
+                                                                
+                                                                @if($prescription['has_details'])
+                                                                    <svg class="w-3 h-3 text-gray-400 transform transition-transform" 
+                                                                         :class="selectedNutrition === '{{ $shift }}_{{ $index }}' ? 'rotate-180' : ''" 
+                                                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                                    </svg>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- Detalhes expandidos -->
+                                                        @if($prescription['has_details'])
+                                                            <div x-show="selectedNutrition === '{{ $shift }}_{{ $index }}'" 
+                                                                 x-transition:enter="transition ease-out duration-200"
+                                                                 x-transition:enter-start="opacity-0 max-h-0"
+                                                                 x-transition:enter-end="opacity-100 max-h-96"
+                                                                 x-transition:leave="transition ease-in duration-150"
+                                                                 x-transition:leave-start="opacity-100 max-h-96"
+                                                                 x-transition:leave-end="opacity-0 max-h-0"
+                                                                 class="overflow-hidden mt-3 pt-3 border-t border-gray-200">
+                                                                <div class="space-y-3">
+                                                                    <!-- Informações da prescrição -->
+                                                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                                        <div class="bg-white p-2 rounded border">
+                                                                            <div class="font-medium text-gray-600 mb-1">Prescrição</div>
+                                                                            <div class="space-y-1">
+                                                                                <div><span class="font-medium">Nº:</span> {{ $prescription['nr_prescricao'] }}</div>
+                                                                                @if($prescription['funcao_prescritor'])
+                                                                                    <div><span class="font-medium">Função:</span> {{ $prescription['funcao_prescritor'] }}</div>
+                                                                                @endif
+                                                                                @if($prescription['nome_prescritor'])
+                                                                                    <div><span class="font-medium">Prescritor:</span> {{ $prescription['nome_prescritor'] }}</div>
+                                                                                @endif
+                                                                                @if($prescription['dt_prescricao'])
+                                                                                    <div><span class="font-medium">Data:</span> {{ \Carbon\Carbon::parse($prescription['dt_prescricao'])->format('d/m/Y H:i') }}</div>
+                                                                                @endif
+                                                                            </div>
+                                                                        </div>
+                                                                        
+                                                                        <div class="bg-white p-2 rounded border">
+                                                                            <div class="font-medium text-gray-600 mb-1">Período</div>
+                                                                            <div class="space-y-1">
+                                                                                @if($prescription['data_inicio'])
+                                                                                    <div><span class="font-medium">Início:</span> {{ $prescription['data_inicio'] }}{{ $prescription['horario_inicio'] ? ' às ' . $prescription['horario_inicio'] : '' }}</div>
+                                                                                @endif
+                                                                                @if($prescription['data_fim'])
+                                                                                    <div><span class="font-medium">Fim:</span> {{ $prescription['data_fim'] }}{{ $prescription['horario_fim'] ? ' às ' . $prescription['horario_fim'] : '' }}</div>
+                                                                                @endif
+                                                                                <div><span class="font-medium">Status:</span> Ativo</div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    @if($prescription['observacoes'])
+                                                                        <div class="bg-blue-50 p-2 rounded border border-blue-200">
+                                                                            <div class="font-medium text-blue-800 text-xs mb-1">Observações</div>
+                                                                            <div class="text-xs text-blue-700 break-words leading-relaxed">
+                                                                                {{ $prescription['observacoes'] }}
+                                                                            </div>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <div class="flex flex-col items-center justify-center text-center py-8">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-3m-3 3l-3-3" />
+                                                </svg>
+                                                <div class="text-gray-500 text-sm">Nenhuma prescrição nutricional</div>
+                                                <div class="text-gray-400 text-xs">neste turno</div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-8 bg-gray-50 rounded border">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-3m-3 3l-3-3" />
+                            </svg>
+                            <p class="text-gray-600 text-sm font-medium">Nenhuma prescrição nutricional</p>
+                            <p class="text-gray-500 text-xs">para o dia {{ date('d/m/Y') }}</p>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

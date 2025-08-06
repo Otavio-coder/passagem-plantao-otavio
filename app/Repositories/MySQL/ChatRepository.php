@@ -5,6 +5,7 @@ namespace App\Repositories\MySQL;
 use App\Models\ChatMensagem;
 use App\Models\ChatAuditoria;
 use App\Models\ChatSessao;
+use App\Services\ChatAuditoriaService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +16,6 @@ class ChatRepository
     {
         $date = $date ?? now()->toDateString();
         
-        // Optimized session lookup with caching
         $cacheKey = "session_id_{$nr_atendimento}_{$turno_id}_{$date}";
         $sessaoId = Cache::remember($cacheKey, 300, function() use ($nr_atendimento, $turno_id, $date) {
             return ChatSessao::where('nr_atendimento', $nr_atendimento)
@@ -26,9 +26,9 @@ class ChatRepository
 
         if (!$sessaoId) return collect();
 
-        // Optimized query with minimal data loading
         return ChatMensagem::select(['id', 'mensagem', 'usuario_id', 'dt_criacao', 'is_fixed'])
             ->where('sessao_id', $sessaoId)
+            ->where('is_deleted', false)
             ->orderBy('dt_criacao', 'asc')
             ->limit($perPage)
             ->get();
@@ -36,6 +36,9 @@ class ChatRepository
 
     public function getMessagesForSession($nr_atendimento, $turno_id, $date, $perPage = 100)
     {
+        // Registrar acesso ao histórico
+        ChatAuditoriaService::registrarAcessoHistorico($nr_atendimento, $turno_id, $date);
+        
         return $this->getMessages($nr_atendimento, $turno_id, $date, $perPage);
     }
 
@@ -44,32 +47,19 @@ class ChatRepository
         $msg = null;
         
         try {
-            // Optimized transaction
             DB::transaction(function() use ($data, &$msg) {
                 $msg = ChatMensagem::create($data);
                 
-                // Minimal audit log
-                ChatAuditoria::create([
-                    'mensagem_id' => $msg->id,
-                    'acao' => 'enviada',
-                    'usuario_id' => $msg->usuario_id,
-                    'dt_acao' => now(),
-                    'detalhes' => json_encode([
-                        'ip' => request()->ip(),
-                        'user_agent' => substr(request()->userAgent(), 0, 255)
-                    ])
-                ]);
-
-                // Update session message count efficiently
+                // Update session message count
                 ChatSessao::where('id', $msg->sessao_id)->increment('total_mensagens');
+                
+                // Registrar auditoria
+                ChatAuditoriaService::registrarEnvioMensagem($msg);
             });
             
-            // Clear relevant caches
             $this->clearMessageCaches($msg->nr_atendimento, $msg->turno_id);
             
-            // Fire event after transaction completes
             if ($msg) {
-                // Load relationship for broadcasting
                 $msg->load('usuario');
                 event(new \App\Events\ChatMessageSent($msg));
             }
@@ -88,20 +78,30 @@ class ChatRepository
     public function pinMessage($id, $fixed_by)
     {
         $msg = null;
+        $mensagemAnterior = null;
         
         try {
-            DB::transaction(function() use ($id, $fixed_by, &$msg) {
+            DB::transaction(function() use ($id, $fixed_by, &$msg, &$mensagemAnterior) {
                 $msg = ChatMensagem::findOrFail($id);
+                
+                // Capturar estado anterior
+                $mensagemAnterior = $msg->replicate();
 
-                // Efficiently unpin other messages in the same session
-                ChatMensagem::where('sessao_id', $msg->sessao_id)
+                // Unpin other messages in the same session
+                $mensagensDesfixadas = ChatMensagem::where('sessao_id', $msg->sessao_id)
                     ->where('id', '!=', $id)
                     ->where('is_fixed', true)
-                    ->update([
+                    ->get();
+
+                foreach ($mensagensDesfixadas as $msgDesfixada) {
+                    $msgDesfixada->update([
                         'is_fixed' => false, 
                         'fixed_by' => null, 
                         'fixed_at' => null
                     ]);
+                    
+                    ChatAuditoriaService::registrarFixacaoMensagem($msgDesfixada, false);
+                }
 
                 // Toggle pin state for current message
                 $newPinState = !$msg->is_fixed;
@@ -111,20 +111,10 @@ class ChatRepository
                     'fixed_at' => $newPinState ? now() : null
                 ]);
 
-                // Audit log
-                ChatAuditoria::create([
-                    'mensagem_id' => $msg->id,
-                    'acao' => $newPinState ? 'fixada' : 'desfixada',
-                    'usuario_id' => $fixed_by,
-                    'dt_acao' => now(),
-                    'detalhes' => json_encode([
-                        'ip' => request()->ip(),
-                        'previous_state' => !$newPinState
-                    ])
-                ]);
+                // Registrar auditoria com estados anterior e posterior
+                ChatAuditoriaService::registrarFixacaoMensagem($msg, $newPinState, $mensagemAnterior);
             });
             
-            // Clear relevant caches
             $this->clearMessageCaches($msg->nr_atendimento, $msg->turno_id);
             
             if ($msg) {

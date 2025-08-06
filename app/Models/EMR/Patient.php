@@ -157,14 +157,21 @@ class Patient extends Model
 
         $scales   = (new \App\Repositories\EMR\PatientScales())->getPatientScales($attendanceNumber);
         $clinical = (new \App\Repositories\EMR\PatientClinical())->getPatientClinicalDetails($attendanceNumber);
-        $cpoe     = (new \App\Repositories\EMR\PatientCPOE())->getPatientCpoeProcedures($attendanceNumber);
+        $cpoeRepo = new \App\Repositories\EMR\PatientCPOE();
+        $cpoe     = $cpoeRepo->getPatientCpoeProcedures($attendanceNumber);
+        $medications = $cpoeRepo->getPatientMedications($attendanceNumber);
+        $nutrition = $cpoeRepo->getPatientNutrition($attendanceNumber);
 
         // Retorna objeto único, já pronto para o SBAR
         return (object) array_merge(
             (array) $basic,
             (array) $scales,
             (array) $clinical,
-            ['cpoe_procedures' => $cpoe]
+            [
+                'cpoe_procedures' => $cpoe,
+                'cpoe_medications' => $medications,
+                'cpoe_nutrition' => $nutrition
+            ]
         );
     }
 
@@ -184,10 +191,12 @@ class Patient extends Model
         $mewsData     = $scalesRepo->getMewsDataForPatients($attendanceNumbers);
         $alertsData   = $clinicalRepo->getClinicalAlertsForPatients($attendanceNumbers);
         $surgeryData  = $clinicalRepo->getSurgicalProceduresForPatients($attendanceNumbers);
-        $cpoePending  = $cpoeRepo->getCpoePendingForPatients($attendanceNumbers);
+        $cpoePending  = $cpoeRepo->getUnifiedCpoePendingForPatients($attendanceNumbers);
+        $medicationSummary = $cpoeRepo->getMedicationSummaryForPatients($attendanceNumbers);
+        $nutritionSummary = $cpoeRepo->getNutritionSummaryForPatients($attendanceNumbers);
 
         // Enriquecer cada paciente/leito
-        return $beds->map(function($bed) use ($mewsData, $alertsData, $surgeryData, $cpoePending) {
+        return $beds->map(function($bed) use ($mewsData, $alertsData, $surgeryData, $cpoePending, $medicationSummary, $nutritionSummary) {
             if ($bed->has_patient && $bed->nr_atendimento) {
                 $nr = $bed->nr_atendimento;
                 // MEWS
@@ -199,9 +208,20 @@ class Patient extends Model
                 // Cirurgia
                 $bed->has_surgery = $surgeryData[$nr]['has_surgery'] ?? false;
                 $bed->surgical_procedures = $surgeryData[$nr]['procedures'] ?? [];
-                // CPOE pendente
+                // CPOE pendente (unified count)
                 $bed->has_cpoe_pending = $cpoePending[$nr]['has_cpoe_pending'] ?? false;
                 $bed->cpoe_pending_count = $cpoePending[$nr]['cpoe_pending_count'] ?? 0;
+                $bed->pending_procedures = $cpoePending[$nr]['pending_procedures'] ?? 0;
+                $bed->pending_medications = $cpoePending[$nr]['pending_medications'] ?? 0;
+                $bed->pending_nutrition = $cpoePending[$nr]['pending_nutrition'] ?? 0;
+                // Medicamentos
+                $bed->has_medications = $medicationSummary[$nr]['has_medications'] ?? false;
+                $bed->total_medications = $medicationSummary[$nr]['total_medications'] ?? 0;
+                $bed->pending_administrations = $medicationSummary[$nr]['pending_administrations'] ?? 0;
+                // Nutrição
+                $bed->has_nutrition = $nutritionSummary[$nr]['has_nutrition'] ?? false;
+                $bed->total_nutrition_prescriptions = $nutritionSummary[$nr]['total_nutrition_prescriptions'] ?? 0;
+                $bed->active_nutrition_prescriptions = $nutritionSummary[$nr]['active_prescriptions'] ?? 0;
             } else {
                 // Leito vazio: zera campos
                 $bed->mews_score = null;
@@ -212,6 +232,15 @@ class Patient extends Model
                 $bed->surgical_procedures = [];
                 $bed->has_cpoe_pending = false;
                 $bed->cpoe_pending_count = 0;
+                $bed->pending_procedures = 0;
+                $bed->pending_medications = 0;
+                $bed->pending_nutrition = 0;
+                $bed->has_medications = false;
+                $bed->total_medications = 0;
+                $bed->pending_administrations = 0;
+                $bed->has_nutrition = false;
+                $bed->total_nutrition_prescriptions = 0;
+                $bed->active_nutrition_prescriptions = 0;
             }
             return $bed;
         });

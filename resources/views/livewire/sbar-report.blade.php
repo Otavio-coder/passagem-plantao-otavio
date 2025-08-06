@@ -379,16 +379,32 @@
                                         </div>
                                         @endif
                                         
+                                        {{-- SUBSTITUIR ESTE BLOCO: --}}
                                         @if(is_object($patient) && property_exists($patient, 'has_cpoe_pending') && $patient->has_cpoe_pending)
                                         <div class="relative group">
-                                            <div class="bg-blue-500 text-white rounded-full p-1.5 shadow-lg animate-pulse" title="CPOE pendente para baixa">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                            <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg animate-pulse flex items-center justify-center min-w-[20px] min-h-[20px]" title="CPOE pendente">
+                                                <div class="flex items-center justify-center">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                                    </svg>
+                                                    <span class="text-xs font-bold ml-0.5">{{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }}</span>
+                                                </div>
                                             </div>
-                                            <!-- Tooltip with count -->
+                                            <!-- Tooltip with breakdown -->
                                             <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-blue-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
-                                            {{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }} CPOE pendente(s)
-                                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-blue-600"></div>
+                                                <div class="text-center">
+                                                    <div class="font-semibold">{{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }} item(s) pendente(s)</div>
+                                                    @if(is_object($patient) && property_exists($patient, 'pending_procedures') && $patient->pending_procedures > 0)
+                                                        <div class="text-xs opacity-90">Exames: {{ $patient->pending_procedures }}</div>
+                                                    @endif
+                                                    @if(is_object($patient) && property_exists($patient, 'pending_medications') && $patient->pending_medications > 0)
+                                                        <div class="text-xs opacity-90">Medicamentos: {{ $patient->pending_medications }}</div>
+                                                    @endif
+                                                    @if(is_object($patient) && property_exists($patient, 'pending_nutrition') && $patient->pending_nutrition > 0)
+                                                        <div class="text-xs opacity-90">Nutrição: {{ $patient->pending_nutrition }}</div>
+                                                    @endif
+                                                </div>
+                                                <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-blue-600"></div>
                                             </div>
                                         </div>
                                         @endif

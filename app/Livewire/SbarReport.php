@@ -174,6 +174,7 @@ class SbarReport extends Component
             'surgical' => $this->surgicalFilter,
             'order' => $this->orderBy,
             'direction' => $this->orderDirection,
+            'date' => date('Y-m-d'), 
         ]));
     }
 

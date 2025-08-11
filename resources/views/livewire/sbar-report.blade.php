@@ -319,7 +319,8 @@
                                     $borderClass = 'border border-gray-200';
                                     $textColorClass = 'text-sky-800';
 
-                                    $isNewPatient = (is_object($patient) && property_exists($patient, 'internment_days') && $patient->internment_days !== null && $patient->internment_days >= 0 && $patient->internment_days < 1);
+                                    // Use processed data instead of calculating again
+                                    $isNewPatient = (!isset($patient->internment_days) || $patient->internment_days === null) ? false : (is_numeric($patient->internment_days) && $patient->internment_days >= 0 && $patient->internment_days < 1);
 
                                     if ($isNewPatient) {
                                         $gradientClass = 'from-green-50 to-green-100';
@@ -379,10 +380,11 @@
                                         </div>
                                         @endif
                                         
-                                        {{-- SUBSTITUIR ESTE BLOCO: --}}
                                         @if(is_object($patient) && property_exists($patient, 'has_cpoe_pending') && $patient->has_cpoe_pending)
-                                        <div class="relative group">
-                                            <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg animate-pulse flex items-center justify-center min-w-[20px] min-h-[20px]" title="CPOE pendente">
+                                        <div class="relative group z-10">
+                                            <!-- Adiciona pointer-events-none ao tooltip para evitar clique -->
+                                            <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg animate-pulse flex items-center justify-center min-w-[20px] min-h-[20px]" 
+                                                title="CPOE pendente" @click.stop>
                                                 <div class="flex items-center justify-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 sm:h-3 sm:w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -390,8 +392,8 @@
                                                     <span class="text-xs font-bold ml-0.5">{{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }}</span>
                                                 </div>
                                             </div>
-                                            <!-- Tooltip with breakdown -->
-                                            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-blue-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999]">
+                                            <!-- Tooltip: pointer-events-none para não capturar clique -->
+                                            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-blue-600 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-[9999] pointer-events-none">
                                                 <div class="text-center">
                                                     <div class="font-semibold">{{ (is_object($patient) && property_exists($patient, 'cpoe_pending_count')) ? $patient->cpoe_pending_count : 0 }} item(s) pendente(s)</div>
                                                     @if(is_object($patient) && property_exists($patient, 'pending_procedures') && $patient->pending_procedures > 0)
@@ -402,6 +404,12 @@
                                                     @endif
                                                     @if(is_object($patient) && property_exists($patient, 'pending_nutrition') && $patient->pending_nutrition > 0)
                                                         <div class="text-xs opacity-90">Nutrição: {{ $patient->pending_nutrition }}</div>
+                                                    @endif
+                                                    @if(is_object($patient) && property_exists($patient, 'total_recommendations') && $patient->total_recommendations > 0)
+                                                        <div class="text-xs opacity-90">Recomendações: {{ $patient->total_recommendations }}</div>
+                                                    @endif
+                                                    @if(is_object($patient) && property_exists($patient, 'total_interventions') && $patient->total_interventions > 0)
+                                                        <div class="text-xs opacity-90">Intervenções: {{ $patient->total_interventions }}</div>
                                                     @endif
                                                 </div>
                                                 <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-blue-600"></div>
@@ -496,13 +504,13 @@
                                         
                                         <div class="text-xs text-gray-600">
                                         <span class="font-medium">Internação:</span> 
-                                        @if(!(is_object($patient) && property_exists($patient, 'internment_days')) || $patient->internment_days === null)
+                                        @if(!isset($patient->internment_days) || $patient->internment_days === null)
                                             <span class="text-gray-500">N/A</span>
-                                        @elseif($patient->internment_days >= 0 && $patient->internment_days < 1)
-                                            <span class="text-green-600 font-semibold">Recém-chegado (hoje)</span>
+                                        @elseif(is_numeric($patient->internment_days) && $patient->internment_days >= 0 && $patient->internment_days < 1)
+                                            <span class="text-green-600 font-bold">Recém-chegado (hoje)</span>
                                         @else
                                             @php $days = ceil($patient->internment_days); @endphp
-                                            {{ $days }} dia{{ $days != 1 ? 's' : '' }}
+                                            <span class="text-gray-800">{{ $days }} dia{{ $days != 1 ? 's' : '' }}</span>
                                         @endif
                                         </div>
                                         
@@ -525,7 +533,6 @@
                                     <!-- Bottom indicators -->
                                     <div class="mt-3 flex justify-between items-center">
                                     <div class="flex space-x-1">
-                                        <!-- Removed CPOE and Exams indicators -->
                                     </div>
                                     
                                     <div class="text-xs text-gray-500">

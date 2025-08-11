@@ -14,24 +14,44 @@ class ChatRepository
 {
     public function getMessages($nr_atendimento, $turno_id, $date = null, $perPage = 50)
     {
-        $date = $date ?? now()->toDateString();
-        
-        $cacheKey = "session_id_{$nr_atendimento}_{$turno_id}_{$date}";
-        $sessaoId = Cache::remember($cacheKey, 300, function() use ($nr_atendimento, $turno_id, $date) {
-            return ChatSessao::where('nr_atendimento', $nr_atendimento)
-                ->where('turno_id', $turno_id)
-                ->where('data_sessao', $date)
-                ->value('id');
-        });
+        try {
+            $date = $date ?? now()->toDateString();
+            
+            $cacheKey = "session_id_{$nr_atendimento}_{$turno_id}_{$date}";
+            $sessaoId = Cache::remember($cacheKey, 300, function() use ($nr_atendimento, $turno_id, $date) {
+                return ChatSessao::where('nr_atendimento', $nr_atendimento)
+                    ->where('turno_id', $turno_id)
+                    ->where('data_sessao', $date)
+                    ->value('id');
+            });
 
-        if (!$sessaoId) return collect();
+            if (!$sessaoId) {
+                Log::info('No session found', compact('nr_atendimento', 'turno_id', 'date'));
+                return collect();
+            }
 
-        return ChatMensagem::select(['id', 'mensagem', 'usuario_id', 'dt_criacao', 'is_fixed'])
-            ->where('sessao_id', $sessaoId)
-            ->where('is_deleted', false)
-            ->orderBy('dt_criacao', 'asc')
-            ->limit($perPage)
-            ->get();
+            $messages = ChatMensagem::select(['id', 'mensagem', 'usuario_id', 'dt_criacao', 'is_fixed'])
+                ->where('sessao_id', $sessaoId)
+                ->where('is_deleted', false)
+                ->orderBy('dt_criacao', 'asc')
+                ->limit($perPage)
+                ->get();
+
+            Log::info('Messages loaded', [
+                'count' => $messages->count(),
+                'session_id' => $sessaoId
+            ]);
+
+            return $messages;
+        } catch (\Exception $e) {
+            Log::error('Error loading messages', [
+                'error' => $e->getMessage(),
+                'nr_atendimento' => $nr_atendimento,
+                'turno_id' => $turno_id,
+                'date' => $date
+            ]);
+            return collect();
+        }
     }
 
     public function getMessagesForSession($nr_atendimento, $turno_id, $date, $perPage = 100)
@@ -47,13 +67,18 @@ class ChatRepository
         $msg = null;
         
         try {
+            Log::info('Storing message', $data);
+            
             DB::transaction(function() use ($data, &$msg) {
                 $msg = ChatMensagem::create($data);
                 
-                // Update session message count
-                ChatSessao::where('id', $msg->sessao_id)->increment('total_mensagens');
+                Log::info('Message created', ['id' => $msg->id]);
                 
-                // Registrar auditoria
+                // Update session message count
+                $updated = ChatSessao::where('id', $msg->sessao_id)->increment('total_mensagens');
+                Log::info('Session updated', ['session_id' => $msg->sessao_id, 'updated' => $updated]);
+                
+                // Registrar auditoria (sem re-lançar exceções)
                 ChatAuditoriaService::registrarEnvioMensagem($msg);
             });
             
@@ -61,12 +86,15 @@ class ChatRepository
             
             if ($msg) {
                 $msg->load('usuario');
+                
+                Log::info('Broadcasting message', ['id' => $msg->id]);
                 event(new \App\Events\ChatMessageSent($msg));
             }
             
         } catch (\Exception $e) {
             Log::error('Error storing message', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'data' => $data
             ]);
             throw $e;
@@ -81,6 +109,8 @@ class ChatRepository
         $mensagemAnterior = null;
         
         try {
+            Log::info('Pinning message', compact('id', 'fixed_by'));
+            
             DB::transaction(function() use ($id, $fixed_by, &$msg, &$mensagemAnterior) {
                 $msg = ChatMensagem::findOrFail($id);
                 
@@ -111,6 +141,11 @@ class ChatRepository
                     'fixed_at' => $newPinState ? now() : null
                 ]);
 
+                Log::info('Message pin state updated', [
+                    'id' => $id,
+                    'new_state' => $newPinState
+                ]);
+
                 // Registrar auditoria com estados anterior e posterior
                 ChatAuditoriaService::registrarFixacaoMensagem($msg, $newPinState, $mensagemAnterior);
             });
@@ -118,6 +153,7 @@ class ChatRepository
             $this->clearMessageCaches($msg->nr_atendimento, $msg->turno_id);
             
             if ($msg) {
+                Log::info('Broadcasting pin event', ['id' => $msg->id]);
                 event(new \App\Events\ChatMessagePinned($msg));
             }
             
@@ -135,15 +171,21 @@ class ChatRepository
 
     private function clearMessageCaches($nr_atendimento, $turno_id)
     {
-        $today = now()->toDateString();
-        $cacheKeys = [
-            "chat_messages_{$nr_atendimento}_{$turno_id}_{$today}",
-            "session_id_{$nr_atendimento}_{$turno_id}_{$today}",
-            "chat_sessions_{$nr_atendimento}",
-        ];
-        
-        foreach ($cacheKeys as $key) {
-            Cache::forget($key);
+        try {
+            $today = now()->toDateString();
+            $cacheKeys = [
+                "chat_messages_{$nr_atendimento}_{$turno_id}_{$today}",
+                "session_id_{$nr_atendimento}_{$turno_id}_{$today}",
+                "chat_sessions_{$nr_atendimento}",
+            ];
+            
+            foreach ($cacheKeys as $key) {
+                Cache::forget($key);
+            }
+            
+            Log::info('Message caches cleared', compact('nr_atendimento', 'turno_id'));
+        } catch (\Exception $e) {
+            Log::warning('Error clearing caches', ['error' => $e->getMessage()]);
         }
     }
 }

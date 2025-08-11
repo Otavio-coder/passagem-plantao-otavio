@@ -1,5 +1,6 @@
 <?php
 
+
 namespace App\Livewire;
 
 use App\Models\EMR\Patient;
@@ -18,6 +19,7 @@ class SbarReport extends Component
     public $errorMessage = null;
     public $patients = [];
     public $sectors = [];
+    public $allSectors = []; // Cache todos os setores
     public $hospitals = [];
     public $beds = [];
     public $selectedHospital = null;
@@ -56,6 +58,7 @@ class SbarReport extends Component
             
             // Set initial selections
             $this->selectedHospital = $configData['hospitals'][0];
+            $this->updateSectorsForHospital(); // Nova função para filtrar setores
             $this->setInitialSector();
             
             // Load patient data immediately after setup
@@ -104,20 +107,32 @@ class SbarReport extends Component
         });
 
         $this->hospitals = $structural['hospitals'];
-        $this->sectors = $structural['sectors'];
+        $this->allSectors = $structural['sectors']; // Guarda todos os setores
         $this->beds = $structural['beds'];
+    }
+
+    /**
+     * Nova função para filtrar setores pelo hospital selecionado
+     */
+    private function updateSectorsForHospital()
+    {
+        if (!$this->selectedHospital || empty($this->allSectors)) {
+            $this->sectors = [];
+            return;
+        }
+
+        // Filtra setores apenas do hospital selecionado
+        $this->sectors = collect($this->allSectors)
+            ->filter(fn($sector) => $sector['hospital_id'] == $this->selectedHospital)
+            ->values()
+            ->toArray();
     }
 
     private function setInitialSector()
     {
-        $sectorsOfHospital = collect($this->sectors)->filter(fn($sector) =>
-            $sector['hospital_id'] == $this->selectedHospital
-        )->values();
-        
-        $firstAllowed = $sectorsOfHospital->first();
-        $this->selectedSector = $firstAllowed['cd_setor_atendimento'] ?? (
-            !empty($this->sectors) ? $this->sectors[0]['cd_setor_atendimento'] : null
-        );
+        // Agora usa $this->sectors que já está filtrado pelo hospital
+        $firstAllowed = collect($this->sectors)->first();
+        $this->selectedSector = $firstAllowed['cd_setor_atendimento'] ?? null;
     }
 
     public function render()
@@ -125,7 +140,7 @@ class SbarReport extends Component
         return view('livewire.sbar-report', [
             'patients' => $this->patients,
             'hospitals' => $this->hospitals,
-            'sectors' => $this->sectors,
+            'sectors' => $this->sectors, // Agora já filtrado pelo hospital
             'beds' => $this->beds,
             'errorMessage' => $this->errorMessage,
             'loadingMessage' => $this->loadingMessage,
@@ -191,9 +206,10 @@ class SbarReport extends Component
         
         $hospitalName = $hospital->hospital_name ?? 'Hospital Não Identificado';
 
-        // Load and filter patients
+        // Load patients WITHOUT additional processing - the data comes complete now
         $patientModel = new Patient();
         $allPatients = $patientModel->getAllPatientsInSector($this->selectedSector);
+        
         $filtered = $this->applyFiltersAndSorting($allPatients);
 
         return [
@@ -253,6 +269,9 @@ class SbarReport extends Component
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
         
+        // Atualiza setores para o hospital selecionado
+        $this->updateSectorsForHospital();
+        
         // Set new sector
         $this->setInitialSector();
         
@@ -269,6 +288,15 @@ class SbarReport extends Component
 
     public function changeSelector($sectorId)
     {
+        // Verifica se o setor pertence ao hospital selecionado
+        $validSector = collect($this->sectors)
+            ->firstWhere('cd_setor_atendimento', $sectorId);
+            
+        if (!$validSector) {
+            $this->errorMessage = "Setor não válido para o hospital selecionado.";
+            return;
+        }
+        
         $this->loading = true;
         $this->selectedSector = $sectorId;
         $this->patients = [];

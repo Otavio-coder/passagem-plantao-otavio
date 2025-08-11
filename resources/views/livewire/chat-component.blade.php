@@ -1,11 +1,18 @@
 <div 
-    class="h-full flex flex-col bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+    class="h-full flex flex-col bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-sm border-0 sm:border sm:border-gray-200 overflow-hidden"
     x-data="{
         componentId: '{{ $this->getId() }}',
         echoListenersBound: false,
         showFormatHelp: false,
         typingIndicator: false,
-        lastTypingTime: null
+        lastTypingTime: null,
+        isMobile: window.innerWidth < 768,
+        init() {
+            // Listen for window resize
+            window.addEventListener('resize', () => {
+                this.isMobile = window.innerWidth < 768;
+            });
+        }
     }"
     x-init="
         // Initialize chat when component loads if patientId exists
@@ -39,6 +46,14 @@
         .prose.prose-xs em {
             font-style: italic;
         }
+        
+        /* Mobile optimizations */
+        @media (max-width: 767px) {
+            .chat-container {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+            }
+        }
     </style>
 
     @if(!$patientId)
@@ -70,92 +85,209 @@
         </div>
     @else
         @php
-            if ($currentShift === 'dia') {
-                $headerBg = 'from-sky-400 to-sky-500';
-                $accentColor = 'sky-500';
-                $lightAccent = 'sky-100';
-                $darkAccent = 'sky-600';
-            } else {
-                $headerBg = 'from-indigo-500 to-indigo-600';
-                $accentColor = 'indigo-500';
-                $lightAccent = 'indigo-100';
-                $darkAccent = 'indigo-600';
-            }
+            $shiftColors = \App\Services\ShiftService::getShiftColors($currentShift);
+            $shiftLabel = \App\Services\ShiftService::getShiftLabel($currentShift);
+            
+            $accentColor = $shiftColors['accentColor'];
+            $lightAccent = $shiftColors['lightAccent'];
+            $darkAccent = $shiftColors['darkAccent'];
+
+            // Elementos temáticos para cada turno
+            $shiftTheme = match($currentShift) {
+                'manha' => [
+                    'icon' => 'heroicon-o-sun',
+                    'iconClass' => 'w-5 h-5 text-white animate-pulse',
+                    'gradient' => 'from-amber-400 via-orange-400 to-red-400',
+                    'accent' => 'shadow-orange-200/50',
+                    'pattern' => 'bg-gradient-to-br from-yellow-50/10 to-orange-100/10',
+                    'description' => 'Início com energia e foco',
+                ],
+                'tarde' => [
+                    'icon' => 'heroicon-c-sun',
+                    'iconClass' => 'w-5 h-5 text-white',
+                    'gradient' => 'from-sky-400 via-blue-400 to-cyan-400',
+                    'accent' => 'shadow-sky-200/50',
+                    'pattern' => 'bg-gradient-to-br from-sky-50/10 to-blue-100/10',
+                    'description' => 'Hora de avançar com consistência',
+                ],
+                'noite' => [
+                    'icon' => 'heroicon-o-moon',
+                    'iconClass' => 'w-5 h-5 text-white animate-pulse',
+                    'gradient' => 'from-indigo-500 via-purple-500 to-violet-600',
+                    'accent' => 'shadow-indigo-200/50',
+                    'pattern' => 'bg-gradient-to-br from-indigo-50/10 to-purple-100/10',
+                    'description' => 'Atenção e vigilância redobradas',
+                ],
+                default => [
+                    'icon' => 'heroicon-o-clock',
+                    'iconClass' => 'w-5 h-5 text-white',
+                    'gradient' => 'from-gray-400 to-gray-500',
+                    'accent' => 'shadow-gray-200/50',
+                    'pattern' => 'bg-gradient-to-br from-gray-50/10 to-gray-100/10',
+                    'description' => 'Compromisso em cada momento',
+                ],
+            };
 
             $pinned = collect($messages)->filter(fn($msg) => (bool)($msg['is_pinned'] ?? $msg['is_fixed'] ?? false));
             $regular = collect($messages)->filter(fn($msg) => !(bool)($msg['is_pinned'] ?? $msg['is_fixed'] ?? false));
         @endphp
 
-        <!-- Header -->
-        <div class="flex-shrink-0 bg-gradient-to-r {{ $headerBg }} text-white p-2 sm:p-3 rounded-t-lg">
-            <div class="space-y-2">
-                <!-- Title and patient info -->
-                <div class="flex items-center justify-between flex-wrap gap-2">
-                    <div class="flex items-center space-x-2 min-w-0 flex-1">
-                        @svg('fluentui-shifts-team-24', ['class' => 'w-6 h-6 sm:w-8 sm:h-8 text-white flex-shrink-0'])
-                        <div class="min-w-0 flex-1">
-                            <h3 class="text-xs sm:text-sm font-bold truncate">PASSAGEM DE PLANTÃO</h3>
-                            <p class="text-xs text-white/80 truncate">
-                                At: {{ $patientId }} | Lt: {{ $bedUnit ?? 'N/A' }}
-                            </p>
+        <!-- Header - Enhanced with shift themes -->
+        <div class="flex-shrink-0 relative overflow-hidden rounded-none sm:rounded-t-lg">
+            <!-- Background with pattern -->
+            <div class="absolute inset-0 bg-gradient-to-r {{ $shiftTheme['gradient'] }} {{ $shiftTheme['accent'] }}"></div>
+            <div class="absolute inset-0 {{ $shiftTheme['pattern'] }}"></div>
+            
+            <!-- Subtle geometric pattern overlay -->
+            <div class="absolute inset-0 opacity-10">
+                <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <defs>
+                        <pattern id="shift-pattern-{{ $currentShift }}" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                            @if($currentShift === 'manha')
+                                <circle cx="10" cy="10" r="1" fill="white" opacity="0.3"/>
+                                <circle cx="5" cy="5" r="0.5" fill="white" opacity="0.2"/>
+                                <circle cx="15" cy="15" r="0.5" fill="white" opacity="0.2"/>
+                            @elseif($currentShift === 'tarde')
+                                <rect x="8" y="8" width="4" height="4" fill="white" opacity="0.2"/>
+                                <rect x="2" y="2" width="2" height="2" fill="white" opacity="0.15"/>
+                                <rect x="14" y="14" width="2" height="2" fill="white" opacity="0.15"/>
+                            @elseif($currentShift === 'noite')
+                                <polygon points="10,2 14,8 10,14 6,8" fill="white" opacity="0.2"/>
+                                <circle cx="5" cy="5" r="1" fill="white" opacity="0.1"/>
+                                <circle cx="15" cy="15" r="1" fill="white" opacity="0.1"/>
+                            @endif
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#shift-pattern-{{ $currentShift }})"/>
+                </svg>
+            </div>
+            
+            <!-- Content -->
+            <div class="relative z-10 text-white p-3 sm:p-4">
+                <div class="space-y-3">
+                    <!-- Title section with shift icon and enhanced typography -->
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center space-x-3 min-w-0 flex-1">
+                            <!-- Shift-specific icon -->
+                            <div class="flex-shrink-0 p-2 bg-white/20 rounded-full backdrop-blur-sm">
+                                @svg($shiftTheme['icon'], ['class' => $shiftTheme['iconClass']])
+                            </div>
+                            
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="text-base sm:text-lg font-bold tracking-wide">PASSAGEM DE PLANTÃO</h3>
+                                    @if($currentShift !== 'default')
+                                        <span class="px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium border border-white/30">
+                                            {{ strtoupper($currentShift) }}
+                                        </span>
+                                    @endif
+                                </div>
+                                <p class="text-xs text-white/90 font-medium mt-1">
+                                    At: {{ $patientId }} | Lt: {{ $bedUnit ?? 'N/A' }} | {{ $shiftTheme['description'] }}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <!-- Current time -->
-                    <div class="text-right flex-shrink-0">
-                        <div id="current-time-display" class="text-white text-xs font-medium">{{ now()->format('H:i') }}</div>
-                        <div class="text-white/70 text-xs">{{ now()->format('d/m') }}</div>
-                    </div>
-                </div>
-                
-                <!-- Shift info and history controls -->
-                <div class="flex flex-col space-y-2 border-t border-white/20 pt-2">
-                    <div class="flex items-center justify-between text-xs">
-                        <div class="flex items-center space-x-2 min-w-0 flex-1">
-                            <div class="w-2 h-2 rounded-full bg-green-300 animate-pulse flex-shrink-0"></div>
-                            <span class="text-white/80">
-                                {{ $currentShift === 'dia' ? 'Dia (07-19h)' : 'Noite (19-07h)' }} | 
-                                {{ Str::limit($currentUser['name'] ?? 'Não identificado', 20) }}
-                            </span>
+                        
+                        <!-- Enhanced time display -->
+                        <div class="flex flex-col items-end bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                            <div id="current-time-display" class="text-white text-lg font-bold tracking-wider">
+                                {{ now()->format('H:i') }}
+                            </div>
+                            <div class="text-white/80 text-xs font-medium">{{ now()->format('d/m/Y') }}</div>
                         </div>
                     </div>
                     
-                    <!-- History navigation -->
-                    <div class="flex flex-wrap items-center gap-1 sm:gap-2">
-                        <span class="text-xs text-white/80 flex-shrink-0">Histórico:</span>
-                        <div class="relative">
-                            <select
-                                wire:model="selectedSession"
-                                wire:change="loadSessionHistory"
-                                class="w-32 sm:w-44 md:w-56 px-1 py-1 text-xs border border-white/30 rounded bg-white text-gray-900 hover:bg-gray-100 transition-colors"
-                            >
-                                <option value="">{{ count($availableSessions) > 1 ? 'Selecione uma sessão' : 'Sessão atual' }}</option>
-                                @foreach($availableSessions as $session)
-                                    <option value="{{ $session['key'] }}">
-                                        {{ $session['label'] }}
-                                    </option>
-                                @endforeach
-                            </select>
+                    <!-- Shift info with enhanced styling -->
+                    <div class="flex flex-col space-y-2 border-t border-white/30 pt-3">
+                        <div class="flex items-center justify-between text-sm">
+                            <div class="flex items-center space-x-3 min-w-0 flex-1">
+                                <!-- Status indicator with shift-specific styling -->
+                                <div class="flex items-center space-x-2">
+                                    <div class="bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 border border-white/30">
+                                        <span class="text-white/95 font-medium text-xs">
+                                            {{ $shiftLabel }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- User info with enhanced design -->
+                            <div class="flex items-center space-x-2 bg-white/15 backdrop-blur-sm rounded-full px-3 py-1 border border-white/20">
+                                @if(!empty($currentUser['photo']))
+                                    <img src="data:image/jpeg;base64,{{ $currentUser['photo'] }}" alt="Foto" class="w-5 h-5 rounded-full object-cover border border-white/40" />
+                                @else
+                                    <div class="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center border border-white/40">
+                                        <span class="text-xs font-bold text-white">{{ substr($currentUser['name'] ?? 'U', 0, 1) }}</span>
+                                    </div>
+                                @endif
+                                <span class="text-white/90 text-xs font-medium">
+                                    {{ Str::limit($currentUser['name'] ?? 'Não identificado', 15) }}
+                                </span>
+                            </div>
                         </div>
                         
-                        @if($viewingHistory)
-                            <button
-                                wire:click="returnToCurrentShift"
-                                class="px-1.5 py-1 bg-white/20 hover:bg-white/30 text-white text-xs rounded border border-white/30 transition-colors flex items-center space-x-1"
-                                title="Voltar para sessão atual"
-                            >
-                                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                                </svg>
-                                <span>Atual</span>
-                            </button>
-                        @endif
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <div class="flex items-center space-x-2 text-xs text-white/80 flex-shrink-0 min-w-fit">
+                                @svg('heroicon-o-clock', 'w-4 h-4')
+                                <span class="font-medium whitespace-nowrap">Histórico:</span>
+                            </div>
+                            
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                <!-- Select container with controlled width -->
+                                <div class="history-select-container flex-shrink-0" style="min-width: 160px; max-width: 280px;">
+                                    <select
+                                        wire:model="selectedSession"
+                                        wire:change="loadSessionHistory"
+                                        class="history-select w-full px-2 py-1.5 text-xs border border-white/40 rounded-md bg-white/90 backdrop-blur-sm text-gray-900 hover:bg-white transition-all duration-200 focus:ring-2 focus:ring-white/50"
+                                        style="max-width: 100%;"
+                                    >
+                                        <option value="">
+                                            {{ count($availableSessions) > 1 ? 'Selecione sessão' : 'Sessão atual' }}
+                                        </option>
+                                        @foreach($availableSessions as $session)
+                                            <option value="{{ $session['key'] }}" title="{{ $session['label'] }}">
+                                                @if(strlen($session['label']) > 25)
+                                                    {{ substr($session['label'], 0, 22) }}...
+                                                @else
+                                                    {{ $session['label'] }}
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                
+                                <!-- Action buttons with better spacing -->
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    @if($viewingHistory)
+                                        <button
+                                            wire:click="returnToCurrentShift"
+                                            class="px-2 py-1.5 bg-white/25 hover:bg-white/35 text-white text-xs rounded-md border border-white/40 transition-all duration-200 flex items-center space-x-1 backdrop-blur-sm"
+                                            title="Voltar para sessão atual"
+                                        >
+                                            @svg('heroicon-o-arrow-left', 'w-3 h-3')
+                                            <span class="hidden md:inline font-medium">Atual</span>
+                                        </button>
+                                    @endif
+                                    
+                                    @if($selectedSession)
+                                        <button
+                                            wire:click="clearSessionSelection"
+                                            class="px-1.5 py-1.5 bg-white/15 hover:bg-white/25 text-white text-xs rounded-md border border-white/40 transition-all duration-200 flex items-center backdrop-blur-sm"
+                                            title="Limpar seleção"
+                                        >
+                                            @svg('heroicon-o-x-mark', 'w-3 h-3')
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Status indicator -->
-        <div class="flex-shrink-0 px-2 py-1 border-b border-gray-200 bg-gray-50">
+        <div class="flex-shrink-0 px-3 py-2 border-b border-gray-200 bg-gray-50">
             @if($viewingHistory && $selectedSession)
                 @php
                     $session = collect($availableSessions)->firstWhere('key', $selectedSession);
@@ -179,17 +311,17 @@
                                 <span class="font-medium whitespace-nowrap">Turno Encerrado</span>
                             </div>
                         @else
-                            <div class="inline-flex items-center space-x-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200 flex-shrink-0">
+                            <div class="inline-flex items-center space-x-1 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200 flex-shrink-0">
                                 <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
                                 <span class="font-medium whitespace-nowrap">Turno Ativo</span>
                             </div>
                         @endif
                     </div>
-                    <!-- Format help button -->
+                    <!-- Format help button - Hidden on mobile -->
                     @if(!$viewingHistory && !$isShiftClosed)
                         <button
                             @click="showFormatHelp = !showFormatHelp"
-                            class="text-xs text-gray-500 hover:text-gray-700 transition-colors flex items-center space-x-1"
+                            class="hidden sm:flex text-xs text-gray-500 hover:text-gray-700 transition-colors items-center space-x-1"
                             title="Ajuda de formatação"
                         >
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,8 +334,8 @@
             @endif
         </div>
 
-        <!-- Format help panel -->
-        <div x-show="showFormatHelp" x-cloak x-transition class="flex-shrink-0 px-2 py-2 bg-blue-50 border-b border-blue-200 text-xs">
+        <!-- Format help panel - Hidden on mobile -->
+        <div x-show="showFormatHelp && !isMobile" x-cloak x-transition class="flex-shrink-0 px-3 py-2 bg-blue-50 border-b border-blue-200 text-xs">
             <div class="grid grid-cols-2 gap-2 text-gray-700">
                 <div><code>**texto**</code> = <strong>negrito</strong></div>
                 <div><code>*texto*</code> = <em>itálico</em></div>
@@ -212,10 +344,11 @@
             </div>
         </div>
 
-        <!-- Messages area -->
+        <!-- Messages area - Mobile Optimized -->
         <div 
-            class="flex-1 overflow-y-auto p-2 bg-gray-50 relative"
+            class="flex-1 overflow-y-auto p-3 bg-gray-50 relative chat-container"
             id="messages-container"
+            style="-webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;"
             @scroll-to-bottom.window="
                 $nextTick(() => {
                     $el.scrollTop = $el.scrollHeight;
@@ -328,9 +461,9 @@
             @endif
         </div>
 
-        <!-- Message input area -->
+        <!-- Message input area - Mobile Optimized -->
         @if(!$viewingHistory && !$isShiftClosed)
-            <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2">
+            <div class="flex-shrink-0 border-t border-gray-200 bg-white p-3">
                 <form 
                     wire:submit.prevent="sendMessage"
                     @submit.prevent="
@@ -350,8 +483,8 @@
                         @endif
                         <textarea 
                             wire:model.defer="newMessage"
-                            placeholder="Digite sua anotação... (Use **negrito**, *itálico*, - lista)"
-                            class="p-2 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none flex-1 transition-all duration-200"  
+                            placeholder="Digite sua anotação..."
+                            class="p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none flex-1 transition-all duration-200"  
                             rows="1"
                             maxlength="1000"
                             x-ref="textarea"
@@ -370,20 +503,20 @@
                         ></textarea>
                         <button
                             type="submit"
-                            class="px-3 py-1.5 text-xs rounded transition-all duration-200 inline-flex items-center justify-center space-x-1 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                            class="px-4 py-3 text-sm rounded-lg transition-all duration-200 inline-flex items-center justify-center space-x-2 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
                             wire:loading.attr="disabled"
                             wire:target="sendMessage"
                         >
-                            <span wire:loading.remove wire:target="sendMessage">Enviar</span>
+                            <span wire:loading.remove wire:target="sendMessage" class="hidden sm:inline">Enviar</span>
                             <span wire:loading wire:target="sendMessage">...</span>
-                            @svg('iconoir-send', 'w-3 h-3 text-white')
+                            @svg('iconoir-send', 'w-4 h-4 text-white')
                         </button>
                     </div>
-                    <div class="flex justify-between items-center mt-1">
+                    <div class="flex justify-between items-center mt-2">
                         <div class="text-xs text-gray-500">
-                            <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($currentUser['name'] ?? 'Usuário', 15) }}
+                            <span id="input-time">{{ now()->format('H:i') }}</span> - {{ Str::limit($currentUser['name'] ?? 'Usuário', 12) }}
                         </div>
-                        <div class="text-xs text-gray-400">
+                        <div class="text-xs text-gray-400 hidden sm:block">
                             Enter = enviar | Shift+Enter = nova linha
                         </div>
                     </div>

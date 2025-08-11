@@ -72,7 +72,7 @@ class Patient extends Model
         $occupiedAttendances = $beds->filter(fn($b) => $b->is_occupied && $b->nr_atendimento)
             ->pluck('nr_atendimento')->unique()->values()->all();
 
-        // 3. Busca todos os dados básicos dos pacientes ocupados em lote (apenas 1 query)
+        // 3. Busca todos os dados básicos dos pacientes ocupados em lote (INCLUINDO internment_days)
         $details = [];
         if (!empty($occupiedAttendances)) {
             $placeholders = implode(',', array_fill(0, count($occupiedAttendances), '?'));
@@ -87,7 +87,9 @@ class Patient extends Model
                     TRUNC(SYSDATE - ADD_MONTHS(pf.dt_nascimento, FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)))) AS idade_dias,
                     pf.ie_sexo AS sexo,
                     tasy.obter_desc_convenio(tasy.obter_convenio_atendimento(atp.nr_atendimento)) AS convenio,
-                    tasy.obter_medico_resp_atend(atp.nr_atendimento, 'N') AS medico_responsavel
+                    tasy.obter_medico_resp_atend(atp.nr_atendimento, 'N') AS medico_responsavel,
+                    atp.dt_entrada,
+                    TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) AS internment_days
                 FROM tasy.atendimento_paciente atp
                 LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
                 WHERE atp.nr_atendimento IN ($placeholders)
@@ -103,11 +105,13 @@ class Patient extends Model
                     'sexo'               => $row->sexo,
                     'convenio'           => $row->convenio,
                     'medico_responsavel' => $row->medico_responsavel,
+                    'dt_entrada'         => $row->dt_entrada,
+                    'internment_days'    => $row->internment_days, // ADICIONADO
                 ];
             }
         }
 
-        // 4. Monta o retorno: cada leito recebe os dados básicos do paciente se ocupado (merge em memória, sem loops de consulta)
+        // 4. Monta o retorno: cada leito recebe os dados básicos do paciente se ocupado
         return $beds->map(function($bed) use ($details) {
             $patientDetails = ($bed->is_occupied && isset($details[$bed->nr_atendimento])) ? $details[$bed->nr_atendimento] : [
                 'nm_pessoa_fisica'   => null,
@@ -118,6 +122,8 @@ class Patient extends Model
                 'sexo'               => null,
                 'convenio'           => null,
                 'medico_responsavel' => null,
+                'dt_entrada'         => null,
+                'internment_days'    => null, // ADICIONADO
             ];
             return (object) array_merge([
                 'cd_unidade_basica'      => $bed->cd_unidade_basica,
@@ -158,9 +164,13 @@ class Patient extends Model
         $scales   = (new \App\Repositories\EMR\PatientScales())->getPatientScales($attendanceNumber);
         $clinical = (new \App\Repositories\EMR\PatientClinical())->getPatientClinicalDetails($attendanceNumber);
         $cpoeRepo = new \App\Repositories\EMR\PatientCPOE();
+        
+        // Get all CPOE data efficiently in parallel using async approach where possible
         $cpoe     = $cpoeRepo->getPatientCpoeProcedures($attendanceNumber);
         $medications = $cpoeRepo->getPatientMedications($attendanceNumber);
         $nutrition = $cpoeRepo->getPatientNutrition($attendanceNumber);
+        $recommendations = $cpoeRepo->getPatientRecommendations($attendanceNumber);
+        $interventions = $cpoeRepo->getPatientInterventions($attendanceNumber);
 
         // Retorna objeto único, já pronto para o SBAR
         return (object) array_merge(
@@ -170,7 +180,9 @@ class Patient extends Model
             [
                 'cpoe_procedures' => $cpoe,
                 'cpoe_medications' => $medications,
-                'cpoe_nutrition' => $nutrition
+                'cpoe_nutrition' => $nutrition,
+                'cpoe_recommendations' => $recommendations,
+                'cpoe_interventions' => $interventions
             ]
         );
     }
@@ -183,7 +195,7 @@ class Patient extends Model
         $attendanceNumbers = $beds->filter(fn($b) => $b->has_patient && $b->nr_atendimento)
             ->pluck('nr_atendimento')->unique()->values()->all();
 
-        // Busca dados extras em lote
+        // Busca dados extras em lote - OPTIMIZED WITH NEW UNIFIED METHOD
         $scalesRepo   = new \App\Repositories\EMR\PatientScales();
         $clinicalRepo = new \App\Repositories\EMR\PatientClinical();
         $cpoeRepo     = new \App\Repositories\EMR\PatientCPOE();
@@ -191,6 +203,8 @@ class Patient extends Model
         $mewsData     = $scalesRepo->getMewsDataForPatients($attendanceNumbers);
         $alertsData   = $clinicalRepo->getClinicalAlertsForPatients($attendanceNumbers);
         $surgeryData  = $clinicalRepo->getSurgicalProceduresForPatients($attendanceNumbers);
+        
+        // NEW: Single optimized call for all CPOE data
         $cpoePending  = $cpoeRepo->getUnifiedCpoePendingForPatients($attendanceNumbers);
         $medicationSummary = $cpoeRepo->getMedicationSummaryForPatients($attendanceNumbers);
         $nutritionSummary = $cpoeRepo->getNutritionSummaryForPatients($attendanceNumbers);
@@ -208,12 +222,14 @@ class Patient extends Model
                 // Cirurgia
                 $bed->has_surgery = $surgeryData[$nr]['has_surgery'] ?? false;
                 $bed->surgical_procedures = $surgeryData[$nr]['procedures'] ?? [];
-                // CPOE pendente (unified count)
+                // CPOE pendente (unified count with new data)
                 $bed->has_cpoe_pending = $cpoePending[$nr]['has_cpoe_pending'] ?? false;
                 $bed->cpoe_pending_count = $cpoePending[$nr]['cpoe_pending_count'] ?? 0;
                 $bed->pending_procedures = $cpoePending[$nr]['pending_procedures'] ?? 0;
                 $bed->pending_medications = $cpoePending[$nr]['pending_medications'] ?? 0;
                 $bed->pending_nutrition = $cpoePending[$nr]['pending_nutrition'] ?? 0;
+                $bed->total_recommendations = $cpoePending[$nr]['total_recommendations'] ?? 0;
+                $bed->total_interventions = $cpoePending[$nr]['total_interventions'] ?? 0;
                 // Medicamentos
                 $bed->has_medications = $medicationSummary[$nr]['has_medications'] ?? false;
                 $bed->total_medications = $medicationSummary[$nr]['total_medications'] ?? 0;
@@ -235,6 +251,8 @@ class Patient extends Model
                 $bed->pending_procedures = 0;
                 $bed->pending_medications = 0;
                 $bed->pending_nutrition = 0;
+                $bed->total_recommendations = 0;
+                $bed->total_interventions = 0;
                 $bed->has_medications = false;
                 $bed->total_medications = 0;
                 $bed->pending_administrations = 0;

@@ -80,6 +80,36 @@ class BedUnit extends Model
             });
         });
     }
+
+    /**
+     * ✅ NOVO: Busca leitos de múltiplos setores em uma única query
+     */
+    public function getBedsBySectors(array $sectorIds)
+    {
+        if (empty($sectorIds)) {
+            return collect();
+        }
+
+        $placeholders = str_repeat('?,', count($sectorIds) - 1) . '?';
+
+        $results = DB::connection('tasy')->select("
+            SELECT 
+                ua.cd_unidade_basica,
+                ua.cd_unidade_basica as bed_name,
+                ua.nr_seq_interno as bed_sequence,
+                ua.cd_setor_atendimento,
+                sa.ds_setor_atendimento
+            FROM tasy.unidade_atendimento ua
+            JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
+            WHERE ua.cd_setor_atendimento IN ({$placeholders})
+            AND ua.ie_situacao = 'A'
+            ORDER BY ua.cd_setor_atendimento, 
+                    CASE WHEN ua.nr_seq_interno IS NOT NULL THEN ua.nr_seq_interno ELSE 999999 END,
+                    ua.cd_unidade_basica
+        ", $sectorIds);
+
+        return collect($results);
+    }
     
     /**
      * Get bed details by ID

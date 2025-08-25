@@ -26,6 +26,9 @@
                 <div class="hidden sm:block sm:ml-6">
                     <div class="flex space-x-4">
                         <a href="{{ route( 'home' ) }}" class="transition duration-200 ease-in-out border-b-4 hover:border-blue-200 text-white hover:text-blue-200 px-3 py-2 text-sm font-medium">Inicio</a>
+                        <a href="{{ route('feedback') }}" class="transition duration-200 ease-in-out border-b-4 hover:border-blue-200 text-white hover:text-blue-200 px-3 py-2 text-sm font-medium">
+                            Feedback
+                        </a>
                     </div>
                 </div>
                 @canany( ['ver usuarios','ver perfis','ver logs','configurar sistema'] )

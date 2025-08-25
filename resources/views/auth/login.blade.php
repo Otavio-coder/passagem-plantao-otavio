@@ -84,7 +84,7 @@
                             <p class="text-gray-600">Acesse com suas credenciais LDAP/AD</p>
                         </div>
 
-                        <form method="post" action="{{ route('login') }}">
+                        <form method="post" action="{{ route('login') }}" id="login-form">
                             @csrf
                             
                             <!-- Username Field -->
@@ -151,17 +151,34 @@
         </div>
     </div>
 
+    <!-- Overlay de loading -->
+    <div id="login-loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.7); z-index:1000; align-items:center; justify-content:center;">
+        <div style="text-align:center;">
+            <div class="w-10 h-10 border-4 border-t-blue-500 border-gray-200 rounded-full animate-spin mx-auto mb-2"></div>
+            <div class="text-gray-600 text-base font-medium">Entrando...</div>
+        </div>
+    </div>
+
     <script>
         function showPassword(id) {
             let _field = document.getElementById(id);
-            
             if (_field.type === 'password') {
                 _field.type = 'text'
             } else {
                 _field.type = 'password'
             }
         }
+
+        // Loading overlay on login submit
+        document.addEventListener('DOMContentLoaded', function() {
+            var form = document.getElementById('login-form');
+            var overlay = document.getElementById('login-loading-overlay');
+            if (form && overlay) {
+                form.addEventListener('submit', function() {
+                    overlay.style.display = 'flex';
+                });
+            }
+        });
     </script>
 </body>
 </html>
-                            

@@ -52,7 +52,7 @@ class ChatAuditoria extends Model
         return $query->where('nr_atendimento', $nrAtendimento);
     }
 
-    public function scopeByAction($query, $acao)
+    public function scopeByAcao($query, $acao)
     {
         return $query->where('acao', $acao);
     }

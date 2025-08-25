@@ -64,166 +64,71 @@
             
             <!-- Segunda linha: 1 card ocupando largura total -->
             <div class="w-full">
-                <!-- Procedimentos Cirúrgicos - Layout compacto horizontal -->
+                <!-- Procedimentos Cirúrgicos - UI Clean e Minimalista -->
                 <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h5 class="text-sm font-medium text-gray-800 mb-3 flex items-center">
-                        @svg('healthicons-o-surgical-sterilization', 'h-3 w-3 sm:h-4 sm:w-4 mr-2 text-purple-600')
+                    <h5 class="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        @svg('healthicons-o-surgical-sterilization', 'h-4 w-4 text-purple-600')
                         Procedimentos Cirúrgicos
                     </h5>
-                    <div class="text-sm text-gray-700">
-                        @if($patientDetails && isset($patientDetails->procedimentos_cirurgicos))
-                            @if(is_array($patientDetails->procedimentos_cirurgicos) && !empty($patientDetails->procedimentos_cirurgicos))
-                                <div class="space-y-3">
-                                    @foreach($patientDetails->procedimentos_cirurgicos as $index => $procedure)
-                                        @if(is_array($procedure) && isset($procedure['procedimento']))
-                                            <!-- Layout horizontal ultra-compacto -->
-                                            <div class="bg-gray-50 rounded-lg border-l-4 {{ ($procedure['status'] ?? '') === 'REALIZADA' ? 'border-green-500' : 'border-purple-500' }} shadow-sm">
-                                                <div class="flex">
-                                                    <!-- Lado esquerdo: Info principal (75%) -->
-                                                    <div class="flex-1 p-3 pr-2">
-                                                        <!-- Header compacto com badges inline -->
-                                                        <div class="flex items-start justify-between mb-2">
-                                                            <div class="flex items-center space-x-2 mb-1">
-                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ ($procedure['status'] ?? '') === 'REALIZADA' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800' }}">
-                                                                    {{ $procedure['status'] ?? 'Status não informado' }}
-                                                                </span>
-                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ ($procedure['tipo_agendamento'] ?? '') === 'EMERGÊNCIA' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800' }}">
-                                                                    {{ $procedure['tipo_agendamento'] ?? 'ELETIVA' }}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <!-- Nome do procedimento -->
-                                                        <h6 class="font-medium text-gray-900 text-sm leading-tight mb-2">
-                                                            {{ $procedure['procedimento'] ?? 'Procedimento não informado' }}
-                                                        </h6>
-                                                        
-                                                        <!-- Info básica em linha horizontal -->
-                                                        <div class="flex flex-wrap items-center gap-4 text-xs text-gray-600">
-                                                            <div class="flex items-center">
-                                                                <span class="font-medium mr-1">Caráter:</span>
-                                                                <span>{{ $procedure['carater_cirurgia'] ?? 'Não informado' }}</span>
-                                                            </div>
-                                                            <div class="flex items-center">
-                                                                <span class="font-medium mr-1">Data:</span>
-                                                                <span>
-                                                                    @if(($procedure['status'] ?? '') === 'REALIZADA')
-                                                                        {{ $procedure['data_cirurgia'] ?? $procedure['data_agenda'] ?? 'Não informada' }}
-                                                                        @if($procedure['hora_cirurgia'] ?? null)
-                                                                            {{ $procedure['hora_cirurgia'] }}
-                                                                        @endif
-                                                                    @else
-                                                                        {{ $procedure['data_agenda'] ?? 'Não informada' }}
-                                                                        @if($procedure['hora_agenda'] ?? null)
-                                                                            {{ $procedure['hora_agenda'] }}
-                                                                        @endif
-                                                                    @endif
-                                                                </span>
-                                                            </div>
-                                                            <div class="flex items-center">
-                                                                <span class="font-medium mr-1">Duração:</span>
-                                                                <span>{{ $procedure['duracao_formatada'] ?? 'Não informada' }}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <!-- Lado direito: Detalhes compactos (25%) -->
-                                                    @if(($procedure['has_observacoes'] ?? false))
-                                                        <div class="w-1/4 border-l border-gray-200">
-                                                            <div class="p-3 h-full bg-gradient-to-br from-gray-50 to-white">
-                                                                <div class="text-center mb-2">
-                                                                    <h6 class="font-medium text-gray-700 text-xs uppercase tracking-wide">Detalhes</h6>
-                                                                </div>
-                                                                <div class="space-y-1.5 text-xs leading-tight max-h-20 overflow-y-auto">
-                                                                    @php
-                                                                        $observations = $procedure['observacoes'] ?? '';
-                                                                        $parsedObs = [];
-                                                                        if (!empty($observations)) {
-                                                                            $parts = explode('|', $observations);
-                                                                            foreach ($parts as $part) {
-                                                                                $part = trim($part);
-                                                                                if (strpos($part, ':') !== false) {
-                                                                                    list($key, $value) = explode(':', $part, 2);
-                                                                                    $parsedObs[trim($key)] = trim($value);
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    @endphp
-                                                                    @if(!empty($parsedObs))
-                                                                        @foreach(array_slice($parsedObs, 0, 3) as $key => $value)
-                                                                            @if(!empty($value) && $value !== 'Não' && $value !== '')
-                                                                                <div class="bg-white rounded px-2 py-1 border border-gray-100">
-                                                                                    <div class="font-medium text-gray-600 text-xs truncate">{{ $key }}</div>
-                                                                                    <div class="text-gray-800 text-xs truncate">{{ Str::limit($value, 25) }}</div>
-                                                                                </div>
-                                                                            @endif
-                                                                        @endforeach
-                                                                        @if(count($parsedObs) > 3)
-                                                                            <div class="text-center">
-                                                                                <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">+{{ count($parsedObs) - 3 }} mais</span>
-                                                                            </div>
-                                                                        @endif
-                                                                    @else
-                                                                        <div class="bg-white rounded px-2 py-1 border border-gray-100">
-                                                                            <div class="text-gray-700 text-xs">{{ Str::limit($observations, 60) }}</div>
-                                                                        </div>
-                                                                    @endif
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    @else
-                                                        <!-- Placeholder vazio compacto -->
-                                                        <div class="w-1/4 border-l border-gray-200">
-                                                            <div class="p-3 h-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-                                                                <div class="text-center">
-                                                                    <div class="w-6 h-6 mx-auto mb-1 rounded-full bg-gray-200 flex items-center justify-center">
-                                                                        <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                                                        </svg>
-                                                                    </div>
-                                                                    <span class="text-gray-400 text-xs">Sem detalhes</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                </div>
+                    <div class="space-y-6">
+                        @if($patientDetails && isset($patientDetails->procedimentos_cirurgicos) && is_array($patientDetails->procedimentos_cirurgicos) && count($patientDetails->procedimentos_cirurgicos))
+                            @foreach($patientDetails->procedimentos_cirurgicos as $procedure)
+                                @if(is_array($procedure) && isset($procedure['procedimento']))
+                                    <div class="flex flex-col gap-2">
+                                        <div class="text-base font-medium text-gray-900">
+                                            {{ $procedure['procedimento'] ?? 'Procedimento não informado' }}
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-700">
+                                            <div>
+                                                <span class="font-semibold">Status:</span>
+                                                <span>{{ $procedure['status'] ?? 'Não informado' }}</span>
                                             </div>
-                                        @elseif(is_string($procedure))
-                                            <!-- Fallback para procedimentos em string -->
-                                            <div class="bg-gray-50 p-3 rounded border-l-4 {{ str_contains($procedure, 'REALIZADA') ? 'border-green-500' : 'border-purple-500' }}">
-                                                <span class="text-sm font-medium {{ str_contains($procedure, 'REALIZADA') ? 'text-green-700' : 'text-purple-700' }}">
-                                                    {{ trim($procedure) }}
+                                            <div>
+                                                <span class="font-semibold">Tipo:</span>
+                                                <span>{{ $procedure['tipo_agendamento'] ?? 'Não informado' }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="font-semibold">Caráter:</span>
+                                                <span>{{ $procedure['carater_cirurgia'] ?? 'Não informado' }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="font-semibold">Data:</span>
+                                                <span>
+                                                    @if(($procedure['status'] ?? '') === 'REALIZADA')
+                                                        {{ $procedure['data_cirurgia'] ?? $procedure['data_agenda'] ?? 'Não informada' }}
+                                                        @if($procedure['hora_cirurgia'] ?? null)
+                                                            {{ $procedure['hora_cirurgia'] }}
+                                                        @endif
+                                                    @else
+                                                        {{ $procedure['data_agenda'] ?? 'Não informada' }}
+                                                        @if($procedure['hora_agenda'] ?? null)
+                                                            {{ $procedure['hora_agenda'] }}
+                                                        @endif
+                                                    @endif
                                                 </span>
                                             </div>
+                                            <div>
+                                                <span class="font-semibold">Duração:</span>
+                                                <span>{{ $procedure['duracao_formatada'] ?? 'Não informada' }}</span>
+                                            </div>
+                                        </div>
+                                        @if(!empty($procedure['observacoes']))
+                                            <div class="text-xs text-gray-600 mt-2">
+                                                <span class="font-semibold">Observações:</span>
+                                                <span>{{ $procedure['observacoes'] }}</span>
+                                            </div>
                                         @endif
-                                    @endforeach
-                                </div>
-                            @elseif(is_string($patientDetails->procedimentos_cirurgicos))
-                                @if($patientDetails->procedimentos_cirurgicos === 'Nenhuma cirurgia programada ou realizada recentemente')
-                                    <div class="p-4 bg-gray-50 rounded border text-center">
-                                        <span class="text-gray-500">{{ $patientDetails->procedimentos_cirurgicos }}</span>
                                     </div>
-                                @else
-                                    <div class="space-y-3">
-                                        @foreach(explode("\n\n", $patientDetails->procedimentos_cirurgicos) as $procedure)
-                                            @if(trim($procedure))
-                                                <div class="bg-gray-50 p-3 rounded border-l-4 {{ str_contains($procedure, 'REALIZADA') ? 'border-green-500' : 'border-purple-500' }}">
-                                                    <span class="text-sm font-medium {{ str_contains($procedure, 'REALIZADA') ? 'text-green-700' : 'text-purple-700' }}">
-                                                        {{ trim($procedure) }}
-                                                    </span>
-                                                </div>
-                                            @endif
-                                        @endforeach
-                                    </div>
+                                    <div class="border-t border-gray-100 my-4"></div>
                                 @endif
-                            @else
-                                <div class="p-4 bg-gray-50 rounded border text-center">
-                                    <span class="text-gray-500">Nenhuma cirurgia programada ou realizada recentemente</span>
-                                </div>
-                            @endif
+                            @endforeach
+                        @elseif(is_string($patientDetails->procedimentos_cirurgicos))
+                            <div class="text-sm text-gray-500">
+                                {{ $patientDetails->procedimentos_cirurgicos }}
+                            </div>
                         @else
-                            <div class="p-4 bg-gray-50 rounded border text-center">
-                                <span class="text-gray-500">Dados não disponíveis</span>
+                            <div class="text-sm text-gray-500">
+                                Nenhuma cirurgia programada ou realizada recentemente
                             </div>
                         @endif
                     </div>

@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html class="scroll-smooth" lang="pt-BR">
 <head>
-    <!-- ...existing head content... -->
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/noty.css' ) }}"/>
@@ -23,9 +22,11 @@
     </style>
 
     <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js'])
 
     <title>{{ env( 'APP_NAME' ) }}</title>
+
+    @laravelPWA
 </head>
 
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
@@ -85,9 +86,8 @@
 <script src="{{ asset('/vendor/noty/noty.min.js') }}"></script>
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.min.js"></script>
 
-@stack('scripts')
 
-<script src="{{ asset('js/sbar-autoscroll.js') }}"></script>
+@stack('scripts')
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

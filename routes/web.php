@@ -5,10 +5,13 @@ use App\Http\Controllers\SystemConfigurationController;
 use Illuminate\Support\Facades\Route;
 use App\Models\ChatMensagem; 
 use App\Events\ChatMessageSent;
+use App\Repositories\MySQL\ChatRepository;
 
 Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
     Route::view( '/', 'index' )->name( 'home' );
+
+    Route::view('/feedback', 'feedback')->name('feedback');
 
     /* Rotas de Administração do Sistema */
 
@@ -38,6 +41,15 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             Route::get('/sectors-for-hospital', [SystemConfigurationController::class, 'getSectorsForHospital'])->name('system-configuration.sectors-for-hospital');
             Route::get('/beds-for-sector', [SystemConfigurationController::class, 'getBedsForSector'])->name('system-configuration.beds-for-sector');
             Route::get('/sector-count-for-hospital', [SystemConfigurationController::class, 'getSectorCountForHospital'])->name('system-configuration.sector-count-for-hospital');
+        });
+
+        Route::middleware(['auth'])->get('/chat/messages', function (\Illuminate\Http\Request $request) {
+            $patientId = $request->get('patientId');
+            $shift = $request->get('shift');
+            $date = $request->get('date', now()->toDateString());
+            $repo = new \App\Repositories\MySQL\ChatRepository();
+            $messages = $repo->getMessages($patientId, $shift, $date, 50);
+            return response()->json(['messages' => $messages]);
         });
 
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );

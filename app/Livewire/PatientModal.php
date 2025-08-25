@@ -6,7 +6,6 @@ use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Models\EMR\Patient;
 use App\Repositories\EMR\PatientClinical;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
 class PatientModal extends Component
@@ -23,7 +22,13 @@ class PatientModal extends Component
     public function mount()
     {
         $hour = now()->hour;
-        $this->currentShift = ($hour >= 7 && $hour < 19) ? 'dia' : 'noite';
+        if ($hour >= 7 && $hour < 13) {
+            $this->currentShift = 'manha';
+        } elseif ($hour >= 13 && $hour < 19) {
+            $this->currentShift = 'tarde';
+        } else {
+            $this->currentShift = 'noite';
+        }
     }
 
     #[On('openModal')]
@@ -45,6 +50,7 @@ class PatientModal extends Component
         ];
         $this->currentHospitalName = $hospital;
 
+        // Notify JS of loading start for optimistic UI
         $this->dispatch('patient-loading-started', [
             'patientId' => $attendanceNumber,
             'shift' => $this->currentShift
@@ -56,6 +62,13 @@ class PatientModal extends Component
     private function loadPatientData($attendanceNumber)
     {
         try {
+            // Clear any existing cache for this patient to ensure fresh data
+            Cache::forget("patient_details_{$attendanceNumber}");
+            Cache::forget("patient_alerts_{$attendanceNumber}");
+            
+            // Add a small delay to prevent multiple simultaneous DB queries
+            usleep(100000); // 100ms
+            
             $cacheKey = "patient_details_{$attendanceNumber}";
             $this->patientDetails = Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
                 $patientModel = new Patient();
@@ -74,6 +87,7 @@ class PatientModal extends Component
             $this->checkAndShowAlertsModal();
             $this->loadingPatient = false;
 
+            // Notify JS of successful data load
             $this->dispatch('patient-data-loaded', [
                 'patientId' => $attendanceNumber,
                 'shift' => $this->currentShift,
@@ -81,11 +95,11 @@ class PatientModal extends Component
             ]);
 
         } catch (\Exception $e) {
-            Log::error("Error loading patient data: " . $e->getMessage());
             $this->patientDetails = null;
             $this->patientAlerts = [];
             $this->loadingPatient = false;
             
+            // Notify JS of error for fallback UI
             $this->dispatch('patient-data-loaded', [
                 'patientId' => $attendanceNumber,
                 'shift' => $this->currentShift,
@@ -127,6 +141,7 @@ class PatientModal extends Component
         $this->showModal = false;
         $this->resetModalState();
         
+        // Notify JS to clean up event listeners and state
         $this->dispatch('modal-closed');
         $this->dispatch('closeModal');
     }

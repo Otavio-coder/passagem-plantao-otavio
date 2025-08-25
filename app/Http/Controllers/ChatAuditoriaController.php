@@ -17,23 +17,21 @@ class ChatAuditoriaController extends Controller
             $dataInicio = $request->input('data_inicio', now()->subDays(7)->format('Y-m-d'));
             $dataFim = $request->input('data_fim', now()->format('Y-m-d'));
 
-            // Query base para mensagens
+            // Query base para mensagens (para estatísticas e agrupamentos)
             $query = ChatMensagem::with(['usuario'])
                 ->whereDate('dt_criacao', '>=', $dataInicio)
                 ->whereDate('dt_criacao', '<=', $dataFim);
 
-            // Filtros adicionais
             if ($request->filled('usuario_id')) {
                 $query->where('usuario_id', $request->usuario_id);
             }
-
             if ($request->filled('nr_atendimento')) {
                 $query->where('nr_atendimento', $request->nr_atendimento);
             }
 
             $messages = $query->orderBy('dt_criacao', 'desc')->get();
 
-            // Agrupamentos
+            // Agrupamentos e estatísticas
             $gruposAtendimento = $this->agruparPorAtendimento($messages);
             $gruposUsuarios = $this->agruparPorUsuarios($messages);
             $chatStats = $this->calcularEstatisticas($messages);
@@ -41,11 +39,47 @@ class ChatAuditoriaController extends Controller
             // Usuários para filtro
             $usuarios = User::select('id', 'name')->orderBy('name')->get();
 
+            // Auditoria detalhada com paginação real, sem duplicatas
+            $auditoriaQuery = \App\Models\ChatAuditoria::with(['usuario'])
+                ->whereDate('dt_acao', '>=', $dataInicio)
+                ->whereDate('dt_acao', '<=', $dataFim);
+
+            if ($request->filled('usuario_id')) {
+                $auditoriaQuery->where('usuario_id', $request->usuario_id);
+            }
+            if ($request->filled('nr_atendimento')) {
+                $auditoriaQuery->where('nr_atendimento', $request->nr_atendimento);
+            }
+            if ($request->filled('acao')) {
+                $auditoriaQuery->where('acao', $request->acao);
+            }
+
+            // Remove duplicidade usando distinct pelo id (chave primária)
+            $auditoriaLogs = $auditoriaQuery
+                ->select('chat_auditoria.*')
+                ->distinct('id')
+                ->orderBy('dt_acao', 'desc')
+                ->paginate(5)
+                ->appends($request->except('page'));
+
+            // AJAX response para paginação
+            if ($request->ajax()) {
+                // Renderiza apenas o bloco da tabela e paginação para AJAX
+                return response()->view('sbar.chat-auditoria', compact(
+                    'gruposAtendimento', 
+                    'gruposUsuarios', 
+                    'chatStats', 
+                    'usuarios',
+                    'auditoriaLogs'
+                ));
+            }
+
             return view('sbar.chat-auditoria', compact(
                 'gruposAtendimento', 
                 'gruposUsuarios', 
                 'chatStats', 
-                'usuarios'
+                'usuarios',
+                'auditoriaLogs'
             ));
 
         } catch (\Exception $e) {
@@ -63,7 +97,8 @@ class ChatAuditoriaController extends Controller
                     'usuarios_ativos' => 0,
                     'atendimentos_com_chat' => 0,
                 ],
-                'usuarios' => User::select('id', 'name')->orderBy('name')->get()
+                'usuarios' => User::select('id', 'name')->orderBy('name')->get(),
+                'auditoriaLogs' => collect([]),
             ]);
         }
     }

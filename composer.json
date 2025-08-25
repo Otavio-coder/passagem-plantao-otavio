@@ -24,6 +24,7 @@
         "opcodesio/log-viewer": "^3.12",
         "postare/blade-mdi": "^1.1",
         "pusher/pusher-php-server": "^7.2",
+        "silviolleite/laravelpwa": "^2.0",
         "spatie/laravel-permission": "^6.10",
         "troccoli/blade-health-icons": "^5.0",
         "yajra/laravel-oci8": "^11.6"

@@ -2,20 +2,30 @@
     showAlertsModal: @entangle('showAlertsModal'),
     showModal: @entangle('showModal'),
     init() {
+        // Responsividade e controle de scroll do body
         this.$watch('showAlertsModal', (value) => {
             document.body.style.overflow = value ? 'hidden' : '';
         });
         this.$watch('showModal', (value) => {
             document.body.style.overflow = value ? 'hidden' : '';
             if (value) {
-                // Prevent iOS Safari bounce scroll
-                document.documentElement.style.position = 'fixed';
-                document.documentElement.style.width = '100%';
-                document.documentElement.style.height = '100%';
+                document.body.classList.add('modal-active');
+                // Mobile: fixar html para evitar bounce
+                if (window.innerWidth < 640) {
+                    document.documentElement.style.position = 'fixed';
+                    document.documentElement.style.width = '100%';
+                    document.documentElement.style.height = '100%';
+                    document.documentElement.style.top = '0';
+                    document.documentElement.style.left = '0';
+                }
             } else {
+                document.body.classList.remove('modal-active');
                 document.documentElement.style.position = '';
                 document.documentElement.style.width = '';
                 document.documentElement.style.height = '';
+                document.documentElement.style.top = '';
+                document.documentElement.style.left = '';
+                document.body.style.overflow = '';
             }
         });
     }
@@ -31,108 +41,122 @@
         <div 
             x-show="showModal"
             x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
             x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            class="fixed inset-0 z-50 flex items-center justify-center p-[5vw]"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="modal-backdrop-container"
             style="touch-action: none;"
         >
-            {{-- Backdrop --}}
-            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            {{-- Backdrop com blur gradual --}}
+            <div class="modal-backdrop-overlay"
                  @click="!showAlertsModal && (showModal = false); setTimeout(() => $wire.closeModal(), 150)"></div>
             
-            {{-- Modal Container - Corrigido para responsividade profissional --}}
+            {{-- Modal Container - Mobile First Design --}}
             <div
-                class="relative bg-white 
-                       w-full h-full
-                       sm:w-full sm:h-[90vh] 
-                       sm:max-w-none sm:max-h-[90vh]
-                       max-w-none max-h-none
-                       rounded-none sm:rounded-2xl 
-                       shadow-2xl transition-all 
-                       flex flex-col overflow-hidden
-                       mx-auto"
+                class="modal-main-container"
                 x-data="{
                     activeTab: 'tab-s',
                     activeCpoeCategory: 'cpoe-exames',
                     swipeStartX: null,
                     swipeStartY: null,
+                    swipeStartTime: null,
                     currentTabIndex: 0,
                     tabs: ['tab-s', 'tab-b', 'tab-a', 'tab-r'],
-                    isSwipeEnabled: window.innerWidth < 768,
+                    tabLabels: ['Situação', 'Background', 'Avaliação', 'Recomendações'],
+                    isSwipeEnabled: false,
                     swipeThreshold: 50,
                     swipeVelocity: 0.3,
+                    isTransitioning: false,
+                    deviceType: 'desktop',
+                    
+                    init() {
+                        this.updateDeviceType();
+                        this.currentTabIndex = this.tabs.indexOf(this.activeTab);
+                        
+                        // Responsive observer
+                        const resizeObserver = new ResizeObserver(() => {
+                            this.updateDeviceType();
+                        });
+                        resizeObserver.observe(document.body);
+                        
+                        window.addEventListener('orientationchange', () => {
+                            setTimeout(() => this.updateDeviceType(), 150);
+                        });
+                    },
+                    
+                    updateDeviceType() {
+                        const width = window.innerWidth;
+                        if (width < 640) {
+                            this.deviceType = 'mobile';
+                            this.isSwipeEnabled = true;
+                        } else if (width < 1024) {
+                            this.deviceType = 'tablet';
+                            this.isSwipeEnabled = true;
+                        } else {
+                            this.deviceType = 'desktop';
+                            this.isSwipeEnabled = false;
+                        }
+                    },
+                    
                     handleSwipe(direction) {
-                        if (!this.isSwipeEnabled) return;
+                        if (!this.isSwipeEnabled || this.isTransitioning) return;
                         
                         const newIndex = direction === 'left' 
                             ? Math.min(this.currentTabIndex + 1, this.tabs.length - 1)
                             : Math.max(this.currentTabIndex - 1, 0);
                             
                         if (newIndex !== this.currentTabIndex) {
-                            this.currentTabIndex = newIndex;
-                            this.activeTab = this.tabs[this.currentTabIndex];
-                            this.showSwipeFeedback(direction);
+                            this.switchTab(newIndex);
                         }
                     },
-                    showSwipeFeedback(direction) {
-                        // Haptic feedback se disponível
+                    
+                    switchTab(newIndex) {
+                        if (this.isTransitioning) return;
+                        
+                        this.isTransitioning = true;
+                        this.currentTabIndex = newIndex;
+                        this.activeTab = this.tabs[this.currentTabIndex];
+                        
+                        // Haptic feedback
                         if (navigator.vibrate) {
                             navigator.vibrate(10);
                         }
                         
-                        // Visual feedback for swipe
-                        const modal = this.$el;
-                        const offset = direction === 'left' ? '-3px' : '3px';
-                        modal.style.transform = `translateX(${offset})`;
-                        modal.style.transition = 'transform 0.1s ease-out';
-                        
                         setTimeout(() => {
-                            modal.style.transform = 'translateX(0)';
-                            modal.style.transition = 'transform 0.3s ease-out';
-                        }, 100);
+                            this.isTransitioning = false;
+                        }, 200);
                     }
                 }"
                 x-init="
                     currentTabIndex = tabs.indexOf(activeTab);
-                    
-                    // Update swipe enabled on resize
-                    const updateSwipeState = () => {
-                        isSwipeEnabled = window.innerWidth < 768;
-                    };
-                    
-                    window.addEventListener('resize', updateSwipeState);
-                    window.addEventListener('orientationchange', () => {
-                        setTimeout(updateSwipeState, 100);
-                    });
                 "
                 data-patient-id="{{ $currentPatient['nr_atendimento'] ?? '' }}"
                 data-shift="{{ $currentShift ?? '' }}"
                 @click.stop
-                @touchstart="
-                    if (!isSwipeEnabled) return;
+                @touchstart.passive="
+                    if (!isSwipeEnabled || isTransitioning) return;
                     
                     const touch = $event.touches[0];
                     swipeStartX = touch.clientX;
                     swipeStartY = touch.clientY;
                     swipeStartTime = Date.now();
                 "
-                @touchmove.passive="
-                    if (!isSwipeEnabled || swipeStartX === null) return;
+                @touchmove="
+                    if (!isSwipeEnabled || swipeStartX === null || isTransitioning) return;
                     
                     const touch = $event.touches[0];
                     const deltaX = touch.clientX - swipeStartX;
                     const deltaY = touch.clientY - swipeStartY;
                     
-                    // Prevent default if horizontal swipe is detected
-                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+                    // Prevent horizontal scroll only if it's clearly a horizontal swipe
+                    if (Math.abs(deltaX) > Math.abs(deltaY) + 40 && Math.abs(deltaX) > 60) {
                         $event.preventDefault();
                     }
                 "
-                @touchend="
-                    if (!isSwipeEnabled || swipeStartX === null || swipeStartY === null) return;
+                @touchend.passive="
+                    if (!isSwipeEnabled || swipeStartX === null || swipeStartY === null || isTransitioning) return;
                     
                     const touch = $event.changedTouches[0];
                     const deltaX = touch.clientX - swipeStartX;
@@ -140,9 +164,8 @@
                     const deltaTime = Date.now() - (swipeStartTime || 0);
                     const velocity = Math.abs(deltaX) / deltaTime;
                     
-                    // Only trigger swipe if horizontal movement is greater than vertical
-                    // and meets threshold or velocity requirements
-                    if (Math.abs(deltaX) > Math.abs(deltaY) && 
+                    // Trigger swipe only for horizontal dominant movement
+                    if (Math.abs(deltaX) > Math.abs(deltaY) + 20 && 
                         (Math.abs(deltaX) > swipeThreshold || velocity > swipeVelocity)) {
                         handleSwipe(deltaX > 0 ? 'right' : 'left');
                     }
@@ -151,28 +174,27 @@
                     swipeStartY = null;
                     swipeStartTime = null;
                 "
-                style="transform: translateX(0); transition: transform 0.3s ease-out;"
             >
-                {{-- Loading Overlay --}}
+                {{-- Loading Overlay - Mantendo compatibilidade com ID original --}}
                 @if($loadingPatient)
-                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur-sm">
-                        <div class="flex flex-col items-center justify-center space-y-4">
-                            <div class="relative">
-                                <div class="w-10 h-10 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin"></div>
-                                <div class="absolute inset-0 w-10 h-10 border-4 border-t-transparent border-[#004D9D]/20 rounded-full animate-pulse"></div>
+                    <div id="modal-global-loading" class="modal-loading-overlay">
+                        <div class="modal-loading-content">
+                            <div class="modal-loading-spinner">
+                                <div class="spinner-primary"></div>
+                                <div class="spinner-secondary"></div>
                             </div>
-                            <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
-                            <div class="flex space-x-1">
-                                <div class="w-2 h-2 bg-[#004D9D] rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-                                <div class="w-2 h-2 bg-[#004D9D] rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-                                <div class="w-2 h-2 bg-[#004D9D] rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                            <span class="modal-loading-text">Carregando dados do paciente...</span>
+                            <div class="modal-loading-dots">
+                                <div class="dot dot-1"></div>
+                                <div class="dot dot-2"></div>
+                                <div class="dot dot-3"></div>
                             </div>
                         </div>
                     </div>
                 @endif
 
-                {{-- Header - Fixed with mobile optimization --}}
-                <div class="flex-shrink-0">
+                {{-- Header - Fixed and responsive --}}
+                <div class="modal-header">
                     <x-patient-modal.header 
                         :currentHospitalName="$currentHospitalName"
                         :currentPatient="$currentPatient"
@@ -180,26 +202,33 @@
                     />
                 </div>
 
-                {{-- Tabs Navigation - Fixed with improved mobile UX --}}
-                <div class="flex-shrink-0">
+                {{-- Tabs Navigation --}}
+                <div class="modal-tabs-container">
                     <x-patient-modal.tabs />
+                    
+                    {{-- Mobile swipe indicator --}}
+                    <div x-show="isSwipeEnabled && deviceType === 'mobile'" class="mobile-swipe-indicator">
+                        <div class="swipe-hint">
+                            <svg class="swipe-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l4-4-4-4m6 8l4-4-4-4"></path>
+                            </svg>
+                            <span>Deslize para navegar</span>
+                            <svg class="swipe-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l4-4-4-4m6 8l4-4-4-4"></path>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
 
-                {{-- Content Area - Optimized scrolling --}}
-                <div class="flex-1 min-h-0 bg-gray-50 relative">
+                {{-- Content Area - Mobile optimized scrolling --}}
+                <div class="modal-content-wrapper">
                     {{-- Situação --}}
                     <div
                         x-show="activeTab === 'tab-s'"
-                        x-cloak
-                        class="absolute inset-0 overflow-y-auto overscroll-y-contain mobile-scroll"
-                        x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="opacity-0 transform translate-x-4"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-150"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform -translate-x-4"
+                        class="modal-tab-content"
+                        x-bind:class="activeTab === 'tab-s' ? 'active' : ''"
                     >
-                        <div class="min-h-full">
+                        <div class="tab-content-padding">
                             <x-patient-modal.content.sbar-situacao 
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
@@ -211,16 +240,10 @@
                     {{-- Background --}}
                     <div
                         x-show="activeTab === 'tab-b'"
-                        x-cloak
-                        class="absolute inset-0 overflow-y-auto overscroll-y-contain mobile-scroll"
-                        x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="opacity-0 transform translate-x-4"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-150"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform -translate-x-4"
+                        class="modal-tab-content"
+                        x-bind:class="activeTab === 'tab-b' ? 'active' : ''"
                     >
-                        <div class="min-h-full">
+                        <div class="tab-content-padding">
                             <x-patient-modal.content.sbar-background 
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
@@ -232,14 +255,8 @@
                     {{-- Avaliação (Chat) --}}
                     <div
                         x-show="activeTab === 'tab-a'"
-                        x-cloak
-                        class="absolute inset-0"
-                        x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="opacity-0 transform translate-x-4"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-150"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform -translate-x-4"
+                        class="modal-tab-content modal-tab-chat"
+                        x-bind:class="activeTab === 'tab-a' ? 'active' : ''"
                     >
                         <x-patient-modal.content.sbar-avaliacao 
                             :loadingPatient="$loadingPatient"
@@ -251,16 +268,10 @@
                     {{-- Recomendações --}}
                     <div
                         x-show="activeTab === 'tab-r'"
-                        x-cloak
-                        class="absolute inset-0 overflow-y-auto overscroll-y-contain mobile-scroll"
-                        x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="opacity-0 transform translate-x-4"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-150"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform -translate-x-4"
+                        class="modal-tab-content"
+                        x-bind:class="activeTab === 'tab-r' ? 'active' : ''"
                     >
-                        <div class="min-h-full">
+                        <div class="tab-content-padding">
                             <x-patient-modal.content.sbar-recomendacoes 
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
@@ -268,172 +279,526 @@
                             />
                         </div>
                     </div>
-
-                    {{-- Mobile Navigation Indicators --}}
-                    <div class="sm:hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 pointer-events-none">
-                        <div class="bg-black/40 backdrop-blur-md rounded-full px-4 py-3 flex flex-col items-center space-y-2 shadow-lg">
-                            {{-- Dots Indicator --}}
-                            <div class="flex space-x-2">
-                                <template x-for="(tab, index) in tabs" :key="tab">
-                                    <button 
-                                        @click="currentTabIndex = index; activeTab = tabs[index]"
-                                        class="w-2.5 h-2.5 rounded-full transition-all duration-300 pointer-events-auto"
-                                        :class="currentTabIndex === index ? 'bg-white scale-125 shadow-sm' : 'bg-white/50 hover:bg-white/70'"
-                                    ></button>
-                                </template>
-                            </div>
-                            {{-- Tab Names --}}
-                            <div class="text-white/90 text-xs font-medium text-center leading-tight">
-                                <span x-show="currentTabIndex === 0">Situação</span>
-                                <span x-show="currentTabIndex === 1">Background</span>
-                                <span x-show="currentTabIndex === 2">Avaliação</span>
-                                <span x-show="currentTabIndex === 3">Recomendações</span>
-                            </div>
-                            {{-- Swipe Instruction --}}
-                            <div class="text-white/70 text-xs text-center">
-                                Deslize para navegar
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Swipe Edge Indicators --}}
-                    <div class="sm:hidden absolute inset-y-0 left-0 w-8 z-10 flex items-center" 
-                         x-show="currentTabIndex > 0">
-                        <div class="w-1 h-8 bg-white/30 rounded-r-full ml-1"></div>
-                    </div>
-                    <div class="sm:hidden absolute inset-y-0 right-0 w-8 z-10 flex items-center justify-end" 
-                         x-show="currentTabIndex < tabs.length - 1">
-                        <div class="w-1 h-8 bg-white/30 rounded-l-full mr-1"></div>
-                    </div>
-                </div>
-
-                {{-- Footer - Fixed --}}
-                <div class="flex-shrink-0">
-                    <x-patient-modal.footer />
                 </div>
             </div>
         </div>
     @endif
 
     <style>
-        /* Modal responsivo profissional */
-        @media (max-width: 640px) {
-            /* Mobile: fullscreen otimizado */
-            .modal-mobile-fullscreen {
-                width: 100vw !important;
-                height: 100vh !important;
-                max-width: none !important;
-                max-height: none !important;
-                border-radius: 0 !important;
-                margin: 0 !important;
-            }
+        /* ================================
+           MOBILE FIRST RESPONSIVE DESIGN
+           ================================ */
+        
+        /* Base styles - Mobile First */
+        .modal-backdrop-container {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-
-        @media (min-width: 641px) {
-            /* Tablet e Desktop: 90% da largura (5% de margem de cada lado) */
-            .modal-container {
-                width: 90vw !important;
-                max-width: 90vw !important;
-                height: 90vh !important;
-                max-height: 90vh !important;
-            }
+        
+        .modal-backdrop-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            transition: all 0.3s ease;
         }
-
-        /* Enhanced scrollbar styling */
-        .mobile-scroll {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 #f1f5f9;
+        
+        /* Mobile First Modal Container */
+        .modal-main-container {
+            position: relative;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            contain: layout style paint;
+            will-change: transform;
+            
+            /* Mobile: Fullscreen */
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport height for mobile browsers */
+            max-width: 100vw;
+            max-height: 100vh;
+            max-height: 100dvh;
+            border-radius: 0;
+            margin: 0;
+        }
+        
+        /* Header - Fixed */
+        .modal-header {
+            flex-shrink: 0;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            z-index: 10;
+        }
+        
+        /* Tabs Container */
+        .modal-tabs-container {
+            flex-shrink: 0;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            z-index: 10;
+        }
+        
+        /* Mobile Swipe Indicator */
+        .mobile-swipe-indicator {
+            display: flex;
+            justify-content: center;
+            padding: 8px 0;
+            background: rgba(249, 250, 251, 0.5);
+        }
+        
+        .swipe-hint {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .swipe-icon {
+            width: 16px;
+            height: 16px;
+        }
+        
+        /* Content Wrapper - Mobile Optimized */
+        .modal-content-wrapper {
+            flex: 1;
+            background: #f9fafb;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Tab Content - Mobile Scroll Optimized */
+        .modal-tab-content {
+            position: absolute;
+            inset: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior-y: contain;
+            scroll-behavior: auto; /* Better performance on mobile */
+            
+            /* Mobile touch optimization */
+            touch-action: pan-y pinch-zoom;
+            pointer-events: auto;
+            
+            /* Hide by default */
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
-
-        .mobile-scroll::-webkit-scrollbar {
-            width: 4px;
+        
+        .modal-tab-content.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
         }
-
-        .mobile-scroll::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 2px;
+        
+        /* Chat tab special handling */
+        .modal-tab-chat {
+            padding: 0; /* Chat component handles its own padding */
         }
-
-        .mobile-scroll::-webkit-scrollbar-thumb {
+        
+        /* Content padding for non-chat tabs */
+        .tab-content-padding {
+            padding: 16px;
+        }
+        
+        /* Mobile Navigation Indicators */
+        .mobile-nav-indicators {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            pointer-events: none;
+        }
+        
+        .nav-indicator-container {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            padding: 12px 16px;
+            box-shadow: 0 10px 25px -12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .nav-dots {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+        
+        .nav-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            transition: all 0.2s ease;
+            pointer-events: auto;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .nav-dot.active {
+            background: white;
+            transform: scale(1.25);
+        }
+        
+        .nav-dot:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+        
+        .nav-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        /* Loading States - Global fullscreen overlay */
+        .modal-loading-overlay,
+        #modal-global-loading {
+            position: fixed !important; /* Fixed para cobrir toda a viewport */
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important; /* Dynamic viewport height */
+            z-index: 9999 !important; /* Z-index muito alto para ficar acima de tudo */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent !important; /* Background transparente */
+            backdrop-filter: none !important;
+            
+            /* Bloqueia todas as interações */
+            pointer-events: auto !important;
+            touch-action: none !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -webkit-touch-callout: none !important;
+            
+            /* Performance */
+            will-change: opacity;
+            contain: layout style paint;
+        }
+        
+        /* Estado hidden para compatibilidade */
+        .modal-loading-overlay.hidden,
+        #modal-global-loading.hidden {
+            display: none !important;
+        }
+        
+        /* Loading content com fundo semi-transparente */
+        .modal-loading-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(8px) !important;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            
+            /* Bloqueia interações no conteúdo também */
+            pointer-events: auto;
+            touch-action: none;
+        }
+        
+        .modal-loading-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .modal-loading-spinner {
+            position: relative;
+        }
+        
+        .spinner-primary {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #004D9D;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .spinner-secondary {
+            position: absolute;
+            inset: 0;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 77, 157, 0.2);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        .modal-loading-text {
+            color: #004D9D;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .modal-loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: #004D9D;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite both;
+        }
+        
+        .dot-1 { animation-delay: 0ms; }
+        .dot-2 { animation-delay: 150ms; }
+        .dot-3 { animation-delay: 300ms; }
+        
+        /* Mobile Scrollbar Styling */
+        .modal-tab-content {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .modal-tab-content::-webkit-scrollbar {
+            width: 2px;
+            display: block;
+        }
+        
+        .modal-tab-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .modal-tab-content::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 2px;
+            transition: background-color 0.2s ease;
         }
-
-        .mobile-scroll::-webkit-scrollbar-thumb:hover {
+        
+        .modal-tab-content::-webkit-scrollbar-thumb:active {
             background: #94a3b8;
         }
-
-        /* Mobile-specific optimizations */
-        @media (max-width: 767px) {
-            .mobile-scroll {
-                scroll-behavior: smooth;
-                scroll-snap-type: none;
+        
+        /* Body modal state */
+        body.modal-active {
+            overflow: hidden !important;
+            height: 100vh;
+            height: 100dvh;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+        
+        /* Body loading state */
+        body.loading-active {
+            overflow: hidden !important;
+            height: 100vh;
+            height: 100dvh;
+            position: relative;
+        }
+        
+        /* Disable pointer events on everything when loading */
+        body.loading-active > *:not(#modal-global-loading):not(.modal-loading-overlay) {
+            pointer-events: none !important;
+            touch-action: none !important;
+        }
+        
+        /* Animations */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { 
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        /* ================================
+           TABLET STYLES (641px and up)
+           ================================ */
+        
+        @media (min-width: 641px) {
+            .modal-backdrop-container {
+                padding: 32px;
             }
             
-            /* Better touch targets */
-            button, .clickable {
-                min-height: 44px;
-                min-width: 44px;
-                touch-action: manipulation;
+            .modal-main-container {
+                width: 90vw;
+                height: 88vh;
+                max-width: 90vw;
+                max-height: 88vh;
+                border-radius: 16px;
+                margin: 0 auto;
             }
             
-            /* Prevent text selection during swipe */
-            .mobile-scroll {
-                -webkit-user-select: none;
-                -moz-user-select: none;
-                -ms-user-select: none;
-                user-select: none;
+            .mobile-swipe-indicator {
+                padding: 12px 0;
+            }
+            
+            .tab-content-padding {
+                padding: 24px;
+            }
+            
+            .modal-tab-content::-webkit-scrollbar {
+                width: 4px;
+            }
+            
+            .mobile-nav-indicators {
+                display: none; /* Hide on tablet and up */
             }
         }
-
-        /* Tablet optimizations */
-        @media (min-width: 768px) and (max-width: 1024px) {
-            .mobile-scroll {
-                scrollbar-width: thin;
+        
+        /* ================================
+           DESKTOP STYLES (1025px and up)
+           ================================ */
+        
+        @media (min-width: 1025px) {
+            .modal-backdrop-container {
+                padding: 48px;
+            }
+            
+            .modal-main-container {
+                width: 80vw;
+                height: 90vh;
+                max-width: min(80vw, 1400px);
+                max-height: 90vh;
+                border-radius: 24px;
+            }
+            
+            .mobile-swipe-indicator {
+                display: none;
+            }
+            
+            .tab-content-padding {
+                padding: 32px;
+            }
+            
+            .modal-tab-content {
+                scroll-behavior: smooth; /* Smooth scrolling on desktop */
+            }
+            
+            .modal-tab-content::-webkit-scrollbar {
+                width: 6px;
+            }
+            
+            .modal-tab-content::-webkit-scrollbar-track {
+                background: #f8fafc;
+                border-radius: 3px;
+            }
+            
+            .modal-tab-content::-webkit-scrollbar-thumb:hover {
+                background: #64748b;
             }
         }
-
-        /* Safe area handling para dispositivos com notch */
-        @supports (padding-top: env(safe-area-inset-top)) {
-            @media (max-width: 640px) {
-                .modal-mobile-fullscreen {
-                    padding-top: env(safe-area-inset-top);
-                    padding-bottom: env(safe-area-inset-bottom);
-                    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                }
+        
+        /* ================================
+           ACCESSIBILITY & PERFORMANCE
+           ================================ */
+        
+        /* High contrast support */
+        @media (prefers-contrast: high) {
+            .modal-tab-content::-webkit-scrollbar-thumb {
+                background: #000;
             }
         }
-
-        /* Smooth transitions para reduced motion preference */
+        
+        /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
-            .transition-all,
-            [x-transition] {
+            .modal-main-container,
+            .modal-tab-content,
+            .nav-dot,
+            * {
                 transition: none !important;
                 animation: none !important;
             }
         }
-
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-            .mobile-scroll::-webkit-scrollbar-thumb {
-                background: #000;
+        
+        /* Focus management */
+        .modal-main-container *:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        
+        /* Touch target optimization */
+        @media (max-width: 640px) {
+            button, 
+            [role="button"], 
+            .clickable,
+            input,
+            textarea,
+            select {
+                min-height: 44px;
+                touch-action: manipulation;
             }
             
-            .bg-black\/40 {
-                background-color: rgba(0, 0, 0, 0.8) !important;
+            /* Prevent zoom on form inputs */
+            input[type="text"],
+            input[type="email"],
+            input[type="number"],
+            input[type="tel"],
+            input[type="url"],
+            input[type="password"],
+            textarea,
+            select {
+                font-size: 16px !important;
             }
         }
-
-        /* Correção específica para o padding do container principal */
-        .modal-backdrop-container {
-            padding: 5vw;
+        
+        /* Safe area support for devices with notch */
+        @supports (padding-top: env(safe-area-inset-top)) {
+            @media (max-width: 640px) {
+                .modal-main-container {
+                    padding-top: env(safe-area-inset-top);
+                    padding-bottom: env(safe-area-inset-bottom);
+                    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                }
+            }
         }
-
-        @media (max-width: 640px) {
-            .modal-backdrop-container {
-                padding: 0;
+        
+        /* Landscape mobile optimization */
+        @media (max-width: 640px) and (orientation: landscape) {
+            .modal-main-container {
+                height: 100vh;
+                height: 100dvh;
+            }
+            
+            .mobile-nav-indicators {
+                bottom: 8px;
+            }
+            
+            .nav-indicator-container {
+                padding: 8px 12px;
             }
         }
     </style>

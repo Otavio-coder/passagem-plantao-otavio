@@ -169,129 +169,183 @@ class SbarReport extends Component
                 $patient['pending_events_filtered'] = [];
             }
             
-            // GARANTIR que campos essenciais sempre existam - CORREÇÃO DO BUG
-            $patient['alergias_detalhadas'] = $patient['alergias_detalhadas'] ?? '';
-            $patient['motivos_isolamento'] = $patient['motivos_isolamento'] ?? '';
+            // GARANTIR que campos essenciais sempre existam
+            $patient['alergias_detalhadas'] = $patient['alergias_detalhadas'] ?? 'Nenhuma alergia registrada';
+            $patient['motivos_isolamento'] = $patient['motivos_isolamento'] ?? 'Nenhum motivo de isolamento';
             
-            // Preparar tooltips para alergias e isolamento
-            if (!empty($patient['alergias_detalhadas'])) {
-                $alergias = strip_tags($patient['alergias_detalhadas']);
-                $patient['alergias_tooltip'] = strlen($alergias) > 50 ? substr($alergias, 0, 47) . '...' : $alergias;
+            // Preparar dados de cirurgias para tooltip - AGORA COM DADOS CONSISTENTES
+            if (!empty($patient['procedimentos_cirurgicos']) && is_array($patient['procedimentos_cirurgicos'])) {
+                $patient['cirurgias_info'] = collect($patient['procedimentos_cirurgicos'])
+                    ->map(function($c) {
+                        $data = $c['data_agenda'] ?? 'N/A';
+                        $hora = $c['hora_agenda'] ?? '00:00';
+                        $procedimento = $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento não especificado';
+                        return "{$data} às {$hora} - {$procedimento}";
+                    })
+                    ->take(3)
+                    ->join('; ');
+            } elseif ($patient['has_surgery']) {
+                $patient['cirurgias_info'] = 'Paciente possui cirurgia agendada';
             } else {
-                $patient['alergias_tooltip'] = 'Nenhuma alergia registrada';
+                $patient['cirurgias_info'] = '';
             }
             
-            if (!empty($patient['motivos_isolamento'])) {
-                $isolamento = strip_tags($patient['motivos_isolamento']);
-                $patient['isolamento_tooltip'] = strlen($isolamento) > 50 ? substr($isolamento, 0, 47) . '...' : $isolamento;
-            } else {
-                $patient['isolamento_tooltip'] = 'Nenhum motivo de isolamento';
-            }
-            
-            // Preparar escalas compactas - FORÇAR TEXTO NORMAL
+            // Preparar escalas compactas
             $patient['scales_compact'] = $this->prepareCompactScales($patient);
             
             return $this->applyPatientStyling($patient);
         })->toArray();
     }
 
-    /**
-     * Prepara escalas de forma compacta para exibição no card
-     * Usa dados vindos da PatientScales com lógica consistente
-     * 
-     * CRITÉRIOS:
-     * - Usa apenas escalas válidas (não nulas e não vazias)
-     * - Mantém ordem de prioridade: MEWS/PEWS > Braden > Morse > Dor > TEV
-     * - FORÇA TEXTO CINZA quando há bolinha piscante
-     */
+    //Função auxiliar para preparar as escalas compactas com cores.
     protected function prepareCompactScales($patient)
     {
         $scales = [];
         $isPediatric = isset($patient['age']) && intval($patient['age']) < 16;
 
         // MEWS (adultos) ou PEWS (crianças) - MÁXIMA PRIORIDADE
-        if (!$isPediatric && !empty($patient['ds_mews']) && $patient['ds_mews'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patient['ds_mews'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        if (!$isPediatric && !empty($patient['mews_score']) && $patient['mews_score'] !== null) {
+            $styling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patient['mews_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['mews_increased']) ? $patient['mews_increased'] : false;
+            $timestamp = isset($patient['mews_timestamp']) ? $patient['mews_timestamp'] : '';
+            $classification = isset($patient['mews_classification']) ? $patient['mews_classification'] : '';
+            
+            $displayValue = "MEWS: {$patient['mews_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'MEWS',
-                'value' => $patient['ds_mews'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
-        } elseif ($isPediatric && !empty($patient['ds_pews']) && $patient['ds_pews'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patient['ds_pews'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        } elseif ($isPediatric && !empty($patient['pews_score']) && $patient['pews_score'] !== null) {
+            $styling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patient['pews_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['pews_increased']) ? $patient['pews_increased'] : false;
+            $timestamp = isset($patient['pews_timestamp']) ? $patient['pews_timestamp'] : '';
+            $classification = isset($patient['pews_classification']) ? $patient['pews_classification'] : '';
+            
+            $displayValue = "PEWS: {$patient['pews_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'PEWS',
-                'value' => $patient['ds_pews'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
         }
 
         // Braden - SEGUNDA PRIORIDADE
-        if (!empty($patient['ds_braden']) && $patient['ds_braden'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patient['ds_braden'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        if (!empty($patient['braden_score']) && $patient['braden_score'] !== null) {
+            $styling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patient['braden_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['braden_increased']) ? $patient['braden_increased'] : false;
+            $timestamp = isset($patient['braden_timestamp']) ? $patient['braden_timestamp'] : '';
+            $classification = isset($patient['braden_classification']) ? $patient['braden_classification'] : '';
+            
+            $displayValue = "Braden: {$patient['braden_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'Braden',
-                'value' => $patient['ds_braden'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
         }
 
         // Morse - TERCEIRA PRIORIDADE
-        if (!empty($patient['ds_morse']) && $patient['ds_morse'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patient['ds_morse'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        if (!empty($patient['morse_score']) && $patient['morse_score'] !== null) {
+            $styling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patient['morse_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['morse_increased']) ? $patient['morse_increased'] : false;
+            $timestamp = isset($patient['morse_timestamp']) ? $patient['morse_timestamp'] : '';
+            $classification = isset($patient['morse_classification']) ? $patient['morse_classification'] : '';
+            
+            $displayValue = "Morse: {$patient['morse_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'Morse',
-                'value' => $patient['ds_morse'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
         }
 
         // Dor - QUARTA PRIORIDADE
-        if (!empty($patient['ds_dor']) && $patient['ds_dor'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patient['ds_dor'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        if (!empty($patient['dor_score']) && $patient['dor_score'] !== null) {
+            $styling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patient['dor_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['dor_increased']) ? $patient['dor_increased'] : false;
+            $timestamp = isset($patient['dor_timestamp']) ? $patient['dor_timestamp'] : '';
+            $classification = isset($patient['dor_classification']) ? $patient['dor_classification'] : '';
+            
+            $displayValue = "Dor: {$patient['dor_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'Dor',
-                'value' => $patient['ds_dor'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
         }
 
         // TEV - QUINTA PRIORIDADE
-        if (!empty($patient['ds_tev']) && $patient['ds_tev'] !== 'Sem avaliação nas últimas 24h') {
-            $styling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patient['ds_tev'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+        if (!empty($patient['tev_score']) && $patient['tev_score'] !== null) {
+            $styling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patient['tev_score'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
             $increased = isset($patient['tev_increased']) ? $patient['tev_increased'] : false;
+            $timestamp = isset($patient['tev_timestamp']) ? $patient['tev_timestamp'] : '';
+            $classification = isset($patient['tev_classification']) ? $patient['tev_classification'] : '';
+            
+            $displayValue = "TEV: {$patient['tev_score']}";
+            if ($classification) {
+                $displayValue .= " ({$classification})";
+            }
+            if ($timestamp) {
+                $displayValue .= " - {$timestamp}";
+            }
             
             $scales[] = [
                 'label' => 'TEV',
-                'value' => $patient['ds_tev'],
+                'value' => $displayValue,
                 'bg_class' => $styling['bg'],
                 'border_class' => $styling['border'],
-                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'text_class' => 'text-gray-800',
                 'increased' => $increased
             ];
         }
@@ -299,7 +353,7 @@ class SbarReport extends Component
         // Retorna apenas as 3 primeiras escalas (espaço limitado no card)
         return array_slice($scales, 0, 3);
     }
-    
+        
     /**
      * Retorna o label amigável do turno
      */
@@ -335,37 +389,26 @@ class SbarReport extends Component
     {
         // Always set style keys, even for empty beds
         if (!($patient['has_patient'] ?? false)) {
-            $patient['gradient_class'] = 'from-gray-50 to-gray-100';
+            $patient['gradient_class'] = 'from-gray-200 to-gray-300';
             $patient['border_class'] = 'border border-gray-300';
             $patient['text_color_class'] = 'text-gray-600';
             return $patient;
         }
 
         $isNewPatient = ($patient['internment_days'] ?? null) !== null && $patient['internment_days'] < 1;
-        $mewsScore = $patient['mews_score'] ?? null;
-
-        if ($isNewPatient) {
-            $patient['gradient_class'] = 'from-green-50 to-green-100';
-            $patient['border_class'] = 'border-2 border-green-400';
-            $patient['text_color_class'] = 'text-green-800';
-        } elseif ($mewsScore !== null && $mewsScore >= 5) {
-            $patient['gradient_class'] = 'from-red-50 to-red-100';
-            $patient['border_class'] = 'border-2 border-red-500';
-            $patient['text_color_class'] = 'text-red-800';
-        } elseif ($mewsScore !== null && $mewsScore == 4) {
-            $patient['gradient_class'] = 'from-orange-50 to-orange-100';
-            $patient['border_class'] = 'border-2 border-orange-500';
-            $patient['text_color_class'] = 'text-orange-800';
-        } elseif ($mewsScore !== null && $mewsScore == 3) {
-            $patient['gradient_class'] = 'from-yellow-50 to-yellow-100';
-            $patient['border_class'] = 'border-2 border-yellow-500';
-            $patient['text_color_class'] = 'text-yellow-800';
-        } else {
-            // MEWS 0-2 ou sem MEWS - tom azul claro agradável
-            $patient['gradient_class'] = 'from-blue-50 to-blue-100';
-            $patient['border_class'] = 'border border-blue-200';
-            $patient['text_color_class'] = 'text-blue-800';
-        }
+        
+        // USA O SCORE NUMÉRICO DO MEWS para determinar a cor do card
+        $mewsScore = isset($patient['mews_score']) && is_numeric($patient['mews_score']) 
+            ? intval($patient['mews_score']) 
+            : null;
+        
+        $styling = function_exists('getMewsCardGradient') 
+            ? getMewsCardGradient($mewsScore, $isNewPatient) 
+            : ['gradient' => 'from-blue-50 to-blue-100', 'border' => 'border border-gray-300', 'text' => 'text-gray-800'];
+        
+        $patient['gradient_class'] = $styling['gradient'];
+        $patient['border_class'] = $styling['border'];
+        $patient['text_color_class'] = $styling['text'];
 
         return $patient;
     }

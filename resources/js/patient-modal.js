@@ -142,7 +142,8 @@ class PatientModalManager {
     // --- Event Listeners ---
     setupEventListeners() {
         document.addEventListener('livewire:init', () => {});
-        document.addEventListener('click', this.handleModalClick.bind(this), true);
+        // Remover o listener global que estava interceptando todos os cliques
+        // document.addEventListener('click', this.handleModalClick.bind(this), true);
         window.addEventListener('beforeunload', () => { this.cleanup(); });
         let resizeTimeout;
         window.addEventListener('resize', () => {
@@ -412,15 +413,8 @@ class PatientModalManager {
     }
 
     handleModalClick(e) {
-        const patientCard = e.target.closest('.patient-card');
-        if (patientCard) {
-            this.showLoading();
-            setTimeout(() => {
-                if (!this.state.modalActive) {
-                    this.hideLoading();
-                }
-            }, 5000);
-        }
+        // Função removida - não interceptar mais cliques globalmente nos patient-cards
+        // O Livewire irá gerenciar os cliques diretamente nos botões específicos
     }
 
     ensureLoadingOverlay() {

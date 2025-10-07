@@ -471,99 +471,186 @@ if ( !function_exists( 'attendanceSession' ) ) {
 
 }
 
-function extractScaleScore($value) {
-    if (is_numeric($value)) return intval($value);
-    if (is_string($value)) {
-        // Para dor, prioriza o número entre os dois primeiros " - "
-        if (preg_match('/-\s*(\d+)\s*-/', $value, $m)) return intval($m[1]);
-        // Prioriza número dentro de (MEWS: X)
-        if (preg_match('/\(MEWS:\s*(\d+)\)/', $value, $m)) return intval($m[1]);
-        // Número após ":"
-        if (preg_match('/:\s*(\d+)/', $value, $m)) return intval($m[1]);
-        // Número após "-"
-        if (preg_match('/-\s*(\d+)/', $value, $m)) return intval($m[1]);
-        // Senão, extrai o último número
-        if (preg_match_all('/(\d+)/', $value, $m)) return intval(end($m[1]));
+function extractScaleScore($scaleValue) {
+    // Se é null ou vazio, retorna null
+    if ($scaleValue === null || $scaleValue === '') {
+        return null;
     }
+    
+    // Se já é um número, retorna como inteiro
+    if (is_numeric($scaleValue)) {
+        return intval($scaleValue);
+    }
+    
+    // Se é string, tenta extrair o número
+    if (is_string($scaleValue)) {
+        // Padrões de busca por score
+        $patterns = [
+            '/:\s*(\d+)/',           // "Braden: 15"
+            '/Score:\s*(\d+)/',      // "Score: 5"
+            '/Pontos:\s*(\d+)/',     // "Pontos: 3"
+            '/^(\d+)$/',             // "15" (número puro)
+            '/\b(\d+)\b/'            // qualquer número isolado
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $scaleValue, $matches)) {
+                return intval($matches[1]);
+            }
+        }
+    }
+    
     return null;
 }
 
+/**
+ * MEWS Risk Styling
+ * ≥5: Crítico (vermelho escuro)
+ * 4: Alto (laranja)
+ * 3: Alerta (amarelo)
+ * 0-2: Normal (cinza claro)
+ */
 function getMewsRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
-    if ($num !== null) {
-        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
-        if ($num >= 5) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-        if ($num == 4) return ['bg'=>'bg-orange-100','border'=>'border-orange-300','text'=>$textColor];
-        if ($num == 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-        return ['bg'=>'bg-blue-50','border'=>'border-blue-300','text'=>$textColor];
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num >= 5) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num == 4) {
+        return ['bg'=>'bg-orange-100','border'=>'border-orange-300','text'=>$textColor];
+    } elseif ($num == 3) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    }
 }
 
-function getBradenRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num !== null) {
-        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
-        if ($num <= 12) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-        if ($num >= 13 && $num <= 18) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-        if ($num >= 19) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
-}
-
-function getMorseRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num !== null) {
-        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
-        if ($num < 25) {
-            return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-        } elseif ($num <= 45) {
-            return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-        } else {
-            return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-        }
-    }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
-}
-
-function getPainRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num !== null) {
-        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
-        if ($num >= 7) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-        if ($num >= 4 && $num <= 6) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-        if ($num >= 0 && $num <= 3) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
-}
-
+/**
+ * PEWS Risk Styling (Pediátrico)
+ * ≥4: Alto (vermelho)
+ * 2-3: Moderado (amarelo)
+ * 0-1: Normal (cinza claro)
+ */
 function getPewsRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
-    if ($num !== null) {
-        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
-        if ($num >= 4) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-        if ($num >= 2 && $num <= 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-        if ($num >= 0 && $num <= 1) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num >= 4) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num >= 2) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    }
 }
 
-// Corrigir função TEV para sempre aplicar forceNormalText quando solicitado
+/**
+ * Braden Risk Styling
+ * ≤12: Alto Risco (vermelho)
+ * 13-14: Moderado (amarelo)
+ * 15-18: Leve (cinza)
+ * 19-23: Sem risco (verde claro)
+ */
+function getBradenRiskStyling($score, $forceNormalText = false) {
+    $num = extractScaleScore($score);
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num <= 12) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num <= 14) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } elseif ($num <= 18) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-green-50','border'=>'border-green-300','text'=>$textColor];
+    }
+}
+
+/**
+ * Morse Risk Styling
+ * ≥45: Alto (vermelho)
+ * 25-44: Moderado (amarelo)
+ * <25: Baixo (cinza)
+ */
+function getMorseRiskStyling($score, $forceNormalText = false) {
+    $num = extractScaleScore($score);
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num >= 45) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num >= 25) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    }
+}
+
+/**
+ * Pain Scale Styling
+ * ≥7: Intensa (vermelho)
+ * 4-6: Moderada (amarelo)
+ * 1-3: Leve (cinza)
+ * 0: Sem dor (verde claro)
+ */
+function getPainRiskStyling($score, $forceNormalText = false) {
+    $num = extractScaleScore($score);
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+    }
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num >= 7) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num >= 4) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } elseif ($num >= 1) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-green-50','border'=>'border-green-300','text'=>$textColor];
+    }
+}
+
+/**
+ * TEV Risk Styling
+ * ≥7: Alto (vermelho)
+ * 3-6: Moderado (amarelo)
+ * 0-2: Baixo (cinza)
+ */
 function getTevRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
-    if ($num !== null) {
-        // Se forceNormalText é true, sempre usar text-gray-800
-        if ($forceNormalText) {
-            $textColor = 'text-gray-800';
-        } else {
-            $textColor = $num >= 2 ? 'text-red-800' : 'text-green-800';
-        }
-        
-        if ($num >= 2) return ['bg'=>'bg-red-100','border'=>'border-red-400','text'=>$textColor];
-        return ['bg'=>'bg-green-100','border'=>'border-green-400','text'=>$textColor];
+    if ($num === null) {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+    
+    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
+    
+    if ($num >= 7) {
+        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+    } elseif ($num >= 3) {
+        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+    } else {
+        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
+    }
 }
+
+
 
 function getCurrentShift() {
     $now = now();
@@ -590,4 +677,60 @@ function getShiftLabel($shift) {
         'noite', 'N' => 'Noite',
         default => $shift
     };
+}
+
+function getMewsCardGradient($score, $isNewPatient = false) {
+    $num = extractScaleScore($score);
+    
+    // Paciente novo sempre verde
+    if ($isNewPatient) {
+        return [
+            'gradient' => 'from-green-50 to-green-100',
+            'border' => 'border-2 border-green-400',
+            'text' => 'text-green-800'
+        ];
+    }
+    
+    // Sem MEWS - azul claro padrão
+    if ($num === null) {
+        return [
+            'gradient' => 'from-blue-50 to-blue-100',
+            'border' => 'border border-gray-300',
+            'text' => 'text-gray-800'
+        ];
+    }
+    
+    // MEWS ≥ 5: Vermelho intenso
+    if ($num >= 5) {
+        return [
+            'gradient' => 'from-red-100 to-red-200',
+            'border' => 'border-2 border-red-500',
+            'text' => 'text-red-900'
+        ];
+    }
+    
+    // MEWS = 4: Laranja
+    if ($num == 4) {
+        return [
+            'gradient' => 'from-orange-100 to-orange-200',
+            'border' => 'border-2 border-orange-500',
+            'text' => 'text-orange-900'
+        ];
+    }
+    
+    // MEWS = 3: Amarelo
+    if ($num == 3) {
+        return [
+            'gradient' => 'from-yellow-100 to-yellow-200',
+            'border' => 'border-2 border-yellow-500',
+            'text' => 'text-yellow-900'
+        ];
+    }
+    
+    // MEWS 0-2: Azul claro (normal)
+    return [
+        'gradient' => 'from-blue-50 to-blue-100',
+        'border' => 'border border-blue-300',
+        'text' => 'text-gray-800'
+    ];
 }

@@ -1,4 +1,4 @@
-{{-- resources/views/livewire/partials/sbar-legend.blade.php --}}
+
 <div class="mt-6 mb-16 lg:mb-6 p-3 sm:p-4 bg-white rounded-lg shadow border border-gray-100 font-montserrat">
     <h2 class="text-base sm:text-lg font-bold text-gray-800 mb-3 font-montserrat">Legenda do Sistema SBAR</h2>
     
@@ -160,7 +160,7 @@
                 
                 <div class="flex items-center space-x-3">
                     <span class="flex items-center justify-center bg-yellow-400 rounded-full w-7 h-7 shadow-lg animate-pulse">
-                        <img src="{{ asset('images/icons/patient-isolated.svg') }}" class="h-5 w-5" alt="Isolamento" />
+                        <img src="<?php echo e(asset('images/icons/patient-isolated.svg')); ?>" class="h-5 w-5" alt="Isolamento" />
                     </span>
                     <div class="flex-1">
                         <span class="text-sm font-medium text-gray-800">Precauções de Isolamento</span>
@@ -239,7 +239,7 @@
                 </div>
                 <div class="grid grid-cols-1 gap-2 font-montserrat">
                     <div class="flex items-center space-x-2">
-                        <img src="{{ asset('images/icons/physician-arrow-up.svg') }}" class="w-4 h-4 flex-shrink-0" alt="Alta médica" />
+                        <img src="<?php echo e(asset('images/icons/physician-arrow-up.svg')); ?>" class="w-4 h-4 flex-shrink-0" alt="Alta médica" />
                         <span class="text-xs text-gray-600">[ALTA] ou [PREVISÃO DE ALTA] - Alta médica liberada ou prevista</span>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -325,4 +325,4 @@
             </div>
         </div>
     </div>
-</div>
+</div><?php /**PATH /var/www/passagem-plantao/resources/views/livewire/partials/sbar-legend.blade.php ENDPATH**/ ?>

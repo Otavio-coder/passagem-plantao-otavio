@@ -1,13 +1,10 @@
-{{-- 
-resources/views/livewire/sbar-report.blade.php - VERSÃO OTIMIZADA
-Sistema SBAR para Passagem de Plantão - Interface principal
---}}
+
 
 <div class="w-full my-2 text-[#004D9D] relative font-montserrat">
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4 font-montserrat">
             
-            {{-- Container principal com Alpine.js para gerenciamento de estado --}}
+            
             <div
                 class="relative font-montserrat"
                 x-data="sbarDashboard()"
@@ -17,8 +14,8 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                 @auto-refreshed.window="handleAutoRefresh()"
             >
                 
-                {{-- Mensagem de erro global --}}
-                {{-- Spinner de carregamento global --}}
+                
+                
                 <div
                     wire:loading.delay.longer
                     class="fixed inset-0 z-[9998] flex items-center justify-center bg-[#004D9D]/20 font-montserrat"
@@ -27,12 +24,12 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                 >
                     <div class="flex flex-col items-center justify-center space-y-2 min-h-screen font-montserrat">
                         <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin" aria-hidden="true"></div>
-                        <span class="text-[#004D9D] font-medium font-montserrat">{{ $loadingMessage ?? 'Carregando...' }}</span>
+                        <span class="text-[#004D9D] font-medium font-montserrat"><?php echo e($loadingMessage ?? 'Carregando...'); ?></span>
                     </div>
                 </div>
                 <div class="font-montserrat relative">
                     
-                    {{-- Alerta informativo sobre o sistema --}}
+                    
                     <div 
                         x-data="{ showAlert: true }"
                         x-show="showAlert"
@@ -66,7 +63,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                 </div>
                             </div>
                             
-                            {{-- Botão para fechar o alerta --}}
+                            
                             <div class="flex-shrink-0 mt-3 sm:mt-0 self-start sm:ml-4 font-montserrat">
                                 <button @click="showAlert = false"
                                         class="text-blue-400 hover:text-blue-600 transition-colors p-1 font-montserrat">
@@ -78,26 +75,27 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                         </div>
                     </div>
 
-                    {{-- Container principal do conteúdo --}}
+                    
                     <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden font-montserrat">
                         
-                        {{-- Cabeçalho com controles e filtros --}}
+                        
                         <div class="bg-[#004D9D]/90 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 top-0 z-50 shadow-lg font-montserrat">
                             <div class="flex flex-col space-y-3 sm:space-y-2 font-montserrat">
                                 
-                                {{-- Linha do título centralizado e indicadores de refresh --}}
+                                
                                 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 font-montserrat">
                                     <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white font-montserrat text-center lg:text-left lg:flex-1 lg:min-w-0">Sistema SBAR - Passagem de Plantão</h1>
 
                                     <div class="flex items-center justify-center lg:justify-end gap-1 flex-shrink-0 font-montserrat">
-                                        {{-- Timestamp da última atualização - apenas em desktop --}}
-                                        @if($lastRefresh)
+                                        
+                                        <!--[if BLOCK]><![endif]--><?php if($lastRefresh): ?>
                                             <span class="hidden sm:block text-white/80 text-xs font-montserrat mr-2">
-                                                Última atualização: {{ $lastRefresh }}
-                                            </span>
-                                        @endif
+                                                Última atualização: <?php echo e($lastRefresh); ?>
 
-                                        {{-- Indicador visual de auto-refresh ativo --}}
+                                            </span>
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                                        
                                         <div x-show="autoRefreshEnabled"
                                              class="flex items-center gap-1 bg-green-500/20 px-1.5 py-0.5 rounded-full font-montserrat">
                                             <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
@@ -105,7 +103,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                             <span x-text="nextRefreshIn + 's'" class="text-green-200 text-xs font-montserrat"></span>
                                         </div>
 
-                                        {{-- Botão toggle para auto-refresh - oculto em mobile --}}
+                                        
                                         <button @click="toggleAutoRefresh()"
                                                 class="hidden sm:inline-flex items-center justify-center px-2 py-1 rounded-md shadow-md font-medium transition text-xs focus:outline-none focus:ring-2 font-montserrat"
                                                 :class="autoRefreshEnabled
@@ -117,14 +115,14 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                     </div>
                                 </div>
 
-                                {{-- Seção de filtros e controles --}}
+                                
                                 <div class="w-full font-montserrat">
                                     <div class="flex flex-col lg:flex-row lg:items-end gap-6 lg:gap-8 font-montserrat">
 
-                                        {{-- Container dos filtros responsivo --}}
+                                        
                                         <div class="flex-1 min-w-0 font-montserrat">
                                             
-                                            {{-- Filtros em dropdown para mobile --}}
+                                            
                                             <div class="lg:hidden font-montserrat" x-data="{ filtersOpen: false }">
                                                 <div class="flex items-center justify-center space-x-2 font-montserrat">
                                                     <button
@@ -159,7 +157,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                         </span>
                                                     </button>
 
-                                                    {{-- Botão de limpar filtros --}}
+                                                    
                                                     <button
                                                         wire:click="resetFilters"
                                                         wire:loading.attr="disabled"
@@ -179,7 +177,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                     </button>
                                                 </div>
 
-                                                {{-- Painel de filtros mobile --}}
+                                                
                                                 <div
                                                     x-show="filtersOpen"
                                                     x-transition:enter="transition ease-out duration-200"
@@ -193,7 +191,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                 >
                                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 font-montserrat">
                                                         
-                                                        {{-- Seletor de hospital --}}
+                                                        
                                                         <div class="flex flex-col font-montserrat">
                                                             <label class="block text-white text-xs mb-2 font-medium font-montserrat">Hospital:</label>
                                                             <select
@@ -201,13 +199,13 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                                 wire:change.debounce.200ms="changeHospital($event.target.value)"
                                                                 class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors font-montserrat"
                                                             >
-                                                                @foreach($hospitals as $hospital)
-                                                                    <option value="{{ $hospital['hospital_id'] }}" class="font-montserrat">{{ $hospital['hospital_name'] }}</option>
-                                                                @endforeach
+                                                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $hospitals; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $hospital): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                                    <option value="<?php echo e($hospital['hospital_id']); ?>" class="font-montserrat"><?php echo e($hospital['hospital_name']); ?></option>
+                                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                                             </select>
                                                         </div>
 
-                                                        {{-- Seletor de setor --}}
+                                                        
                                                         <div class="flex flex-col font-montserrat">
                                                             <label class="block text-white text-xs mb-2 font-medium font-montserrat">Setor:</label>
                                                             <select
@@ -215,15 +213,16 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                                 wire:change.debounce.200ms="changeSector($event.target.value)"
                                                                 class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors font-montserrat"
                                                             >
-                                                                @foreach($sectors as $sector)
-                                                                    <option value="{{ $sector['cd_setor_atendimento'] }}" class="text-gray-800 bg-white hover:bg-blue-50 font-montserrat">
-                                                                        {{ $sector['ds_setor_atendimento'] }}
+                                                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $sectors; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sector): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                                    <option value="<?php echo e($sector['cd_setor_atendimento']); ?>" class="text-gray-800 bg-white hover:bg-blue-50 font-montserrat">
+                                                                        <?php echo e($sector['ds_setor_atendimento']); ?>
+
                                                                     </option>
-                                                                @endforeach
+                                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                                             </select>
                                                         </div>
 
-                                                        {{-- Filtro por criticidade MEWS --}}
+                                                        
                                                         <div class="flex flex-col font-montserrat">
                                                             <label class="block text-white text-xs mb-2 font-medium font-montserrat">Criticidade:</label>
                                                             <select
@@ -237,7 +236,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                             </select>
                                                         </div>
 
-                                                        {{-- Filtro por status cirúrgico --}}
+                                                        
                                                         <div class="flex flex-col font-montserrat">
                                                             <label class="block text-white text-xs mb-2 font-medium font-montserrat">Cirurgias:</label>
                                                             <select
@@ -250,7 +249,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                             </select>
                                                         </div>
 
-                                                        {{-- Controles de ordenação --}}
+                                                        
                                                         <div class="flex flex-col sm:col-span-2 font-montserrat">
                                                             <label class="block text-white text-xs mb-2 font-medium font-montserrat">Ordenação:</label>
                                                             <div class="flex">
@@ -269,18 +268,18 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                                 <button
                                                                     wire:click="toggleOrderDirection"
                                                                     class="bg-white border border-gray-300 border-l-0 rounded-r px-3 py-2 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:bg-gray-50 transition-colors font-montserrat"
-                                                                    title="{{ $orderDirection === 'asc' ? 'Ordem crescente' : 'Ordem decrescente' }}"
+                                                                    title="<?php echo e($orderDirection === 'asc' ? 'Ordem crescente' : 'Ordem decrescente'); ?>"
                                                                     aria-label="Toggle order direction"
                                                                 >
-                                                                    @if($orderDirection === 'asc')
+                                                                    <!--[if BLOCK]><![endif]--><?php if($orderDirection === 'asc'): ?>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                                                                         </svg>
-                                                                    @else
+                                                                    <?php else: ?>
                                                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
                                                                         </svg>
-                                                                    @endif
+                                                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -288,11 +287,11 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                 </div>
                                             </div>
 
-                                            {{-- Filtros em linha para desktop --}}
+                                            
                                             <div class="hidden lg:block font-montserrat">
                                                 <div class="grid grid-cols-6 xl:flex xl:flex-row xl:items-end gap-6 xl:gap-8 font-montserrat">
                                                     
-                                                    {{-- Seletor de hospital --}}
+                                                    
                                                     <div class="flex flex-col items-center font-montserrat">
                                                         <label class="block text-white text-xs mb-2 font-medium font-montserrat text-center">Hospital:</label>
                                                         <select
@@ -300,13 +299,13 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                             wire:change.debounce.200ms="changeHospital($event.target.value)"
                                                             class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-1 px-2 text-xs w-full min-w-[144px] xl:min-w-[168px] focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors font-montserrat"
                                                         >
-                                                            @foreach($hospitals as $hospital)
-                                                                <option value="{{ $hospital['hospital_id'] }}" class="font-montserrat">{{ $hospital['hospital_name'] }}</option>
-                                                            @endforeach
+                                                            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $hospitals; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $hospital): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                                <option value="<?php echo e($hospital['hospital_id']); ?>" class="font-montserrat"><?php echo e($hospital['hospital_name']); ?></option>
+                                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                                         </select>
                                                     </div>
 
-                                                    {{-- Seletor de setor --}}
+                                                    
                                                     <div class="flex flex-col items-center font-montserrat">
                                                         <label class="block text-white text-xs mb-2 font-medium font-montserrat text-center">Setor:</label>
                                                         <select
@@ -314,15 +313,16 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                             wire:change.debounce.200ms="changeSector($event.target.value)"
                                                             class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-1 px-2 text-xs w-full min-w-[144px] xl:min-w-[168px] focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors font-montserrat"
                                                         >
-                                                            @foreach($sectors as $sector)
-                                                                <option value="{{ $sector['cd_setor_atendimento'] }}" class="text-gray-800 bg-white hover:bg-blue-50 font-montserrat">
-                                                                    {{ $sector['ds_setor_atendimento'] }}
+                                                            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $sectors; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sector): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                                <option value="<?php echo e($sector['cd_setor_atendimento']); ?>" class="text-gray-800 bg-white hover:bg-blue-50 font-montserrat">
+                                                                    <?php echo e($sector['ds_setor_atendimento']); ?>
+
                                                                 </option>
-                                                            @endforeach
+                                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                                         </select>
                                                     </div>
 
-                                                    {{-- Filtro por criticidade MEWS --}}
+                                                    
                                                     <div class="flex flex-col items-center font-montserrat">
                                                         <label class="block text-white text-xs mb-2 font-medium font-montserrat text-center">Criticidade:</label>
                                                         <select
@@ -336,7 +336,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                         </select>
                                                     </div>
 
-                                                    {{-- Filtro por status cirúrgico --}}
+                                                    
                                                     <div class="flex flex-col items-center font-montserrat">
                                                         <label class="block text-white text-xs mb-2 font-medium font-montserrat text-center">Cirurgias:</label>
                                                         <select
@@ -349,7 +349,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                         </select>
                                                     </div>
 
-                                                    {{-- Controles de ordenação --}}
+                                                    
                                                     <div class="flex flex-col items-center font-montserrat">
                                                         <label class="block text-white text-xs mb-2 font-medium font-montserrat text-center">Ordenação:</label>
                                                         <div class="flex w-full min-w-[144px] xl:min-w-[168px]">
@@ -368,27 +368,27 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                             <button
                                                                 wire:click="toggleOrderDirection"
                                                                 class="bg-white border border-gray-300 border-l-0 rounded-r px-2 py-1 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-[#0071B9]/50 hover:bg-gray-50 transition-colors font-montserrat"
-                                                                title="{{ $orderDirection === 'asc' ? 'Ordem crescente' : 'Ordem decrescente' }}"
+                                                                title="<?php echo e($orderDirection === 'asc' ? 'Ordem crescente' : 'Ordem decrescente'); ?>"
                                                                 aria-label="Toggle order direction"
                                                             >
-                                                                @if($orderDirection === 'asc')
+                                                                <!--[if BLOCK]><![endif]--><?php if($orderDirection === 'asc'): ?>
                                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                                                                     </svg>
-                                                                @else
+                                                                <?php else: ?>
                                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
                                                                     </svg>
-                                                                @endif
+                                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                                             </button>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        {{-- Botões de ação sempre visíveis (ocultos em mobile) --}}
+                                        
                                         <div class="hidden lg:flex items-center justify-center gap-3 flex-shrink-0 font-montserrat">
-                                            {{-- Botão de atualizar dados --}}
+                                            
                                             <button
                                                 wire:click="refreshData"
                                                 wire:loading.attr="disabled"
@@ -407,7 +407,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                 </span>
                                             </button>
 
-                                            {{-- Botão de limpar filtros --}}
+                                            
                                             <button
                                                 wire:click="resetFilters"
                                                 wire:loading.attr="disabled"
@@ -431,21 +431,21 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                             </div>
                         </div>
                         
-                        {{-- Container dos cards de pacientes --}}
+                        
                         <div id="patientsContainer" class="p-2 sm:p-3 lg:p-4 bg-white font-montserrat">
-                            @if(isset($errorMessage) && $errorMessage)
-                                {{-- Mensagem de erro --}}
+                            <!--[if BLOCK]><![endif]--><?php if(isset($errorMessage) && $errorMessage): ?>
+                                
                                 <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6 font-montserrat">
                                     <div class="flex items-center font-montserrat">
                                         <svg class="w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                         <strong class="font-bold font-montserrat">Erro:</strong> 
-                                        <span class="ml-2 font-montserrat">{{ $errorMessage }}</span>
+                                        <span class="ml-2 font-montserrat"><?php echo e($errorMessage); ?></span>
                                     </div>
                                 </div>
-                            @elseif(empty($patients))
-                                {{-- Mensagem de nenhum paciente encontrado --}}
+                            <?php elseif(empty($patients)): ?>
+                                
                                 <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg font-montserrat">
                                     <div class="flex items-center font-montserrat">
                                         <svg class="w-6 h-6 mr-2 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -454,30 +454,46 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                         Nenhum paciente encontrado para o filtro aplicado.
                                     </div>
                                 </div>
-                            @else
-                                {{-- Grid otimizado dos cards de pacientes --}}
+                            <?php else: ?>
+                                
                                 <div id="patientCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-4 font-montserrat">
-                                    @foreach($patients as $index => $patient)
-                                        <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}" class="relative patient-card font-montserrat" x-data>
-                                            @include('livewire.partials.patient-card', ['patient' => $patient, 'currentHospitalName' => $currentHospitalName])
+                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $patients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $patient): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <div wire:key="patient-<?php echo e($patient['nr_atendimento'] ?? 'empty-' . $index); ?>" class="relative patient-card font-montserrat" x-data>
+                                            <?php echo $__env->make('livewire.partials.patient-card', ['patient' => $patient, 'currentHospitalName' => $currentHospitalName], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
                                         </div>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
                     </div>
 
-                    {{-- Legenda de cores e indicadores --}}
+                    
                     <div class="font-montserrat">
-                        @include('livewire.partials.sbar-legend')
+                        <?php echo $__env->make('livewire.partials.sbar-legend', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
                     </div>
 
-                    {{-- Modal de detalhes do paciente --}}
+                    
                     <div class="font-montserrat">
-                        @livewire('patient-modal', [], key('patient-modal'))
+                        <?php
+$__split = function ($name, $params = []) {
+    return [$name, $params];
+};
+[$__name, $__params] = $__split('patient-modal', []);
+
+$__html = app('livewire')->mount($__name, $__params, 'patient-modal', $__slots ?? [], get_defined_vars());
+
+echo $__html;
+
+unset($__html);
+unset($__name);
+unset($__params);
+unset($__split);
+if (isset($__slots)) unset($__slots);
+?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+<?php /**PATH /var/www/passagem-plantao/resources/views/livewire/sbar-report.blade.php ENDPATH**/ ?>

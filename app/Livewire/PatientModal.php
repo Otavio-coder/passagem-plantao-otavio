@@ -29,6 +29,11 @@ class PatientModal extends Component
     public function mount()
     {
         $this->currentShift = $this->getCurrentShift();
+        
+        // Debug: log quando o component é montado
+        \Illuminate\Support\Facades\Log::info('PatientModal: Component mounted', [
+            'currentShift' => $this->currentShift
+        ]);
     }
 
     /**
@@ -54,16 +59,50 @@ class PatientModal extends Component
         }
     }
 
+    /**
+     * Método de teste para abrir modal diretamente
+     */
+    public function testOpenModal($attendanceNumber = 123)
+    {
+        \Illuminate\Support\Facades\Log::info('PatientModal: testOpenModal called', [
+            'attendanceNumber' => $attendanceNumber
+        ]);
+        
+        $this->showModal = true;
+        $this->loadingPatient = false;
+        $this->currentPatient = [
+            'nr_atendimento' => $attendanceNumber,
+            'has_patient' => true,
+        ];
+        
+        \Illuminate\Support\Facades\Log::info('PatientModal: testOpenModal finished', [
+            'showModal' => $this->showModal
+        ]);
+    }
+
     #[On('openModal')]
     public function openModal($attendanceNumber, $hospital = '')
     {
+        // Debug log
+        \Illuminate\Support\Facades\Log::info('PatientModal: openModal called', [
+            'attendanceNumber' => $attendanceNumber,
+            'hospital' => $hospital,
+            'showModal' => $this->showModal
+        ]);
+
         if (!$attendanceNumber) {
+            \Illuminate\Support\Facades\Log::warning('PatientModal: attendanceNumber is empty');
             return;
         }
 
         $this->resetModalState();
         $this->loadingPatient = true;
         $this->showModal = true;
+        
+        \Illuminate\Support\Facades\Log::info('PatientModal: modal state set', [
+            'showModal' => $this->showModal,
+            'loadingPatient' => $this->loadingPatient
+        ]);
         
         $this->dispatch('modal-opened');
         
@@ -268,7 +307,7 @@ class PatientModal extends Component
     }
 
     /**
-     * Getter para escalas organizadas
+     * Getter para escalas organizadas - NOVA ESTRUTURA SIMPLIFICADA
      */
     public function getScalesDataProperty()
     {
@@ -276,17 +315,63 @@ class PatientModal extends Component
             return null;
         }
 
-        return [
-            'mews' => [
+        $isPediatric = isset($this->patientDetails->age) && intval($this->patientDetails->age) < 16;
+
+        $scales = [];
+
+        // MEWS (adultos) ou PEWS (pediátricos)
+        if (!$isPediatric) {
+            $scales['mews'] = [
                 'score' => $this->patientDetails->mews_score ?? null,
-                'description' => $this->patientDetails->ds_mews ?? 'Sem avaliação nas últimas 24h'
-            ],
-            'braden' => $this->patientDetails->ds_braden ?? 'Sem avaliação nas últimas 24h',
-            'morse' => $this->patientDetails->ds_morse ?? 'Sem avaliação nas últimas 24h',
-            'pews' => $this->patientDetails->ds_pews ?? 'Sem avaliação nas últimas 24h',
-            'dor' => $this->patientDetails->ds_dor ?? 'Sem avaliação nas últimas 24h',
-            'tev' => $this->patientDetails->ds_tev ?? 'Sem avaliação nas últimas 24h'
+                'timestamp' => $this->patientDetails->mews_timestamp ?? null,
+                'classification' => $this->patientDetails->mews_classification ?? null,
+                'increased' => $this->patientDetails->mews_increased ?? false,
+                'needs_assessment' => $this->patientDetails->mews_needs_assessment ?? true
+            ];
+        } else {
+            $scales['pews'] = [
+                'score' => $this->patientDetails->pews_score ?? null,
+                'timestamp' => $this->patientDetails->pews_timestamp ?? null,
+                'classification' => $this->patientDetails->pews_classification ?? null,
+                'increased' => $this->patientDetails->pews_increased ?? false,
+                'needs_assessment' => $this->patientDetails->pews_needs_assessment ?? true
+            ];
+        }
+
+        // Escalas comuns
+        $scales['braden'] = [
+            'score' => $this->patientDetails->braden_score ?? null,
+            'timestamp' => $this->patientDetails->braden_timestamp ?? null,
+            'classification' => $this->patientDetails->braden_classification ?? null,
+            'increased' => $this->patientDetails->braden_increased ?? false,
+            'needs_assessment' => $this->patientDetails->braden_needs_assessment ?? true
         ];
+
+        $scales['morse'] = [
+            'score' => $this->patientDetails->morse_score ?? null,
+            'timestamp' => $this->patientDetails->morse_timestamp ?? null,
+            'classification' => $this->patientDetails->morse_classification ?? null,
+            'increased' => $this->patientDetails->morse_increased ?? false,
+            'needs_assessment' => $this->patientDetails->morse_needs_assessment ?? true
+        ];
+
+        $scales['dor'] = [
+            'score' => $this->patientDetails->dor_score ?? null,
+            'timestamp' => $this->patientDetails->dor_timestamp ?? null,
+            'classification' => $this->patientDetails->dor_classification ?? null,
+            'increased' => $this->patientDetails->dor_increased ?? false,
+            'needs_assessment' => $this->patientDetails->dor_needs_assessment ?? true
+        ];
+
+        $scales['tev'] = [
+            'score' => $this->patientDetails->tev_score ?? null,
+            'timestamp' => $this->patientDetails->tev_timestamp ?? null,
+            'classification' => $this->patientDetails->tev_classification ?? null,
+            'increased' => $this->patientDetails->tev_increased ?? false,
+            'needs_assessment' => $this->patientDetails->tev_needs_assessment ?? true
+        ];
+
+        return $scales;
     }
 
     /**

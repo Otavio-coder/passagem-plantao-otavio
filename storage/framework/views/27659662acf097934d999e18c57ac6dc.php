@@ -1,6 +1,6 @@
 <div x-data="{ 
-    showAlertsModal: @entangle('showAlertsModal'),
-    showModal: @entangle('showModal'),
+    showAlertsModal: <?php if ((object) ('showAlertsModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showAlertsModal'->value()); ?>')<?php echo e('showAlertsModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showAlertsModal'); ?>')<?php endif; ?>,
+    showModal: <?php if ((object) ('showModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showModal'->value()); ?>')<?php echo e('showModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showModal'); ?>')<?php endif; ?>,
     init() {
         console.log('PatientModal Alpine init:', { showModal: this.showModal, showAlertsModal: this.showAlertsModal });
         
@@ -52,14 +52,29 @@
     }
 }">
 
-    {{-- Modal de Alertas (children modal) --}}
-    <x-patient-modal.alerts-modal 
-        :showAlertsModal="$showAlertsModal"
-        :patientAlerts="$patientAlerts"
-        :currentPatient="$currentPatient"
-    />
+    
+    <?php if (isset($component)) { $__componentOriginal98889a1f8ec018a5f75996283a91794b = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal98889a1f8ec018a5f75996283a91794b = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.alerts-modal','data' => ['showAlertsModal' => $showAlertsModal,'patientAlerts' => $patientAlerts,'currentPatient' => $currentPatient]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.alerts-modal'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['showAlertsModal' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($showAlertsModal),'patientAlerts' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientAlerts),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal98889a1f8ec018a5f75996283a91794b)): ?>
+<?php $attributes = $__attributesOriginal98889a1f8ec018a5f75996283a91794b; ?>
+<?php unset($__attributesOriginal98889a1f8ec018a5f75996283a91794b); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal98889a1f8ec018a5f75996283a91794b)): ?>
+<?php $component = $__componentOriginal98889a1f8ec018a5f75996283a91794b; ?>
+<?php unset($__componentOriginal98889a1f8ec018a5f75996283a91794b); ?>
+<?php endif; ?>
 
-    {{-- Debug: {{ $showModal ? 'Modal deve aparecer' : 'Modal oculto' }} --}}
+    
 
     <div 
         x-show="showModal"
@@ -72,11 +87,11 @@
         class="modal-backdrop-container"
         style="touch-action: none;"
     >
-            {{-- Backdrop com blur gradual --}}
+            
             <div class="modal-backdrop-overlay"
                  @click="!showAlertsModal && (showModal = false); setTimeout(() => $wire.closeModal(), 150)"></div>
             
-            {{-- Modal Container - Mobile First Design --}}
+            
             <div
                 class="modal-main-container"
                 x-data="{
@@ -155,8 +170,8 @@
                 x-init="
                     currentTabIndex = tabs.indexOf(activeTab);
                 "
-                data-patient-id="{{ $currentPatient['nr_atendimento'] ?? '' }}"
-                data-shift="{{ $currentShift ?? '' }}"
+                data-patient-id="<?php echo e($currentPatient['nr_atendimento'] ?? ''); ?>"
+                data-shift="<?php echo e($currentShift ?? ''); ?>"
                 @click.stop
                 @touchstart.passive="
                     if (!isSwipeEnabled || isTransitioning) return;
@@ -198,8 +213,8 @@
                     swipeStartTime = null;
                 "
             >
-                {{-- Loading Overlay - Mantendo compatibilidade com ID original --}}
-                @if($loadingPatient)
+                
+                <!--[if BLOCK]><![endif]--><?php if($loadingPatient): ?>
                     <div id="modal-global-loading" class="modal-loading-overlay">
                         <div class="modal-loading-content">
                             <div class="modal-loading-spinner">
@@ -214,22 +229,56 @@
                             </div>
                         </div>
                     </div>
-                @endif
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
-                {{-- Header - Fixed and responsive --}}
+                
                 <div class="modal-header">
-                    <x-patient-modal.header 
-                        :currentHospitalName="$currentHospitalName"
-                        :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" 
-                    />
+                    <?php if (isset($component)) { $__componentOriginal4bf6bb988fdfe580fbc23256011219b6 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal4bf6bb988fdfe580fbc23256011219b6 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.header','data' => ['currentHospitalName' => $currentHospitalName,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.header'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['currentHospitalName' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentHospitalName),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient),'patientDetails' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientDetails)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal4bf6bb988fdfe580fbc23256011219b6)): ?>
+<?php $attributes = $__attributesOriginal4bf6bb988fdfe580fbc23256011219b6; ?>
+<?php unset($__attributesOriginal4bf6bb988fdfe580fbc23256011219b6); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal4bf6bb988fdfe580fbc23256011219b6)): ?>
+<?php $component = $__componentOriginal4bf6bb988fdfe580fbc23256011219b6; ?>
+<?php unset($__componentOriginal4bf6bb988fdfe580fbc23256011219b6); ?>
+<?php endif; ?>
                 </div>
 
-                {{-- Tabs Navigation --}}
+                
                 <div class="modal-tabs-container">
-                    <x-patient-modal.tabs />
+                    <?php if (isset($component)) { $__componentOriginalf5e3eb31ed4066b4d609e56376850514 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalf5e3eb31ed4066b4d609e56376850514 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.tabs','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.tabs'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalf5e3eb31ed4066b4d609e56376850514)): ?>
+<?php $attributes = $__attributesOriginalf5e3eb31ed4066b4d609e56376850514; ?>
+<?php unset($__attributesOriginalf5e3eb31ed4066b4d609e56376850514); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalf5e3eb31ed4066b4d609e56376850514)): ?>
+<?php $component = $__componentOriginalf5e3eb31ed4066b4d609e56376850514; ?>
+<?php unset($__componentOriginalf5e3eb31ed4066b4d609e56376850514); ?>
+<?php endif; ?>
                     
-                    {{-- Mobile swipe indicator --}}
+                    
                     <div x-show="isSwipeEnabled && deviceType === 'mobile'" class="mobile-swipe-indicator">
                         <div class="swipe-hint">
                             <svg class="swipe-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,63 +292,123 @@
                     </div>
                 </div>
 
-                {{-- Content Area - Mobile optimized scrolling --}}
+                
                 <div class="modal-content-wrapper">
-                    {{-- Situação --}}
+                    
                     <div
                         x-show="activeTab === 'tab-s'"
                         class="modal-tab-content"
                         x-bind:class="activeTab === 'tab-s' ? 'active' : ''"
                     >
                         <div class="tab-content-padding">
-                            <x-patient-modal.content.sbar-situacao 
-                                :loadingPatient="$loadingPatient"
-                                :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
-                            />
+                            <?php if (isset($component)) { $__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal7d98fd0210ab584bddbed0ec9645a4a1 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-situacao','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.content.sbar-situacao'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['loadingPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($loadingPatient),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient),'patientDetails' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientDetails)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal7d98fd0210ab584bddbed0ec9645a4a1)): ?>
+<?php $attributes = $__attributesOriginal7d98fd0210ab584bddbed0ec9645a4a1; ?>
+<?php unset($__attributesOriginal7d98fd0210ab584bddbed0ec9645a4a1); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1)): ?>
+<?php $component = $__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1; ?>
+<?php unset($__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1); ?>
+<?php endif; ?>
                         </div>
                     </div>
 
-                    {{-- Background --}}
+                    
                     <div
                         x-show="activeTab === 'tab-b'"
                         class="modal-tab-content"
                         x-bind:class="activeTab === 'tab-b' ? 'active' : ''"
                     >
                         <div class="tab-content-padding">
-                            <x-patient-modal.content.sbar-background 
-                                :loadingPatient="$loadingPatient"
-                                :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
-                            />
+                            <?php if (isset($component)) { $__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalcdde50ed7fba9ea869fd8fc0728335a2 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-background','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.content.sbar-background'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['loadingPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($loadingPatient),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient),'patientDetails' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientDetails)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalcdde50ed7fba9ea869fd8fc0728335a2)): ?>
+<?php $attributes = $__attributesOriginalcdde50ed7fba9ea869fd8fc0728335a2; ?>
+<?php unset($__attributesOriginalcdde50ed7fba9ea869fd8fc0728335a2); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2)): ?>
+<?php $component = $__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2; ?>
+<?php unset($__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2); ?>
+<?php endif; ?>
                         </div>
                     </div>
 
-                    {{-- Avaliação (Chat) --}}
+                    
                     <div
                         x-show="activeTab === 'tab-a'"
                         class="modal-tab-content modal-tab-chat"
                         x-bind:class="activeTab === 'tab-a' ? 'active' : ''"
                     >
-                        <x-patient-modal.content.sbar-avaliacao 
-                            :loadingPatient="$loadingPatient"
-                            :currentPatient="$currentPatient"
-                            :patientDetails="$patientDetails"
-                        />
+                        <?php if (isset($component)) { $__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-avaliacao','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.content.sbar-avaliacao'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['loadingPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($loadingPatient),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient),'patientDetails' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientDetails)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c)): ?>
+<?php $attributes = $__attributesOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c; ?>
+<?php unset($__attributesOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c)): ?>
+<?php $component = $__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c; ?>
+<?php unset($__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c); ?>
+<?php endif; ?>
                     </div>
 
-                    {{-- Recomendações --}}
+                    
                     <div
                         x-show="activeTab === 'tab-r'"
                         class="modal-tab-content"
                         x-bind:class="activeTab === 'tab-r' ? 'active' : ''"
                     >
                         <div class="tab-content-padding">
-                            <x-patient-modal.content.sbar-recomendacoes 
-                                :loadingPatient="$loadingPatient"
-                                :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
-                            />
+                            <?php if (isset($component)) { $__componentOriginal17f895e11d1d0760497c472b26dd09a1 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal17f895e11d1d0760497c472b26dd09a1 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-recomendacoes','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('patient-modal.content.sbar-recomendacoes'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['loadingPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($loadingPatient),'currentPatient' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($currentPatient),'patientDetails' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($patientDetails)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal17f895e11d1d0760497c472b26dd09a1)): ?>
+<?php $attributes = $__attributesOriginal17f895e11d1d0760497c472b26dd09a1; ?>
+<?php unset($__attributesOriginal17f895e11d1d0760497c472b26dd09a1); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal17f895e11d1d0760497c472b26dd09a1)): ?>
+<?php $component = $__componentOriginal17f895e11d1d0760497c472b26dd09a1; ?>
+<?php unset($__componentOriginal17f895e11d1d0760497c472b26dd09a1); ?>
+<?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -824,4 +933,4 @@
             }
         }
     </style>
-</div>
+</div><?php /**PATH /var/www/passagem-plantao/resources/views/livewire/patient-modal.blade.php ENDPATH**/ ?>

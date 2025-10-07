@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use App\Repositories\EMR\PatientScales;
 use App\Repositories\EMR\PatientClinical;
 use App\Repositories\EMR\PatientCPOE;
+use App\Services\ScaleService;
 use App\Models\System\SystemConfiguration;
 
 class Patient extends Model
@@ -27,6 +28,9 @@ class Patient extends Model
     protected $clinicalRepo;
     protected $cpoeRepo;
     
+    // Services auxiliares
+    protected $scaleService;
+    
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
@@ -40,6 +44,9 @@ class Patient extends Model
         $this->scalesRepo = new PatientScales();
         $this->clinicalRepo = new PatientClinical();
         $this->cpoeRepo = new PatientCPOE();
+        
+        // Inicializa services auxiliares
+        $this->scaleService = new ScaleService();
     }
     
     /**
@@ -474,6 +481,9 @@ class Patient extends Model
             'isolation' => $this->fetchBatchIsolation($attendanceNumbers),
             'surgery' => $this->fetchBatchSurgeryFuture($attendanceNumbers),
             'priority_exams' => $this->fetchBatchPriorityExams($attendanceNumbers),
+            'allergies_detailed' => $this->fetchBatchAllergiesDetailed($attendanceNumbers),
+            'isolation_detailed' => $this->fetchBatchIsolationDetailed($attendanceNumbers),
+            'surgery_detailed' => $this->fetchBatchSurgeryDetailed($attendanceNumbers),
         ];
     }
     
@@ -561,7 +571,7 @@ class Patient extends Model
     }
     
     /**
-     * Busca exames prioritários em batch - CORRIGIDO para evitar ORA-01489
+     * Busca exames prioritários em batch - CORRIGIDO para usar mesma lógica do modal
      */
     private function fetchBatchPriorityExams($attendanceNumbers)
     {
@@ -572,50 +582,36 @@ class Patient extends Model
         $data = [];
         
         try {
-            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
-            
-            // Corrigido: Limita o LISTAGG para evitar ORA-01489
-            $results = DB::connection('tasy')->select("
-                SELECT 
-                    prescrm.nr_atendimento,
-                    CASE 
-                        WHEN LENGTH(
-                            LISTAGG(
-                                DISTINCT SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30), 
-                                ', '
-                            ) WITHIN GROUP (ORDER BY SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30))
-                        ) > 200 THEN
-                            SUBSTR(
-                                LISTAGG(
-                                    DISTINCT SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30), 
-                                    ', '
-                                ) WITHIN GROUP (ORDER BY SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30)),
-                                1, 200
-                            ) || '...'
-                        ELSE
-                            LISTAGG(
-                                DISTINCT SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30), 
-                                ', '
-                            ) WITHIN GROUP (ORDER BY SUBSTR(tasy.obter_valor_dominio(95, proc.cd_tipo_procedimento), 1, 30))
-                    END as exames_prioritarios
-                FROM tasy.prescr_procedimento prescrp
-                INNER JOIN tasy.prescr_medica prescrm ON prescrp.nr_prescricao = prescrm.nr_prescricao
-                INNER JOIN tasy.procedimento proc ON prescrp.cd_procedimento = proc.cd_procedimento
-                WHERE prescrm.nr_atendimento IN ({$placeholders})
-                    AND prescrp.ie_status_execucao = '10'
-                    AND prescrp.dt_coleta IS NULL
-                    AND prescrm.dt_liberacao IS NOT NULL
-                    AND prescrp.ie_origem_proced <> 4
-                    AND ROWNUM <= 50  -- Limita resultados para evitar sobrecarga
-                GROUP BY prescrm.nr_atendimento
-            ", $attendanceNumbers);
+            // Busca um por vez usando a mesma lógica que funciona no modal
+            foreach ($attendanceNumbers as $attendanceNumber) {
+                $result = DB::connection('tasy')->select("
+                    SELECT
+                        tasy.obter_select_concatenado_bv(
+                            'select obter_valor_dominio(95,proc.cd_tipo_procedimento) tipo
+                            from prescr_procedimento prescrp,
+                                prescr_medica prescrm,
+                                procedimento proc
+                            where prescrp.nr_prescricao = prescrm.nr_prescricao
+                            and prescrp.cd_procedimento = proc.cd_procedimento
+                            and prescrm.nr_atendimento = :nr_atend
+                            and prescrp.ie_status_execucao = ''10''
+                            and prescrp.dt_coleta is null
+                            and prescrm.dt_liberacao is not null
+                            and prescrp.ie_origem_proced <> 4
+                            group by obter_valor_dominio(95,proc.cd_tipo_procedimento)',
+                            'nr_atend=' || :nr_atendimento,
+                            CHR(13)
+                        ) AS prioridade_exames
+                    FROM dual
+                ", ['nr_atendimento' => $attendanceNumber]);
 
-            foreach ($results as $result) {
-                $exames = $result->exames_prioritarios ?? '';
-                // Remove espaços extras e garante que não está vazio
-                $exames = trim($exames);
-                if (!empty($exames) && $exames !== '...') {
-                    $data[$result->nr_atendimento] = $exames;
+                if ($result && !empty($result[0]->prioridade_exames)) {
+                    $exams = $result[0]->prioridade_exames;
+                    $exams = str_replace(chr(13), ', ', $exams); // Para o card usa vírgula em vez de quebra de linha
+                    $exams = trim($exams);
+                    if (!empty($exams)) {
+                        $data[$attendanceNumber] = $exams;
+                    }
                 }
             }
         } catch (\Exception $e) {
@@ -626,6 +622,172 @@ class Patient extends Model
     }
     
     /**
+     * Busca detalhes de alergias em lote
+     */
+    private function fetchBatchAllergiesDetailed($attendanceNumbers)
+    {
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+
+        $data = [];
+        
+        try {
+            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
+            
+            $results = DB::connection('tasy')->select("
+                SELECT DISTINCT
+                    atp.nr_atendimento,
+                    wpp.ds_alergias as alergias_detalhadas
+                FROM tasy.atendimento_paciente atp
+                JOIN tasy.W_PAN_PACIENTE wpp ON wpp.cd_pessoa_paciente = atp.cd_pessoa_fisica
+                WHERE atp.nr_atendimento IN ({$placeholders})
+                  AND wpp.ds_alergias IS NOT NULL 
+                  AND LENGTH(TRIM(wpp.ds_alergias)) > 0
+            ", $attendanceNumbers);
+
+            foreach ($results as $result) {
+                $alergias = trim($result->alergias_detalhadas ?? '');
+                if (!empty($alergias)) {
+                    $data[$result->nr_atendimento] = $alergias;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("Error fetching allergies detailed batch: " . $e->getMessage());
+        }
+        
+        return $data;
+    }
+    
+    /**
+     * Busca detalhes de isolamento em lote
+     */
+    private function fetchBatchIsolationDetailed($attendanceNumbers)
+    {
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+
+        $data = [];
+        
+        try {
+            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
+            
+            $results = DB::connection('tasy')->select("
+                SELECT DISTINCT
+                    ap.nr_atendimento,
+                    LISTAGG(cp.ds_precaucao || ' - ' || mi.ds_motivo, '; ') 
+                    WITHIN GROUP (ORDER BY cp.ds_precaucao || ' - ' || mi.ds_motivo) as motivos_isolamento
+                FROM tasy.atendimento_precaucao ap
+                JOIN tasy.motivo_isolamento mi ON ap.nr_seq_motivo_isol = mi.nr_sequencia
+                JOIN tasy.cih_precaucao cp ON ap.nr_seq_precaucao = cp.nr_sequencia
+                WHERE ap.nr_atendimento IN ({$placeholders})
+                  AND SYSDATE BETWEEN ap.dt_inicio AND NVL(ap.dt_termino, SYSDATE)
+                  AND ap.dt_liberacao IS NOT NULL
+                  AND ap.dt_inativacao IS NULL
+                GROUP BY ap.nr_atendimento
+            ", $attendanceNumbers);
+
+            foreach ($results as $result) {
+                $motivos = trim($result->motivos_isolamento ?? '');
+                if (!empty($motivos)) {
+                    $data[$result->nr_atendimento] = $motivos;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("Error fetching isolation detailed batch: " . $e->getMessage());
+        }
+        
+        return $data;
+    }
+    
+    /**
+     * Busca detalhes de cirurgias em lote
+     */
+    private function fetchBatchSurgeryDetailed($attendanceNumbers)
+    {
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+
+        $data = [];
+        
+        try {
+            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
+            
+            $results = DB::connection('tasy')->select("
+                SELECT 
+                    atp.nr_atendimento,
+                    TO_CHAR(aaa.dt_agenda, 'DD/MM/YYYY') as data_agenda,
+                    TO_CHAR(aaa.hr_inicio, 'HH24:MI') as hora_agenda,
+                    SUBSTR(
+                        TASY.obter_desc_agenda(aaa.cd_agenda) || 
+                        ' / Data e hora: ' || TO_CHAR(aaa.dt_agenda, 'DD/MM/YYYY') || 
+                        CASE WHEN aaa.hr_inicio IS NOT NULL THEN ' ' || TO_CHAR(aaa.hr_inicio, 'HH24:MI') ELSE ' 00:00' END ||
+                        ' - Proced.: ' || TASY.obter_descricao_procedimento(aaa.cd_procedimento, aaa.ie_origem_proced),
+                        1, 200
+                    ) as procedimento,
+                    aaa.ie_carater_cirurgia,
+                    aaa.ds_observacao
+                FROM tasy.atendimento_paciente atp
+                JOIN tasy.agenda_paciente aaa ON atp.cd_pessoa_fisica = aaa.cd_pessoa_fisica
+                WHERE atp.nr_atendimento IN ({$placeholders})
+                  AND aaa.IE_CARATER_CIRURGIA IS NOT NULL
+                  AND aaa.IE_CARATER_CIRURGIA <> 'X'
+                  AND aaa.dt_agenda > SYSDATE
+                ORDER BY aaa.dt_agenda ASC, aaa.hr_inicio ASC
+            ", $attendanceNumbers);
+
+            foreach ($results as $result) {
+                if (!isset($data[$result->nr_atendimento])) {
+                    $data[$result->nr_atendimento] = [];
+                }
+                $data[$result->nr_atendimento][] = [
+                    'data_agenda' => $result->data_agenda,
+                    'hora_agenda' => $result->hora_agenda,
+                    'procedimento' => $result->procedimento ?: 'Procedimento cirúrgico',
+                    'carater_cirurgia' => $this->getCaraterCirurgiaDescription($result->ie_carater_cirurgia ?? ''),
+                    'observacoes' => $result->ds_observacao ?? ''
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::warning("Error fetching surgery detailed batch: " . $e->getMessage());
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Método auxiliar para obter descrição do caráter da cirurgia
+     */
+    private function getCaraterCirurgiaDescription($carater)
+    {
+        return match($carater) {
+            'E' => 'Eletiva',
+            'U' => 'Urgência',
+            'G' => 'Emergência',
+            default => 'Não informado'
+        };
+    }
+
+    /**
+     * Formata informações de cirurgias para tooltip
+     */
+    private function formatSurgeryInfo($surgeries)
+    {
+        if (empty($surgeries)) {
+            return '';
+        }
+        
+        return collect($surgeries)
+            ->take(2) // Máximo 2 cirurgias
+            ->map(function($surgery) {
+                return $surgery['data_agenda'] . ' às ' . $surgery['hora_agenda'] . ' - ' . $surgery['procedimento'];
+            })
+            ->join("\n");
+    }
+
+    /**
      * Formata dados de um paciente para o SBAR Report
      */
     private function formatSbarPatientData($bed, $sectorData, $batchData)
@@ -635,10 +797,15 @@ class Patient extends Model
         $internmentDays = is_numeric($internmentDaysRaw) ? floatval($internmentDaysRaw) : null;
         $isNewPatient = ($internmentDays === null || $internmentDaysRaw === 'N/A' || $internmentDaysRaw === '' || $internmentDays < 1);
         
-        // BUSCA ESCALAS USANDO O REPOSITÓRIO ÚNICO
+        // BUSCA ESCALAS USANDO O REPOSITÓRIO ÚNICO E PROCESSA COM SCALESERVICE
         $scalesData = null;
+        $processedScales = [];
         if ($attendanceNumber) {
-            $scalesData = $this->scalesRepo->getPatientScales($attendanceNumber);
+            $rawScalesData = $this->scalesRepo->getPatientScales($attendanceNumber);
+            if ($rawScalesData) {
+                $isPediatric = ($bed->age ?? 99) < 18;
+                $processedScales = $this->scaleService->processScalesData($rawScalesData, $isPediatric);
+            }
         }
         
         $baseData = [
@@ -675,59 +842,161 @@ class Patient extends Model
             'has_allergy' => $batchData['allergies'][$attendanceNumber] ?? false,
             'has_isolation' => $batchData['isolation'][$attendanceNumber] ?? false,
             'has_surgery' => $batchData['surgery'][$attendanceNumber] ?? false,
-            'exames_prioritarios' => $batchData['priority_exams'][$attendanceNumber] ?? null,
+            'prioridade_exames' => $batchData['priority_exams'][$attendanceNumber] ?? null,
+            'alergias_detalhadas' => $batchData['allergies_detailed'][$attendanceNumber] ?? 'Sem alergias registradas',
+            'motivos_isolamento' => $batchData['isolation_detailed'][$attendanceNumber] ?? 'Nenhum motivo de isolamento',
+            'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
+            'cirurgias_info' => $this->formatSurgeryInfo($batchData['surgery_detailed'][$attendanceNumber] ?? []),
             'pending_events' => '',
         ];
         
-        // ADICIONA DADOS DAS ESCALAS SE EXISTEM com valores padrão
-        if ($scalesData) {
-            $baseData = array_merge($baseData, [
-                'mews_score' => $scalesData->mews_score ?? null,
-                'mews_needs_assessment' => $scalesData->mews_needs_assessment ?? true,
-                'mews_increased' => $isNewPatient ? false : ($scalesData->mews_increased ?? false),
-                'mews_classification' => $scalesData->mews_classification ?? 'Não classificado',
-                'mews_shift' => $scalesData->mews_shift ?? null,
-                'ds_mews' => $scalesData->ds_mews ?? 'Sem avaliação nas últimas 24h',
-                
-                'braden_score' => $scalesData->braden_score ?? null,
-                'braden_needs_assessment' => $scalesData->braden_needs_assessment ?? true,
-                'braden_increased' => $isNewPatient ? false : ($scalesData->braden_increased ?? false),
-                'braden_classification' => $scalesData->braden_classification ?? 'Não classificado',
-                'ds_braden' => $scalesData->ds_braden ?? 'Sem avaliação nas últimas 24h',
-                
-                'morse_score' => $scalesData->morse_score ?? null,
-                'morse_needs_assessment' => $scalesData->morse_needs_assessment ?? true,
-                'morse_increased' => $isNewPatient ? false : ($scalesData->morse_increased ?? false),
-                'morse_classification' => $scalesData->morse_classification ?? 'Não classificado',
-                'ds_morse' => $scalesData->ds_morse ?? 'Sem avaliação nas últimas 24h',
-                
-                'dor_score' => $scalesData->dor_score ?? null,
-                'dor_needs_assessment' => $scalesData->dor_needs_assessment ?? true,
-                'dor_increased' => $isNewPatient ? false : ($scalesData->dor_increased ?? false),
-                'dor_classification' => $scalesData->dor_classification ?? 'Não classificado',
-                'dor_shift' => $scalesData->dor_shift ?? null,
-                'ds_dor' => $scalesData->ds_dor ?? 'Sem avaliação nas últimas 24h',
-                
-                'tev_score' => $scalesData->tev_score ?? null,
-                'tev_needs_assessment' => $scalesData->tev_needs_assessment ?? true,
-                'tev_increased' => $isNewPatient ? false : ($scalesData->tev_increased ?? false),
-                'tev_classification' => $scalesData->tev_classification ?? 'Não classificado',
-                'ds_tev' => $scalesData->ds_tev ?? 'Sem avaliação nas últimas 24h',
-                
-                'pews_score' => $scalesData->pews_score ?? null,
-                'pews_needs_assessment' => $scalesData->pews_needs_assessment ?? true,
-                'pews_increased' => $isNewPatient ? false : ($scalesData->pews_increased ?? false),
-                'pews_classification' => $scalesData->pews_classification ?? 'Não classificado',
-                'pews_shift' => $scalesData->pews_shift ?? null,
-                'ds_pews' => $scalesData->ds_pews ?? 'Sem avaliação nas últimas 24h',
-            ]);
+        // ADICIONA DADOS DAS ESCALAS PROCESSADAS PELO SCALESERVICE
+        if (!empty($processedScales)) {
+            // Usa escalas processadas - MEWS ou PEWS conforme idade
+            $isPediatric = ($bed->age ?? 99) < 18;
+            
+            if (!$isPediatric && isset($processedScales['mews'])) {
+                $mews = $processedScales['mews'];
+                $baseData = array_merge($baseData, [
+                    'mews_score' => $mews['score'],
+                    'mews_needs_assessment' => $mews['needs_assessment'] ?? true,
+                    'mews_increased' => $mews['increased'] ?? false,
+                    'mews_classification' => $mews['classification'],
+                    'mews_styling' => $mews['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'mews_shift' => $mews['timestamp'],
+                    'ds_mews' => $mews['timestamp'] ? $mews['timestamp'] . ' - MEWS: ' . $mews['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                // Valores padrão para MEWS
+                $baseData = array_merge($baseData, [
+                    'mews_score' => null,
+                    'mews_needs_assessment' => true,
+                    'mews_increased' => false,
+                    'mews_classification' => 'Não classificado',
+                    'mews_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'mews_shift' => null,
+                    'ds_mews' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
+            
+            if ($isPediatric && isset($processedScales['pews'])) {
+                $pews = $processedScales['pews'];
+                $baseData = array_merge($baseData, [
+                    'pews_score' => $pews['score'],
+                    'pews_needs_assessment' => $pews['needs_assessment'] ?? true,
+                    'pews_increased' => $pews['increased'] ?? false,
+                    'pews_classification' => $pews['classification'],
+                    'pews_styling' => $pews['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'pews_shift' => $pews['timestamp'],
+                    'ds_pews' => $pews['timestamp'] ? $pews['timestamp'] . ' - PEWS: ' . $pews['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                // Valores padrão para PEWS
+                $baseData = array_merge($baseData, [
+                    'pews_score' => null,
+                    'pews_needs_assessment' => true,
+                    'pews_increased' => false,
+                    'pews_classification' => 'Não classificado',
+                    'pews_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'pews_shift' => null,
+                    'ds_pews' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
+            
+            // Escalas comuns
+            if (isset($processedScales['braden'])) {
+                $braden = $processedScales['braden'];
+                $baseData = array_merge($baseData, [
+                    'braden_score' => $braden['score'],
+                    'braden_needs_assessment' => $braden['needs_assessment'] ?? true,
+                    'braden_increased' => $braden['increased'] ?? false,
+                    'braden_classification' => $braden['classification'],
+                    'braden_styling' => $braden['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_braden' => $braden['timestamp'] ? $braden['timestamp'] . ' - Braden: ' . $braden['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                $baseData = array_merge($baseData, [
+                    'braden_score' => null,
+                    'braden_needs_assessment' => true,
+                    'braden_increased' => false,
+                    'braden_classification' => 'Não classificado',
+                    'braden_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_braden' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
+            
+            if (isset($processedScales['morse'])) {
+                $morse = $processedScales['morse'];
+                $baseData = array_merge($baseData, [
+                    'morse_score' => $morse['score'],
+                    'morse_needs_assessment' => $morse['needs_assessment'] ?? true,
+                    'morse_increased' => $morse['increased'] ?? false,
+                    'morse_classification' => $morse['classification'],
+                    'morse_styling' => $morse['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_morse' => $morse['timestamp'] ? $morse['timestamp'] . ' - Morse: ' . $morse['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                $baseData = array_merge($baseData, [
+                    'morse_score' => null,
+                    'morse_needs_assessment' => true,
+                    'morse_increased' => false,
+                    'morse_classification' => 'Não classificado',
+                    'morse_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_morse' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
+            
+            if (isset($processedScales['dor'])) {
+                $dor = $processedScales['dor'];
+                $baseData = array_merge($baseData, [
+                    'dor_score' => $dor['score'],
+                    'dor_needs_assessment' => $dor['needs_assessment'] ?? true,
+                    'dor_increased' => $dor['increased'] ?? false,
+                    'dor_classification' => $dor['classification'],
+                    'dor_styling' => $dor['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'dor_shift' => $dor['timestamp'],
+                    'ds_dor' => $dor['timestamp'] ? $dor['timestamp'] . ' - Dor: ' . $dor['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                $baseData = array_merge($baseData, [
+                    'dor_score' => null,
+                    'dor_needs_assessment' => true,
+                    'dor_increased' => false,
+                    'dor_classification' => 'Não classificado',
+                    'dor_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'dor_shift' => null,
+                    'ds_dor' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
+            
+            if (isset($processedScales['tev'])) {
+                $tev = $processedScales['tev'];
+                $baseData = array_merge($baseData, [
+                    'tev_score' => $tev['score'],
+                    'tev_needs_assessment' => $tev['needs_assessment'] ?? true,
+                    'tev_increased' => $tev['increased'] ?? false,
+                    'tev_classification' => $tev['classification'],
+                    'tev_styling' => $tev['styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_tev' => $tev['timestamp'] ? $tev['timestamp'] . ' - TEV: ' . $tev['score'] : 'Sem avaliação nas últimas 24h',
+                ]);
+            } else {
+                $baseData = array_merge($baseData, [
+                    'tev_score' => null,
+                    'tev_needs_assessment' => true,
+                    'tev_increased' => false,
+                    'tev_classification' => 'Não classificado',
+                    'tev_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                    'ds_tev' => 'Sem avaliação nas últimas 24h',
+                ]);
+            }
         } else {
-            // Se não há escalas, define valores padrão
+            // Se não há escalas processadas, define valores padrão para todas
             $baseData = array_merge($baseData, [
                 'mews_score' => null,
                 'mews_needs_assessment' => true,
                 'mews_increased' => false,
                 'mews_classification' => 'Não classificado',
+                'mews_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'mews_shift' => null,
                 'ds_mews' => 'Sem avaliação nas últimas 24h',
                 
@@ -735,18 +1004,21 @@ class Patient extends Model
                 'braden_needs_assessment' => true,
                 'braden_increased' => false,
                 'braden_classification' => 'Não classificado',
+                'braden_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'ds_braden' => 'Sem avaliação nas últimas 24h',
                 
                 'morse_score' => null,
                 'morse_needs_assessment' => true,
                 'morse_increased' => false,
                 'morse_classification' => 'Não classificado',
+                'morse_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'ds_morse' => 'Sem avaliação nas últimas 24h',
                 
                 'dor_score' => null,
                 'dor_needs_assessment' => true,
                 'dor_increased' => false,
                 'dor_classification' => 'Não classificado',
+                'dor_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'dor_shift' => null,
                 'ds_dor' => 'Sem avaliação nas últimas 24h',
                 
@@ -754,12 +1026,14 @@ class Patient extends Model
                 'tev_needs_assessment' => true,
                 'tev_increased' => false,
                 'tev_classification' => 'Não classificado',
+                'tev_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'ds_tev' => 'Sem avaliação nas últimas 24h',
                 
                 'pews_score' => null,
                 'pews_needs_assessment' => true,
                 'pews_increased' => false,
                 'pews_classification' => 'Não classificado',
+                'pews_styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
                 'pews_shift' => null,
                 'ds_pews' => 'Sem avaliação nas últimas 24h',
             ]);
@@ -872,12 +1146,21 @@ class Patient extends Model
     }
     
     /**
-     * Busca escalas de um paciente
+     * Busca escalas de um paciente PROCESSADAS pelo ScaleService
      */
     private function fetchPatientScales($attendanceNumber)
     {
-        // Usa o repositório como auxiliar
-        return $this->scalesRepo->getPatientScales($attendanceNumber);
+        // Busca dados brutos
+        $rawScalesData = $this->scalesRepo->getPatientScales($attendanceNumber);
+        
+        if (!$rawScalesData) {
+            return null;
+        }
+        
+        // Processa com ScaleService - NOTE: idade não disponível aqui, assume adulto
+        $processedScales = $this->scaleService->processScalesData($rawScalesData, false);
+        
+        return $processedScales;
     }
     
     /**
@@ -923,14 +1206,66 @@ class Patient extends Model
                 'procedimentos_cirurgicos' => $clinicalDetails->procedimentos_cirurgicos ?? [],
                 'alerts' => $clinicalDetails->alerts ?? [],
                 
-                // Escalas com valores padrão
-                'mews_score' => $scalesData->mews_score ?? null,
-                'ds_mews' => $scalesData->ds_mews ?? 'Sem avaliação nas últimas 24h',
-                'ds_braden' => $scalesData->ds_braden ?? 'Sem avaliação nas últimas 24h',
-                'ds_morse' => $scalesData->ds_morse ?? 'Sem avaliação nas últimas 24h',
-                'ds_pews' => $scalesData->ds_pews ?? 'Sem avaliação nas últimas 24h',
-                'ds_dor' => $scalesData->ds_dor ?? 'Sem avaliação nas últimas 24h',
-                'ds_tev' => $scalesData->ds_tev ?? 'Sem avaliação nas últimas 24h',
+                // Escalas processadas pelo ScaleService com valores padrão
+                'mews_score' => isset($scalesData['mews']) ? $scalesData['mews']['score'] : null,
+                'mews_classification' => isset($scalesData['mews']) ? $scalesData['mews']['classification'] : null,
+                'mews_timestamp' => isset($scalesData['mews']) ? $scalesData['mews']['timestamp'] : null,
+                'mews_increased' => isset($scalesData['mews']) ? $scalesData['mews']['increased'] : false,
+                'mews_needs_assessment' => isset($scalesData['mews']) ? $scalesData['mews']['needs_assessment'] : true,
+                'mews_styling' => isset($scalesData['mews']) ? $scalesData['mews']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_mews' => isset($scalesData['mews']) && $scalesData['mews']['timestamp'] 
+                    ? $scalesData['mews']['timestamp'] . ' - MEWS: ' . $scalesData['mews']['score']
+                    : 'Sem avaliação nas últimas 24h',
+                    
+                'braden_score' => isset($scalesData['braden']) ? $scalesData['braden']['score'] : null,
+                'braden_classification' => isset($scalesData['braden']) ? $scalesData['braden']['classification'] : null,
+                'braden_timestamp' => isset($scalesData['braden']) ? $scalesData['braden']['timestamp'] : null,
+                'braden_increased' => isset($scalesData['braden']) ? $scalesData['braden']['increased'] : false,
+                'braden_needs_assessment' => isset($scalesData['braden']) ? $scalesData['braden']['needs_assessment'] : true,
+                'braden_styling' => isset($scalesData['braden']) ? $scalesData['braden']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_braden' => isset($scalesData['braden']) && $scalesData['braden']['timestamp']
+                    ? $scalesData['braden']['timestamp'] . ' - Braden: ' . $scalesData['braden']['score']
+                    : 'Sem avaliação nas últimas 24h',
+                    
+                'morse_score' => isset($scalesData['morse']) ? $scalesData['morse']['score'] : null,
+                'morse_classification' => isset($scalesData['morse']) ? $scalesData['morse']['classification'] : null,
+                'morse_timestamp' => isset($scalesData['morse']) ? $scalesData['morse']['timestamp'] : null,
+                'morse_increased' => isset($scalesData['morse']) ? $scalesData['morse']['increased'] : false,
+                'morse_needs_assessment' => isset($scalesData['morse']) ? $scalesData['morse']['needs_assessment'] : true,
+                'morse_styling' => isset($scalesData['morse']) ? $scalesData['morse']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_morse' => isset($scalesData['morse']) && $scalesData['morse']['timestamp']
+                    ? $scalesData['morse']['timestamp'] . ' - Morse: ' . $scalesData['morse']['score']
+                    : 'Sem avaliação nas últimas 24h',
+                    
+                'dor_score' => isset($scalesData['dor']) ? $scalesData['dor']['score'] : null,
+                'dor_classification' => isset($scalesData['dor']) ? $scalesData['dor']['classification'] : null,
+                'dor_timestamp' => isset($scalesData['dor']) ? $scalesData['dor']['timestamp'] : null,
+                'dor_increased' => isset($scalesData['dor']) ? $scalesData['dor']['increased'] : false,
+                'dor_needs_assessment' => isset($scalesData['dor']) ? $scalesData['dor']['needs_assessment'] : true,
+                'dor_styling' => isset($scalesData['dor']) ? $scalesData['dor']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_dor' => isset($scalesData['dor']) && $scalesData['dor']['timestamp']
+                    ? $scalesData['dor']['timestamp'] . ' - Dor: ' . $scalesData['dor']['score']
+                    : 'Sem avaliação nas últimas 24h',
+                    
+                'tev_score' => isset($scalesData['tev']) ? $scalesData['tev']['score'] : null,
+                'tev_classification' => isset($scalesData['tev']) ? $scalesData['tev']['classification'] : null,
+                'tev_timestamp' => isset($scalesData['tev']) ? $scalesData['tev']['timestamp'] : null,
+                'tev_increased' => isset($scalesData['tev']) ? $scalesData['tev']['increased'] : false,
+                'tev_needs_assessment' => isset($scalesData['tev']) ? $scalesData['tev']['needs_assessment'] : true,
+                'tev_styling' => isset($scalesData['tev']) ? $scalesData['tev']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_tev' => isset($scalesData['tev']) && $scalesData['tev']['timestamp']
+                    ? $scalesData['tev']['timestamp'] . ' - TEV: ' . $scalesData['tev']['score']
+                    : 'Sem avaliação nas últimas 24h',
+                    
+                'pews_score' => isset($scalesData['pews']) ? $scalesData['pews']['score'] : null,
+                'pews_classification' => isset($scalesData['pews']) ? $scalesData['pews']['classification'] : null,
+                'pews_timestamp' => isset($scalesData['pews']) ? $scalesData['pews']['timestamp'] : null,
+                'pews_increased' => isset($scalesData['pews']) ? $scalesData['pews']['increased'] : false,
+                'pews_needs_assessment' => isset($scalesData['pews']) ? $scalesData['pews']['needs_assessment'] : true,
+                'pews_styling' => isset($scalesData['pews']) ? $scalesData['pews']['styling'] : ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+                'ds_pews' => isset($scalesData['pews']) && $scalesData['pews']['timestamp']
+                    ? $scalesData['pews']['timestamp'] . ' - PEWS: ' . $scalesData['pews']['score']
+                    : 'Sem avaliação nas últimas 24h',
                 
                 // CPOE detalhado com valores padrão
                 'cpoe_procedures' => $cpoeData->cpoe_procedures ?? 'Nenhum procedimento',

@@ -7,7 +7,7 @@
 namespace App\Events;
 
 use App\Models\ChatMensagem;
-use Illuminate\Broadcasting\PrivateChannel; // ← MUDANÇA AQUI
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -23,21 +23,12 @@ class ChatMessagePinned implements ShouldBroadcastNow
     {
         $this->mensagem = $mensagem;
         
-        // Log para debug
-        Log::info('[Chat] Evento ChatMessagePinned criado (imediato)', [
-            'message_id' => $mensagem->id,
-            'patient_id' => $mensagem->nr_atendimento,
-            'shift' => $mensagem->turno_id,
-            'is_fixed' => $mensagem->is_fixed,
-            'fixed_by' => $mensagem->fixed_by
-        ]);
     }
     
     public function broadcastOn()
     {
         $channelName = 'chat.' . $this->mensagem->nr_atendimento . '.' . $this->mensagem->turno_id;
-        Log::info('[Chat] Broadcasting ChatMessagePinned IMEDIATO no PRIVATE channel: ' . $channelName);
-        return new PrivateChannel($channelName); // ← MUDANÇA AQUI
+        return new PrivateChannel($channelName); 
     }
     
     public function broadcastWith()
@@ -65,10 +56,7 @@ class ChatMessagePinned implements ShouldBroadcastNow
             'nr_atendimento' => $this->mensagem->nr_atendimento,
             'turno_id' => $this->mensagem->turno_id,
             'author' => $author,
-        ];
-        
-        Log::info('[Chat] Dados do broadcast ChatMessagePinned (imediato):', $broadcastData);
-        
+        ];        
         return $broadcastData;
     }
     
@@ -80,14 +68,7 @@ class ChatMessagePinned implements ShouldBroadcastNow
     public function broadcastWhen()
     {
         $shouldBroadcast = !empty($this->mensagem->nr_atendimento) && !empty($this->mensagem->turno_id);
-        
-        if (!$shouldBroadcast) {
-            Log::warning('[Chat] Broadcast cancelado - dados insuficientes', [
-                'nr_atendimento' => $this->mensagem->nr_atendimento,
-                'turno_id' => $this->mensagem->turno_id
-            ]);
-        }
-        
+               
         return $shouldBroadcast;
     }
 }

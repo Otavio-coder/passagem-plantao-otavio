@@ -69,8 +69,8 @@
 
 <!-- PRINCIPAL -->
 <main class="flex-grow bg-gray-50 pt-2">
-    <div class="relative pt-4 md:pt-6 pb-4 md:pb-10 flex justify-center">
-        <div class="container relative p-2 rounded pb-6">
+    <div class="relative py-2 flex justify-center">
+        <div class="w-full max-w-full relative px-1 lg:px-2">
             <div class="items-center flex flex-wrap">
                 @yield('content')
             </div>
@@ -103,9 +103,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Debugging: Log when overlay element is found
     const overlay = document.getElementById('modal-global-loading');
     if (overlay) {
-        console.log('Global modal loading overlay found in DOM');
+        //console.log('Global modal loading overlay found in DOM');
     } else {
-        console.warn('Global modal loading overlay NOT found in DOM');
+        //console.warn('Global modal loading overlay NOT found in DOM');
     }
 });
 

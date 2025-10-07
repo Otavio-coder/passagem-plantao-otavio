@@ -17,7 +17,7 @@ function waitForEcho(callback, maxAttempts = 50) {
 
 // Inicializa os listeners do chat
 waitForEcho(() => {
-    console.log('[Chat] Echo disponível, configurando sistema de chat');
+    //console.log('[Chat] Echo disponível, configurando sistema de chat');
     
     // Gerenciador global de canais
     window.ChatChannels = {
@@ -29,7 +29,7 @@ waitForEcho(() => {
             
             // Se já existe, não recria
             if (this.active.has(channelKey)) {
-                console.log('[Chat] Canal já ativo:', channelKey);
+                //console.log('[Chat] Canal já ativo:', channelKey);
                 return;
             }
             
@@ -39,7 +39,7 @@ waitForEcho(() => {
                 
                 // Listener para novas mensagens
                 channel.listen('.ChatMessageSent', (data) => {
-                    console.log('[Chat] Nova mensagem:', data.id);
+                    //console.log('[Chat] Nova mensagem:', data.id);
                     
                     // Encontra o componente Livewire e envia o evento
                     const component = window.Livewire.find(componentId);
@@ -50,7 +50,7 @@ waitForEcho(() => {
                 
                 // Listener para pins
                 channel.listen('.ChatMessagePinned', (data) => {
-                    console.log('[Chat] Pin alterado:', data.id, '- fixado:', data.is_fixed);
+                    //.log('[Chat] Pin alterado:', data.id, '- fixado:', data.is_fixed);
                     
                     // Encontra o componente Livewire e envia o evento
                     const component = window.Livewire.find(componentId);
@@ -61,10 +61,10 @@ waitForEcho(() => {
                 
                 // Salva referência do canal
                 this.active.set(channelKey, { channel, componentId });
-                console.log('[Chat] Canal conectado:', channelKey);
+                //console.log('[Chat] Canal conectado:', channelKey);
                 
             } catch (error) {
-                console.error('[Chat] Erro ao conectar canal:', error);
+                //console.error('[Chat] Erro ao conectar canal:', error);
             }
         },
         
@@ -76,7 +76,7 @@ waitForEcho(() => {
             if (channelData) {
                 window.Echo.leave(channelKey);
                 this.active.delete(channelKey);
-                console.log('[Chat] Canal desconectado:', channelKey);
+                //console.log('[Chat] Canal desconectado:', channelKey);
             }
         },
         
@@ -86,7 +86,7 @@ waitForEcho(() => {
                 window.Echo.leave(key);
             });
             this.active.clear();
-            console.log('[Chat] Todos os canais desconectados');
+            //console.log('[Chat] Todos os canais desconectados');
         }
     };
     
@@ -107,6 +107,6 @@ waitForEcho(() => {
 document.addEventListener('livewire:navigated', () => {
     // Reconecta canais ativos se necessário
     window.ChatChannels?.active.forEach((data, key) => {
-        console.log('[Chat] Reconectando canal após navegação:', key);
+        //console.log('[Chat] Reconectando canal após navegação:', key);
     });
 });

@@ -35,17 +35,17 @@
             <div class="space-y-8">
                 <!-- Identificação do Paciente -->
                 <div>
-                    <h5 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-blue-500 pl-3 bg-blue-50 py-2 rounded-r">
+                    <h5 class="text-sm font-medium text-gray-800 text-gray-800 mb-4 border-l-4 border-blue-500 pl-3 bg-blue-50 py-2 rounded-r">
                         Identificação do Paciente
                     </h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Nome Completo:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Nome Completo:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->nm_pessoa_fisica) ? $patientDetails->nm_pessoa_fisica : 'Não informado' }}</p>
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Data de Nascimento:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Data de Nascimento:</label>
                             <p class="text-sm font-semibold text-gray-800">
                                 @if(isset($patientDetails->birth_date) && $patientDetails->birth_date)
                                     {{ $patientDetails->birth_date }}
@@ -56,7 +56,7 @@
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Idade (Anos, Meses, Dias):</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Idade (Anos, Meses, Dias):</label>
                             <p class="text-sm font-semibold text-gray-800">
                                 @if(isset($patientDetails->age_detailed) && $patientDetails->age_detailed)
                                     {{ $patientDetails->age_detailed }}
@@ -69,7 +69,7 @@
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Sexo:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Sexo:</label>
                             <p class="text-sm font-semibold text-gray-800 flex items-center gap-2">
                                 @if(isset($patientDetails->sexo) && $patientDetails->sexo === 'F')
                                     <span class="inline-flex items-center justify-center text-pink-600" style="font-size:1.75rem;">
@@ -97,7 +97,7 @@
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Tempo de Internação:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Tempo de Internação:</label>
                             <p class="text-sm font-semibold text-gray-800">
                                 @if(!isset($patientDetails->internment_days) || $patientDetails->internment_days === null)
                                     <span class="text-gray-500">N/A</span>
@@ -115,11 +115,11 @@
                     <!-- Médico Responsável e Convênio lado a lado -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Médico Responsável:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Médico Responsável:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->medico_responsavel) ? $patientDetails->medico_responsavel : 'Não informado' }}</p>
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Convênio:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Convênio:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->convenio) ? $patientDetails->convenio : 'Não informado' }}</p>
                         </div>
                     </div>
@@ -127,40 +127,40 @@
                 
                 <!-- Avaliações e Status Clínico -->
                 <div>
-                    <h5 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-green-500 pl-3 bg-green-50 py-2 rounded-r">
+                    <h5 class="text-sm font-medium text-gray-800 text-gray-800 mb-4 border-l-4 border-green-500 pl-3 bg-green-50 py-2 rounded-r">
                         Avaliações e Status Clínico
                     </h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Medida de Bloqueio:</label>
-                            <p class="text-sm font-bold {{ (isset($patientDetails->medida_bloqueio) && $patientDetails->medida_bloqueio === 'Sim') ? 'text-red-700' : 'text-green-700' }}">
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Medida de Bloqueio:</label>
+                            <p class="text-sm font-medium text-gray-800 {{ (isset($patientDetails->medida_bloqueio) && $patientDetails->medida_bloqueio === 'Sim') ? 'text-red-700' : 'text-green-700' }}">
                                 {{ isset($patientDetails->medida_bloqueio) ? $patientDetails->medida_bloqueio : 'Não informado' }}
                             </p>
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Avaliação ENF.:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Avaliação ENF.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->avaliacao_enf) ? $patientDetails->avaliacao_enf : 'Não realizada' }}</p>
                         </div>
                         
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Plano Educ.:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Plano Educ.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->plano_educ) ? $patientDetails->plano_educ : 'Não realizado' }}</p>
                         </div>
                     </div>
                     <!-- PE, Diag. ENF. e Queda lado a lado -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">PE:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">PE:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->pe_data) ? $patientDetails->pe_data : 'Não realizado' }}</p>
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Diag. ENF.:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Diag. ENF.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ isset($patientDetails->diag) ? $patientDetails->diag : 'Não informado' }}</p>
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Queda:</label>
-                            <p class="text-sm font-bold {{ (isset($patientDetails->ds_queda) && $patientDetails->ds_queda !== 'Não') ? 'text-red-700' : 'text-green-700' }}">
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Queda:</label>
+                            <p class="text-sm font-medium text-gray-800 {{ (isset($patientDetails->ds_queda) && $patientDetails->ds_queda !== 'Não') ? 'text-red-700' : 'text-green-700' }}">
                                 {{ isset($patientDetails->ds_queda) ? $patientDetails->ds_queda : 'Não avaliado' }}
                             </p>
                         </div>
@@ -169,7 +169,7 @@
                 
                 <!-- Escalas de Avaliação -->
                 <div>
-                    <h5 class="text-sm font-bold text-gray-800 mb-4 border-l-4 border-purple-500 pl-3 bg-purple-50 py-2 rounded-r">
+                    <h5 class="text-sm font-medium text-gray-800 text-gray-800 mb-4 border-l-4 border-purple-500 pl-3 bg-purple-50 py-2 rounded-r">
                         Escalas de Avaliação
                     </h5>
                     
@@ -178,15 +178,15 @@
                         <div class="grid grid-cols-3 gap-3 text-xs">
                             <div class="flex items-center space-x-2">
                                 <div class="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
-                                <span class="text-gray-700 font-medium">Alto Risco</span>
+                                <span class="text-gray-700 font-bold">Alto Risco</span>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <div class="w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></div>
-                                <span class="text-gray-700 font-medium">Risco Moderado</span>
+                                <span class="text-gray-700 font-bold">Risco Moderado</span>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <div class="w-3 h-3 bg-gray-50 border border-gray-300 rounded"></div>
-                                <span class="text-gray-700 font-medium">Normal/Baixo Risco</span>
+                                <span class="text-gray-700 font-bold">Normal/Baixo Risco</span>
                             </div>
                         </div>
                     </div>
@@ -200,11 +200,17 @@
                         <!-- MEWS Scale (para pacientes adultos) -->
                         @if(!$isPediatricPatient)
                             @php
-                                $mewsStyling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patientDetails->ds_mews ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                                $mewsStyling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patientDetails->ds_mews ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                                $mewsIncreased = isset($patientDetails->mews_increased) ? $patientDetails->mews_increased : false;
                             @endphp
-                            <div class="{{ $mewsStyling['bg'] }} p-4 rounded-lg border {{ $mewsStyling['border'] }}">
-                                <label class="block text-xs font-medium text-gray-600 mb-1">MEWS (Modified Early Warning Score):</label>
-                                <p class="text-sm font-bold {{ $mewsStyling['text'] }}">
+                            <div class="{{ $mewsStyling['bg'] }} p-4 rounded-lg border {{ $mewsStyling['border'] }} relative">
+                                <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                    MEWS (Modified Early Warning Score):
+                                    @if($mewsIncreased)
+                                        <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                    @endif
+                                </label>
+                                <p class="text-sm font-medium text-gray-800">
                                     {{ $patientDetails->ds_mews ?? 'Não avaliado' }}
                                 </p>
                             </div>
@@ -213,11 +219,17 @@
                         <!-- PEWS Scale (para pacientes pediátricos) -->
                         @if($isPediatricPatient)
                             @php
-                                $pewsStyling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patientDetails->ds_pews ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                                $pewsStyling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patientDetails->ds_pews ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                                $pewsIncreased = isset($patientDetails->pews_increased) ? $patientDetails->pews_increased : false;
                             @endphp
-                            <div class="{{ $pewsStyling['bg'] }} p-4 rounded-lg border {{ $pewsStyling['border'] }}">
-                                <label class="block text-xs font-medium text-gray-600 mb-1">PEWS (Pediatric Early Warning Score):</label>
-                                <p class="text-sm font-bold {{ $pewsStyling['text'] }}">
+                            <div class="{{ $pewsStyling['bg'] }} p-4 rounded-lg border {{ $pewsStyling['border'] }} relative">
+                                <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                    PEWS (Pediatric Early Warning Score):
+                                    @if($pewsIncreased)
+                                        <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                    @endif
+                                </label>
+                                <p class="text-sm font-medium text-gray-800">
                                     {{ $patientDetails->ds_pews ?? 'Não avaliado' }}
                                 </p>
                             </div>
@@ -225,44 +237,68 @@
                         
                         <!-- Braden Scale -->
                         @php
-                            $bradenStyling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patientDetails->ds_braden ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $bradenStyling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patientDetails->ds_braden ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $bradenIncreased = isset($patientDetails->braden_increased) ? $patientDetails->braden_increased : false;
                         @endphp
-                        <div class="{{ $bradenStyling['bg'] }} p-4 rounded-lg border {{ $bradenStyling['border'] }}">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Braden (Escala de Braden):</label>
-                            <p class="text-sm font-bold {{ $bradenStyling['text'] }}">
+                        <div class="{{ $bradenStyling['bg'] }} p-4 rounded-lg border {{ $bradenStyling['border'] }} relative">
+                            <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                Braden (Escala de Braden):
+                                @if($bradenIncreased)
+                                    <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                @endif
+                            </label>
+                            <p class="text-sm font-medium text-gray-800">
                                 {{ $patientDetails->ds_braden ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- Morse Scale -->
                         @php
-                            $morseStyling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patientDetails->ds_morse ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $morseStyling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patientDetails->ds_morse ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $morseIncreased = isset($patientDetails->morse_increased) ? $patientDetails->morse_increased : false;
                         @endphp
-                        <div class="{{ $morseStyling['bg'] }} p-4 rounded-lg border {{ $morseStyling['border'] }}">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Morse (Risco de Queda):</label>
-                            <p class="text-sm font-bold {{ $morseStyling['text'] }}">
+                        <div class="{{ $morseStyling['bg'] }} p-4 rounded-lg border {{ $morseStyling['border'] }} relative">
+                            <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                Morse (Risco de Queda):
+                                @if($morseIncreased)
+                                    <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                @endif
+                            </label>
+                            <p class="text-sm font-medium text-gray-800">
                                 {{ $patientDetails->ds_morse ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- Pain Scale (Escala de Dor) -->
                         @php
-                            $painStyling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patientDetails->ds_dor ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $painStyling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patientDetails->ds_dor ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $dorIncreased = isset($patientDetails->dor_increased) ? $patientDetails->dor_increased : false;
                         @endphp
-                        <div class="{{ $painStyling['bg'] }} p-4 rounded-lg border {{ $painStyling['border'] }}">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">Dor (Pain Scale):</label>
-                            <p class="text-sm font-bold {{ $painStyling['text'] }}">
+                        <div class="{{ $painStyling['bg'] }} p-4 rounded-lg border {{ $painStyling['border'] }} relative">
+                            <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                Dor (Pain Scale):
+                                @if($dorIncreased)
+                                    <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                @endif
+                            </label>
+                            <p class="text-sm font-medium text-gray-800">
                                 {{ $patientDetails->ds_dor ?? 'Não avaliado' }}
                             </p>
                         </div>
                         
                         <!-- TEV Scale -->
                         @php
-                            $tevStyling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patientDetails->ds_tev ?? '') : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $tevStyling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patientDetails->ds_tev ?? '', true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+                            $tevIncreased = isset($patientDetails->tev_increased) ? $patientDetails->tev_increased : false;
                         @endphp
-                        <div class="{{ $tevStyling['bg'] }} p-4 rounded-lg border {{ $tevStyling['border'] }}">
-                            <label class="block text-xs font-medium text-gray-600 mb-1">TEV (Tromboembolismo Venoso):</label>
-                            <p class="text-sm font-bold {{ $tevStyling['text'] }}">
+                        <div class="{{ $tevStyling['bg'] }} p-4 rounded-lg border {{ $tevStyling['border'] }} relative">
+                            <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center">
+                                TEV (Tromboembolismo Venoso):
+                                @if($tevIncreased)
+                                    <span class="ml-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                @endif
+                            </label>
+                            <p class="text-sm font-medium text-gray-800">
                                 {{ $patientDetails->ds_tev ?? 'Não avaliado' }}
                             </p>
                         </div>

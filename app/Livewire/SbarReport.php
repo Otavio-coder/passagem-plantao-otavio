@@ -1,32 +1,29 @@
 <?php
-// filepath: /var/www/passagem-plantao/app/Livewire/SbarReport.php
 
 namespace App\Livewire;
 
 use App\Models\EMR\Patient;
-use App\Models\EMR\BedUnit;
 use App\Models\EMR\Sector;
 use App\Models\EMR\Hospital;
 use App\Models\System\SystemConfiguration;
 use Livewire\Component;
 use Livewire\Attributes\Lazy;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 #[Lazy]
 class SbarReport extends Component
 {
-    public $loading = true;
-    public $loadingMessage = 'Carregando dados...';
+    public $loading = false;
+    public $loadingMessage = '';
     public $errorMessage = null;
     public $lastRefresh = null;
-
-    public $patients = [];
-    public $sectors = [];
-    public $allSectors = [];
+    
+    // Dados principais
     public $hospitals = [];
-    public $beds = [];
+    public $sectors = [];
+    public $patients = [];
     
     public $selectedHospital = null;
     public $selectedSector = null;
@@ -35,583 +32,528 @@ class SbarReport extends Component
     // Filtros
     public $mewsFilter = 'all';
     public $surgicalFilter = 'all';
-    public $orderBy = 'leito';
+    public $orderBy = 'bed';
     public $orderDirection = 'asc';
 
-    // Cache otimizado
-    private $structuralCacheKey = 'sbar_structural_v9';
-    private $patientsCacheTime = 1200; // 20 minutos
-    private $structuralCacheTime = 14400; // 4 horas
+    // Model centralizada
+    protected $patientModel;
+    protected $hospitalModel;
+    protected $sectorModel;
 
-    // Performance tracking
-    private $startTime;
+    //Inicialização dos modelos
+    public function boot()
+    {
+        $this->patientModel = new Patient();
+        $this->hospitalModel = new Hospital();
+        $this->sectorModel = new Sector();
+    }
 
     public function mount()
     {
-        $this->startTime = microtime(true);
-        
-        try {
-            $this->loading = true;
-            $this->loadingMessage = 'Inicializando sistema SBAR...';
-            
-            // Carrega dados estruturais com cache agressivo
-            if (!$this->loadStructuralDataOptimized()) {
-                $this->handleNoDataError();
-                return;
-            }
+        $this->loading = true;
+        $this->loadingMessage = 'Inicializando sistema SBAR...';
 
-            // Seleções iniciais otimizadas
-            $this->setInitialSelectionsOptimized();
-            
-            // Carrega pacientes apenas se tiver setor válido
-            if ($this->selectedSector) {
-                $this->loadPatientsWithOptimizations();
-            } else {
-                $this->handleNoSectorError();
-            }
-            
-            $this->logPerformance('mount');
-            
+        try {
+            $this->loadInitialData();
         } catch (\Exception $e) {
-            $this->handleMountError($e);
+            $this->errorMessage = "Erro durante inicialização: " . $e->getMessage();
+        } finally {
+            $this->loading = false;
         }
     }
 
-    public function placeholder()
+    protected function loadInitialData()
     {
-        return view('livewire.sbar-report-placeholder');
-    }
+        // Busca os hospitais armazenados no SystemConfiguration.
+        $allowedHospitals = SystemConfiguration::allowedHospitalCodes();
+        $allowedSectors = SystemConfiguration::allowedSectorCodes();
 
-    /**
-     * ✅ ULTRA-OTIMIZADO: Carregamento estrutural com múltiplas camadas de cache
-     */
-    private function loadStructuralDataOptimized(): bool
-    {
-        $structural = Cache::remember($this->structuralCacheKey, $this->structuralCacheTime, function() {
-            $startTime = microtime(true);
-            
-            // Cache de configurações para evitar múltiplas consultas
-            $config = Cache::remember('sbar_config_v3', 3600, function() {
-                return [
-                    'hospitals' => SystemConfiguration::allowedHospitalCodes(),
-                    'sectors' => SystemConfiguration::allowedSectorCodes(),
-                    'beds' => SystemConfiguration::allowedBedCodes()
-                ];
-            });
-
-            if (empty($config['hospitals'])) {
-                return ['hospitals' => [], 'sectors' => [], 'beds' => []];
-            }
-
-            // Query única otimizada para hospitais
-            $hospitals = Hospital::whereIn('nr_sequencia', $config['hospitals'])
-                ->select('nr_sequencia as hospital_id', 'ds_agrupamento as hospital_name')
-                ->orderBy('ds_agrupamento')
-                ->get()
-                ->toArray();
-
-            if (empty($hospitals)) {
-                return ['hospitals' => [], 'sectors' => [], 'beds' => []];
-            }
-
-            // Query otimizada para setores com join implícito
-            $sectors = Sector::whereIn('cd_setor_atendimento', $config['sectors'])
-                ->whereIn('nr_seq_agrupamento', $config['hospitals'])
-                ->select('cd_setor_atendimento', 'ds_setor_atendimento', 'nr_seq_agrupamento as hospital_id')
-                ->orderBy('ds_setor_atendimento')
-                ->get()
-                ->toArray();
-
-            // Pré-calcula leitos permitidos para evitar processamento no runtime
-            $beds = $this->preprocessAllowedBeds($config['beds'], array_column($sectors, 'cd_setor_atendimento'));
-
-            $loadTime = round((microtime(true) - $startTime) * 1000);
-            Log::info("SBAR: Structural data loaded in {$loadTime}ms - " . 
-                     count($hospitals) . " hospitals, " . 
-                     count($sectors) . " sectors, " . 
-                     count($beds) . " beds");
-
-            return compact('hospitals', 'sectors', 'beds');
-        });
-
-        $this->hospitals = $structural['hospitals'];
-        $this->allSectors = $structural['sectors'];
-        $this->beds = $structural['beds'];
-
-        return !empty($this->hospitals);
-    }
-
-    /**
-     * ✅ NOVO: Pré-processa leitos permitidos
-     */
-    private function preprocessAllowedBeds(array $allowedBeds, array $sectorIds): array
-    {
-        if (empty($sectorIds) || empty($allowedBeds)) {
-            return [];
+        if (empty($allowedHospitals)) {
+            $this->errorMessage = "Nenhum hospital configurado. Solicite ao gestor a configuração pelo painel administrativo.";
+            return;
         }
 
-        $beds = BedUnit::whereIn('cd_setor_atendimento', $sectorIds)
-            ->select('cd_unidade_basica', 'cd_setor_atendimento')
-            ->get();
+        $this->loadHospitals($allowedHospitals);
 
-        $allowedBedsSet = array_flip($allowedBeds);
+        if (empty($this->hospitals)) {
+            $this->errorMessage = "Nenhum hospital disponível.";
+            return;
+        }
+
+        //Selecionada o primeiro hospital disponivel.
+        $this->selectedHospital = $this->hospitals[0]['hospital_id'];
+        $this->currentHospitalName = $this->hospitals[0]['hospital_name'];
+
+        $this->loadSectorsForHospital($this->selectedHospital, $allowedSectors);
+
+        if (!empty($this->sectors)) {
+            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
+            $this->loadPatients();
+        } else {
+            $this->errorMessage = "Nenhum setor válido encontrado para o hospital selecionado.";
+        }
+    }
+
+    //Função auxiliar pra montar um array de hospitais.
+    protected function loadHospitals($allowedHospitals)
+    {
+        $hospitalStats = $this->hospitalModel->getHospitalStatistics();
         
-        return $beds->filter(function($bed) use ($allowedBedsSet) {
-            $key = $bed->cd_unidade_basica . '|' . $bed->cd_setor_atendimento;
-            return isset($allowedBedsSet[$key]);
-        })->map(function($bed) {
-            return [
-                'cd_unidade_basica' => $bed->cd_unidade_basica,
-                'cd_setor_atendimento' => $bed->cd_setor_atendimento
-            ];
-        })->values()->toArray();
+        $this->hospitals = collect($hospitalStats)
+            ->filter(fn($h) => in_array($h->hospital_id, $allowedHospitals))
+            ->map(fn($h) => [
+                'hospital_id' => $h->hospital_id,
+                'hospital_name' => $h->hospital_name
+            ])
+            ->values()
+            ->toArray();
+    }
+
+    //Função auxiliar pra montar um array de setores.
+    protected function loadSectorsForHospital($hospitalId, $allowedSectors)
+    {
+        $sectors = $this->sectorModel->getSectorsByHospital($hospitalId);
+        
+        $this->sectors = $sectors
+            ->filter(fn($s) => in_array($s->cd_setor_atendimento, $allowedSectors))
+            ->map(fn($s) => [
+                'cd_setor_atendimento' => $s->cd_setor_atendimento,
+                'ds_setor_atendimento' => $s->ds_setor_atendimento
+            ])
+            ->values()
+            ->toArray();
     }
 
     /**
-     * ✅ OTIMIZADO: Seleções iniciais mais eficientes
+     * REMOVE MÉTODOS DUPLICADOS DE ESCALAS
+     * Remove: enrichWithScalesStatus, getScalesStatusBatch, getPreviousScalesValues
+     * A lógica agora está toda centralizada no PatientScales
      */
-    private function setInitialSelectionsOptimized()
+    public function loadPatients()
     {
-        // Seleciona primeiro hospital disponível
-        $this->selectedHospital = $this->hospitals[0]['hospital_id'] ?? null;
-        
-        // Filtra setores do hospital selecionado
-        $this->updateSectorsForHospitalOptimized();
-        
-        // Seleciona primeiro setor disponível
-        $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
-        
-        // Atualiza nome do hospital
-        $this->updateHospitalNameOptimized();
-    }
+        if (!$this->selectedSector) {
+            $this->patients = [];
+            return;
+        }
 
-    /**
-     * ✅ ULTRA-OTIMIZADO: Carregamento de pacientes com cache inteligente por hora
-     */
-    public function loadPatientsWithOptimizations()
-    {
+        $this->loading = true;
+        $this->loadingMessage = "Carregando pacientes do setor...";
+        
         try {
-            $this->loading = true;
-            $this->loadingMessage = "Carregando pacientes do setor...";
-
-            $cacheKey = $this->generatePatientCacheKey();
+            $patientsData = $this->patientModel->getSectorPatientsForSbar($this->selectedSector);
             
-            $allPatients = Cache::remember($cacheKey, $this->patientsCacheTime, function() {
-                return $this->fetchAndProcessPatients();
-            });
-            
-            $this->applyFiltersOptimized($allPatients);
+            $filteredPatients = $this->applyFiltersAndSort($patientsData);
+            $this->patients = $this->stylePatients($filteredPatients);
             $this->lastRefresh = now()->format('H:i:s');
-
-            $this->logPerformance('loadPatients', count($this->patients));
-
         } catch (\Exception $e) {
-            $this->handlePatientLoadError($e);
+            $this->errorMessage = "Erro ao carregar pacientes: " . $e->getMessage();
+            $this->patients = [];
         } finally {
             $this->loading = false;
             $this->loadingMessage = '';
         }
     }
 
-    /**
-     * ✅ NOVO: Gera chave de cache mais específica
-     */
-    private function generatePatientCacheKey(): string
+    //Função auxiliar estilizar os pacientes conforme escala MEWS, tempo de internação e escalas.
+    protected function stylePatients($patients)
     {
-        $hour = date('Y-m-d_H');
-        return "sbar_patients_{$this->selectedSector}_{$hour}_v2";
+        return collect($patients)->map(function($patient) {
+            // Filtrar pendências removendo medicações
+            if (!empty($patient['pending_events'])) {
+                $pendencias = array_filter(
+                    explode(' | ', $patient['pending_events']),
+                    fn($p) => trim($p) !== '' && !str_contains($p, '[Med]')
+                );
+                $patient['pending_events_filtered'] = array_values(array_slice($pendencias, 0, 10));
+            } else {
+                $patient['pending_events_filtered'] = [];
+            }
+            
+            // GARANTIR que campos essenciais sempre existam - CORREÇÃO DO BUG
+            $patient['alergias_detalhadas'] = $patient['alergias_detalhadas'] ?? '';
+            $patient['motivos_isolamento'] = $patient['motivos_isolamento'] ?? '';
+            
+            // Preparar tooltips para alergias e isolamento
+            if (!empty($patient['alergias_detalhadas'])) {
+                $alergias = strip_tags($patient['alergias_detalhadas']);
+                $patient['alergias_tooltip'] = strlen($alergias) > 50 ? substr($alergias, 0, 47) . '...' : $alergias;
+            } else {
+                $patient['alergias_tooltip'] = 'Nenhuma alergia registrada';
+            }
+            
+            if (!empty($patient['motivos_isolamento'])) {
+                $isolamento = strip_tags($patient['motivos_isolamento']);
+                $patient['isolamento_tooltip'] = strlen($isolamento) > 50 ? substr($isolamento, 0, 47) . '...' : $isolamento;
+            } else {
+                $patient['isolamento_tooltip'] = 'Nenhum motivo de isolamento';
+            }
+            
+            // Preparar escalas compactas - FORÇAR TEXTO NORMAL
+            $patient['scales_compact'] = $this->prepareCompactScales($patient);
+            
+            return $this->applyPatientStyling($patient);
+        })->toArray();
     }
 
     /**
-     * ✅ OTIMIZADO: Busca e processa pacientes
+     * Prepara escalas de forma compacta para exibição no card
+     * Usa dados vindos da PatientScales com lógica consistente
+     * 
+     * CRITÉRIOS:
+     * - Usa apenas escalas válidas (não nulas e não vazias)
+     * - Mantém ordem de prioridade: MEWS/PEWS > Braden > Morse > Dor > TEV
+     * - FORÇA TEXTO CINZA quando há bolinha piscante
      */
-    private function fetchAndProcessPatients(): array
+    protected function prepareCompactScales($patient)
     {
-        $startTime = microtime(true);
-        
-        $patientModel = new Patient();
-        $patients = $patientModel->getAllPatientsInSector($this->selectedSector);
-        
-        // Processamento em lote para melhor performance
-        $processedPatients = $this->batchProcessPatients($patients);
-        
-        $loadTime = round((microtime(true) - $startTime) * 1000);
-        Log::info("SBAR: {$patients->count()} patients processed in {$loadTime}ms");
-        
-        return $processedPatients;
-    }
+        $scales = [];
+        $isPediatric = isset($patient['age']) && intval($patient['age']) < 16;
 
-    /**
-     * ✅ NOVO: Processamento em lote de pacientes
-     */
-    private function batchProcessPatients($patients): array
-    {
-        $processed = [];
-        $today = Carbon::today();
-        
-        foreach ($patients as $patient) {
-            $data = is_array($patient) ? $patient : (array) $patient;
+        // MEWS (adultos) ou PEWS (crianças) - MÁXIMA PRIORIDADE
+        if (!$isPediatric && !empty($patient['ds_mews']) && $patient['ds_mews'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getMewsRiskStyling') ? getMewsRiskStyling($patient['ds_mews'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['mews_increased']) ? $patient['mews_increased'] : false;
             
-            // Cálculos otimizados
-            $internmentDays = $data['internment_days'] ?? null;
-            $isNewPatient = $internmentDays !== null && $internmentDays >= 0 && $internmentDays < 1;
-            $mewsScore = $data['mews_score'] ?? null;
+            $scales[] = [
+                'label' => 'MEWS',
+                'value' => $patient['ds_mews'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
+            ];
+        } elseif ($isPediatric && !empty($patient['ds_pews']) && $patient['ds_pews'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getPewsRiskStyling') ? getPewsRiskStyling($patient['ds_pews'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['pews_increased']) ? $patient['pews_increased'] : false;
             
-            // Classes CSS pré-calculadas
-            [$gradientClass, $borderClass, $textColorClass] = $this->calculatePatientClasses($isNewPatient, $mewsScore);
-            
-            // Adiciona dados processados
-            $data['is_new_patient'] = $isNewPatient;
-            $data['gradient_class'] = $gradientClass;
-            $data['border_class'] = $borderClass;
-            $data['text_color_class'] = $textColorClass;
-            $data['mews_display'] = $mewsScore !== null ? "MEWS: {$mewsScore}" : 'MEWS: N/A';
-            
-            $processed[] = $data;
-        }
-        
-        return $processed;
-    }
-
-    /**
-     * ✅ NOVO: Calcula classes CSS do paciente
-     */
-    private function calculatePatientClasses(bool $isNewPatient, ?int $mewsScore): array
-    {
-        if ($isNewPatient) {
-            return [
-                'from-green-50 to-green-100',
-                'border-2 border-green-400',
-                'text-green-800'
+            $scales[] = [
+                'label' => 'PEWS',
+                'value' => $patient['ds_pews'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
             ];
         }
-        
-        if ($mewsScore !== null) {
-            if ($mewsScore >= 5) {
-                return [
-                    'from-red-50 to-red-100',
-                    'border-2 border-red-500',
-                    'text-red-800'
-                ];
-            } elseif ($mewsScore >= 3) {
-                return [
-                    'from-amber-50 to-amber-100',
-                    'border-2 border-amber-500',
-                    'text-amber-800'
-                ];
-            }
+
+        // Braden - SEGUNDA PRIORIDADE
+        if (!empty($patient['ds_braden']) && $patient['ds_braden'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getBradenRiskStyling') ? getBradenRiskStyling($patient['ds_braden'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['braden_increased']) ? $patient['braden_increased'] : false;
+            
+            $scales[] = [
+                'label' => 'Braden',
+                'value' => $patient['ds_braden'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
+            ];
         }
+
+        // Morse - TERCEIRA PRIORIDADE
+        if (!empty($patient['ds_morse']) && $patient['ds_morse'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getMorseRiskStyling') ? getMorseRiskStyling($patient['ds_morse'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['morse_increased']) ? $patient['morse_increased'] : false;
+            
+            $scales[] = [
+                'label' => 'Morse',
+                'value' => $patient['ds_morse'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
+            ];
+        }
+
+        // Dor - QUARTA PRIORIDADE
+        if (!empty($patient['ds_dor']) && $patient['ds_dor'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getPainRiskStyling') ? getPainRiskStyling($patient['ds_dor'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['dor_increased']) ? $patient['dor_increased'] : false;
+            
+            $scales[] = [
+                'label' => 'Dor',
+                'value' => $patient['ds_dor'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
+            ];
+        }
+
+        // TEV - QUINTA PRIORIDADE
+        if (!empty($patient['ds_tev']) && $patient['ds_tev'] !== 'Sem avaliação nas últimas 24h') {
+            $styling = function_exists('getTevRiskStyling') ? getTevRiskStyling($patient['ds_tev'], true) : ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+            $increased = isset($patient['tev_increased']) ? $patient['tev_increased'] : false;
+            
+            $scales[] = [
+                'label' => 'TEV',
+                'value' => $patient['ds_tev'],
+                'bg_class' => $styling['bg'],
+                'border_class' => $styling['border'],
+                'text_class' => 'text-gray-800', // SEMPRE CINZA
+                'increased' => $increased
+            ];
+        }
+
+        // Retorna apenas as 3 primeiras escalas (espaço limitado no card)
+        return array_slice($scales, 0, 3);
+    }
+    
+    /**
+     * Retorna o label amigável do turno
+     */
+    private function getShiftLabel($shift)
+    {
+        return match($shift) {
+            'manha' => 'Manhã',
+            'tarde' => 'Tarde',
+            'noite' => 'Noite',
+            default => '',
+        };
+    }
+    
+    /**
+     * Extrai o turno de uma string de escala
+     */
+    protected function extractShiftFromScale($scaleText)
+    {
+        if (empty($scaleText)) return null;
         
-        return [
-            'from-blue-50 to-blue-100',
-            'border border-gray-200',
-            'text-sky-800'
-        ];
+        // Procura por indicadores de turno
+        if (preg_match('/(Manhã|manha|M)/i', $scaleText)) return 'manha';
+        if (preg_match('/(Tarde|tarde|T)/i', $scaleText)) return 'tarde';
+        if (preg_match('/(Noite|noite|N)/i', $scaleText)) return 'noite';
+        
+        return null;
+    }
+    
+    /**
+     * Aplica estilização baseada em MEWS e internação
+     */
+    protected function applyPatientStyling($patient)
+    {
+        // Always set style keys, even for empty beds
+        if (!($patient['has_patient'] ?? false)) {
+            $patient['gradient_class'] = 'from-gray-50 to-gray-100';
+            $patient['border_class'] = 'border border-gray-300';
+            $patient['text_color_class'] = 'text-gray-600';
+            return $patient;
+        }
+
+        $isNewPatient = ($patient['internment_days'] ?? null) !== null && $patient['internment_days'] < 1;
+        $mewsScore = $patient['mews_score'] ?? null;
+
+        if ($isNewPatient) {
+            $patient['gradient_class'] = 'from-green-50 to-green-100';
+            $patient['border_class'] = 'border-2 border-green-400';
+            $patient['text_color_class'] = 'text-green-800';
+        } elseif ($mewsScore !== null && $mewsScore >= 5) {
+            $patient['gradient_class'] = 'from-red-50 to-red-100';
+            $patient['border_class'] = 'border-2 border-red-500';
+            $patient['text_color_class'] = 'text-red-800';
+        } elseif ($mewsScore !== null && $mewsScore == 4) {
+            $patient['gradient_class'] = 'from-orange-50 to-orange-100';
+            $patient['border_class'] = 'border-2 border-orange-500';
+            $patient['text_color_class'] = 'text-orange-800';
+        } elseif ($mewsScore !== null && $mewsScore == 3) {
+            $patient['gradient_class'] = 'from-yellow-50 to-yellow-100';
+            $patient['border_class'] = 'border-2 border-yellow-500';
+            $patient['text_color_class'] = 'text-yellow-800';
+        } else {
+            // MEWS 0-2 ou sem MEWS - tom azul claro agradável
+            $patient['gradient_class'] = 'from-blue-50 to-blue-100';
+            $patient['border_class'] = 'border border-blue-200';
+            $patient['text_color_class'] = 'text-blue-800';
+        }
+
+        return $patient;
     }
 
-    /**
-     * ✅ ULTRA-OTIMIZADO: Filtros com array indexado e algoritmos eficientes
-     */
-    private function applyFiltersOptimized(array $allPatients = [])
+    //Função auxiliar aplicar filtros e ordenação.
+    protected function applyFiltersAndSort($data)
     {
-        if (empty($allPatients)) {
-            $this->patients = [];
-            return;
-        }
+        $filtered = collect($data);
 
-        $filtered = $allPatients;
-
-        // Filtro MEWS com short-circuit evaluation
+        // Filtro MEWS
         if ($this->mewsFilter !== 'all') {
-            $filtered = array_filter($filtered, $this->getMewsFilterCallback());
-        }
-
-        // Filtro cirurgia
-        if ($this->surgicalFilter === 'with_surgery') {
-            $filtered = array_filter($filtered, function($p) {
-                return ($p['has_patient'] ?? false) && ($p['has_surgery'] ?? false);
+            $filtered = $filtered->filter(function($patient) {
+                if (!$patient['has_patient']) return false;
+                
+                $score = $patient['mews_score'];
+                return match($this->mewsFilter) {
+                    'critical' => $score !== null && $score >= 5,
+                    'warning' => $score !== null && $score >= 3 && $score <= 4,
+                    'normal' => $score === null || $score <= 2,
+                    default => true
+                };
             });
         }
 
-        // Ordenação otimizada com algoritmo estável
-        if (!empty($filtered)) {
-            usort($filtered, [$this, 'comparePatients']);
+        // Filtro cirúrgico
+        if ($this->surgicalFilter === 'with_surgery') {
+            $filtered = $filtered->filter(fn($patient) => 
+                $patient['has_patient'] && $patient['has_surgery']
+            );
+        } elseif ($this->surgicalFilter === 'without_surgery') {
+            $filtered = $filtered->filter(fn($patient) => 
+                $patient['has_patient'] && !$patient['has_surgery']
+            );
         }
 
-        $this->patients = array_values($filtered);
+        // Ordenação
+        $filtered = $this->sortPatients($filtered);
+
+        return $filtered->values()->toArray();
     }
 
-    /**
-     * ✅ NOVO: Callback otimizado para filtro MEWS
-     */
-    private function getMewsFilterCallback(): \Closure
+    //Função auxiliar pra ordenar os pacientes.
+    protected function sortPatients($collection)
     {
-        return function($p) {
-            if (!($p['has_patient'] ?? false)) return false;
+        $descending = $this->orderDirection === 'desc';
+
+        return match($this->orderBy) {
+            'bed' => $collection->sortBy(function($p) {
+                return sprintf('%s-%03d', 
+                    $p['cd_unidade_basica'] ?? '', 
+                    $p['bed_sequence'] ?? 0
+                );
+            }, SORT_STRING, $descending),
             
-            $score = $p['mews_score'] ?? null;
+            'mews' => $collection->sortBy(function($p) {
+                return $p['has_patient'] ? ($p['mews_score'] ?? -1) : -999;
+            }, SORT_NUMERIC, $descending),
             
-            return match($this->mewsFilter) {
-                'critical' => $score !== null && $score >= 5,
-                'warning' => $score !== null && $score >= 3 && $score < 5,
-                'normal' => $score === null || $score < 3,
-                default => true
-            };
+            'name' => $collection->sortBy(function($p) {
+                return strtolower($p['nm_pessoa_fisica'] ?? 'zzz');
+            }, SORT_STRING, $descending),
+            
+            'prontuario' => $collection->sortBy(function($p) {
+                return $p['nr_prontuario'] ?? 'zzz';
+            }, SORT_STRING, $descending),
+            
+            'internment' => $collection->sortBy(function($p) {
+                return $p['internment_days'] ?? -1;
+            }, SORT_NUMERIC, $descending),
+            
+            'age' => $collection->sortBy(function($p) {
+                return $p['age'] ?? 0;
+            }, SORT_NUMERIC, $descending),
+            
+            default => $collection->sortBy(function($p) {
+                return sprintf('%s-%03d', 
+                    $p['cd_unidade_basica'] ?? '', 
+                    $p['bed_sequence'] ?? 0
+                );
+            }, SORT_STRING, $descending)
         };
     }
 
-    /**
-     * ✅ OTIMIZADO: Função de comparação com cache de resultado
-     */
-    private function comparePatients($a, $b): int
-    {
-        $dir = $this->orderDirection === 'asc' ? 1 : -1;
-        
-        $result = match($this->orderBy) {
-            'leito' => strcmp($a['cd_unidade_basica'] ?? '', $b['cd_unidade_basica'] ?? ''),
-            'mews' => ($b['mews_score'] ?? 0) <=> ($a['mews_score'] ?? 0),
-            'name' => strcmp($a['nm_pessoa_fisica'] ?? '', $b['nm_pessoa_fisica'] ?? ''),
-            'prontuario' => strcmp($a['nr_prontuario'] ?? '', $b['nr_prontuario'] ?? ''),
-            'internment' => ($a['internment_days'] ?? 0) <=> ($b['internment_days'] ?? 0),
-            'age' => ($a['age'] ?? 0) <=> ($b['age'] ?? 0),
-            default => 0
-        };
-        
-        return $dir * $result;
-    }
-
-    /**
-     * ✅ OTIMIZADO: Métodos de filtro sem recarregamento
-     */
-    public function applyMewsFilter($filter)
-    {
-        $this->mewsFilter = $filter;
-        $this->applyCurrentFiltersOptimized();
-    }
-
-    public function applySurgicalFilter($filter)
-    {
-        $this->surgicalFilter = $filter;
-        $this->applyCurrentFiltersOptimized();
-    }
-
-    public function applyOrderBy($field)
-    {
-        $this->orderBy = $field;
-        $this->applyCurrentFiltersOptimized();
-    }
-
-    public function toggleOrderDirection()
-    {
-        $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
-        $this->applyCurrentFiltersOptimized();
-    }
-
-    /**
-     * ✅ NOVO: Aplica filtros sem recarregar dados do cache
-     */
-    private function applyCurrentFiltersOptimized()
-    {
-        $cacheKey = $this->generatePatientCacheKey();
-        $allPatients = Cache::get($cacheKey, []);
-        $this->applyFiltersOptimized($allPatients);
-    }
-
-    /**
-     * ✅ AUTO-REFRESH otimizado para dashboard
-     */
-    public function autoRefresh()
-    {
-        $this->clearPatientCacheOptimized();
-        $this->loadPatientsWithOptimizations();
-        $this->dispatch('auto-refreshed');
-        
-        Log::info('SBAR: Auto-refresh executado via dashboard');
-    }
-
-    /**
-     * ✅ REFRESH manual otimizado
-     */
-    public function refreshData()
-    {
-        $this->loading = true;
-        $this->loadingMessage = "Atualizando dados...";
-        $this->errorMessage = null;
-
-        $this->clearPatientCacheOptimized();
-        $this->loadPatientsWithOptimizations();
-        
-        Log::info('SBAR: Refresh manual executado');
-    }
-
-    /**
-     * ✅ NOVO: Limpa cache de forma otimizada
-     */
-    private function clearPatientCacheOptimized()
-    {
-        $cacheKey = $this->generatePatientCacheKey();
-        Cache::forget($cacheKey);
-        
-        // Limpa também cache da hora anterior para evitar dados obsoletos
-        $previousHour = date('Y-m-d_H', strtotime('-1 hour'));
-        $previousCacheKey = "sbar_patients_{$this->selectedSector}_{$previousHour}_v2";
-        Cache::forget($previousCacheKey);
-    }
-
-    public function resetFilters()
-    {
-        $this->mewsFilter = 'all';
-        $this->surgicalFilter = 'all';
-        $this->orderBy = 'leito';
-        $this->orderDirection = 'asc';
-
-        $this->applyCurrentFiltersOptimized();
-        session()->flash('message', 'Filtros resetados com sucesso!');
-    }
-
-    /**
-     * ✅ MUDANÇA DE HOSPITAL otimizada
-     */
+    //Função para mudar o hospital selecionado
     public function changeHospital($hospitalId)
     {
         $this->loading = true;
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
 
-        $this->updateSectorsForHospitalOptimized();
-        $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'] ?? null;
-        $this->updateHospitalNameOptimized();
+        $hospital = collect($this->hospitals)->firstWhere('hospital_id', $hospitalId);
+        $this->currentHospitalName = $hospital['hospital_name'] ?? 'Hospital';
 
-        $this->patients = [];
+        $allowedSectors = SystemConfiguration::allowedSectorCodes();
+        $this->loadSectorsForHospital($hospitalId, $allowedSectors);
 
-        if ($this->selectedSector) {
-            $this->loadPatientsWithOptimizations();
+        if (!empty($this->sectors)) {
+            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
+            $this->loadPatients();
         } else {
+            $this->patients = [];
             $this->loading = false;
         }
     }
 
-    /**
-     * ✅ MUDANÇA DE SETOR otimizada
-     */
-    public function changeSelector($sectorId)
+    //Função para mudar o setor selecionado
+    public function changeSector($sectorId)
     {
-        // Validação rápida
-        $validSector = null;
-        foreach ($this->sectors as $sector) {
-            if ($sector['cd_setor_atendimento'] == $sectorId) {
-                $validSector = $sector;
-                break;
-            }
-        }
-
-        if (!$validSector) {
-            $this->errorMessage = "Setor não válido para o hospital selecionado.";
-            return;
-        }
-
-        $this->loading = true;
         $this->selectedSector = $sectorId;
-        $this->patients = [];
-        $this->updateHospitalNameOptimized();
-        $this->loadPatientsWithOptimizations();
+        $this->loadPatients();
     }
 
-    /**
-     * ✅ ATUALIZAÇÃO otimizada do nome do hospital
-     */
-    private function updateHospitalNameOptimized()
+    //Função para aplicar filtro MEWS
+    public function applyMewsFilter($filter)
     {
-        // Busca rápida com early return
-        foreach ($this->allSectors as $sector) {
-            if ($sector['cd_setor_atendimento'] == $this->selectedSector) {
-                foreach ($this->hospitals as $hospital) {
-                    if ($hospital['hospital_id'] == $sector['hospital_id']) {
-                        $this->currentHospitalName = $hospital['hospital_name'];
-                        return;
-                    }
-                }
-                break;
-            }
-        }
+        $this->mewsFilter = $filter;
+        $this->loadPatients();
+        session()->flash('message', 'Filtro MEWS aplicado!');
+    }
+
+    //Função para aplicar filtro cirúrgico
+    public function applySurgicalFilter($filter)
+    {
+        $this->surgicalFilter = $filter;
+        $this->loadPatients();
+        session()->flash('message', 'Filtro cirúrgico aplicado!');
+    }
+
+    //Função para aplicar ordenação
+    public function applyOrderBy($field)
+    {
+        $this->orderBy = $field;
+        $this->loadPatients();
+        session()->flash('message', 'Ordenação aplicada!');
+    }
+
+    //Função para alternar a direção da ordenação
+    public function toggleOrderDirection()
+    {
+        $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
+        $this->loadPatients();
+        session()->flash('message', 'Direção de ordenação alterada!');
+    }
+
+    //Função para resetar filtros
+    public function resetFilters()
+    {
+        $this->mewsFilter = 'all';
+        $this->surgicalFilter = 'all';
+        $this->orderBy = 'bed';
+        $this->orderDirection = 'asc';
+        $this->loadPatients();
+        session()->flash('message', 'Filtros resetados com sucesso!');
+    }
+
+    //Função para atualizar dados
+    public function refreshData()
+    {
+        $this->loading = true;
+        $this->loadingMessage = "Atualizando dados...";
+        $this->errorMessage = null;
         
-        $this->currentHospitalName = 'Hospital Não Identificado';
-    }
-
-    /**
-     * ✅ ATUALIZAÇÃO otimizada de setores
-     */
-    private function updateSectorsForHospitalOptimized()
-    {
-        if (!$this->selectedHospital || empty($this->allSectors)) {
-            $this->sectors = [];
-            return;
-        }
-
-        $this->sectors = [];
-        foreach ($this->allSectors as $sector) {
-            if ($sector['hospital_id'] == $this->selectedHospital) {
-                $this->sectors[] = $sector;
-            }
-        }
-    }
-
-    /**
-     * ✅ ERROR HANDLERS otimizados
-     */
-    private function handleNoDataError()
-    {
-        $this->loading = false;
-        $this->errorMessage = "Nenhum hospital configurado. Solicite ao gestor a configuração pelo painel administrativo.";
-        Log::warning("SBAR: Nenhum hospital permitido encontrado");
-    }
-
-    private function handleNoSectorError()
-    {
-        $this->loading = false;
-        $this->errorMessage = "Nenhum setor válido encontrado para o hospital selecionado.";
-        Log::warning("SBAR: Nenhum setor válido - Hospital: {$this->selectedHospital}");
-    }
-
-    private function handleMountError(\Exception $e)
-    {
-        $this->loading = false;
-        $this->errorMessage = "Erro durante inicialização: " . $e->getMessage();
-        Log::error("SBAR mount error: " . $e->getMessage(), [
-            'trace' => $e->getTraceAsString()
-        ]);
-    }
-
-    private function handlePatientLoadError(\Exception $e)
-    {
-        $this->patients = [];
-        $this->errorMessage = "Erro ao carregar pacientes: " . $e->getMessage();
-        Log::error("SBAR patient load error: " . $e->getMessage(), [
-            'sector' => $this->selectedSector,
-            'hospital' => $this->selectedHospital
-        ]);
-    }
-
-    /**
-     * ✅ PERFORMANCE LOGGING
-     */
-    private function logPerformance(string $operation, int $count = 0)
-    {
-        if (!$this->startTime) return;
+        // Limpa cache do setor antes de recarregar
+        $this->patientModel->clearSectorCache($this->selectedSector);
         
-        $duration = round((microtime(true) - $this->startTime) * 1000);
-        $memory = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
-        
-        Log::info("SBAR Performance - {$operation}: {$duration}ms, {$memory}MB, {$count} items");
+        $this->loadPatients();
     }
 
+    //Função para atualizar dados automaticamente
+    public function autoRefresh()
+    {
+        $this->loadPatients();
+        $this->dispatch('auto-refreshed');
+    }
+
+    //Função para exibir o placeholder
+    public function placeholder()
+    {
+        return view('livewire.sbar-report-placeholder');
+    }
+
+    //Função para renderizar o componente
     public function render()
     {
         return view('livewire.sbar-report', [
-            'patients' => $this->patients,
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
-            'beds' => $this->beds,
+            'patients' => $this->patients,
             'errorMessage' => $this->errorMessage,
             'loadingMessage' => $this->loadingMessage,
             'mewsFilter' => $this->mewsFilter,

@@ -93,12 +93,6 @@ class ChatComponent extends Component
                 'totalHistoryPages' => $this->totalHistoryPages
             ]);
             
-            Log::info('[Chat] Inicializado', [
-                'patient_id' => $this->patientId,
-                'shift' => $this->currentShift,
-                'history_pages' => $this->totalHistoryPages
-            ]);
-            
         } catch (\Exception $e) {
             Log::error('[Chat] Erro na inicialização:', [
                 'patient_id' => $this->patientId,
@@ -163,11 +157,6 @@ class ChatComponent extends Component
             
             $this->dispatch('scroll-to-bottom');
 
-            Log::info('[Chat] Mensagem enviada', [
-                'id' => $newMessage->id,
-                'user' => $this->currentUser['name']
-            ]);
-
             return [
                 'success' => true,
                 'message_id' => $newMessage->id
@@ -202,12 +191,6 @@ class ChatComponent extends Component
             
             // Atualiza localmente (otimização de UI)
             $this->updateLocalMessagePin($messageId, $updatedMessage->is_fixed);
-            
-            Log::info('[Chat] Pin alterado', [
-                'message_id' => $messageId,
-                'fixed' => $updatedMessage->is_fixed,
-                'user' => $this->currentUser['name']
-            ]);
             
             return ['success' => true, 'is_fixed' => $updatedMessage->is_fixed];
             
@@ -267,13 +250,6 @@ class ChatComponent extends Component
                 'messageCount' => count($this->messages)
             ]);
             
-            Log::info('[Chat] Histórico carregado', [
-                'patient_id' => $this->patientId,
-                'date' => $date,
-                'shift' => $shift,
-                'messages' => count($this->messages)
-            ]);
-            
             return ['success' => true, 'messageCount' => count($this->messages)];
             
         } catch (\Exception $e) {
@@ -314,11 +290,6 @@ class ChatComponent extends Component
             'shift' => $this->currentShift,
             'date' => $this->currentDate
         ]);
-        
-        Log::info('[Chat] Retornou ao turno atual', [
-            'patient_id' => $this->patientId,
-            'shift' => $this->currentShift
-        ]);
     }
 
     public function refreshCurrentMessages()
@@ -347,12 +318,6 @@ class ChatComponent extends Component
         
         try {
             $this->loadAvailableSessions();
-            
-            Log::info('[Chat] Página do histórico carregada', [
-                'patient_id' => $this->patientId,
-                'page' => $this->currentHistoryPage,
-                'total_pages' => $this->totalHistoryPages
-            ]);
             
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar página do histórico', [
@@ -387,10 +352,6 @@ class ChatComponent extends Component
         // Adiciona a mensagem
         $this->addMessageToLocal($data);
         
-        Log::info('[Chat] Mensagem recebida via broadcast', [
-            'message_id' => $data['id']
-        ]);
-        
         $this->dispatch('scroll-to-bottom');
     }
 
@@ -414,10 +375,6 @@ class ChatComponent extends Component
         // Atualiza o estado local das mensagens
         $this->updateLocalMessagePin($messageId, $isPinned);
         
-        Log::info('[Chat] Pin alterado via broadcast', [
-            'message_id' => $messageId,
-            'is_fixed' => $isPinned
-        ]);
     }
 
     // Método auxiliar para verificar se mensagem existe

@@ -5,8 +5,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Models\EMR\Patient;
-use App\Repositories\EMR\PatientClinical;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class PatientModal extends Component
 {
@@ -18,16 +17,40 @@ class PatientModal extends Component
     public $showAlertsModal = false;
     public $currentShift = 'dia';
     public $loadingPatient = false;
+    
+    // Model centralizada
+    protected $patientModel;
+
+    public function boot()
+    {
+        $this->patientModel = new Patient();
+    }
 
     public function mount()
     {
-        $hour = now()->hour;
-        if ($hour >= 7 && $hour < 13) {
-            $this->currentShift = 'manha';
-        } elseif ($hour >= 13 && $hour < 19) {
-            $this->currentShift = 'tarde';
+        $this->currentShift = $this->getCurrentShift();
+    }
+
+    /**
+     * Determina o turno atual baseado no horário
+     * Manhã: 07:15 - 13:14
+     * Tarde: 13:15 - 19:14
+     * Noite: 19:15 - 07:14
+     */
+    private function getCurrentShift()
+    {
+        $now = now();
+        $hour = $now->hour;
+        $minute = $now->minute;
+        $time = $hour * 60 + $minute; // Converte para minutos desde meia-noite
+        
+        // 07:15 = 435min, 13:15 = 795min, 19:15 = 1155min
+        if ($time >= 435 && $time < 795) {
+            return 'manha';
+        } elseif ($time >= 795 && $time < 1155) {
+            return 'tarde';
         } else {
-            $this->currentShift = 'noite';
+            return 'noite';
         }
     }
 
@@ -50,7 +73,6 @@ class PatientModal extends Component
         ];
         $this->currentHospitalName = $hospital;
 
-        // Notify JS of loading start for optimistic UI
         $this->dispatch('patient-loading-started', [
             'patientId' => $attendanceNumber,
             'shift' => $this->currentShift
@@ -59,56 +81,76 @@ class PatientModal extends Component
         $this->loadPatientData($attendanceNumber);
     }
 
+    /**
+     * USA O MÉTODO CENTRALIZADO DA PATIENT MODEL
+     */
     private function loadPatientData($attendanceNumber)
     {
         try {
-            // Clear any existing cache for this patient to ensure fresh data
-            Cache::forget("patient_details_{$attendanceNumber}");
-            Cache::forget("patient_alerts_{$attendanceNumber}");
+            // Limpa cache antes de buscar dados atualizados
+            $this->patientModel->clearPatientCache($attendanceNumber);
             
-            // Add a small delay to prevent multiple simultaneous DB queries
-            usleep(100000); // 100ms
-            
-            $cacheKey = "patient_details_{$attendanceNumber}";
-            $this->patientDetails = Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
-                $patientModel = new Patient();
-                return $patientModel->getFullPatientData($attendanceNumber);
-            });
+            // USA O MÉTODO CENTRALIZADO getFullPatientData
+            $this->patientDetails = $this->patientModel->getFullPatientData($attendanceNumber);
 
-            $alertsCacheKey = "patient_alerts_{$attendanceNumber}";
-            $this->patientAlerts = Cache::remember($alertsCacheKey, 300, function() use ($attendanceNumber) {
-                $clinicalRepo = new PatientClinical();
-                return $clinicalRepo->getPatientActiveAlerts(
-                    $attendanceNumber, 
-                    $this->patientDetails->cd_pessoa_fisica ?? null
-                );
-            });
+            if ($this->patientDetails) {
+                // Extrai alertas dos dados completos
+                $this->patientAlerts = $this->patientDetails->alerts ?? [];
+                
+                // Atualiza dados do paciente atual
+                $this->currentPatient = array_merge($this->currentPatient, [
+                    'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica,
+                    'nr_prontuario' => $this->patientDetails->nr_prontuario,
+                    'age_detailed' => $this->patientDetails->age_detailed,
+                    'sexo' => $this->patientDetails->sexo,
+                    'convenio' => $this->patientDetails->convenio,
+                    'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName
+                ]);
+            } else {
+                $this->patientAlerts = [];
+            }
 
             $this->checkAndShowAlertsModal();
             $this->loadingPatient = false;
 
-            // Notify JS of successful data load
             $this->dispatch('patient-data-loaded', [
                 'patientId' => $attendanceNumber,
                 'shift' => $this->currentShift,
-                'success' => true
+                'success' => true,
+                'hasAlerts' => !empty($this->patientAlerts)
             ]);
 
         } catch (\Exception $e) {
-            $this->patientDetails = null;
-            $this->patientAlerts = [];
-            $this->loadingPatient = false;
-            
-            // Notify JS of error for fallback UI
-            $this->dispatch('patient-data-loaded', [
-                'patientId' => $attendanceNumber,
-                'shift' => $this->currentShift,
-                'success' => false,
-                'error' => $e->getMessage()
-            ]);
+            $this->handlePatientLoadError($e, $attendanceNumber);
         }
     }
 
+    /**
+     * Tratamento de erro
+     */
+    private function handlePatientLoadError(\Exception $e, $attendanceNumber)
+    {
+        $this->patientDetails = null;
+        $this->patientAlerts = [];
+        $this->loadingPatient = false;
+        
+        Log::error("PatientModal: Erro ao carregar dados do paciente", [
+            'attendance_number' => $attendanceNumber,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        $this->dispatch('patient-data-loaded', [
+            'patientId' => $attendanceNumber,
+            'shift' => $this->currentShift,
+            'success' => false,
+            'error' => 'Erro ao carregar dados do paciente: ' . $e->getMessage()
+        ]);
+    }
+
+    /**
+     * Verificação e exibição de alertas
+     */
     private function checkAndShowAlertsModal()
     {
         if (empty($this->patientAlerts)) {
@@ -123,9 +165,13 @@ class PatientModal extends Component
 
         if ($activeAlerts->count() > 0) {
             $this->showAlertsModal = true;
+            
         }
     }
 
+    /**
+     * Reset do estado do modal
+     */
     private function resetModalState()
     {
         $this->currentPatient = null;
@@ -136,23 +182,152 @@ class PatientModal extends Component
         $this->loadingPatient = false;
     }
 
+    /**
+     * Força refresh dos dados (limpa cache e recarrega)
+     */
+    public function refreshPatientData()
+    {
+        if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
+            return;
+        }
+
+        $this->loadingPatient = true;
+        
+        // Limpa cache antes de recarregar
+        $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
+        
+        $this->loadPatientData($this->currentPatient['nr_atendimento']);    
+    }
+
     public function closeModal()
     {
         $this->showModal = false;
         $this->resetModalState();
         
-        // Notify JS to clean up event listeners and state
         $this->dispatch('modal-closed');
         $this->dispatch('closeModal');
+     
     }
 
+    public function closeAlertsModal()
+    {
+        $this->showAlertsModal = false;
+    }
+
+    /**
+     * Verifica se tem dados do paciente
+     */
     public function hasPatientData()
     {
         return $this->patientDetails !== null;
     }
 
+    /**
+     * Getter para alertas ativos (para uso na view)
+     */
+    public function getActiveAlertsProperty()
+    {
+        if (empty($this->patientAlerts)) {
+            return collect([]);
+        }
+
+        return collect($this->patientAlerts)->filter(function($alert) {
+            return !isset($alert['end_date']) || 
+                   $alert['end_date'] === null || 
+                   \Carbon\Carbon::parse($alert['end_date'])->isFuture();
+        });
+    }
+
+    /**
+     * Getter para contagem de alertas críticos
+     */
+    public function getCriticalAlertsCountProperty()
+    {
+        return $this->activeAlerts->filter(function($alert) {
+            return ($alert['severity'] ?? 'warning') === 'danger' || 
+                   ($alert['type'] ?? '') === 'ALERTA';
+        })->count();
+    }
+
+    /**
+     * Getter para dados CPOE organizados
+     */
+    public function getCpoeDataProperty()
+    {
+        if (!$this->patientDetails) {
+            return null;
+        }
+
+        return [
+            'procedures' => $this->patientDetails->cpoe_procedures ?? 'Nenhum procedimento',
+            'medications' => $this->patientDetails->cpoe_medications ?? 'Nenhuma medicação',
+            'nutrition' => $this->patientDetails->cpoe_nutrition ?? 'Nenhuma dieta',
+            'recommendations' => $this->patientDetails->cpoe_recommendations ?? 'Nenhuma recomendação',
+            'interventions' => $this->patientDetails->cpoe_interventions ?? 'Nenhuma intervenção',
+        ];
+    }
+
+    /**
+     * Getter para escalas organizadas
+     */
+    public function getScalesDataProperty()
+    {
+        if (!$this->patientDetails) {
+            return null;
+        }
+
+        return [
+            'mews' => [
+                'score' => $this->patientDetails->mews_score ?? null,
+                'description' => $this->patientDetails->ds_mews ?? 'Sem avaliação nas últimas 24h'
+            ],
+            'braden' => $this->patientDetails->ds_braden ?? 'Sem avaliação nas últimas 24h',
+            'morse' => $this->patientDetails->ds_morse ?? 'Sem avaliação nas últimas 24h',
+            'pews' => $this->patientDetails->ds_pews ?? 'Sem avaliação nas últimas 24h',
+            'dor' => $this->patientDetails->ds_dor ?? 'Sem avaliação nas últimas 24h',
+            'tev' => $this->patientDetails->ds_tev ?? 'Sem avaliação nas últimas 24h'
+        ];
+    }
+
+    /**
+     * Getter para dados clínicos organizados
+     */
+    public function getClinicalDataProperty()
+    {
+        if (!$this->patientDetails) {
+            return null;
+        }
+
+        return [
+            'diagnosticos' => $this->patientDetails->diagnosticos_comorbidades ?? 'Sem diagnósticos',
+            'isolamento' => $this->patientDetails->medida_bloqueio ?? 'Não',
+            'motivos_isolamento' => $this->patientDetails->motivos_isolamento ?? 'Nenhum motivo de isolamento',
+            'dispositivos' => $this->patientDetails->dispositivos ?? 'Nenhum dispositivo',
+            'alergias' => $this->patientDetails->alergias_detalhadas ?? 'Sem alergias registradas',
+            'antimicrobianos' => $this->patientDetails->materiais ?? 'Nenhum antimicrobiano',
+            'exames_prioritarios' => $this->patientDetails->prioridade_exames ?? 'Nenhum exame prioritário',
+            'cirurgias' => $this->patientDetails->procedimentos_cirurgicos ?? [],
+            'avaliacao_enfermagem' => $this->patientDetails->avaliacao_enf ?? 'Não realizada',
+            'plano_educacional' => $this->patientDetails->plano_educ ?? 'Não realizado',
+            'pe_data' => $this->patientDetails->pe_data ?? 'Não realizado',
+            'historico_queda' => $this->patientDetails->ds_queda ?? 'Não avaliado'
+        ];
+    }
+
+    public function changeShift($shift)
+    {
+        $this->currentShift = $shift;
+    }
+
     public function render()
     {
-        return view('livewire.patient-modal');
+        return view('livewire.patient-modal', [
+            'activeAlerts' => $this->activeAlerts,
+            'criticalAlertsCount' => $this->criticalAlertsCount,
+            'hasPatientData' => $this->hasPatientData(),
+            'cpoeData' => $this->cpoeData,
+            'scalesData' => $this->scalesData,
+            'clinicalData' => $this->clinicalData
+        ]);
     }
 }

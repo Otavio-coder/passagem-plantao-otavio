@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 
 class VerifyAuthorization
 {
-
     use UsesRepositories;
 
     /**
@@ -18,15 +17,22 @@ class VerifyAuthorization
      */
     public function handle(Request $request, Closure $next): mixed
     {
+        $user = auth()->user();
+        
+        if (!$user) {
+            abort(403);
+        }
 
+        // Verifica se é um usuário local existente
         $findUser = $this->users()->find([
-            'username' => auth()->user()->username
+            'username' => $user->username
         ]);
 
-        if ( $findUser && $findUser->status == 'I' )
+        // Se encontrou o usuário localmente, verifica se está ativo
+        if ($findUser && $findUser->status == 'I') {
             abort(403);
-
+        }
+        
         return $next($request);
     }
-
 }

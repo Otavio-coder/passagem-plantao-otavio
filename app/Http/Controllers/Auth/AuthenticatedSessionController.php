@@ -30,34 +30,42 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
-        // Se o usuário não existe localmente, provisiona automaticamente
         $localUser = auth()->user();
-        if ($localUser && !$localUser->exists) {
-            // Busca usuário no LDAP
-            $username = $request->get('username');
-            $ldapUser = \LdapRecord\Models\ActiveDirectory\User::query()->findBy('samaccountname', $username);
+        $username = $request->get('username');
+        
+        // Verifica se precisa provisionar o usuário localmente
+        if ($localUser) {
+            $existingUser = \App\Models\System\User::where('username', $username)->first();
+            
+            if (!$existingUser) {
+                try {
+                    // Busca usuário no LDAP para obter informações completas
+                    $ldapUser = \LdapRecord\Models\ActiveDirectory\User::query()->findBy('samaccountname', $username);
 
-            if ($ldapUser) {
-                $repo = new \App\Repositories\MySQL\UserRepository();
-                $userData = [
-                    'name'     => $ldapUser->getFirstAttribute('displayname') ?? $username,
-                    'username' => $username,
-                    'email'    => $ldapUser->getFirstAttribute('mail') ?? ($ldapUser->getFirstAttribute('userprincipalname') ?? null),
-                    'created_by' => 0,
-                    'guid'     => $ldapUser->getConvertedGuid(),
-                    'domain'   => 'default',
-                    'status'   => 'A',
-                ];
-                $user = $repo->store($userData, true);
+                    if ($ldapUser) {
+                        $repo = new \App\Repositories\MySQL\UserRepository();
+                        $userData = [
+                            'name'     => $ldapUser->getFirstAttribute('displayname') ?? $username,
+                            'username' => $username,
+                            'email'    => $ldapUser->getFirstAttribute('mail') ?? ($ldapUser->getFirstAttribute('userprincipalname') ?? "{$username}@santacasa.org.br"),
+                            'created_by' => 0,
+                            'guid'     => $ldapUser->getConvertedGuid(),
+                            'domain'   => 'default',
+                            'status'   => 'A',
+                        ];
+                        
+                        $newUser = $repo->store($userData, true);
 
-                // Atribui perfil "Visualizador"
-                $role = \Spatie\Permission\Models\Role::where('name', 'Visualizador')->first();
-                if ($user && $role) {
-                    $user->syncRoles([$role->name]);
+                        // Atribui perfil padrão "Visualizador"
+                        $role = \Spatie\Permission\Models\Role::where('name', 'Visualizador')->first();
+                        if ($newUser && $role) {
+                            $newUser->syncRoles([$role->name]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Erro ao provisionar usuário {$username}: " . $e->getMessage());
+                    // Continua o login mesmo se o provisionamento falhar
                 }
-
-                // Autentica o usuário recém-criado
-                auth()->login($user);
             }
         }
 

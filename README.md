@@ -30,10 +30,10 @@ O Sistema de Passagem de Plantão digitaliza e integra o processo de passagem de
 
 O sistema implementa digitalmente o modelo SBAR (Situação, Background, Avaliação e Recomendação), estrutura amplamente adotada para comunicação clínica padronizada. As informações são organizadas visualmente em cards individuais por leito, proporcionando:
 
-- ✅ Sincronização em tempo real com o sistema Tasy para exibição de dados clínicos dos pacientes
-- ✅ Visualização centralizada de exames, medicações, agendamentos e observações relevantes
-- ✅ Armazenamento estruturado em banco de dados para análise histórica e auditoria
-- ✅ Padronização do processo de comunicação entre equipes de diferentes turnos
+-  Sincronização em tempo real com o sistema Tasy para exibição de dados clínicos dos pacientes
+-  Visualização centralizada de exames, medicações, agendamentos e observações relevantes
+-  Armazenamento estruturado em banco de dados para análise histórica e auditoria
+-  Padronização do processo de comunicação entre equipes de diferentes turnos
 
 ## 🔧 Tecnologias
 

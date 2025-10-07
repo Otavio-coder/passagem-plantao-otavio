@@ -30,26 +30,22 @@ window.Echo = new Echo({
 
 // Log de conexão simplificado
 window.Echo.connector.pusher.connection.bind('connected', () => {
-    console.log('[Echo] ✅ Conectado ao WebSocket');
-    
     // Carrega o sistema de chat
     import('./chat-echo-listeners.js').then(() => {
-        console.log('[Echo] Sistema de chat carregado');
+        //console.log('[Echo] Sistema de chat carregado');
     });
 });
 
 // Log de erros de conexão
 window.Echo.connector.pusher.connection.bind('error', (error) => {
-    console.error('[Echo] ❌ Erro de conexão:', error);
+    //console.error('[Echo] Erro de conexão:', error);
 });
 
 // Log de estado da conexão
 window.Echo.connector.pusher.connection.bind('state_change', (states) => {
-    console.log('[Echo] Estado:', states.previous, '→', states.current);
+    //console.log('[Echo] Estado:', states.previous, '→', states.current);
 });
 
-// Importa o resto do bootstrap
-import './bootstrap';
 
 // PWA install prompt (mantém como estava)
 window.addEventListener('beforeinstallprompt', (e) => {

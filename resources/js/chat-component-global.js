@@ -27,11 +27,11 @@ window.chatComponent = function() {
                 // Sincroniza dados de paginação após inicialização
                 this.totalHistoryPages = this.$wire.get('totalHistoryPages') || 1;
                 this.historyPage = this.$wire.get('currentHistoryPage') || 0;
-                
-                console.log('[Chat Alpine] Paginação inicializada:', {
-                    page: this.historyPage,
-                    total: this.totalHistoryPages
-                });
+
+                //console.log('[Chat Alpine] Paginação inicializada:', {
+                //    page: this.historyPage,
+                //    total: this.totalHistoryPages
+                //});
             });
             
             // Conecta ao canal Echo quando estiver pronto
@@ -42,7 +42,7 @@ window.chatComponent = function() {
                 if (window.connectChatChannel) {
                     window.connectChatChannel(patientId, shift, componentId);
                     this.echoReady = true;
-                    console.log('[Chat Alpine] Conectado ao Echo');
+                    //console.log('[Chat Alpine] Conectado ao Echo');
                 }
             };
             
@@ -284,7 +284,7 @@ window.chatComponent = function() {
         async retryMessage(messageId) {
             try {
                 // Implementar lógica de retry se necessário
-                console.log('[Chat] Retry message:', messageId);
+                //console.log('[Chat] Retry message:', messageId);
             } catch (error) {
                 this.showErrorToast('Erro ao reenviar mensagem');
             }

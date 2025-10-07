@@ -488,55 +488,106 @@ function extractScaleScore($value) {
     return null;
 }
 
-function getMewsRiskStyling($score) {
+function getMewsRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
     if ($num !== null) {
-        if ($num >= 5) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
-        if ($num >= 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
+        if ($num >= 5) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+        if ($num == 4) return ['bg'=>'bg-orange-100','border'=>'border-orange-300','text'=>$textColor];
+        if ($num == 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+        return ['bg'=>'bg-blue-50','border'=>'border-blue-300','text'=>$textColor];
     }
     return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
 }
-function getBradenRiskStyling($score) {
+
+function getBradenRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
     if ($num !== null) {
-        if ($num <= 12) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
-        if ($num >= 13 && $num <= 18) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
-        if ($num >= 19) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
+        if ($num <= 12) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+        if ($num >= 13 && $num <= 18) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+        if ($num >= 19) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
     }
     return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
 }
-function getMorseRiskStyling($score) {
+
+function getMorseRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
     if ($num !== null) {
+        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
         if ($num < 25) {
-            // Baixo risco
-            return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+            return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
         } elseif ($num <= 45) {
-            // Risco moderado
-            return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
+            return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
         } else {
-            // Risco elevado
-            return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
+            return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
         }
     }
     return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
 }
-function getPainRiskStyling($score) {
+
+function getPainRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
     if ($num !== null) {
-        if ($num >= 7) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
-        if ($num >= 4 && $num <= 6) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
-        if ($num >= 0 && $num <= 3) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
+        if ($num >= 7) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+        if ($num >= 4 && $num <= 6) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+        if ($num >= 0 && $num <= 3) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
     }
     return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
 }
-function getTevRiskStyling($score) {
+
+function getPewsRiskStyling($score, $forceNormalText = false) {
     $num = extractScaleScore($score);
     if ($num !== null) {
-        if ($num >= 3) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>'text-red-700'];
-        if ($num == 2) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>'text-yellow-700'];
-        if ($num == 0 || $num == 1) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
+        $textColor = $forceNormalText ? 'text-gray-800' : 'text-black';
+        if ($num >= 4) return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
+        if ($num >= 2 && $num <= 3) return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
+        if ($num >= 0 && $num <= 1) return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
     }
     return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+
+// Corrigir função TEV para sempre aplicar forceNormalText quando solicitado
+function getTevRiskStyling($score, $forceNormalText = false) {
+    $num = extractScaleScore($score);
+    if ($num !== null) {
+        // Se forceNormalText é true, sempre usar text-gray-800
+        if ($forceNormalText) {
+            $textColor = 'text-gray-800';
+        } else {
+            $textColor = $num >= 2 ? 'text-red-800' : 'text-green-800';
+        }
+        
+        if ($num >= 2) return ['bg'=>'bg-red-100','border'=>'border-red-400','text'=>$textColor];
+        return ['bg'=>'bg-green-100','border'=>'border-green-400','text'=>$textColor];
+    }
+    return ['bg'=>'bg-gray-50','border'=>'border-gray-200','text'=>'text-gray-800'];
+}
+
+function getCurrentShift() {
+    $now = now();
+    $hour = $now->hour;
+    $minute = $now->minute;
+    $time = $hour * 60 + $minute;
+    
+    // Manhã: 07:15 - 13:14 (435 - 794)
+    // Tarde: 13:15 - 19:14 (795 - 1154)
+    // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
+    if ($time >= 435 && $time < 795) {
+        return 'manha';
+    } elseif ($time >= 795 && $time < 1155) {
+        return 'tarde';
+    } else {
+        return 'noite';
+    }
+}
+
+function getShiftLabel($shift) {
+    return match($shift) {
+        'manha', 'M' => 'Manhã',
+        'tarde', 'T' => 'Tarde',
+        'noite', 'N' => 'Noite',
+        default => $shift
+    };
 }

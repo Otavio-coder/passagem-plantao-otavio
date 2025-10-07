@@ -23,16 +23,7 @@ use Illuminate\Support\Facades\Auth;
 // 🔐 CANAL PRIVADO DO CHAT - Para mensagens e fixações
 // =============================================================================
 Broadcast::channel('chat.{nr_atendimento}.{turno_id}', function ($user, $nr_atendimento, $turno_id) {
-    // Log para debug da autenticação
-    Log::info('[Chat] Autenticando canal privado', [
-        'channel' => "chat.{$nr_atendimento}.{$turno_id}",
-        'user_id' => $user?->id,
-        'user_name' => $user?->name,
-        'nr_atendimento' => $nr_atendimento,
-        'turno_id' => $turno_id
-    ]);
-    
-    // ✅ VERIFICAÇÃO BÁSICA: Usuário deve estar autenticado
+
     if (!$user) {
         Log::warning('[Chat] Acesso negado - usuário não autenticado', [
             'channel' => "chat.{$nr_atendimento}.{$turno_id}"
@@ -40,7 +31,6 @@ Broadcast::channel('chat.{nr_atendimento}.{turno_id}', function ($user, $nr_aten
         return false;
     }
     
-    // ✅ VALIDAÇÃO DOS PARÂMETROS
     if (empty($nr_atendimento) || empty($turno_id)) {
         Log::warning('[Chat] Acesso negado - parâmetros inválidos', [
             'channel' => "chat.{$nr_atendimento}.{$turno_id}",
@@ -85,16 +75,10 @@ Broadcast::channel('chat.{nr_atendimento}.{turno_id}', function ($user, $nr_aten
         //     return false;
         // }
         
-        // 🎯 AUTORIZAÇÃO SIMPLIFICADA: Por enquanto, qualquer usuário autenticado pode acessar
+        // AUTORIZAÇÃO SIMPLIFICADA: Por enquanto, qualquer usuário autenticado pode acessar
         // SUBSTITUA por suas regras de negócio específicas
         
-        Log::info('[Chat] Acesso autorizado ao canal privado', [
-            'channel' => "chat.{$nr_atendimento}.{$turno_id}",
-            'user_id' => $user->id,
-            'user_name' => $user->name
-        ]);
-        
-        // ✅ Retornar dados do usuário para o canal (opcional)
+        // Retornar dados do usuário para o canal (opcional)
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -117,23 +101,14 @@ Broadcast::channel('chat.{nr_atendimento}.{turno_id}', function ($user, $nr_aten
 });
 
 // =============================================================================
-// 🔐 CANAL PRIVADO POR SESSÃO (Opcional)
+// CANAL PRIVADO POR SESSÃO (Opcional)
 // =============================================================================
 Broadcast::channel('chat.sessao.{sessao_id}', function ($user, $sessao_id) {
-    // Log para debug
-    Log::info('[Chat] Autenticando canal de sessão', [
-        'channel' => "chat.sessao.{$sessao_id}",
-        'user_id' => $user?->id,
-        'sessao_id' => $sessao_id
-    ]);
-    
+  
     // Verificação básica
     if (!$user || empty($sessao_id)) {
         return false;
     }
-    
-    // Aqui você pode verificar se o usuário pertence à sessão
-    // Exemplo: verificar se a sessão existe e se o usuário tem acesso
     
     return [
         'id' => $user->id,
@@ -141,82 +116,14 @@ Broadcast::channel('chat.sessao.{sessao_id}', function ($user, $sessao_id) {
     ];
 });
 
-// =============================================================================
-// 🔓 CANAL PÚBLICO DE TESTE (Para desenvolvimento/debug)
-// =============================================================================
-// Broadcast::channel('chat.debug', function () {
-//     // Canal público para testes - remover em produção
-//     Log::info('[Chat] Acesso ao canal de debug (público)');
-//     return true;
-// });
+
 
 // =============================================================================
-// 📡 CANAL DE PRESENÇA (Para mostrar usuários online - opcional)
-// =============================================================================
-// Broadcast::channel('chat.presence.{nr_atendimento}.{turno_id}', function ($user, $nr_atendimento, $turno_id) {
-//     if (!$user) {
-//         return false;
-//     }
-//     
-//     // Mesmo sistema de autorização do canal de chat
-//     // ... suas verificações aqui
-//     
-//     return [
-//         'id' => $user->id,
-//         'name' => $user->name,
-//         'photo' => $user->getUserPhoto() ?? '',
-//         'online_since' => now()->toISOString()
-//     ];
-// });
-
-// =============================================================================
-// 🔐 CANAL PRIVADO DO USUÁRIO (Para notificações pessoais)
+// CANAL PRIVADO DO USUÁRIO (Para notificações pessoais)
 // =============================================================================
 Broadcast::channel('App.Models.System.User.{id}', function ($user, $id) {
     // Canal privado para notificações pessoais do usuário
     $canAccess = (int) $user->id === (int) $id;
     
-    Log::info('[Chat] Autenticando canal pessoal do usuário', [
-        'channel' => "App.Models.System.User.{$id}",
-        'user_id' => $user->id,
-        'target_id' => $id,
-        'authorized' => $canAccess
-    ]);
-    
     return $canAccess;
 });
-
-// =============================================================================
-// 📋 EXPLICAÇÃO DAS CONFIGURAÇÕES:
-// =============================================================================
-/*
-TIPOS DE CANAIS:
-
-1. 🔐 PRIVADOS (Broadcast::channel): 
-   - Requerem autenticação
-   - Callback deve retornar true/false ou array com dados do usuário
-   - Prefixo automático: "private-" no frontend
-
-2. 🔓 PÚBLICOS (Broadcast::channel com callback que retorna true):
-   - Não requerem autenticação
-   - Qualquer um pode se conectar
-
-3. 👥 PRESENÇA (Broadcast::presenceChannel):
-   - Mostram lista de usuários conectados
-   - Úteis para funcionalidades "quem está online"
-
-AUTORIZAÇÃO:
-- return true;        = Acesso liberado
-- return false;       = Acesso negado  
-- return array;       = Acesso liberado + dados do usuário
-- throw Exception;    = Acesso negado
-
-LOGS:
-- Todos os acessos são logados para debug
-- Verifique storage/logs/laravel.log para troubleshooting
-
-FRONTEND:
-- Use Echo.private('chat.123.tarde') para canais privados
-- Use Echo.channel('chat.123.tarde') para canais públicos
-- Use Echo.join('chat.presence.123.tarde') para canais de presença
-*/

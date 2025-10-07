@@ -240,7 +240,6 @@ class ChatAuditoriaService
             }
 
             if ($removidos > 0) {
-                Log::info("Limpeza de auditoria concluída", ['registros_removidos' => $removidos]);
             }
 
             return $removidos;

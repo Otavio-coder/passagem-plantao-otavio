@@ -36,7 +36,7 @@
         </style>
     @endpush
 
-    <div class="w-full px-3 my-2 text-[#004D9D] relative no-zoom"
+    <div class="w-full my-2 text-[#004D9D] relative no-zoom"
          x-data="sbarDashboard()"
          x-init="init()">
 
@@ -48,24 +48,64 @@
     <script>
     window.sbarDashboard = function() {
         return {
-            isDashboardMode: false,
             autoRefreshEnabled: false,
             nextRefreshIn: 600,
+            autoRefreshInterval: null,
+            countdownInterval: null,
             modalOpen: false,
+            
             init() {
-                this.isDashboardMode = window.SBAR_SYSTEM?.isDashboardMode ?? false;
-                this.autoRefreshEnabled = window.SBAR_SYSTEM?.autoRefreshEnabled ?? false;
-                this.nextRefreshIn = window.SBAR_SYSTEM?.nextRefreshIn ?? 600;
+                // Inicialização simples
+                this.autoRefreshEnabled = localStorage.getItem('sbar_autorefresh') === 'true';
+                if (this.autoRefreshEnabled) {
+                    this.startAutoRefresh();
+                }
             },
-            toggleDashboardMode() {
-                if (window.toggleDashboardMode) window.toggleDashboardMode();
-                this.isDashboardMode = window.SBAR_SYSTEM?.isDashboardMode ?? false;
-            },
+            
             toggleAutoRefresh() {
-                if (window.toggleAutoRefresh) window.toggleAutoRefresh();
-                this.autoRefreshEnabled = window.SBAR_SYSTEM?.autoRefreshEnabled ?? false;
-                this.nextRefreshIn = window.SBAR_SYSTEM?.nextRefreshIn ?? 600;
+                this.autoRefreshEnabled = !this.autoRefreshEnabled;
+                localStorage.setItem('sbar_autorefresh', this.autoRefreshEnabled);
+                
+                if (this.autoRefreshEnabled) {
+                    this.startAutoRefresh();
+                } else {
+                    this.stopAutoRefresh();
+                }
             },
+            
+            startAutoRefresh() {
+                this.stopAutoRefresh(); // Limpa intervalos anteriores
+                this.nextRefreshIn = 600; // 10 minutos
+                
+                // Countdown
+                this.countdownInterval = setInterval(() => {
+                    if (this.modalOpen) return;
+                    this.nextRefreshIn--;
+                    if (this.nextRefreshIn <= 0) {
+                        this.nextRefreshIn = 600;
+                    }
+                }, 1000);
+                
+                // Auto-refresh
+                this.autoRefreshInterval = setInterval(() => {
+                    if (!this.modalOpen) {
+                        this.nextRefreshIn = 600;
+                        Livewire.dispatch('refreshData');
+                    }
+                }, 600000); // 10 minutos
+            },
+            
+            stopAutoRefresh() {
+                if (this.autoRefreshInterval) {
+                    clearInterval(this.autoRefreshInterval);
+                    this.autoRefreshInterval = null;
+                }
+                if (this.countdownInterval) {
+                    clearInterval(this.countdownInterval);
+                    this.countdownInterval = null;
+                }
+            },
+            
             handleAutoRefresh() {
                 this.nextRefreshIn = 600;
             }

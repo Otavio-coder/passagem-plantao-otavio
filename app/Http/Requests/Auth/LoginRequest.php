@@ -50,8 +50,8 @@ class LoginRequest extends FormRequest
             'password' => $this->password,
         ];
 
-        if ( !$this->users()->checkUserExist( $this->username ) )
-            abort(403);
+        // if ( !$this->users()->checkUserExist( $this->username ) )
+        //     abort(403);
 
         if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());

@@ -2,320 +2,549 @@
 
 namespace App\Repositories\EMR;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class PatientScales 
 {
     protected $connection = 'tasy';
-    public $timestamps = false;
-    
-
-    /**
-     * Get today's most recent MEWS data for multiple patients
-     * Returns "Não Medido" if not available for today
-     */
-    public function getMewsDataForPatients($attendanceNumbers)
-    {
-        if (empty($attendanceNumbers)) {
-            return [];
-        }
-        
-        $cacheKey = "mews_data_today_" . md5(implode(',', $attendanceNumbers));
-        
-        return Cache::remember($cacheKey, 300, function() use ($attendanceNumbers) {
-            $placeholders = str_repeat('?,', count($attendanceNumbers) - 1) . '?';
-            
-            $results = DB::connection('tasy')->select("
-                SELECT 
-                    xm.nr_atendimento,
-                    xm.qt_pontuacao,
-                    xm.dt_avaliacao,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY xm.nr_atendimento
-                        ORDER BY xm.dt_avaliacao DESC
-                    ) AS rn
-                FROM tasy.escala_mews xm
-                WHERE xm.nr_atendimento IN ({$placeholders})
-                AND xm.dt_inativacao IS NULL 
-                AND xm.dt_liberacao IS NOT NULL
-                AND xm.dt_avaliacao >= TRUNC(SYSDATE)
-                AND xm.dt_avaliacao < TRUNC(SYSDATE) + 1
-            ", $attendanceNumbers);
-            
-            $mewsData = [];
-            foreach ($attendanceNumbers as $nr_atendimento) {
-                $mewsData[$nr_atendimento] = [
-                    'mews_score' => null,
-                    'mews_date' => null,
-                    'mews_alert' => 'Não aferido', // alerta curto
-                    'mews_display' => 'MEWS: não aferido'
-                ];
-            }
-            foreach ($results as $result) {
-                if ($result->rn == 1) { // Only latest for today
-                    $hora = date('H:i', strtotime($result->dt_avaliacao));
-                    $pontuacao = $result->qt_pontuacao;
-                    $mewsData[$result->nr_atendimento] = [
-                        'mews_score' => $pontuacao,
-                        'mews_date' => $result->dt_avaliacao,
-                        'mews_alert' => null,
-                        'mews_display' => "MEWS: {$pontuacao} ({$hora})"
-                    ];
-                }
-            }
-            
-            return $mewsData;
-        });
-    }
     
     /**
-     * Get all scales for a specific patient 
+     * MÉTODO ÚNICO PARA BUSCAR ESCALAS
+     * Usado tanto para cards quanto para modal
+     * 
+     * @param int $attendanceNumber
+     * @return object
      */
     public function getPatientScales($attendanceNumber)
     {
-        $cacheKey = "patient_scales_{$attendanceNumber}";
-        
-        return Cache::remember($cacheKey, 600, function() use ($attendanceNumber) {
-            return (object) [
-                'mews_score' => $this->getMewsScore($attendanceNumber),
-                'ds_mews' => $this->getMewsDescription($attendanceNumber),
-                'ds_braden' => $this->getBradenDescription($attendanceNumber),
-                'ds_morse' => $this->getMorseDescription($attendanceNumber),
-                'ds_pews' => $this->getPewsDescription($attendanceNumber),
-                'ds_dor' => $this->getPainScaleDescription($attendanceNumber),
-                'ds_tev' => $this->getTevDescription($attendanceNumber)
+        try {
+            $currentShift = $this->getCurrentShift();
+            $shiftStart = $this->getCurrentShiftStart();
+            
+            $result = DB::connection('tasy')->select("
+                SELECT
+                    -- MEWS (última 24h + turno atual + penúltima + shift)
+                    (SELECT qt_pontuacao 
+                     FROM tasy.escala_mews 
+                     WHERE nr_atendimento = :nr_atend1
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS mews_score,
+                    
+                    (SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI')
+                     FROM tasy.escala_mews 
+                     WHERE nr_atendimento = :nr_atend2
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS mews_datetime,
+                    
+                    (SELECT CASE 
+                        WHEN TO_CHAR(dt_avaliacao, 'HH24:MI') BETWEEN '07:00' AND '12:59' THEN 'manha'
+                        WHEN TO_CHAR(dt_avaliacao, 'HH24:MI') BETWEEN '13:00' AND '18:59' THEN 'tarde'
+                        ELSE 'noite'
+                    END
+                     FROM tasy.escala_mews 
+                     WHERE nr_atendimento = :nr_atend2b
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS mews_shift,
+                    
+                    (SELECT qt_pontuacao 
+                     FROM (
+                         SELECT qt_pontuacao, ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) as rn
+                         FROM tasy.escala_mews
+                         WHERE nr_atendimento = :nr_atend3
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND dt_avaliacao >= SYSDATE - 2
+                     ) WHERE rn = 2) AS mews_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.escala_mews
+                     WHERE nr_atendimento = :nr_atend4
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND dt_avaliacao >= :shift_start) AS mews_current_shift,
+                    
+                    -- BRADEN (última 24h + penúltima)
+                    (SELECT qt_ponto 
+                     FROM tasy.ATEND_ESCALA_BRADEN 
+                     WHERE nr_atendimento = :nr_atend5
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS braden_score,
+                    
+                    (SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI')
+                     FROM tasy.ATEND_ESCALA_BRADEN 
+                     WHERE nr_atendimento = :nr_atend6
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS braden_datetime,
+                    
+                    (SELECT qt_ponto 
+                     FROM (
+                         SELECT qt_ponto, ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) as rn
+                         FROM tasy.ATEND_ESCALA_BRADEN
+                         WHERE nr_atendimento = :nr_atend7
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND dt_avaliacao >= SYSDATE - 2
+                     ) WHERE rn = 2) AS braden_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.ATEND_ESCALA_BRADEN
+                     WHERE nr_atendimento = :nr_atend8
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND dt_avaliacao >= SYSDATE - 1) AS braden_done_24h,
+                    
+                    -- MORSE (última 24h + penúltima)
+                    (SELECT qt_pontuacao 
+                     FROM tasy.escala_morse 
+                     WHERE nr_atendimento = :nr_atend9
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS morse_score,
+                    
+                    (SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI')
+                     FROM tasy.escala_morse 
+                     WHERE nr_atendimento = :nr_atend10
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS morse_datetime,
+                    
+                    (SELECT qt_pontuacao 
+                     FROM (
+                         SELECT qt_pontuacao, ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) as rn
+                         FROM tasy.escala_morse
+                         WHERE nr_atendimento = :nr_atend11
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND dt_avaliacao >= SYSDATE - 2
+                     ) WHERE rn = 2) AS morse_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.escala_morse
+                     WHERE nr_atendimento = :nr_atend12
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND dt_avaliacao >= SYSDATE - 1) AS morse_done_24h,
+                    
+                    -- DOR (última 24h + turno atual + penúltima + shift)
+                    (SELECT qt_escala_dor 
+                     FROM tasy.atendimento_sinal_vital 
+                     WHERE nr_atendimento = :nr_atend13
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND qt_escala_dor IS NOT NULL 
+                       AND dt_sinal_vital >= SYSDATE - 1
+                     ORDER BY dt_sinal_vital DESC
+                     FETCH FIRST 1 ROWS ONLY) AS dor_score,
+                    
+                    (SELECT TO_CHAR(dt_sinal_vital, 'DD/MM HH24:MI')
+                     FROM tasy.atendimento_sinal_vital 
+                     WHERE nr_atendimento = :nr_atend14
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND qt_escala_dor IS NOT NULL 
+                       AND dt_sinal_vital >= SYSDATE - 1
+                     ORDER BY dt_sinal_vital DESC
+                     FETCH FIRST 1 ROWS ONLY) AS dor_datetime,
+                    
+                    (SELECT CASE 
+                        WHEN TO_CHAR(dt_sinal_vital, 'HH24:MI') BETWEEN '07:00' AND '12:59' THEN 'manha'
+                        WHEN TO_CHAR(dt_sinal_vital, 'HH24:MI') BETWEEN '13:00' AND '18:59' THEN 'tarde'
+                        ELSE 'noite'
+                    END
+                     FROM tasy.atendimento_sinal_vital 
+                     WHERE nr_atendimento = :nr_atend14b
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND qt_escala_dor IS NOT NULL 
+                       AND dt_sinal_vital >= SYSDATE - 1
+                     ORDER BY dt_sinal_vital DESC
+                     FETCH FIRST 1 ROWS ONLY) AS dor_shift,
+                    
+                    (SELECT qt_escala_dor 
+                     FROM (
+                         SELECT qt_escala_dor, ROW_NUMBER() OVER (ORDER BY dt_sinal_vital DESC) as rn
+                         FROM tasy.atendimento_sinal_vital
+                         WHERE nr_atendimento = :nr_atend15
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND qt_escala_dor IS NOT NULL
+                           AND dt_sinal_vital >= SYSDATE - 2
+                     ) WHERE rn = 2) AS dor_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.atendimento_sinal_vital
+                     WHERE nr_atendimento = :nr_atend16
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND qt_escala_dor IS NOT NULL
+                       AND dt_sinal_vital >= :shift_start2) AS dor_current_shift,
+                    
+                    -- TEV (última 24h + penúltima)
+                    (SELECT qt_pontuacao 
+                     FROM tasy.escala_tev 
+                     WHERE nr_atendimento = :nr_atend17
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS tev_score,
+                    
+                    (SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI')
+                     FROM tasy.escala_tev 
+                     WHERE nr_atendimento = :nr_atend18
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS tev_datetime,
+                    
+                    (SELECT qt_pontuacao 
+                     FROM (
+                         SELECT qt_pontuacao, ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) as rn
+                         FROM tasy.escala_tev
+                         WHERE nr_atendimento = :nr_atend19
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND dt_avaliacao >= SYSDATE - 2
+                     ) WHERE rn = 2) AS tev_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.escala_tev
+                     WHERE nr_atendimento = :nr_atend20
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND dt_avaliacao >= SYSDATE - 1) AS tev_done_24h,
+                    
+                    -- PEWS (última 24h + turno atual + penúltima + shift) - só pediátrico
+                    (SELECT qt_pontuacao 
+                     FROM tasy.escala_pews 
+                     WHERE nr_atendimento = :nr_atend21
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS pews_score,
+                    
+                    (SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI')
+                     FROM tasy.escala_pews 
+                     WHERE nr_atendimento = :nr_atend22
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS pews_datetime,
+                    
+                    (SELECT CASE 
+                        WHEN TO_CHAR(dt_avaliacao, 'HH24:MI') BETWEEN '07:00' AND '12:59' THEN 'manha'
+                        WHEN TO_CHAR(dt_avaliacao, 'HH24:MI') BETWEEN '13:00' AND '18:59' THEN 'tarde'
+                        ELSE 'noite'
+                    END
+                     FROM tasy.escala_pews 
+                     WHERE nr_atendimento = :nr_atend22b
+                       AND dt_liberacao IS NOT NULL 
+                       AND dt_inativacao IS NULL 
+                       AND dt_avaliacao >= SYSDATE - 1
+                     ORDER BY dt_avaliacao DESC
+                     FETCH FIRST 1 ROWS ONLY) AS pews_shift,
+                    
+                    (SELECT qt_pontuacao 
+                     FROM (
+                         SELECT qt_pontuacao, ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) as rn
+                         FROM tasy.escala_pews
+                         WHERE nr_atendimento = :nr_atend23
+                           AND dt_liberacao IS NOT NULL
+                           AND dt_inativacao IS NULL
+                           AND dt_avaliacao >= SYSDATE - 2
+                     ) WHERE rn = 2) AS pews_previous,
+                    
+                    (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                     FROM tasy.escala_pews
+                     WHERE nr_atendimento = :nr_atend24
+                       AND dt_liberacao IS NOT NULL
+                       AND dt_inativacao IS NULL
+                       AND dt_avaliacao >= :shift_start3) AS pews_current_shift
+                    
+                FROM dual
+            ", [
+                'nr_atend1' => $attendanceNumber, 'nr_atend2' => $attendanceNumber, 'nr_atend2b' => $attendanceNumber, 'nr_atend3' => $attendanceNumber,
+                'nr_atend4' => $attendanceNumber, 'shift_start' => $shiftStart,
+                'nr_atend5' => $attendanceNumber, 'nr_atend6' => $attendanceNumber, 'nr_atend7' => $attendanceNumber, 'nr_atend8' => $attendanceNumber,
+                'nr_atend9' => $attendanceNumber, 'nr_atend10' => $attendanceNumber, 'nr_atend11' => $attendanceNumber, 'nr_atend12' => $attendanceNumber,
+                'nr_atend13' => $attendanceNumber, 'nr_atend14' => $attendanceNumber, 'nr_atend14b' => $attendanceNumber, 'nr_atend15' => $attendanceNumber,
+                'nr_atend16' => $attendanceNumber, 'shift_start2' => $shiftStart,
+                'nr_atend17' => $attendanceNumber, 'nr_atend18' => $attendanceNumber, 'nr_atend19' => $attendanceNumber, 'nr_atend20' => $attendanceNumber,
+                'nr_atend21' => $attendanceNumber, 'nr_atend22' => $attendanceNumber, 'nr_atend22b' => $attendanceNumber, 'nr_atend23' => $attendanceNumber,
+                'nr_atend24' => $attendanceNumber, 'shift_start3' => $shiftStart
+            ]);
+            
+            if (empty($result)) {
+                return $this->getEmptyScalesObject();
+            }
+            
+            $data = $result[0];
+            
+            return (object)[
+                // MEWS
+                'mews_score' => $data->mews_score,
+                'mews_datetime' => $data->mews_datetime,
+                'mews_shift' => $data->mews_shift, // ADICIONADO
+                'mews_needs_assessment' => !$data->mews_current_shift,
+                'mews_increased' => $this->hasIncreased($data->mews_score, $data->mews_previous),
+                'mews_classification' => $this->getMewsClassification($data->mews_score),
+                'ds_mews' => $this->formatDescription('MEWS', $data->mews_score, $data->mews_datetime),
+                
+                // BRADEN
+                'braden_score' => $data->braden_score,
+                'braden_datetime' => $data->braden_datetime,
+                'braden_needs_assessment' => !$data->braden_done_24h,
+                'braden_increased' => $this->hasIncreased($data->braden_score, $data->braden_previous),
+                'braden_classification' => $this->getBradenClassification($data->braden_score),
+                'ds_braden' => $this->formatDescription('Braden', $data->braden_score, $data->braden_datetime),
+                
+                // MORSE
+                'morse_score' => $data->morse_score,
+                'morse_datetime' => $data->morse_datetime,
+                'morse_needs_assessment' => !$data->morse_done_24h,
+                'morse_increased' => $this->hasIncreased($data->morse_score, $data->morse_previous),
+                'morse_classification' => $this->getMorseClassification($data->morse_score),
+                'ds_morse' => $this->formatDescription('Morse', $data->morse_score, $data->morse_datetime),
+                
+                // DOR
+                'dor_score' => $data->dor_score,
+                'dor_datetime' => $data->dor_datetime,
+                'dor_shift' => $data->dor_shift, // ADICIONADO
+                'dor_needs_assessment' => !$data->dor_current_shift,
+                'dor_increased' => $this->hasIncreased($data->dor_score, $data->dor_previous),
+                'dor_classification' => $this->getDorClassification($data->dor_score),
+                'ds_dor' => $this->formatDescription('Dor', $data->dor_score, $data->dor_datetime),
+                
+                // TEV
+                'tev_score' => $data->tev_score,
+                'tev_datetime' => $data->tev_datetime,
+                'tev_needs_assessment' => !$data->tev_done_24h,
+                'tev_increased' => $this->hasIncreased($data->tev_score, $data->tev_previous),
+                'tev_classification' => $this->getTevClassification($data->tev_score),
+                'ds_tev' => $this->formatDescription('TEV', $data->tev_score, $data->tev_datetime),
+                
+                // PEWS
+                'pews_score' => $data->pews_score,
+                'pews_datetime' => $data->pews_datetime,
+                'pews_shift' => $data->pews_shift, // ADICIONADO
+                'pews_needs_assessment' => !$data->pews_current_shift,
+                'pews_increased' => $this->hasIncreased($data->pews_score, $data->pews_previous),
+                'pews_classification' => $this->getPewsClassification($data->pews_score),
+                'ds_pews' => $this->formatDescription('PEWS', $data->pews_score, $data->pews_datetime),
+                
+                'current_shift' => $currentShift,
+                'fetched_at' => now()->toDateTimeString(),
             ];
-        });
+            
+        } catch (\Exception $e) {
+            Log::error("PatientScales: Erro ao buscar escalas", [
+                'attendance_number' => $attendanceNumber,
+                'error' => $e->getMessage()
+            ]);
+            return $this->getEmptyScalesObject();
+        }
     }
     
     /**
-     * Get MEWS score for a patient (only today's most recent)
-     * Returns "Não Medido" if not available for today
+     * Retorna dados formatados para cards
      */
-    private function getMewsScore($attendanceNumber)
+    public function getScalesForCard($scalesData)
     {
-        $result = DB::connection('tasy')->select("
-            SELECT qt_pontuacao 
-            FROM tasy.escala_mews 
-            WHERE nr_atendimento = ? 
-            AND dt_liberacao IS NOT NULL 
-            AND dt_inativacao IS NULL
-            AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
-            ORDER BY dt_avaliacao DESC 
-            FETCH FIRST 1 ROWS ONLY
-        ", [$attendanceNumber]);
+        if (!$scalesData) {
+            return $this->getEmptyScalesForCard();
+        }
         
-        return $result && isset($result[0]->qt_pontuacao)
-            ? $result[0]->qt_pontuacao
-            : null;
-    }
-
-    /**
-     * Get MEWS description for a patient - OPTIMIZED
-     */
-    private function getMewsDescription($attendanceNumber)
-    {
-        $result = DB::connection('tasy')->select("
-            SELECT
-                CASE WHEN TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) = 0 THEN 1 ELSE 0 END AS is_new_patient,
-                em.qt_pontuacao AS mews_score,
-                em.dt_avaliacao AS mews_date
-            FROM tasy.atendimento_paciente atp
-            LEFT JOIN (
-                SELECT nr_atendimento, qt_pontuacao, dt_avaliacao,
-                    ROW_NUMBER() OVER (ORDER BY dt_avaliacao DESC) AS rn
-                FROM tasy.escala_mews 
-                WHERE nr_atendimento = ?
-                AND dt_liberacao IS NOT NULL 
-                AND dt_inativacao IS NULL
-                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
-            ) em ON em.nr_atendimento = atp.nr_atendimento AND em.rn = 1
-            WHERE atp.nr_atendimento = ?
-        ", [$attendanceNumber, $attendanceNumber]);
-
-        if (!$result) {
-            return 'MEWS não realizado hoje';
-        }
-
-        $data = $result[0];
-
-        // Sem MEWS para hoje
-        if ($data->mews_score === null) {
-            return 'ALERTA: MEWS não preenchido para o dia de hoje!';
-        }
-
-        // Formata descrição
-        $date = date('d/m H:i', strtotime($data->mews_date));
-        $classification = $this->getMewsClassification($data->mews_score);
-
-        return "{$date} - {$classification} (MEWS: {$data->mews_score})";
+        return [
+            'mews' => [
+                'score' => $scalesData->mews_score,
+                'classification' => $scalesData->mews_classification,
+                'needs_assessment' => $scalesData->mews_needs_assessment,
+                'increased' => $scalesData->mews_increased,
+                'type' => 'turno'
+            ],
+            'braden' => [
+                'score' => $scalesData->braden_score,
+                'classification' => $scalesData->braden_classification,
+                'needs_assessment' => $scalesData->braden_needs_assessment,
+                'increased' => $scalesData->braden_increased,
+                'type' => '24h'
+            ],
+            'morse' => [
+                'score' => $scalesData->morse_score,
+                'classification' => $scalesData->morse_classification,
+                'needs_assessment' => $scalesData->morse_needs_assessment,
+                'increased' => $scalesData->morse_increased,
+                'type' => '24h'
+            ],
+            'dor' => [
+                'score' => $scalesData->dor_score,
+                'classification' => $scalesData->dor_classification,
+                'needs_assessment' => $scalesData->dor_needs_assessment,
+                'increased' => $scalesData->dor_increased,
+                'type' => 'turno'
+            ],
+            'tev' => [
+                'score' => $scalesData->tev_score,
+                'classification' => $scalesData->tev_classification,
+                'needs_assessment' => $scalesData->tev_needs_assessment,
+                'increased' => $scalesData->tev_increased,
+                'type' => '24h'
+            ],
+            'pews' => [
+                'score' => $scalesData->pews_score,
+                'classification' => $scalesData->pews_classification,
+                'needs_assessment' => $scalesData->pews_needs_assessment,
+                'increased' => $scalesData->pews_increased,
+                'type' => 'turno'
+            ],
+        ];
     }
     
-    /**
-     * Get MEWS classification
-     */
+    private function getCurrentShift()
+    {
+        $now = now();
+        $hour = $now->hour;
+        
+        if ($hour >= 7 && $hour < 13) {
+            return 'manha';
+        } elseif ($hour >= 13 && $hour < 19) {
+            return 'tarde';
+        } else {
+            return 'noite';
+        }
+    }
+    
+    private function getCurrentShiftStart()
+    {
+        $shift = $this->getCurrentShift();
+        $now = now();
+        
+        switch ($shift) {
+            case 'manha':
+                return $now->copy()->setTime(7, 0, 0)->format('Y-m-d H:i:s');
+            case 'tarde':
+                return $now->copy()->setTime(13, 0, 0)->format('Y-m-d H:i:s');
+            case 'noite':
+                if ($now->hour >= 19) {
+                    return $now->copy()->setTime(19, 0, 0)->format('Y-m-d H:i:s');
+                } else {
+                    return $now->copy()->subDay()->setTime(19, 0, 0)->format('Y-m-d H:i:s');
+                }
+        }
+    }
+    
+    private function hasIncreased($current, $previous)
+    {
+        if ($current === null || $previous === null) {
+            return false;
+        }
+        return $current > $previous;
+    }
+    
+    private function formatDescription($scaleName, $score, $datetime)
+    {
+        if ($score === null) {
+            return "Sem avaliação nas últimas 24h";
+        }
+        return ($datetime ?? 'N/A') . ' - ' . $scaleName . ': ' . $score;
+    }
+    
     private function getMewsClassification($score)
     {
-        if ($score >= 5) return 'CRÍTICO';
-        if ($score >= 3) return 'ALERTA';
-        return 'NORMAL';
+        if ($score === null) return null;
+        if ($score >= 5) return 'Crítico';
+        if ($score >= 3) return 'Alerta';
+        return 'Normal';
     }
     
-    /**
-     * Get Braden scale description for a patient
-     */
-    private function getBradenDescription($attendanceNumber)
+    private function getBradenClassification($score)
     {
-        $result = DB::connection('tasy')->select("
-            SELECT 
-                TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - ' || 
-                qt_ponto || ' - ' || 
-                INITCAP(SUBSTR(tasy.obter_resultado_braden(qt_ponto), 1, 50)) AS ds_braden
-            FROM tasy.ATEND_ESCALA_BRADEN 
-            WHERE nr_atendimento = ? 
-                AND dt_liberacao IS NOT NULL 
-                AND dt_inativacao IS NULL
-                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
-            FETCH FIRST 1 ROWS ONLY
-        ", [$attendanceNumber]);
-        
-        return $result ? $result[0]->ds_braden : 'Sem avaliação para hoje.';
+        if ($score === null) return null;
+        if ($score <= 12) return 'Alto Risco';
+        if ($score <= 14) return 'Risco Moderado';
+        return 'Baixo Risco';
     }
     
-    /**
-     * Get Morse scale description for a patient
-     * Uses SYSDATE instead of ORDER BY for performance
-     */
-    private function getMorseDescription($attendanceNumber)
+    private function getMorseClassification($score)
     {
-        $result = DB::connection('tasy')->select("
-            SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - ' || qt_pontuacao  || ' - ' || SUBSTR(tasy.Obter_desc_escala_morse(qt_pontuacao), 1, 20) AS ds_morse
-            FROM tasy.escala_morse 
-            WHERE nr_atendimento = ? 
-              AND dt_liberacao IS NOT NULL 
-              AND dt_inativacao IS NULL
-              AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
-            FETCH FIRST 1 ROWS ONLY
-        ", [$attendanceNumber]);
-        
-        return $result ? $result[0]->ds_morse : 'Sem Avaliação para hoje';
+        if ($score === null) return null;
+        if ($score >= 45) return 'Alto Risco';
+        if ($score >= 25) return 'Risco Moderado';
+        return 'Baixo Risco';
     }
     
-    /**
-     * Get PEWS description for pediatric patients
-     */
-    private function getPewsDescription($attendanceNumber)
+    private function getDorClassification($score)
     {
-        // Check if patient is pediatric first
-        $ageResult = DB::connection('tasy')->select("
-            SELECT FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS age
-            FROM tasy.atendimento_paciente atp 
-            JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
-            WHERE atp.nr_atendimento = ?
-        ", [$attendanceNumber]);
-        
-        if (!$ageResult || $ageResult[0]->age >= 16) {
-            return null; // Not pediatric patient
-        }
-        
-        // Get PEWS data for pediatric patient
-        $result = DB::connection('tasy')->select("
-            SELECT TO_CHAR(dt_avaliacao, 'DD/MM HH24:MI') || ' - PEWS: ' || qt_pontuacao AS ds_pews
-            FROM tasy.escala_pews 
-            WHERE nr_atendimento = ? 
-              AND dt_liberacao IS NOT NULL 
-              AND dt_inativacao IS NULL
-                AND TRUNC(dt_avaliacao) = TRUNC(SYSDATE)
-            FETCH FIRST 1 ROWS ONLY
-        ", [$attendanceNumber]);
-        
-        return $result ? $result[0]->ds_pews : 'Sem Avaliação para hoje';
+        if ($score === null) return null;
+        if ($score == 0) return 'Sem Dor';
+        if ($score >= 7) return 'Dor Intensa';
+        if ($score >= 4) return 'Dor Moderada';
+        return 'Dor Leve';
     }
     
-    /**
-     * Get Pain scale description for a patient - NEW
-     * If qt_escala_dor is 0, returns "Sem Dor"
-     */
-    private function getPainScaleDescription($attendanceNumber)
+    private function getTevClassification($score)
     {
-        $result = DB::connection('tasy')->select("
-            SELECT DISTINCT
-                TO_CHAR(asv.dt_sinal_vital, 'DD/MM HH24:MI') || ' - ' || 
-                asv.qt_escala_dor || ' - ' ||
-                CASE 
-                    WHEN asv.qt_escala_dor = 0 THEN 'Sem Dor'
-                    ELSE SUBSTR(tasy.obter_valor_dominio(1234, asv.qt_escala_dor), 1, 255)
-                END AS ds_dor
-            FROM tasy.atendimento_sinal_vital asv
-            WHERE asv.nr_atendimento = ?
-            AND asv.nr_sequencia = (
-                SELECT MAX(sub_asv.nr_sequencia)
-                FROM tasy.atendimento_sinal_vital sub_asv
-                WHERE sub_asv.nr_atendimento = ?
-                    AND sub_asv.dt_inativacao IS NULL
-                    AND sub_asv.qt_escala_dor IS NOT NULL
-                    AND sub_asv.dt_liberacao IS NOT NULL
-                    AND TRUNC(sub_asv.dt_sinal_vital) = TRUNC(SYSDATE)
-            )
-        ", [$attendanceNumber, $attendanceNumber]);
-        
-        return $result ? $result[0]->ds_dor : 'Sem Avaliação para hoje';
+        if ($score === null) return null;
+        if ($score >= 5) return 'Alto Risco';
+        if ($score >= 2) return 'Risco Moderado';
+        return 'Baixo Risco';
     }
     
-    /**
-     * Get TEV scale description for a patient - NEW
-     */
-    private function getTevDescription($attendanceNumber)
+    private function getPewsClassification($score)
     {
-        $result = DB::connection('tasy')->select("
-            SELECT
-                TO_CHAR(et.dt_avaliacao, 'DD/MM HH24:MI') || ' - ' ||
-                et.qt_pontuacao || ' - ' ||
-                SUBSTR(tasy.obter_valor_dominio(2900, et.ie_risco), 1, 255) AS ds_tev
-            FROM tasy.escala_tev et
-            WHERE et.nr_atendimento = ?
-            AND et.dt_inativacao IS NULL
-            AND et.nr_sequencia = (
-                SELECT MAX(e.nr_sequencia)
-                FROM tasy.escala_tev e
-                WHERE e.nr_atendimento = ?
-                    AND e.dt_liberacao IS NOT NULL
-                    AND e.dt_inativacao IS NULL
-                    AND TRUNC(e.dt_avaliacao) = TRUNC(SYSDATE)
-            )
-        ", [$attendanceNumber, $attendanceNumber]);
-        
-        return $result ? $result[0]->ds_tev : 'Sem Avaliação para hoje';
+        if ($score === null) return null;
+        if ($score >= 7) return 'Crítico';
+        if ($score >= 4) return 'Alerta';
+        return 'Normal';
     }
     
-    /**
-     * Apply MEWS filter to patient list
-     */
-    public function applyMewsFilter($patients, $mewsFilter)
+    private function getEmptyScalesObject()
     {
-        if ($mewsFilter === 'all') {
-            return $patients;
-        }
-        
-        return $patients->filter(function($patient) use ($mewsFilter) {
-            if (!$patient->has_patient) {
-                return false; // Exclude empty beds from MEWS filters
-            }
-            
-            $mewsScore = $patient->mews_score;
-            
-            switch ($mewsFilter) {
-                case 'critical':
-                    return $mewsScore !== null && $mewsScore >= 5;
-                case 'warning':
-                    return $mewsScore !== null && $mewsScore >= 3 && $mewsScore < 5;
-                case 'normal':
-                    return $mewsScore === null || $mewsScore < 3;
-                default:
-                    return true;
-            }
-        });
+        return (object)[
+            'mews_score' => null, 'mews_datetime' => null, 'mews_shift' => null, 'mews_needs_assessment' => true, 'mews_increased' => false, 'mews_classification' => null, 'ds_mews' => 'Sem avaliação nas últimas 24h',
+            'braden_score' => null, 'braden_datetime' => null, 'braden_needs_assessment' => true, 'braden_increased' => false, 'braden_classification' => null, 'ds_braden' => 'Sem avaliação nas últimas 24h',
+            'morse_score' => null, 'morse_datetime' => null, 'morse_needs_assessment' => true, 'morse_increased' => false, 'morse_classification' => null, 'ds_morse' => 'Sem avaliação nas últimas 24h',
+            'dor_score' => null, 'dor_datetime' => null, 'dor_shift' => null, 'dor_needs_assessment' => true, 'dor_increased' => false, 'dor_classification' => null, 'ds_dor' => 'Sem avaliação nas últimas 24h',
+            'tev_score' => null, 'tev_datetime' => null, 'tev_needs_assessment' => true, 'tev_increased' => false, 'tev_classification' => null, 'ds_tev' => 'Sem avaliação nas últimas 24h',
+            'pews_score' => null, 'pews_datetime' => null, 'pews_shift' => null, 'pews_needs_assessment' => true, 'pews_increased' => false, 'pews_classification' => null, 'ds_pews' => 'Sem avaliação nas últimas 24h',
+            'current_shift' => $this->getCurrentShift(),
+            'fetched_at' => now()->toDateTimeString(),
+        ];
+    }
+    
+    private function getEmptyScalesForCard()
+    {
+        return [
+            'mews' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => 'turno'],
+            'braden' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => '24h'],
+            'morse' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => '24h'],
+            'dor' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => 'turno'],
+            'tev' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => '24h'],
+            'pews' => ['score' => null, 'classification' => null, 'needs_assessment' => true, 'increased' => false, 'type' => 'turno'],
+        ];
     }
 }

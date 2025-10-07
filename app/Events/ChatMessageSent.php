@@ -6,7 +6,7 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PrivateChannel; // ← MUDANÇA AQUI
+use Illuminate\Broadcasting\PrivateChannel; 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -23,20 +23,12 @@ class ChatMessageSent implements ShouldBroadcastNow
     public function __construct($message)
     {
         $this->message = $message;        
-        // Log para debug
-        Log::info('[Chat] Evento ChatMessageSent criado (imediato)', [
-            'message_id' => $message->id,
-            'patient_id' => $message->nr_atendimento,
-            'shift' => $message->turno_id,
-            'user_id' => $message->usuario_id
-        ]);
     }
     
     public function broadcastOn()
     {
         $channelName = "chat.{$this->message->nr_atendimento}.{$this->message->turno_id}";
-        Log::info('[Chat] Broadcasting ChatMessageSent IMEDIATO no PRIVATE channel: ' . $channelName);
-        return new PrivateChannel($channelName); // ← MUDANÇA AQUI
+        return new PrivateChannel($channelName);
     }
     
     public function broadcastWith()
@@ -45,20 +37,16 @@ class ChatMessageSent implements ShouldBroadcastNow
         $author = 'Usuário';
         
         try {
-            // Garante que o relacionamento usuario está carregado
             if (!$this->message->relationLoaded('usuario')) {
                 $this->message->load('usuario');
             }
             
-            // Obtém o nome do autor
             if ($this->message->usuario) {
                 $author = $this->message->usuario->name;
-                // Tenta obter a foto do usuário
                 if (method_exists($this->message->usuario, 'getUserPhoto')) {
                     $photo = $this->message->usuario->getUserPhoto();
                 }
             } elseif ($this->message->usuario_id) {
-                // Busca do banco se não carregado
                 $authorDb = \App\Models\System\User::find($this->message->usuario_id);
                 if ($authorDb) {
                     $author = $authorDb->name;
@@ -98,10 +86,7 @@ class ChatMessageSent implements ShouldBroadcastNow
             'nr_atendimento' => $this->message->nr_atendimento,
             'turno_id' => $this->message->turno_id,
             'sessao_id' => $this->message->sessao_id,
-        ];
-        
-        Log::info('[Chat] Dados do broadcast ChatMessageSent (imediato):', $broadcastData);
-        
+        ];        
         return $broadcastData;
     }
     
@@ -113,13 +98,6 @@ class ChatMessageSent implements ShouldBroadcastNow
     public function broadcastWhen()
     {
         $shouldBroadcast = !empty($this->message->nr_atendimento) && !empty($this->message->turno_id);
-        
-        if (!$shouldBroadcast) {
-            Log::warning('[Chat] Broadcast cancelado - dados insuficientes', [
-                'nr_atendimento' => $this->message->nr_atendimento,
-                'turno_id' => $this->message->turno_id
-            ]);
-        }
         
         return $shouldBroadcast;
     }

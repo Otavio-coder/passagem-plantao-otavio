@@ -1,4 +1,4 @@
-{{-- resources/views/livewire/partials/patient-card.blade.php - VERSÃO OTIMIZADA COM ESCALAS COLORIDAS --}}
+{{-- resources/views/livewire/partials/patient-card.blade.php - VERSÃO CORRIGIDA --}}
 <div class="relative patient-card">
     <div class="rounded-xl shadow-lg h-[28rem] sm:h-80 lg:h-96 overflow-hidden">
         @if(!($patient['has_patient'] ?? false))
@@ -59,21 +59,17 @@
                                             @php
                                                 $alergias = $patient['alergias_detalhadas'] ?? 'Nenhuma alergia registrada';
                                                 
-                                                // Se está vazio ou é texto padrão, mostra mensagem
                                                 if (empty($alergias) || $alergias === 'Nenhuma alergia registrada' || $alergias === 'Sem alergias registradas') {
                                                     echo 'Nenhuma alergia registrada no sistema.';
                                                 } else {
-                                                    // Limpa apenas tags HTML, mantém o conteúdo original
                                                     $allergiesText = strip_tags($alergias);
                                                     $allergiesText = trim($allergiesText);
                                                     
-                                                    // Tenta identificar padrões comuns e adicionar estrutura
                                                     if (str_contains($allergiesText, ';') || str_contains($allergiesText, ',')) {
-                                                        // Múltiplas alergias separadas por vírgula ou ponto e vírgula
                                                         $items = preg_split('/[;,]/', $allergiesText);
                                                         $formattedItems = [];
                                                         
-                                                        foreach (array_slice($items, 0, 3) as $item) { // Máximo 3 itens
+                                                        foreach (array_slice($items, 0, 3) as $item) {
                                                             $item = trim($item);
                                                             if (!empty($item)) {
                                                                 $formattedItems[] = "• " . $item;
@@ -86,13 +82,11 @@
                                                         
                                                         echo implode("\n", $formattedItems);
                                                     } else {
-                                                        // Alergia única - mostra texto completo sem truncar muito
                                                         echo "<strong>Alergia:</strong> " . Str::limit($allergiesText, 150);
                                                     }
                                                 }
                                             @endphp
                                         </div>
-                                        {{-- Seta do tooltip --}}
                                         <div class="tooltip-arrow absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-red-500"></div>
                                     </div>
                                 </div>
@@ -109,7 +103,6 @@
                                         <img src="{{ asset('images/icons/patient-isolated.svg') }}" class="h-5 w-5" alt="Isolamento" />
                                     </button>
                                     
-                                    {{-- Tooltip responsivo --}}
                                     <div class="tooltip-container absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-yellow-400 text-black text-xs rounded-lg shadow-lg w-72 max-w-[90vw] z-50">
                                         <div class="font-semibold mb-1 flex items-center gap-1">
                                             <img src="{{ asset('images/icons/patient-isolated.svg') }}" class="h-4 w-4" alt="Isolamento" />
@@ -118,21 +111,17 @@
                                         <div class="text-xs leading-relaxed">
                                             @php
                                                 $isolamento = $patient['motivos_isolamento'] ?? 'Nenhum motivo de isolamento';
-                                                // Limpa e formata o texto
                                                 $isolamento = strip_tags($isolamento);
                                                 $isolamento = preg_replace('/\s+/', ' ', $isolamento);
                                                 $isolamento = trim($isolamento);
                                                 
-                                                // Se está vazio ou é texto padrão, mostra mensagem
                                                 if (empty($isolamento) || $isolamento === 'Nenhum motivo de isolamento' || $isolamento === 'Não') {
                                                     echo 'Paciente em precauções de isolamento. Motivo não especificado no sistema.';
                                                 } else {
-                                                    // Mostra os motivos formatados
                                                     echo Str::limit($isolamento, 120);
                                                 }
                                             @endphp
                                         </div>
-                                        {{-- Seta do tooltip --}}
                                         <div class="tooltip-arrow absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-yellow-400"></div>
                                     </div>
                                 </div>
@@ -157,7 +146,6 @@
                                         </svg>
                                     </div>
                                     
-                                    {{-- Tooltip responsivo --}}
                                     <div class="tooltip-container absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-white text-purple-800 text-xs rounded-lg shadow-lg w-72 max-w-[90vw] border border-purple-200 z-50">
                                         <div class="font-semibold mb-1 flex items-center gap-1">
                                             <svg class="h-3 w-3 text-purple-500" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -167,7 +155,6 @@
                                             @php
                                                 $cirurgias = $patient['cirurgias_info'] ?? '';
                                                 
-                                                // Se tem dados de cirurgias estruturados
                                                 if (!empty($patient['procedimentos_cirurgicos']) && is_array($patient['procedimentos_cirurgicos'])) {
                                                     $cirurgiasFormatadas = collect($patient['procedimentos_cirurgicos'])
                                                         ->map(function($c) {
@@ -176,21 +163,18 @@
                                                             $procedimento = $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento não especificado';
                                                             return "{$data} às {$hora} - {$procedimento}";
                                                         })
-                                                        ->take(2) // Máximo 2 cirurgias no tooltip
+                                                        ->take(2)
                                                         ->join("\n• ");
                                                     echo '• ' . $cirurgiasFormatadas;
                                                 } else if (!empty($cirurgias)) {
-                                                    // Fallback para dados já formatados
                                                     $cirurgias = strip_tags($cirurgias);
                                                     $cirurgias = preg_replace('/\s+/', ' ', $cirurgias);
                                                     echo Str::limit($cirurgias, 120);
                                                 } else {
-                                                    // Texto padrão quando tem cirurgia mas sem detalhes
                                                     echo 'Paciente com cirurgia agendada. Verificar detalhes no modal.';
                                                 }
                                             @endphp
                                         </div>
-                                        {{-- Seta do tooltip --}}
                                         <div class="tooltip-arrow absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white"></div>
                                     </div>
                                 </div>
@@ -199,7 +183,6 @@
 
                         {{-- MEWS --}}
                         <div class="flex items-center gap-1.5 flex-shrink-0">
-                            {{-- MEWS com indicadores visuais --}}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold text-gray-700 bg-white/90 shadow-sm whitespace-nowrap relative border border-gray-300
                                 {{ ($patient['mews_needs_assessment'] ?? true) ? 'border-b-2 border-b-red-500' : '' }}
                                 {{ ($patient['mews_increased'] ?? false) && !($patient['is_new_patient'] ?? false) ? 'text-red-600' : '' }}">
@@ -212,7 +195,6 @@
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif
-                                {{-- Bolinha piscante se MEWS aumentou --}}
                                 @if(($patient['mews_increased'] ?? false) && !($patient['is_new_patient'] ?? false))
                                     <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                                 @endif
@@ -236,7 +218,6 @@
                     {{-- Linha 3: Dados administrativos compactos --}}
                     <div class="bg-white/70 rounded-lg px-2 py-1 shadow-sm">
                         <div class="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[10px]">
-                            {{-- Linha 1: Atendimento, Prontuário, Dias Internados --}}
                             <div class="truncate text-center"><span class="text-gray-600 font-medium">At:</span> <span class="text-gray-900 font-semibold">{{ $patient['nr_atendimento'] ?? 'N/A' }}</span></div>
                             <div class="truncate text-center"><span class="text-gray-600 font-medium">Pr:</span> <span class="text-gray-900 font-semibold">{{ $patient['nr_prontuario'] ?? 'N/A' }}</span></div>
                             <div class="truncate text-center">
@@ -251,7 +232,6 @@
                                 @endif
                             </div>
                             
-                            {{-- Linha 2: Convênio (primeira palavra) e Médico expandido --}}
                             <div class="text-center whitespace-nowrap overflow-hidden">
                                 <span class="text-gray-600 font-medium">Cv:</span> 
                                 @php
@@ -270,6 +250,7 @@
                             @endif
                         </div>
                     </div>
+                    
                     {{-- Linha 4: Escalas assistenciais compactas COM CORES --}}
                     <div class="bg-white/70 rounded-lg px-1.5 py-0.5 shadow-sm">
                         <div class="flex flex-wrap gap-0.5 justify-center items-center min-h-[18px]">
@@ -278,13 +259,11 @@
                                     $isPediatric = isset($patient['age']) && intval($patient['age']) < 16;
                                 @endphp
                                 
-                                {{-- MEWS (adultos) ou PEWS (pediátricos) --}}
                                 @if(!$isPediatric)
                                     @php
                                         $mewsScore = $patient['mews_score'] ?? null;
                                         $mewsStyling = $patient['mews_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
                                         $mewsShiftValue = $patient['mews_shift'] ?? null;
-                                        // Mostra o turno real da aferição, não o padrão
                                         $mewsShift = $mewsShiftValue ? ' (' . substr(getShiftLabel($mewsShiftValue), 0, 1) . ')' : '';
                                     @endphp
                                     <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] {{ $mewsStyling['bg'] }} {{ $mewsStyling['text'] }} border {{ $mewsStyling['border'] }} whitespace-nowrap relative font-semibold
@@ -300,7 +279,6 @@
                                         $pewsScore = $patient['pews_score'] ?? null;
                                         $pewsStyling = $patient['pews_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
                                         $pewsShiftValue = $patient['pews_shift'] ?? null;
-                                        // Mostra o turno real da aferição, não o padrão
                                         $pewsShift = $pewsShiftValue ? ' (' . substr(getShiftLabel($pewsShiftValue), 0, 1) . ')' : '';
                                     @endphp
                                     <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] {{ $pewsStyling['bg'] }} {{ $pewsStyling['text'] }} border {{ $pewsStyling['border'] }} whitespace-nowrap relative font-semibold
@@ -313,11 +291,9 @@
                                     </span>
                                 @endif
                                 
-                                {{-- BRADEN --}}
                                 @php
                                     $bradenScore = $patient['braden_score'] ?? null;
                                     $bradenStyling = $patient['braden_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                                    // Mostra quando foi realmente aferida, se disponível
                                     $bradenShiftValue = $patient['braden_shift'] ?? null;
                                     $bradenShift = $bradenShiftValue ? ' (' . substr(getShiftLabel($bradenShiftValue), 0, 1) . ')' : ' (24h)';
                                 @endphp
@@ -330,11 +306,9 @@
                                     @endif
                                 </span>
                                 
-                                {{-- MORSE --}}
                                 @php
                                     $morseScore = $patient['morse_score'] ?? null;
                                     $morseStyling = $patient['morse_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                                    // Mostra quando foi realmente aferida, se disponível
                                     $morseShiftValue = $patient['morse_shift'] ?? null;
                                     $morseShift = $morseShiftValue ? ' (' . substr(getShiftLabel($morseShiftValue), 0, 1) . ')' : ' (24h)';
                                 @endphp
@@ -346,13 +320,10 @@
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
-                                
-                                {{-- DOR --}}
                                 @php
                                     $dorScore = $patient['dor_score'] ?? null;
                                     $dorStyling = $patient['dor_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
                                     $dorShiftValue = $patient['dor_shift'] ?? null;
-                                    // Mostra o turno real da aferição, não o padrão
                                     $dorShift = $dorShiftValue ? ' (' . substr(getShiftLabel($dorShiftValue), 0, 1) . ')' : '';
                                 @endphp
                                 <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] {{ $dorStyling['bg'] }} {{ $dorStyling['text'] }} border {{ $dorStyling['border'] }} whitespace-nowrap relative font-semibold
@@ -364,11 +335,9 @@
                                     @endif
                                 </span>
                                 
-                                {{-- TEV --}}
                                 @php
                                     $tevScore = $patient['tev_score'] ?? null;
                                     $tevStyling = $patient['tev_styling'] ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                                    // Mostra quando foi realmente aferida, se disponível
                                     $tevShiftValue = $patient['tev_shift'] ?? null;
                                     $tevShift = $tevShiftValue ? ' (' . substr(getShiftLabel($tevShiftValue), 0, 1) . ')' : ' (24h)';
                                 @endphp
@@ -396,7 +365,7 @@
                     @endif
                 </div>
 
-                {{-- Pending Events List - SEM MEDICAÇÕES --}}
+                {{-- Pending Events List --}}
                 @if(!empty($patient['pending_events_filtered']))
                     <div class="flex-1 min-h-0 px-2 sm:px-2.5 pb-1.5">
                         <div class="bg-white/20 rounded-lg p-1.5 h-full overflow-hidden flex flex-col">
@@ -445,7 +414,6 @@
                         </div>
                     </div>
                 @else
-                    {{-- No Pending Events --}}
                     <div class="flex-1 px-2 sm:px-3 pb-1 flex items-center justify-center">
                         <div class="text-center py-2">
                             <p class="text-xs text-gray-500 font-medium">Sem pendências</p>
@@ -454,24 +422,19 @@
                     </div>
                 @endif
 
-                {{-- Botão Modal na parte inferior --}}
+                {{-- Botão Modal - CORRIGIDO --}}
                 <div class="p-1.5 flex-shrink-0 border-t border-white/10">
                     <button 
                         type="button"
                         class="modal-open-btn w-full relative bg-white/20 hover:bg-white/30 active:bg-white/40 disabled:bg-white/10 disabled:cursor-not-allowed text-gray-700 disabled:text-gray-500 py-2 px-3 rounded-md flex items-center justify-center gap-1.5 shadow-sm transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-xs font-medium backdrop-blur-sm transform hover:scale-[1.02] active:scale-[0.98]"
                         title="Ver detalhes completos do paciente"
                         aria-label="Abrir detalhes completos do paciente"
-                        data-attendance="{{ $patient['nr_atendimento'] ?? 0 }}"
-                        data-hospital="{{ $currentHospitalName }}"
-                        wire:click="$dispatchTo('patient-modal', 'openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName }}' })"
+                        wire:click="$dispatch('openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName }}' })"
                         wire:loading.attr="disabled"
-                        wire:target="$dispatchTo('patient-modal', 'openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName }}' })"
-                        onclick="console.log('Button clicked for patient:', {{ $patient['nr_atendimento'] ?? 0 }});"
                     >
-                        {{-- Loading spinner centralizado --}}
+                        {{-- Loading spinner --}}
                         <div 
                             wire:loading 
-                            wire:target="$dispatch('openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName }}' })" 
                             class="absolute inset-0 flex items-center justify-center bg-white/30 rounded-md"
                         >
                             <div class="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent"></div>
@@ -480,7 +443,6 @@
                         {{-- Normal state --}}
                         <div 
                             wire:loading.remove 
-                            wire:target="$dispatch('openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName }}' })" 
                             class="flex items-center gap-1.5"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -528,7 +490,7 @@
     touch-action: manipulation;
 }
 
-/* Tooltips responsivos e uniformes - CORRIGIDO PARA TOUCH E HOVER */
+/* Tooltips responsivos e uniformes */
 .tooltip-container {
     visibility: hidden;
     opacity: 0;
@@ -537,19 +499,16 @@
     pointer-events: none;
 }
 
-/* Hover para desktop */
 .group:hover .tooltip-container {
     opacity: 1;
     visibility: visible;
 }
 
-/* Click/touch para mobile - usando focus-within para acessibilidade */
 .group:focus-within .tooltip-container {
     opacity: 1;
     visibility: visible;
 }
 
-/* Suporte para touch devices */
 @media (hover: none) and (pointer: coarse) {
     .group:active .tooltip-container {
         opacity: 1;
@@ -557,7 +516,6 @@
     }
 }
 
-/* Tooltips responsivos em mobile */
 @media (max-width: 640px) {
     .tooltip-container {
         position: fixed !important;
@@ -573,24 +531,14 @@
     .tooltip-arrow {
         display: none !important;
     }
-    
-    /* Mantém posição em mobile */
-    .group:hover .tooltip-container,
-    .group:focus-within .tooltip-container,
-    .group:active .tooltip-container,
-    .group.tooltip-active .tooltip-container {
-        transform: translateX(-50%) !important;
-    }
 }
 
-/* Garante que tooltips não quebrem o layout */
 .tooltip-container {
     white-space: normal;
     word-wrap: break-word;
     hyphens: auto;
 }
 
-/* Animações suaves para tooltips - posicionamento por baixo */
 .group .tooltip-container {
     transform: translateX(-50%) translateY(2px);
 }
@@ -601,7 +549,6 @@
     transform: translateX(-50%) translateY(0);
 }
 
-/* Garante que botões de alerta tenham tamanho consistente */
 .alert-icon {
     min-width: 28px;
     min-height: 28px;
@@ -613,33 +560,28 @@
     flex-shrink: 0;
 }
 
-/* Garante que os SVGs dentro dos ícones tenham tamanho consistente */
 .alert-icon svg {
     width: 20px !important;
     height: 20px !important;
     flex-shrink: 0;
 }
 
-/* Exceção para imagens dentro dos ícones */
 .alert-icon img {
     width: 20px !important;
     height: 20px !important;
     flex-shrink: 0;
 }
 
-/* Melhorias para acessibilidade */
 .alert-icon:focus {
     outline: 2px solid rgba(59, 130, 246, 0.5);
     outline-offset: 2px;
 }
 
-/* Estado ativo para JavaScript (será adicionado via JS para touch) */
 .group.tooltip-active .tooltip-container {
     opacity: 1;
     visibility: visible;
 }
 
-/* Ajustes para telas muito pequenas */
 @media (max-width: 480px) {
     .tooltip-container {
         font-size: 11px !important;
@@ -652,27 +594,22 @@
 {{-- JavaScript para suporte touch em tooltips --}}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Adiciona suporte touch aos tooltips
     const alertIcons = document.querySelectorAll('.alert-icon');
     
     alertIcons.forEach(icon => {
         const group = icon.closest('.group');
         let tooltipTimeout;
         
-        // Touch/click handler
         icon.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             
-            // Remove active state from other tooltips
             document.querySelectorAll('.group.tooltip-active').forEach(g => {
                 if (g !== group) g.classList.remove('tooltip-active');
             });
             
-            // Toggle current tooltip
             group.classList.toggle('tooltip-active');
             
-            // Auto-hide after 5 seconds on mobile
             if (window.innerWidth <= 640) {
                 clearTimeout(tooltipTimeout);
                 if (group.classList.contains('tooltip-active')) {
@@ -683,14 +620,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Hide tooltip when clicking elsewhere
         document.addEventListener('click', function(e) {
             if (!group.contains(e.target)) {
                 group.classList.remove('tooltip-active');
             }
         });
         
-        // Hide tooltip on escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 group.classList.remove('tooltip-active');

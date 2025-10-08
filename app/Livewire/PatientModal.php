@@ -30,26 +30,18 @@ class PatientModal extends Component
     {
         $this->currentShift = $this->getCurrentShift();
         
-        // Debug: log quando o component é montado
-        \Illuminate\Support\Facades\Log::info('PatientModal: Component mounted', [
-            'currentShift' => $this->currentShift
-        ]);
     }
 
     /**
      * Determina o turno atual baseado no horário
-     * Manhã: 07:15 - 13:14
-     * Tarde: 13:15 - 19:14
-     * Noite: 19:15 - 07:14
      */
     private function getCurrentShift()
     {
         $now = now();
         $hour = $now->hour;
         $minute = $now->minute;
-        $time = $hour * 60 + $minute; // Converte para minutos desde meia-noite
+        $time = $hour * 60 + $minute;
         
-        // 07:15 = 435min, 13:15 = 795min, 19:15 = 1155min
         if ($time >= 435 && $time < 795) {
             return 'manha';
         } elseif ($time >= 795 && $time < 1155) {
@@ -59,97 +51,99 @@ class PatientModal extends Component
         }
     }
 
-    /**
-     * Método de teste para abrir modal diretamente
-     */
-    public function testOpenModal($attendanceNumber = 123)
-    {
-        \Illuminate\Support\Facades\Log::info('PatientModal: testOpenModal called', [
-            'attendanceNumber' => $attendanceNumber
-        ]);
-        
-        $this->showModal = true;
-        $this->loadingPatient = false;
-        $this->currentPatient = [
-            'nr_atendimento' => $attendanceNumber,
-            'has_patient' => true,
-        ];
-        
-        \Illuminate\Support\Facades\Log::info('PatientModal: testOpenModal finished', [
-            'showModal' => $this->showModal
-        ]);
-    }
-
     #[On('openModal')]
     public function openModal($attendanceNumber, $hospital = '')
     {
-        // Debug log
-        \Illuminate\Support\Facades\Log::info('PatientModal: openModal called', [
-            'attendanceNumber' => $attendanceNumber,
-            'hospital' => $hospital,
-            'showModal' => $this->showModal
-        ]);
-
-        if (!$attendanceNumber) {
-            \Illuminate\Support\Facades\Log::warning('PatientModal: attendanceNumber is empty');
+        if (!$attendanceNumber || $attendanceNumber == 0) {
+            Log::warning('PatientModal: Invalid attendanceNumber', [
+                'attendanceNumber' => $attendanceNumber
+            ]);
             return;
         }
 
-        $this->resetModalState();
-        $this->loadingPatient = true;
-        $this->showModal = true;
-        
-        \Illuminate\Support\Facades\Log::info('PatientModal: modal state set', [
-            'showModal' => $this->showModal,
-            'loadingPatient' => $this->loadingPatient
-        ]);
-        
-        $this->dispatch('modal-opened');
-        
-        $this->currentPatient = [
-            'nr_atendimento' => $attendanceNumber,
-            'has_patient' => true,
-        ];
-        $this->currentHospitalName = $hospital;
+        try {
+            $this->resetModalState();
+            $this->loadingPatient = true;
+            $this->showModal = true;
 
-        $this->dispatch('patient-loading-started', [
-            'patientId' => $attendanceNumber,
-            'shift' => $this->currentShift
-        ]);
+            
+            $this->dispatch('modal-opened');
+            
+            $this->currentPatient = [
+                'nr_atendimento' => $attendanceNumber,
+                'has_patient' => true,
+            ];
+            $this->currentHospitalName = $hospital;
 
-        $this->loadPatientData($attendanceNumber);
+            $this->dispatch('patient-loading-started', [
+                'patientId' => $attendanceNumber,
+                'shift' => $this->currentShift
+            ]);
+
+            // Carrega dados do paciente
+            $this->loadPatientData($attendanceNumber);
+            
+        } catch (\Exception $e) {
+            Log::error('PatientModal: Error in openModal', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            $this->loadingPatient = false;
+            $this->showModal = false;
+        }
     }
 
     /**
-     * USA O MÉTODO CENTRALIZADO DA PATIENT MODEL
+     * Carrega dados do paciente com tratamento de erro robusto
      */
     private function loadPatientData($attendanceNumber)
     {
         try {
+
+            
             // Limpa cache antes de buscar dados atualizados
             $this->patientModel->clearPatientCache($attendanceNumber);
             
-            // USA O MÉTODO CENTRALIZADO getFullPatientData
+            // Busca dados completos do paciente
             $this->patientDetails = $this->patientModel->getFullPatientData($attendanceNumber);
 
             if ($this->patientDetails) {
+                
                 // Extrai alertas dos dados completos
                 $this->patientAlerts = $this->patientDetails->alerts ?? [];
                 
                 // Atualiza dados do paciente atual
                 $this->currentPatient = array_merge($this->currentPatient, [
-                    'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica,
-                    'nr_prontuario' => $this->patientDetails->nr_prontuario,
-                    'age_detailed' => $this->patientDetails->age_detailed,
-                    'sexo' => $this->patientDetails->sexo,
-                    'convenio' => $this->patientDetails->convenio,
+                    'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
+                    'nr_prontuario' => $this->patientDetails->nr_prontuario ?? 'N/A',
+                    'age_detailed' => $this->patientDetails->age_detailed ?? 'N/A',
+                    'sexo' => $this->patientDetails->sexo ?? 'N/A',
+                    'convenio' => $this->patientDetails->convenio ?? 'N/A',
                     'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName
                 ]);
+                
+                // Verifica e mostra alertas se necessário
+                $this->checkAndShowAlertsModal();
+                
             } else {
+                Log::warning('PatientModal: No patient data found', [
+                    'attendanceNumber' => $attendanceNumber
+                ]);
+                
                 $this->patientAlerts = [];
+                
+                // Mantém dados básicos mesmo sem detalhes
+                $this->currentPatient = array_merge($this->currentPatient, [
+                    'nm_pessoa_fisica' => 'Paciente',
+                    'nr_prontuario' => 'N/A',
+                    'age_detailed' => 'N/A',
+                    'sexo' => 'N/A',
+                    'convenio' => 'N/A',
+                    'hospital_name' => $this->currentHospitalName
+                ]);
             }
 
-            $this->checkAndShowAlertsModal();
             $this->loadingPatient = false;
 
             $this->dispatch('patient-data-loaded', [
@@ -165,7 +159,7 @@ class PatientModal extends Component
     }
 
     /**
-     * Tratamento de erro
+     * Tratamento de erro melhorado
      */
     private function handlePatientLoadError(\Exception $e, $attendanceNumber)
     {
@@ -173,17 +167,33 @@ class PatientModal extends Component
         $this->patientAlerts = [];
         $this->loadingPatient = false;
         
+        // NÃO fecha o modal em caso de erro - apenas mostra mensagem
+        
         Log::error("PatientModal: Erro ao carregar dados do paciente", [
             'attendance_number' => $attendanceNumber,
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
         ]);
         
+        // Define dados básicos para exibir mensagem de erro
+        if (!$this->currentPatient) {
+            $this->currentPatient = [
+                'nr_atendimento' => $attendanceNumber,
+                'has_patient' => true,
+                'nm_pessoa_fisica' => 'Erro ao carregar',
+                'nr_prontuario' => 'N/A',
+                'age_detailed' => 'N/A',
+                'sexo' => 'N/A',
+                'convenio' => 'N/A',
+                'hospital_name' => $this->currentHospitalName
+            ];
+        }
+        
         $this->dispatch('patient-data-loaded', [
             'patientId' => $attendanceNumber,
             'shift' => $this->currentShift,
             'success' => false,
-            'error' => 'Erro ao carregar dados do paciente: ' . $e->getMessage()
+            'error' => 'Erro ao carregar dados do paciente. Por favor, tente novamente.'
         ]);
     }
 
@@ -204,7 +214,6 @@ class PatientModal extends Component
 
         if ($activeAlerts->count() > 0) {
             $this->showAlertsModal = true;
-            
         }
     }
 
@@ -227,6 +236,7 @@ class PatientModal extends Component
     public function refreshPatientData()
     {
         if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
+            Log::warning('PatientModal: Cannot refresh - no current patient');
             return;
         }
 
@@ -235,17 +245,17 @@ class PatientModal extends Component
         // Limpa cache antes de recarregar
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
         
-        $this->loadPatientData($this->currentPatient['nr_atendimento']);    
+        $this->loadPatientData($this->currentPatient['nr_atendimento']);
     }
 
     public function closeModal()
     {
+        
         $this->showModal = false;
         $this->resetModalState();
         
         $this->dispatch('modal-closed');
         $this->dispatch('closeModal');
-     
     }
 
     public function closeAlertsModal()
@@ -262,7 +272,7 @@ class PatientModal extends Component
     }
 
     /**
-     * Getter para alertas ativos (para uso na view)
+     * Getter para alertas ativos
      */
     public function getActiveAlertsProperty()
     {
@@ -294,20 +304,26 @@ class PatientModal extends Component
     public function getCpoeDataProperty()
     {
         if (!$this->patientDetails) {
-            return null;
+            return [
+                'procedures' => 'Nenhum procedimento registrado',
+                'medications' => 'Nenhuma medicação registrada',
+                'nutrition' => 'Nenhuma dieta registrada',
+                'recommendations' => 'Nenhuma recomendação registrada',
+                'interventions' => 'Nenhuma intervenção registrada',
+            ];
         }
 
         return [
-            'procedures' => $this->patientDetails->cpoe_procedures ?? 'Nenhum procedimento',
-            'medications' => $this->patientDetails->cpoe_medications ?? 'Nenhuma medicação',
-            'nutrition' => $this->patientDetails->cpoe_nutrition ?? 'Nenhuma dieta',
-            'recommendations' => $this->patientDetails->cpoe_recommendations ?? 'Nenhuma recomendação',
-            'interventions' => $this->patientDetails->cpoe_interventions ?? 'Nenhuma intervenção',
+            'procedures' => $this->patientDetails->cpoe_procedures ?? 'Nenhum procedimento registrado',
+            'medications' => $this->patientDetails->cpoe_medications ?? 'Nenhuma medicação registrada',
+            'nutrition' => $this->patientDetails->cpoe_nutrition ?? 'Nenhuma dieta registrada',
+            'recommendations' => $this->patientDetails->cpoe_recommendations ?? 'Nenhuma recomendação registrada',
+            'interventions' => $this->patientDetails->cpoe_interventions ?? 'Nenhuma intervenção registrada',
         ];
     }
 
     /**
-     * Getter para escalas organizadas - NOVA ESTRUTURA SIMPLIFICADA
+     * Getter para escalas organizadas
      */
     public function getScalesDataProperty()
     {
@@ -380,14 +396,27 @@ class PatientModal extends Component
     public function getClinicalDataProperty()
     {
         if (!$this->patientDetails) {
-            return null;
+            return [
+                'diagnosticos' => 'Sem diagnósticos registrados',
+                'isolamento' => 'Não',
+                'motivos_isolamento' => 'Nenhum motivo de isolamento',
+                'dispositivos' => 'Nenhum dispositivo registrado',
+                'alergias' => 'Sem alergias registradas',
+                'antimicrobianos' => 'Nenhum antimicrobiano',
+                'exames_prioritarios' => 'Nenhum exame prioritário',
+                'cirurgias' => [],
+                'avaliacao_enfermagem' => 'Não realizada',
+                'plano_educacional' => 'Não realizado',
+                'pe_data' => 'Não realizado',
+                'historico_queda' => 'Não avaliado'
+            ];
         }
 
         return [
-            'diagnosticos' => $this->patientDetails->diagnosticos_comorbidades ?? 'Sem diagnósticos',
+            'diagnosticos' => $this->patientDetails->diagnosticos_comorbidades ?? 'Sem diagnósticos registrados',
             'isolamento' => $this->patientDetails->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $this->patientDetails->motivos_isolamento ?? 'Nenhum motivo de isolamento',
-            'dispositivos' => $this->patientDetails->dispositivos ?? 'Nenhum dispositivo',
+            'dispositivos' => $this->patientDetails->dispositivos ?? 'Nenhum dispositivo registrado',
             'alergias' => $this->patientDetails->alergias_detalhadas ?? 'Sem alergias registradas',
             'antimicrobianos' => $this->patientDetails->materiais ?? 'Nenhum antimicrobiano',
             'exames_prioritarios' => $this->patientDetails->prioridade_exames ?? 'Nenhum exame prioritário',
@@ -402,6 +431,7 @@ class PatientModal extends Component
     public function changeShift($shift)
     {
         $this->currentShift = $shift;
+        
     }
 
     public function render()

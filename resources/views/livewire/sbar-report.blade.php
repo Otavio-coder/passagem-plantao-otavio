@@ -16,8 +16,8 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                 @modal-closed.window="modalOpen = false; document.body.classList.remove('modal-open')"
                 @auto-refreshed.window="handleAutoRefresh()"
             >
-                
-                {{-- Mensagem de erro global --}}
+                {{-- @dd($patients) --}}
+
                 {{-- Spinner de carregamento global --}}
                 <div
                     wire:loading.delay.longer

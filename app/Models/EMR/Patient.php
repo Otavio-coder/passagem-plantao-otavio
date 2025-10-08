@@ -136,7 +136,7 @@ class Patient extends Model
                 ua.ie_situacao as bed_status,
                 ua.cd_setor_atendimento,
                 sa.ds_setor_atendimento,
-                sa.cd_estabelecimento as hospital_id,
+                sa.nr_seq_agrupamento as hospital_id,
                 
                 -- Status de ocupação
                 CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
@@ -1048,19 +1048,19 @@ class Patient extends Model
     private function getSectorContext($sectorId)
     {
         $sector = $this->sectorModel->find($sectorId);
+
         $hospital = null;
-        
-        if ($sector && $sector->cd_estabelecimento) {
-            $hospital = $this->hospitalModel->find($sector->cd_estabelecimento);
+        if ($sector) {
+            $hospital = $this->hospitalModel->getHospitalBySector($sectorId);
         }
-        
+
         return [
             'sector_id' => $sectorId,
             'sector_name' => $sector ? $sector->ds_setor_atendimento : '',
-            'hospital_id' => $hospital ? $hospital->cd_estabelecimento : null,
-            'hospital_name' => $hospital ? $hospital->ds_estabelecimento : ''
+            'hospital_id' => $hospital ? $hospital->hospital_id : null,
+            'hospital_name' => $hospital ? $hospital->hospital_name : 'Hospital não identificado'
         ];
-    }
+}
     
     /**
      * Busca dados básicos de um paciente específico

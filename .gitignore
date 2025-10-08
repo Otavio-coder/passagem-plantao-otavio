@@ -59,8 +59,6 @@ Thumbs.db
 
 /.github
 
-# For dependency files that should be tracked but changes ignored locally:
-# Run these commands to ignore local changes:
-# git update-index --skip-worktree composer.json composer.lock package.json package-lock.json
-# To resume tracking changes:
-# git update-index --no-skip-worktree composer.json composer.lock package.json package-lock.json
+storage/framework/views/
+storage/framework/views/*.php
+storage/framework/views/*.blade.php

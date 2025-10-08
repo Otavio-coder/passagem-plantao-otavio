@@ -1,9 +1,6 @@
 /**
- * Patient Modal Management System
- * Mobile-First Responsive Design with Fullscreen Support
- * Optimized for devices < 640px width
- *
- * All chat-related logic has been removed.
+ * Patient Modal Management System - VERSÃO OTIMIZADA
+ * Remoção de handlers desnecessários e foco em exibição rápida
  */
 
 class PatientModalManager {
@@ -38,7 +35,6 @@ class PatientModalManager {
         this.init();
     }
 
-    // --- Initialization ---
     init() {
         if (this.state.isInitialized) return;
         this.detectDevice();
@@ -46,16 +42,15 @@ class PatientModalManager {
         this.setupEventListeners();
         this.setupTouchHandlers();
         this.setupKeyboardHandlers();
-        this.setupModalLifecycle();
         this.injectMobileStyles();
         this.state.isInitialized = true;
+        
     }
 
-    // --- Device Detection ---
     detectDevice() {
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
         if (width < 640) {
             this.device.type = 'mobile';
             this.device.isMobile = true;
@@ -75,12 +70,14 @@ class PatientModalManager {
             this.device.isDesktop = true;
             this.touch.isSwipeEnabled = false;
         }
+        
         this.device.orientation = width > height ? 'landscape' : 'portrait';
         this.device.viewportHeight = height;
+        
         if (this.device.isMobile && CSS.supports('padding-top', 'env(safe-area-inset-top)')) {
             this.calculateSafeArea();
         }
-        window.dispatchEvent(new CustomEvent('device-detected', { detail: this.device }));
+        
         this.updateCSSVariables();
     }
 
@@ -92,28 +89,31 @@ class PatientModalManager {
         testEl.style.visibility = 'hidden';
         testEl.style.pointerEvents = 'none';
         document.body.appendChild(testEl);
+        
         const rect = testEl.getBoundingClientRect();
         this.device.safeAreaTop = rect.top;
         this.device.safeAreaBottom = window.innerHeight - rect.bottom;
+        
         document.body.removeChild(testEl);
     }
 
-    // --- Viewport Handling ---
     setupViewport() {
         this.setViewportHeight();
+        
         let viewportTimeout;
         const handleViewportChange = () => {
             clearTimeout(viewportTimeout);
             viewportTimeout = setTimeout(() => {
                 this.setViewportHeight();
                 this.detectDevice();
-                this.handleViewportResize();
             }, 100);
         };
+        
         window.addEventListener('resize', handleViewportChange);
         window.addEventListener('orientationchange', () => {
             setTimeout(handleViewportChange, 300);
         });
+        
         if ('visualViewport' in window) {
             window.visualViewport.addEventListener('resize', handleViewportChange);
         }
@@ -133,18 +133,18 @@ class PatientModalManager {
         root.style.setProperty('--modal-radius', this.device.isMobile ? '0' : '1rem');
         root.style.setProperty('--scroll-width', this.device.isMobile ? '2px' : '6px');
         root.style.setProperty('--touch-target', this.device.isMobile ? '44px' : '32px');
+        
         if (this.device.isMobile) {
             root.style.setProperty('--safe-area-top', `${this.device.safeAreaTop}px`);
             root.style.setProperty('--safe-area-bottom', `${this.device.safeAreaBottom}px`);
         }
     }
 
-    // --- Event Listeners ---
-    setupEventListeners() {
-        document.addEventListener('livewire:init', () => {});
-        // Remover o listener global que estava interceptando todos os cliques
-        // document.addEventListener('click', this.handleModalClick.bind(this), true);
-        window.addEventListener('beforeunload', () => { this.cleanup(); });
+    setupEventListeners() {      
+        window.addEventListener('beforeunload', () => {
+            this.cleanup();
+        });
+        
         let resizeTimeout;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimeout);
@@ -155,12 +155,13 @@ class PatientModalManager {
         });
     }
 
-    // --- Touch Handlers ---
     setupTouchHandlers() {
         if (!this.touch.isSwipeEnabled) return;
+        
         document.addEventListener('touchstart', (e) => {
             const modal = e.target.closest('[data-patient-id]');
             if (!modal) return;
+            
             const touch = e.touches[0];
             this.touch.startX = touch.clientX;
             this.touch.startY = touch.clientY;
@@ -171,11 +172,13 @@ class PatientModalManager {
 
         document.addEventListener('touchmove', (e) => {
             if (!this.touch.startX || !this.touch.startY) return;
+            
             const touch = e.touches[0];
             const deltaX = touch.clientX - this.touch.startX;
             const deltaY = touch.clientY - this.touch.startY;
             const absDeltaX = Math.abs(deltaX);
             const absDeltaY = Math.abs(deltaY);
+            
             if (!this.touch.isScrolling && (absDeltaX > 10 || absDeltaY > 10)) {
                 if (absDeltaY > absDeltaX + 20 && this.touch.scrollElement) {
                     this.touch.isScrolling = true;
@@ -185,6 +188,7 @@ class PatientModalManager {
                     e.preventDefault();
                 }
             }
+            
             if (!this.touch.isScrolling && absDeltaX > absDeltaY + 20 && absDeltaX > 30) {
                 e.preventDefault();
             }
@@ -195,11 +199,13 @@ class PatientModalManager {
                 this.resetTouchState();
                 return;
             }
+            
             const touch = e.changedTouches[0];
             const deltaX = touch.clientX - this.touch.startX;
             const deltaY = touch.clientY - this.touch.startY;
             const deltaTime = Date.now() - this.touch.startTime;
             const velocity = Math.abs(deltaX) / deltaTime;
+            
             if (Math.abs(deltaX) > Math.abs(deltaY) + 25 &&
                 (Math.abs(deltaX) > this.touch.threshold || velocity > this.touch.velocityThreshold)) {
                 const modal = e.target.closest('[data-patient-id]');
@@ -208,6 +214,7 @@ class PatientModalManager {
                     this.handleSwipe(modal, direction, velocity);
                 }
             }
+            
             this.resetTouchState();
         }, { passive: true });
     }
@@ -224,6 +231,7 @@ class PatientModalManager {
         if ('vibrate' in navigator && this.device.isMobile) {
             navigator.vibrate(10);
         }
+        
         const swipeEvent = new CustomEvent('modal-swipe', {
             detail: { direction, velocity },
             bubbles: true
@@ -231,30 +239,7 @@ class PatientModalManager {
         modal.dispatchEvent(swipeEvent);
     }
 
-    // --- Keyboard Handlers ---
     setupKeyboardHandlers() {
-        document.addEventListener('keydown', (e) => {
-            const textarea = document.querySelector('textarea[wire\\:model\\.defer="newMessage"]');
-            if (!textarea || e.target !== textarea) return;
-            if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-                e.preventDefault();
-                this.insertFormatting(textarea, '**', '**');
-            } else if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
-                e.preventDefault();
-                this.insertFormatting(textarea, '*', '*');
-            } else if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
-                e.preventDefault();
-                this.insertBulletPoint(textarea);
-            }
-        });
-        document.addEventListener('input', (e) => {
-            if (e.target.matches('textarea[wire\\:model\\.defer="newMessage"]')) {
-                const textarea = e.target;
-                const maxHeight = this.device.isMobile ? 100 : 120;
-                textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
-            }
-        });
         if (this.device.isMobile) {
             document.addEventListener('focusin', (e) => {
                 if (e.target.matches('input, textarea, select')) {
@@ -264,40 +249,9 @@ class PatientModalManager {
         }
     }
 
-    // --- Modal Lifecycle ---
-    setupModalLifecycle() {
-        this.startClockUpdate();
-        window.addEventListener('scroll-to-bottom', this.triggerAutoScroll.bind(this));
-        if (this.device.isMobile) {
-            this.setupMobileKeyboardHandling();
-        }
-    }
-
-    setupMobileKeyboardHandling() {
-        let initialViewportHeight = window.innerHeight;
-        const handleKeyboardToggle = () => {
-            const currentHeight = window.innerHeight;
-            const heightDifference = initialViewportHeight - currentHeight;
-            if (heightDifference > 150) {
-                document.body.classList.add('keyboard-open');
-                this.setViewportHeight();
-            } else {
-                document.body.classList.remove('keyboard-open');
-                initialViewportHeight = currentHeight;
-                this.setViewportHeight();
-            }
-        };
-        window.addEventListener('resize', handleKeyboardToggle);
-        if ('visualViewport' in window) {
-            window.visualViewport.addEventListener('resize', handleKeyboardToggle);
-        }
-    }
-
     injectMobileStyles() {
         const css = `
-            /* Mobile-specific enhancements */
             @media (max-width: 640px) {
-                /* Prevent text selection on UI elements */
                 .modal-main-container {
                     -webkit-user-select: none;
                     -moz-user-select: none;
@@ -305,7 +259,6 @@ class PatientModalManager {
                     -webkit-touch-callout: none;
                 }
                 
-                /* Re-enable text selection for content */
                 .modal-tab-content p,
                 .modal-tab-content span,
                 .modal-tab-content div[class*="text"],
@@ -316,7 +269,6 @@ class PatientModalManager {
                     user-select: text;
                 }
                 
-                /* Optimize scrolling performance */
                 .modal-tab-content {
                     -webkit-transform: translateZ(0);
                     transform: translateZ(0);
@@ -324,19 +276,16 @@ class PatientModalManager {
                     backface-visibility: hidden;
                 }
                 
-                /* Better tap targets */
                 button, [role="button"], .clickable {
                     min-height: var(--touch-target, 44px);
                     min-width: var(--touch-target, 44px);
                 }
                 
-                /* Keyboard handling */
                 body.keyboard-open .modal-main-container {
                     height: 70vh;
                     height: 70dvh;
                 }
                 
-                /* Landscape optimizations */
                 @media (orientation: landscape) {
                     .mobile-nav-indicators {
                         bottom: 8px;
@@ -348,255 +297,88 @@ class PatientModalManager {
                 }
             }
             
-            /* High DPI displays */
             @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
                 .modal-tab-content::-webkit-scrollbar {
                     width: 1px;
                 }
             }
         `;
+        
         const styleElement = document.createElement('style');
         styleElement.id = 'patient-modal-mobile-enhancements';
         styleElement.textContent = css;
         document.head.appendChild(styleElement);
     }
 
-    // --- Modal Event Handlers ---
-    onModalOpen(data) {
-        this.state.modalActive = true;
-        this.state.scrollingDisabled = true;
-        this.state.currentPatientId = data?.patientId;
-        this.state.currentShift = data?.shift;
-        document.body.classList.add('modal-active');
-        if (this.device.isMobile) {
-            document.documentElement.style.position = 'fixed';
-            document.documentElement.style.width = '100%';
-            document.documentElement.style.height = '100%';
-            document.documentElement.style.top = '0';
-            document.documentElement.style.left = '0';
-            document.body.style.overflow = 'hidden';
-        }
-        this.updateModalDimensions();
-    }
-
-    onModalClose() {
-        this.state.modalActive = false;
-        this.state.scrollingDisabled = false;
-        this.state.currentPatientId = null;
-        this.state.currentShift = null;
-        document.body.classList.remove('modal-active', 'keyboard-open');
-        document.documentElement.style.position = '';
-        document.documentElement.style.width = '';
-        document.documentElement.style.height = '';
-        document.documentElement.style.top = '';
-        document.documentElement.style.left = '';
-        document.body.style.overflow = '';
-    }
-
-    onLoadingStarted(data) {
-        this.showLoading();
-    }
-
-    onDataLoaded(data) {
-        this.hideLoading();
-    }
-
-    onHistoryLoading() {}
-    onHistoryLoaded() {}
-
-    // --- Utility Functions ---
     updateModalDimensions() {
         this.updateCSSVariables();
         if (this.device.isMobile) {
-            setTimeout(() => { window.scrollTo(0, 0); }, 50);
-        }
-    }
-
-    handleModalClick(e) {
-        // Função removida - não interceptar mais cliques globalmente nos patient-cards
-        // O Livewire irá gerenciar os cliques diretamente nos botões específicos
-    }
-
-    ensureLoadingOverlay() {
-        let overlay = document.getElementById('modal-global-loading');
-        if (!overlay) {
-            overlay = document.querySelector('.modal-loading-overlay');
-        }
-        if (!overlay) {
-            const modalContainer = document.querySelector('.modal-main-container');
-            if (modalContainer) {
-                overlay = document.createElement('div');
-                overlay.id = 'modal-global-loading';
-                overlay.className = 'modal-loading-overlay';
-                overlay.innerHTML = `
-                    <div class="modal-loading-content">
-                        <div class="modal-loading-spinner">
-                            <div class="spinner-primary"></div>
-                            <div class="spinner-secondary"></div>
-                        </div>
-                        <span class="modal-loading-text">Carregando dados do paciente...</span>
-                        <div class="modal-loading-dots">
-                            <div class="dot dot-1"></div>
-                            <div class="dot dot-2"></div>
-                            <div class="dot dot-3"></div>
-                        </div>
-                    </div>
-                `;
-                modalContainer.appendChild(overlay);
-            }
-        }
-        if (overlay) {
-            overlay.style.display = 'flex';
-            overlay.classList.remove('hidden');
-        }
-    }
-
-    handleViewportResize() {
-        if (!this.state.modalActive) return;
-        if (this.device.isMobile) {
             setTimeout(() => {
-                this.updateModalDimensions();
                 window.scrollTo(0, 0);
-            }, 100);
+            }, 50);
         }
     }
 
     showLoading() {
         document.body.style.overflow = 'hidden';
         document.body.classList.add('loading-active');
+        
         let overlay = document.getElementById('modal-global-loading');
         if (!overlay) {
             overlay = document.querySelector('.modal-loading-overlay');
         }
+        
         if (overlay) {
             overlay.style.display = 'flex';
             overlay.classList.remove('hidden');
-        } else {
-            this.createGlobalLoadingOverlay();
         }
     }
 
     hideLoading() {
         document.body.style.overflow = '';
         document.body.classList.remove('loading-active');
+        
         let overlay = document.getElementById('modal-global-loading');
         if (!overlay) {
             overlay = document.querySelector('.modal-loading-overlay');
         }
+        
         if (overlay) {
             overlay.style.display = 'none';
             overlay.classList.add('hidden');
         }
     }
 
-    createGlobalLoadingOverlay() {
-        const existingOverlay = document.getElementById('modal-global-loading');
-        if (existingOverlay) {
-            existingOverlay.remove();
-        }
-        const overlay = document.createElement('div');
-        overlay.id = 'modal-global-loading';
-        overlay.className = 'modal-loading-overlay';
-        overlay.innerHTML = `
-            <div class="modal-loading-content">
-                <div class="modal-loading-spinner">
-                    <div class="spinner-primary"></div>
-                    <div class="spinner-secondary"></div>
-                </div>
-                <span class="modal-loading-text">Carregando dados do paciente...</span>
-                <div class="modal-loading-dots">
-                    <div class="dot dot-1"></div>
-                    <div class="dot dot-2"></div>
-                    <div class="dot dot-3"></div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(overlay);
-        overlay.style.display = 'flex';
-        overlay.classList.remove('hidden');
-        overlay.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
-        overlay.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-        overlay.addEventListener('touchmove', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-        overlay.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-        return overlay;
-    }
-
-    insertFormatting(textarea, before, after) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = textarea.value.substring(start, end);
-        const replacement = before + selectedText + after;
-        textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
-        textarea.focus();
-        textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
-    insertBulletPoint(textarea) {
-        const start = textarea.selectionStart;
-        const beforeCursor = textarea.value.substring(0, start);
-        const afterCursor = textarea.value.substring(start);
-        const isStartOfLine = start === 0 || beforeCursor.endsWith('\n');
-        const bullet = isStartOfLine ? '- ' : '\n- ';
-        textarea.value = beforeCursor + bullet + afterCursor;
-        textarea.focus();
-        textarea.setSelectionRange(start + bullet.length, start + bullet.length);
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
-    startClockUpdate() {
-        const updateClock = () => {
-            const now = new Date().toLocaleTimeString('pt-BR', {
-                hour: '2-digit', 
-                minute: '2-digit'
-            });
-            const elements = document.querySelectorAll('#current-time-display, #input-time');
-            elements.forEach(el => {
-                if (el && el.textContent !== now) {
-                    el.textContent = now;
-                }
-            });
-        };
-        updateClock();
-        setInterval(updateClock, 30000);
-    }
-
-    triggerAutoScroll() {
-        if (this.state.scrollingDisabled) return;
-        const container = document.getElementById('messages-container');
-        if (!container) return;
-        const isNearBottom = container.scrollTop >= (container.scrollHeight - container.clientHeight - 100);
-        if (isNearBottom) {
-            const behavior = this.device.isMobile ? 'auto' : 'smooth';
-            container.scrollTo({
-                top: container.scrollHeight,
-                behavior: behavior
-            });
-        }
-    }
-
     cleanup() {
         this.hideLoading();
+        
         const styleElement = document.getElementById('patient-modal-mobile-enhancements');
         if (styleElement) {
             styleElement.remove();
         }
+        
         document.body.classList.remove('modal-active', 'keyboard-open');
         document.documentElement.style.position = '';
         document.documentElement.style.width = '';
         document.documentElement.style.height = '';
         document.body.style.overflow = '';
+        
         this.state.isInitialized = false;
     }
 }
 
-// --- Initialization ---
+// Initialization
 let patientModalManager;
-document.addEventListener('DOMContentLoaded', () => {
-    patientModalManager = new PatientModalManager();
-});
 
-// --- Global Exports ---
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        patientModalManager = new PatientModalManager();
+    });
+} else {
+    patientModalManager = new PatientModalManager();
+}
+
+// Global Exports
 window.modalState = () => patientModalManager?.state || {};
 window.modalLoading = {
     show: () => patientModalManager?.showLoading(),

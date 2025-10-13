@@ -662,11 +662,11 @@ function getCurrentShift() {
     // Tarde: 13:15 - 19:14 (795 - 1154)
     // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
     if ($time >= 435 && $time < 795) {
-        return 'manha';
+        return 'M';
     } elseif ($time >= 795 && $time < 1155) {
-        return 'tarde';
+        return 'T';
     } else {
-        return 'noite';
+        return 'N';
     }
 }
 
@@ -733,4 +733,23 @@ function getMewsCardGradient($score, $isNewPatient = false) {
         'border' => 'border border-blue-300',
         'text' => 'text-gray-800'
     ];
+}
+
+if (!function_exists('getShiftFromTimestamp')) {
+    /**
+     * Retorna o turno (M/T/N) a partir de um timestamp d/m/Y H:i
+     */
+    function getShiftFromTimestamp($timestamp)
+    {
+        try {
+            $dt = \Carbon\Carbon::createFromFormat('d/m/Y H:i', $timestamp);
+        } catch (\Exception $e) {
+            return null;
+        }
+        $minutes = $dt->hour * 60 + $dt->minute;
+        if ($minutes >= 435 && $minutes <= 794) return 'M';
+        if ($minutes >= 795 && $minutes <= 1154) return 'T';
+        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) return 'N';
+        return null;
+    }
 }

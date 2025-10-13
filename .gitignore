@@ -59,6 +59,6 @@ Thumbs.db
 
 /.github
 
-storage/framework/views/
-storage/framework/views/*.php
-storage/framework/views/*.blade.php
+/storage/framework/views/
+/storage/framework/views/*.php
+/storage/framework/views/*.blade.php

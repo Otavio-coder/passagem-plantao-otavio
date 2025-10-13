@@ -2,50 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Adicione ao seu CSS global ou no componente */
-.modal-open {
-    overflow: hidden;
-    height: 70vh;
-}
-
-.modal-open body {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-}
-
-/* Modal responsivo profissional - correções específicas */
-@layer utilities {
-    .modal-responsive {
-        /* Mobile: fullscreen */
-        @apply w-full h-full;
-    }
-    
-    @media (min-width: 640px) {
-        .modal-responsive {
-            /* Tablet e Desktop: 90% da largura total */
-            width: 90vw !important;
-            height: 70vh !important;
-            max-width: 90vw !important;
-            max-height: 70vh !important;
-        }
-    }
-    
-    @media (min-width: 1024px) {
-        .modal-responsive {
-            /* Desktop grande: máximo de 1400px */
-            max-width: min(90vw, 1400px) !important;
-        }
-    }
-}
-
-/* Correção do padding lateral que estava comprimindo o modal */
-.modal-container-fix {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
 
 /* Scroll otimizado para mobile */
 .scroll-mobile-optimized {
@@ -127,6 +83,12 @@
     font-size: 14px;
     line-height: 1.6;
     pointer-events: auto;
+}
+
+.patient-card, .patient-card > div {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box;
 }
 
 @keyframes popoverFadeIn {

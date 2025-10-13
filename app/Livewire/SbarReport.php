@@ -19,6 +19,7 @@ class SbarReport extends Component
     public $loadingMessage = '';
     public $errorMessage = null;
     public $lastRefresh = null;
+    public $failedPatient = null;
     
     // Dados principais
     public $hospitals = [];
@@ -138,11 +139,21 @@ class SbarReport extends Component
 
         $this->loading = true;
         $this->loadingMessage = "Carregando pacientes do setor...";
-        
+        $this->failedPatient = null;
+
         try {
             $patientsData = $this->patientModel->getSectorPatientsForSbar($this->selectedSector);
-            
-            $filteredPatients = $this->applyFiltersAndSort($patientsData);
+
+            $filteredPatients = [];
+            foreach ($patientsData as $patient) {
+                try {
+                    $filteredPatients[] = $patient; // Ou aplique stylePatients individualmente
+                } catch (\Exception $e) {
+                    $this->failedPatient = $patient;
+                    throw $e; // Re-lança para manter o erro original
+                }
+            }
+
             $this->patients = $this->stylePatients($filteredPatients);
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
@@ -158,7 +169,8 @@ class SbarReport extends Component
     protected function stylePatients($patients)
     {
         return collect($patients)->map(function($patient) {
-            // Filtrar pendências removendo medicações
+            
+            // Filtrar pendências removendo medicaçõe
             if (!empty($patient['pending_events'])) {
                 $pendencias = array_filter(
                     explode(' | ', $patient['pending_events']),

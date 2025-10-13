@@ -41,12 +41,6 @@
         
         <!-- Content area skeleton -->
         <div class="p-3 sm:p-4 lg:p-6 xl:p-8 bg-white">
-            <!-- Loading message -->
-            <div class="flex flex-col items-center justify-center py-12 mb-8">
-                <div class="w-16 h-16 border-t-4 border-r-4 border-[#0071B9] border-solid rounded-full animate-spin mb-4"></div>
-                <p class="text-gray-500 text-sm mt-2">Inicializando dados de pacientes e estrutura hospitalar...</p>
-            </div>
-            
             <!-- Cards grid skeleton -->
             <div class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 @for($i = 0; $i < 8; $i++)

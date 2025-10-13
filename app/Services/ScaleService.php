@@ -49,9 +49,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->mews_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->mews_data ?? null),
+            'timestamp' => $data->mews_data ?? null, // valor original, sem parse
             'classification' => $this->getMewsClassification($data->mews_atual ?? null),
             'styling' => $this->getMewsStyling($data->mews_atual ?? null),
+            'shift' => $this->getScoreShift($data->mews_data ?? null),
             'period' => 'turno',
             'increased' => $this->hasIncreased($data->mews_atual ?? null, $data->mews_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->mews_data ?? null, 'turno')
@@ -65,9 +66,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->pews_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->pews_data ?? null),
+            'timestamp' => $data->pews_data ?? null, // valor original, sem parse
             'classification' => $this->getPewsClassification($data->pews_atual ?? null),
             'styling' => $this->getPewsStyling($data->pews_atual ?? null),
+            'shift' => $this->getScoreShift($data->pews_data ?? null),
             'period' => 'turno',
             'increased' => $this->hasIncreased($data->pews_atual ?? null, $data->pews_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->pews_data ?? null, 'turno')
@@ -81,10 +83,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->braden_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->braden_data ?? null),
+            'timestamp' => $data->braden_data ?? null, // valor original, sem parse
             'classification' => $this->getBradenClassification($data->braden_atual ?? null),
             'styling' => $this->getBradenStyling($data->braden_atual ?? null),
-            'period' => '24h',
+            'shift' => $this->getScoreShift($data->braden_data ?? null),
             'increased' => $this->hasIncreased($data->braden_atual ?? null, $data->braden_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->braden_data ?? null, '24h')
         ];
@@ -97,9 +99,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->morse_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->morse_data ?? null),
+            'timestamp' => $data->morse_data ?? null, // valor original, sem parse
             'classification' => $this->getMorseClassification($data->morse_atual ?? null),
             'styling' => $this->getMorseStyling($data->morse_atual ?? null),
+            'shift' => $this->getScoreShift($data->morse_data ?? null),
             'period' => '24h',
             'increased' => $this->hasIncreased($data->morse_atual ?? null, $data->morse_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->morse_data ?? null, '24h')
@@ -113,9 +116,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->dor_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->dor_data ?? null),
+            'timestamp' => $data->dor_data ?? null, // valor original, sem parse
             'classification' => $this->getPainClassification($data->dor_atual ?? null),
             'styling' => $this->getPainStyling($data->dor_atual ?? null),
+            'shift' => $this->getScoreShift($data->dor_data ?? null),
             'period' => 'turno',
             'increased' => $this->hasIncreased($data->dor_atual ?? null, $data->dor_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->dor_data ?? null, 'turno')
@@ -129,9 +133,10 @@ class ScaleService
     {
         return [
             'score' => $this->extractScore($data->tev_atual ?? null),
-            'timestamp' => $this->formatTimestamp($data->tev_data ?? null),
+            'timestamp' => $data->tev_data ?? null, // valor original, sem parse
             'classification' => $this->getTevClassification($data->tev_atual ?? null),
             'styling' => $this->getTevStyling($data->tev_atual ?? null),
+            'shift' => $this->getScoreShift($data->tev_data ?? null),
             'period' => '24h',
             'increased' => $this->hasIncreased($data->tev_atual ?? null, $data->tev_anterior ?? null),
             'needs_assessment' => $this->needsAssessment($data->tev_data ?? null, '24h')
@@ -161,19 +166,31 @@ class ScaleService
     }
 
     /**
-     * Formata timestamp para exibição
+     * Determina o turno baseado no timestamp
      */
-    private function formatTimestamp($timestamp)
+    private function getScoreShift($timestamp)
     {
-        if (!$timestamp) {
+        if (!$timestamp) return null;
+        // Usa helper para determinar o turno
+        if (function_exists('getShiftFromTimestamp')) {
+            $shift = getShiftFromTimestamp($timestamp);
+            // Garante que só retorna 'M', 'T', 'N' ou null
+            if (in_array($shift, ['M', 'T', 'N'])) {
+                return $shift;
+            }
             return null;
         }
-
+        // Fallback para lógica antiga
         try {
-            return Carbon::parse($timestamp)->format('d/m H:i');
+            $dt = \Carbon\Carbon::createFromFormat('d/m/Y H:i', $timestamp);
         } catch (\Exception $e) {
             return null;
         }
+        $minutes = $dt->hour * 60 + $dt->minute;
+        if ($minutes >= 435 && $minutes <= 794) return 'M';
+        if ($minutes >= 795 && $minutes <= 1154) return 'T';
+        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) return 'N';
+        return null;
     }
 
     /**
@@ -197,21 +214,44 @@ class ScaleService
     private function needsAssessment($lastAssessment, $period)
     {
         if (!$lastAssessment) {
+            // Sem avaliação registrada, precisa de avaliação
             return true;
         }
 
         try {
             $lastTime = Carbon::parse($lastAssessment);
             $now = now();
-            
+
             if ($period === 'turno') {
-                // Verifica se passou do turno atual (6 horas)
-                return $lastTime->diffInHours($now) >= 6;
-            } else {
-                // Verifica se passou de 24 horas
+                // Turnos: manhã (07:00-12:59), tarde (13:00-18:59), noite (19:00-06:59)
+                $hour = $now->hour;
+                if ($hour >= 7 && $hour < 13) {
+                    $shiftStart = $now->copy()->setTime(7, 0, 0);
+                    $shiftEnd = $now->copy()->setTime(13, 0, 0);
+                } elseif ($hour >= 13 && $hour < 19) {
+                    $shiftStart = $now->copy()->setTime(13, 0, 0);
+                    $shiftEnd = $now->copy()->setTime(19, 0, 0);
+                } else {
+                    // Noite: 19:00 do dia anterior até 07:00 do dia atual
+                    if ($hour >= 19) {
+                        $shiftStart = $now->copy()->setTime(19, 0, 0);
+                        $shiftEnd = $now->copy()->addDay()->setTime(7, 0, 0);
+                    } else {
+                        $shiftStart = $now->copy()->subDay()->setTime(19, 0, 0);
+                        $shiftEnd = $now->copy()->setTime(7, 0, 0);
+                    }
+                }
+                // Precisa avaliação se o registro NÃO está dentro do turno atual
+                return !($lastTime >= $shiftStart && $lastTime < $shiftEnd);
+            } elseif ($period === '24h') {
+                // Para 24h, precisa avaliação se o registro tem mais de 24h
                 return $lastTime->diffInHours($now) >= 24;
             }
+
+            // Caso o período seja inválido, assume que não precisa de avaliação
+            return false;
         } catch (\Exception $e) {
+            // Em caso de erro no parsing, assume que precisa de avaliação
             return true;
         }
     }

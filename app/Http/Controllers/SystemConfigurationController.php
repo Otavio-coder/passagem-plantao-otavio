@@ -378,10 +378,8 @@ class SystemConfigurationController extends Controller
         foreach ($cachesToClear as $key) {
             Cache::forget($key);
         }
-
-        // Limpa caches com padrão (sectors_by_hospitals_*, beds_by_sectors_*)
-        $this->clearPatternCaches();
     }
+    
 
     /**
      * NOVA: Endpoint para limpar caches manualmente (útil para debugging)

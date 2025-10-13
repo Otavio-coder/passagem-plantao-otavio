@@ -2,9 +2,9 @@
 
 $__newAttributes = [];
 $__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames(([
-        'loadingPatient' => false,
-        'currentPatient' => null,
-        'patientDetails' => null
+    'loadingPatient' => false,
+    'currentPatient' => null,
+    'patientDetails' => null
 ]));
 
 foreach ($attributes->all() as $__key => $__value) {
@@ -21,9 +21,9 @@ unset($__propNames);
 unset($__newAttributes);
 
 foreach (array_filter(([
-        'loadingPatient' => false,
-        'currentPatient' => null,
-        'patientDetails' => null
+    'loadingPatient' => false,
+    'currentPatient' => null,
+    'patientDetails' => null
 ]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
     $$__key = $$__key ?? $__value;
 }
@@ -36,41 +36,39 @@ foreach ($attributes->all() as $__key => $__value) {
 
 unset($__defined_vars); ?>
 
-<div x-show="activeTab === 'tab-r'" class="p-2 sm:p-3 lg:p-6">
-<!--[if BLOCK]><![endif]--><?php if($loadingPatient): ?>
-    <div class="flex flex-col items-center justify-center py-12 sm:py-20">
-        <span class="text-blue-500 opacity-75 top-1/2 mx-auto block relative text-center" style="top: 50%;">
-            <i class="fas fa-spinner fa-3x animate-spin"></i>
-        </span>
-        <p class="text-gray-700 text-lg sm:text-xl">Carregando detalhes do paciente...</p>
-    </div>
-<?php elseif($currentPatient && !$currentPatient['has_patient']): ?>
-    <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-        <svg class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-        <p class="text-gray-700 text-base sm:text-lg">Leito Vazio</p>
-        <p class="text-gray-500 mt-2 text-sm sm:text-base">Este leito não possui paciente internado no momento.</p>
-    </div>
-<?php elseif($patientDetails): ?>
-    <!-- Recomendações - O que você sugere ou precisa que seja feito? -->
-    <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-        <h4 class="text-lg sm:text-xl font-bold text-gray-800 border-b border-gray-200 pb-3 mb-6 flex items-center">
-            <span class="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#28a745] text-white mr-3 text-sm sm:text-base font-bold">R</span>
-            <div>
-                <span class="text-base sm:text-lg">RECOMENDAÇÕES</span>
-                <p class="text-xs text-gray-500 font-normal mt-1">Orientações e condutas necessárias</p>
-            </div>
-        </h4>
-        
-        <!-- Cards reorganizados em grid compacto -->
-        <div class="space-y-3 mb-4">
-            <!-- Grid responsivo: 1 coluna em mobile, 2 em tablet, 3 em desktop -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+<div class="p-3 sm:p-4 lg:p-6 h-full overflow-y-auto">
+    <!--[if BLOCK]><![endif]--><?php if($loadingPatient): ?>
+        <div class="flex flex-col items-center justify-center py-12 sm:py-20">
+            <span class="text-blue-500 opacity-75">
+                <i class="fas fa-spinner fa-3x animate-spin"></i>
+            </span>
+            <p class="text-gray-700 text-lg sm:text-xl mt-4">Carregando detalhes do paciente...</p>
+        </div>
+    <?php elseif($currentPatient && (isset($currentPatient['has_patient']) && !$currentPatient['has_patient'])): ?>
+        <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
+            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <p class="text-gray-700 text-base sm:text-lg">Leito Vazio</p>
+            <p class="text-gray-500 mt-2 text-sm sm:text-base">Este leito não possui paciente internado no momento.</p>
+        </div>
+    <?php elseif($patientDetails): ?>
+        <!-- Recomendações -->
+        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+            <h4 class="text-lg sm:text-xl font-bold text-gray-800 border-b border-gray-200 pb-3 mb-6 flex items-center">
+                <span class="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-[#28a745] text-white mr-3 text-sm sm:text-base font-bold">R</span>
+                <div>
+                    <span class="text-base sm:text-lg">RECOMENDAÇÕES</span>
+                    <p class="text-xs text-gray-500 font-normal mt-1">Orientações e condutas necessárias</p>
+                </div>
+            </h4>
+            
+            <!-- Cards em grid compacto -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
                 <!-- Exames Prioritários -->
-                <div class="bg-white p-3 rounded-lg border border-gray-200">
+                <div class="bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                     <h5 class="text-sm font-medium text-gray-800 mb-2 flex items-center">
-                       <svg class="w-4 h-4 rounded-full bg-yellow-500 mr-2 text-black flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg class="w-4 h-4 rounded-full bg-yellow-500 mr-2 text-black flex-shrink-0" viewBox="0 0 24 24" fill="none">
                             <path d="M15.2501 6.5C16.4927 6.5 17.5001 5.49264 17.5001 4.25C17.5001 3.00736 16.4927 2 15.2501 2C14.0074 2 13.0001 3.00736 13.0001 4.25C13.0001 5.49264 14.0074 6.5 15.2501 6.5Z" fill="currentColor"/>
                             <path d="M12.3827 6.49876C10.8875 6.28944 7.47101 6.89609 6.06373 10.6488C5.86981 11.166 6.13181 11.7424 6.64893 11.9363C7.16605 12.1302 7.74247 11.8682 7.93639 11.3511C8.5197 9.7956 9.57155 9.03454 10.5097 8.69638L9.34067 11.7021C9.32145 11.7515 9.30642 11.8015 9.29542 11.8518C9.20171 12.1529 9.25147 12.4933 9.45894 12.7616L13.0211 17.3687L13.252 21.0623C13.2864 21.6135 13.7612 22.0325 14.3124 21.998C14.8636 21.9636 15.2826 21.4888 15.2481 20.9376L14.9789 16.6312L12.8861 13.9244L14.2594 11.2629L14.3519 11.3973C14.8887 12.1774 15.8991 12.4741 16.7725 12.1081L18.8866 11.2222C19.3959 11.0087 19.6358 10.4228 19.4224 9.91341C19.2089 9.40404 18.6229 9.16415 18.1136 9.3776L15.9995 10.2635L14.393 7.92894C14.0375 7.31458 13.4664 6.81797 12.7317 6.5684C12.6163 6.52917 12.4991 6.50636 12.3827 6.49876Z" fill="currentColor"/>
                         </svg>
@@ -83,9 +81,9 @@ unset($__defined_vars); ?>
                 </div>
                 
                 <!-- Antimicrobianos -->
-                <div class="bg-white p-3 rounded-lg border border-gray-200">
+                <div class="bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                     <h5 class="text-sm font-medium text-gray-800 mb-2 flex items-center">
-                        <svg class="w-4 h-4 flex-shrink-0 text-blue-950 mr-2" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg class="w-4 h-4 flex-shrink-0 text-blue-950 mr-2" viewBox="0 0 48 48" fill="none">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M9 7C9 5.34315 10.3431 4 12 4H36C37.6569 4 39 5.34315 39 7V15C39 16.6569 37.6569 18 36 18V41C36 42.6569 34.6569 44 33 44H15C13.3431 44 12 42.6569 12 41L12 18C10.3431 18 9 16.6569 9 15V7ZM16 16L16 6H12C11.4477 6 11 6.44772 11 7V15C11 15.5523 11.4477 16 12 16H16ZM18 16H23L23 6H18V16ZM25 16H30V6H25V16ZM32 16H36C36.5523 16 37 15.5523 37 15V7C37 6.44772 36.5523 6 36 6H32V16ZM23 30V35H25V30H30V28H25V23H23V28H18V30H23Z" fill="currentColor"/>
                         </svg>
                         Antimicrobianos
@@ -96,10 +94,10 @@ unset($__defined_vars); ?>
                     </div>
                 </div>
 
-                <!-- Procedimentos Cirúrgicos - agora compacto -->
-                <div class="bg-white p-3 rounded-lg border border-gray-200">
+                <!-- Procedimentos Cirúrgicos -->
+                <div class="bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                     <h5 class="text-sm font-medium text-gray-800 mb-2 flex items-center">
-                        <svg class="w-4 h-4 flex-shrink-0 text-purple-950 mr-2" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg class="w-4 h-4 flex-shrink-0 text-purple-950 mr-2" viewBox="0 0 48 48" fill="none">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M40 8H8V40H40V8ZM8 6C6.89543 6 6 6.89543 6 8V40C6 41.1046 6.89543 42 8 42H40C41.1046 42 42 41.1046 42 40V8C42 6.89543 41.1046 6 40 6H8Z" fill="currentColor"/>
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M16.8284 28H21.5516C22.5979 28 23.6026 27.59 24.3501 26.858L28 23.2842V22.8284C28 21.7676 28.4214 20.7501 29.1716 20L30.8607 18.3109L28.2548 16.5736L16.8284 28ZM12 30L28 14L34 18L30.5858 21.4142C30.2107 21.7893 30 22.298 30 22.8284V23.2842C30 23.8219 29.7835 24.337 29.3993 24.7132L25.7494 28.2871C24.628 29.3851 23.1211 30 21.5516 30H12Z" fill="currentColor"/>
                         </svg>
@@ -108,15 +106,13 @@ unset($__defined_vars); ?>
                     <div class="text-sm text-gray-700 p-2 bg-gray-50 rounded border min-h-[60px]">
                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->procedimentos_cirurgicos) && is_array($patientDetails->procedimentos_cirurgicos) && count($patientDetails->procedimentos_cirurgicos)): ?>
                             <?php $firstProc = $patientDetails->procedimentos_cirurgicos[0]; ?>
-                            <div class="text-sm">
-                                <div class="font-medium"><?php echo e($firstProc['procedimento'] ?? 'Procedimento'); ?></div>
-                                <div class="text-xs text-gray-600 mt-1">
-                                    <?php echo e($firstProc['data_agenda'] ?? 'Data não informada'); ?>
+                            <div class="font-medium"><?php echo e($firstProc['procedimento'] ?? 'Procedimento'); ?></div>
+                            <div class="text-xs text-gray-600 mt-1">
+                                <?php echo e($firstProc['data_agenda'] ?? 'Data não informada'); ?>
 
-                                    <!--[if BLOCK]><![endif]--><?php if(count($patientDetails->procedimentos_cirurgicos) > 1): ?>
-                                        <br><span class="italic">+<?php echo e(count($patientDetails->procedimentos_cirurgicos) - 1); ?> mais</span>
-                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                </div>
+                                <!--[if BLOCK]><![endif]--><?php if(count($patientDetails->procedimentos_cirurgicos) > 1): ?>
+                                    <br><span class="italic">+<?php echo e(count($patientDetails->procedimentos_cirurgicos) - 1); ?> mais</span>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
                         <?php else: ?>
                             <span class="text-gray-500">Nenhuma cirurgia agendada</span>
@@ -124,156 +120,89 @@ unset($__defined_vars); ?>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- CPOE Section agora mais compacto -->
-                        <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->procedimentos_cirurgicos) && is_array($patientDetails->procedimentos_cirurgicos) && count($patientDetails->procedimentos_cirurgicos)): ?>
-                            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $patientDetails->procedimentos_cirurgicos; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $procedure): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <!--[if BLOCK]><![endif]--><?php if(is_array($procedure) && isset($procedure['procedimento'])): ?>
-                                    <div class="flex flex-col gap-2">
-                                        <div class="text-base font-medium text-gray-900">
-                                            <?php echo e($procedure['procedimento'] ?? 'Procedimento não informado'); ?>
-
-                                        </div>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-700">
-                                            <div>
-                                                <span class="font-semibold">Status:</span>
-                                                <span><?php echo e($procedure['status'] ?? 'Não informado'); ?></span>
-                                            </div>
-                                            <div>
-                                                <span class="font-semibold">Tipo:</span>
-                                                <span><?php echo e($procedure['tipo_agendamento'] ?? 'Não informado'); ?></span>
-                                            </div>
-                                            <div>
-                                                <span class="font-semibold">Caráter:</span>
-                                                <span><?php echo e($procedure['carater_cirurgia'] ?? 'Não informado'); ?></span>
-                                            </div>
-                                            <div>
-                                                <span class="font-semibold">Data:</span>
-                                                <span>
-                                                    <!--[if BLOCK]><![endif]--><?php if(($procedure['status'] ?? '') === 'REALIZADA'): ?>
-                                                        <?php echo e($procedure['data_cirurgia'] ?? $procedure['data_agenda'] ?? 'Não informada'); ?>
-
-                                                        <!--[if BLOCK]><![endif]--><?php if($procedure['hora_cirurgia'] ?? null): ?>
-                                                            <?php echo e($procedure['hora_cirurgia']); ?>
-
-                                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                                    <?php else: ?>
-                                                        <?php echo e($procedure['data_agenda'] ?? 'Não informada'); ?>
-
-                                                        <!--[if BLOCK]><![endif]--><?php if($procedure['hora_agenda'] ?? null): ?>
-                                                            <?php echo e($procedure['hora_agenda']); ?>
-
-                                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span class="font-semibold">Duração:</span>
-                                                <span><?php echo e($procedure['duracao_formatada'] ?? 'Não informada'); ?></span>
-                                            </div>
-                                        </div>
-                                        <!--[if BLOCK]><![endif]--><?php if(!empty($procedure['observacoes'])): ?>
-                                            <div class="text-xs text-gray-600 mt-2">
-                                                <span class="font-semibold">Observações:</span>
-                                                <span><?php echo e($procedure['observacoes']); ?></span>
-                                            </div>
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                    </div>
-                                    <div class="border-t border-gray-100 my-4"></div>
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
-                        <?php elseif(is_string($patientDetails->procedimentos_cirurgicos)): ?>
-                            <div class="text-sm text-gray-500">
-                                <?php echo e($patientDetails->procedimentos_cirurgicos); ?>
-
-                            </div>
-                        <?php else: ?>
-                            <div class="text-sm text-gray-500">
-                                Nenhuma cirurgia programada ou realizada recentemente
-                            </div>
-                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- CPOE Completo - Updated with all new tabs -->
-        <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
-                <h4 class="text-lg sm:text-xl font-semibold text-gray-800">Prescrições do Dia - <?php echo e(date('d/m/Y')); ?></h4>
-                <div class="text-sm text-gray-500 font-medium">
-                    CPOE
-                </div>
-            </div>
             
-            <div class="border-b border-gray-200 mb-4">
-                <nav class="flex space-x-1 overflow-x-auto pb-2">
-                    <!-- Existing tabs -->
-                    <button @click="activeCpoeCategory = 'cpoe-exames'"
-                            :class="activeCpoeCategory === 'cpoe-exames' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
-                            class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
-                        <div class="flex items-center space-x-1 sm:space-x-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                            <span class="hidden sm:inline">Exames e Procedimentos</span>
-                            <span class="sm:hidden">Exames</span>
-                        </div>
-                    </button>
-                    
-                    <button @click="activeCpoeCategory = 'cpoe-medicamentos'"
-                            :class="activeCpoeCategory === 'cpoe-medicamentos' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
-                            class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
-                        <div class="flex items-center space-x-1 sm:space-x-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                            </svg>
-                            <span>Medicamentos</span>
-                        </div>
-                    </button>
-                    
-                    <button @click="activeCpoeCategory = 'cpoe-nutricao'"
-                            :class="activeCpoeCategory === 'cpoe-nutricao' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
-                            class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
-                        <div class="flex items-center space-x-1 sm:space-x-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-3m-3 3l-3-3" />
-                            </svg>
-                            <span>Nutrição</span>
-                        </div>
-                    </button>
-                    
-                    <!-- NEW TABS -->
-                    <button @click="activeCpoeCategory = 'cpoe-recomendacoes'"
-                            :class="activeCpoeCategory === 'cpoe-recomendacoes' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
-                            class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
-                        <div class="flex items-center space-x-1 sm:space-x-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span>Recomendações</span>
-                        </div>
-                    </button>
+            <!-- CPOE Section -->
+            <div class="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+                    <h4 class="text-lg sm:text-xl font-semibold text-gray-800">Prescrições do Dia - <?php echo e(date('d/m/Y')); ?></h4>
+                    <div class="text-sm text-gray-500 font-medium">CPOE</div>
+                </div>
+                
+                <!-- Tabs CPOE -->
+                <div class="border-b border-gray-200 mb-4">
+                    <nav class="flex space-x-1 overflow-x-auto pb-2 scrollbar-hide">
+                        <!-- Exames -->
+                        <button @click.prevent="activeCpoeCategory = 'cpoe-exames'"
+                                :class="activeCpoeCategory === 'cpoe-exames' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
+                                class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
+                            <div class="flex items-center space-x-1 sm:space-x-1.5">
+                                <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                <span>Exames</span>
+                            </div>
+                        </button>
+                        
+                        <!-- Medicamentos -->
+                        <button @click.prevent="activeCpoeCategory = 'cpoe-medicamentos'"
+                                :class="activeCpoeCategory === 'cpoe-medicamentos' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
+                                class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
+                            <div class="flex items-center space-x-1 sm:space-x-1.5">
+                                <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                                <span>Medicamentos</span>
+                            </div>
+                        </button>
+                        
+                        <!-- Nutrição -->
+                        <button @click.prevent="activeCpoeCategory = 'cpoe-nutricao'"
+                                :class="activeCpoeCategory === 'cpoe-nutricao' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
+                                class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
+                            <div class="flex items-center space-x-1 sm:space-x-1.5">
+                                <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-3m-3 3l-3-3" />
+                                </svg>
+                                <span>Nutrição</span>
+                            </div>
+                        </button>
+                        
+                        <!-- Recomendações - CORRIGIDO -->
+                        <button @click.prevent="activeCpoeCategory = 'cpoe-recomendacoes'"
+                                :class="activeCpoeCategory === 'cpoe-recomendacoes' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
+                                class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
+                            <div class="flex items-center space-x-1 sm:space-x-1.5">
+                                <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>Recomendações</span>
+                            </div>
+                        </button>
 
-                    <button @click="activeCpoeCategory = 'cpoe-intervencoes'"
-                            :class="activeCpoeCategory === 'cpoe-intervencoes' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
-                            class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
-                        <div class="flex items-center space-x-1 sm:space-x-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span>Intervenções</span>
-                        </div>
-                    </button>
-                </nav>
-            </div>
-            
-            <div>
-                <!-- Exames e Procedimentos -->
-                <div x-show="activeCpoeCategory === 'cpoe-exames'">
-                    <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_procedures) && $patientDetails->cpoe_procedures['total_count'] > 0): ?>
+                        <!-- Intervenções -->
+                        <button @click.prevent="activeCpoeCategory = 'cpoe-intervencoes'"
+                                :class="activeCpoeCategory === 'cpoe-intervencoes' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-transparent bg-gray-50 text-gray-600 hover:text-gray-800 hover:bg-gray-100'"
+                                class="flex-shrink-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded border-b-2 whitespace-nowrap transition-colors">
+                            <div class="flex items-center space-x-1 sm:space-x-1.5">
+                                <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>Intervenções</span>
+                            </div>
+                        </button>
+                    </nav>
+                </div>
+                
+                <!-- CPOE Content -->
+                <div class="min-h-[400px]">
+                    <!-- Exames -->
+                    <div x-show="activeCpoeCategory === 'cpoe-exames'" 
+                         x-transition:enter="transition-opacity ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         style="display: none;">
+                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_procedures) && $patientDetails->cpoe_procedures['total_count'] > 0): ?>
                         <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
                             <span><?php echo e($patientDetails->cpoe_procedures['total_count']); ?> procedimento(s) agendado(s)</span>
                             <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto"><?php echo e(date('d/m/Y')); ?></span>
@@ -344,11 +273,15 @@ unset($__defined_vars); ?>
                             <p class="text-gray-500 text-xs">para o dia <?php echo e(date('d/m/Y')); ?></p>
                         </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                </div>
-                
-                <!-- Medicamentos - Enhanced with dynamic labels -->
-                <div x-show="activeCpoeCategory === 'cpoe-medicamentos'">
-                    <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_medications) && $patientDetails->cpoe_medications['total_count'] > 0): ?>
+                    </div>
+                    
+                    <!-- Medicamentos -->
+                    <div x-show="activeCpoeCategory === 'cpoe-medicamentos'"
+                         x-transition:enter="transition-opacity ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         style="display: none;">
+                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_medications) && $patientDetails->cpoe_medications['total_count'] > 0): ?>
                         <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
                             <span><?php echo e($patientDetails->cpoe_medications['total_count']); ?> medicamento(s) prescrito(s)</span>
                             <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto"><?php echo e(date('d/m/Y')); ?></span>
@@ -493,11 +426,15 @@ unset($__defined_vars); ?>
                             <p class="text-gray-500 text-xs">para o dia <?php echo e(date('d/m/Y')); ?></p>
                         </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                </div>
-                
-                <!-- Nutrição - Enhanced with error handling -->
-                <div x-show="activeCpoeCategory === 'cpoe-nutricao'">
-                    <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_nutrition) && $patientDetails->cpoe_nutrition['total_count'] > 0): ?>
+                    </div>
+                    
+                    <!-- Nutrição - CORRIGIDO -->
+                    <div x-show="activeCpoeCategory === 'cpoe-nutricao'"
+                         x-transition:enter="transition-opacity ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         style="display: none;">
+                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_nutrition) && $patientDetails->cpoe_nutrition['total_count'] > 0): ?>
                         <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
                             <span><?php echo e($patientDetails->cpoe_nutrition['total_count']); ?> prescrição(ões) nutricional(is)</span>
                             <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto"><?php echo e(date('d/m/Y')); ?></span>
@@ -701,11 +638,15 @@ unset($__defined_vars); ?>
                             <p class="text-gray-500 text-xs">para o dia <?php echo e(date('d/m/Y')); ?></p>
                         </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                </div>
+                    </div>
                 
-                <!-- NEW: Recomendações -->
-                <div x-show="activeCpoeCategory === 'cpoe-recomendacoes'">
-                    <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_recommendations) && $patientDetails->cpoe_recommendations['total_count'] > 0): ?>
+                    <!-- Recomendações - CORRIGIDO -->
+                    <div x-show="activeCpoeCategory === 'cpoe-recomendacoes'"
+                         x-transition:enter="transition-opacity ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         style="display: none;">
+                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_recommendations) && $patientDetails->cpoe_recommendations['total_count'] > 0): ?>
                         <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
                             <span><?php echo e($patientDetails->cpoe_recommendations['total_count']); ?> recomendação(ões) ativa(s)</span>
                             <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto"><?php echo e(date('d/m/Y')); ?></span>
@@ -846,11 +787,15 @@ unset($__defined_vars); ?>
                             <p class="text-gray-500 text-xs">para o dia <?php echo e(date('d/m/Y')); ?></p>
                         </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                </div>
+                    </div>
 
-                <!-- NEW: Intervenções -->
-                <div x-show="activeCpoeCategory === 'cpoe-intervencoes'">
-                    <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_interventions) && $patientDetails->cpoe_interventions['total_count'] > 0): ?>
+                    <!-- Intervenções - CORRIGIDO -->
+                    <div x-show="activeCpoeCategory === 'cpoe-intervencoes'"
+                         x-transition:enter="transition-opacity ease-out duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         style="display: none;">
+                         <!--[if BLOCK]><![endif]--><?php if($patientDetails && isset($patientDetails->cpoe_interventions) && $patientDetails->cpoe_interventions['total_count'] > 0): ?>
                         <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
                             <span><?php echo e($patientDetails->cpoe_interventions['total_count']); ?> intervenção(ões) ativa(s)</span>
                             <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto"><?php echo e(date('d/m/Y')); ?></span>
@@ -1000,44 +945,52 @@ unset($__defined_vars); ?>
                             <p class="text-gray-500 text-xs">para o dia <?php echo e(date('d/m/Y')); ?></p>
                         </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    </div>
                 </div>
             </div>
         </div>
-<?php else: ?>
-    <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-        <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
-        <button 
-            wire:click="showPatientDetails(
-                '<?php echo e(is_array($currentPatient) ? ($currentPatient['nr_atendimento'] ?? '') : (is_object($currentPatient) && property_exists($currentPatient, 'nr_atendimento') ? $currentPatient->nr_atendimento : '')); ?>'
-            )"
-            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-        >
-            Tentar novamente
-        </button>
-    </div>
-<?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php else: ?>
+        <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
+            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
+        </div>
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 </div>
 
 <style>
-    .custom-scroll {
-        scrollbar-width: thin;
-        scrollbar-color: #cbd5e1 #f1f5f9;
-    }
-    .custom-scroll::-webkit-scrollbar {
-        width: 6px;
-    }
-    .custom-scroll::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 3px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 3px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-    }
+.custom-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Garantir que divs ocultas não interfiram */
+[x-show][style*="display: none"] {
+    display: none !important;
+    pointer-events: none !important;
+}
 </style><?php /**PATH /var/www/passagem-plantao/resources/views/components/patient-modal/content/sbar-recomendacoes.blade.php ENDPATH**/ ?>

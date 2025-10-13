@@ -36,11 +36,10 @@
         </style>
     @endpush
 
-    <div class="w-full my-2 text-[#004D9D] relative no-zoom"
-         x-data="sbarDashboard()"
-         x-init="init()">
+    <div class="w-full my-2 text-[#004D9D] no-zoom"
+        x-data="sbarDashboard()"
+        x-init="init()">
 
-        {{-- Livewire component: mantém o key para forçar reload quando necessário --}}
         @livewire('sbar-report', [], key('sbar-report-' . now()->timestamp))
 
     </div>

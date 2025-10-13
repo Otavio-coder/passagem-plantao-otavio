@@ -51,18 +51,7 @@
                 <div class="relative">
                     <div class="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
                     <div class="w-16 h-16 border-4 border-t-[#004D9D] border-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-                </div>
-                
-                <!-- Texto de loading -->
-                <div class="text-center">
-                    <h3 class="text-lg font-semibold text-[#004D9D] mb-1">Carregando Paciente</h3>
-                    <p class="text-sm text-gray-600">Aguarde enquanto carregamos os dados...</p>
-                </div>
-                
-                <!-- Indicador de progresso (opcional) -->
-                <div class="w-48 h-1 bg-gray-200 rounded-full overflow-hidden">
-                    <div class="h-full bg-[#004D9D] rounded-full animate-pulse"></div>
-                </div>
+                </div>               
             </div>
         </div>
     </div>

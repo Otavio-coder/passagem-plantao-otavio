@@ -4,6 +4,9 @@ Sistema SBAR para Passagem de Plantão - Interface principal
 --}}
 
 <div class="w-full my-2 text-[#004D9D] relative font-montserrat">
+    {{-- LOADING GLOBAL LIVEWIRE --}}
+    {{-- (Removido, agora está no layout global) --}}
+
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4 font-montserrat">
             
@@ -16,24 +19,29 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                 @modal-closed.window="modalOpen = false; document.body.classList.remove('modal-open')"
                 @auto-refreshed.window="handleAutoRefresh()"
             >
-                {{-- @dd($patients) --}}
-
-                {{-- Spinner de carregamento global --}}
-                <div
-                    wire:loading.delay.longer
-                    class="fixed inset-0 z-[9998] flex items-center justify-center bg-[#004D9D]/20 font-montserrat"
-                    role="status"
-                    aria-live="polite"
-                >
-                    <div class="flex flex-col items-center justify-center space-y-2 min-h-screen font-montserrat">
-                        <div class="w-12 h-12 border-4 border-t-[#004D9D] border-gray-200 rounded-full animate-spin" aria-hidden="true"></div>
-                        <span class="text-[#004D9D] font-medium font-montserrat">{{ $loadingMessage ?? 'Carregando...' }}</span>
-                    </div>
-                </div>
                 <div class="font-montserrat relative">
-                    
+
+
+                    <div>
+                        <div class="mb-4 sm:mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-3 sm:p-4 shadow-sm">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-yellow-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.493-1.647-1.743-2.98l5.58-9.92zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-8a1 1 0 00-.993.883L9 6v4a1 1 0 001.993.117L11 10V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3 flex-1 sm:mr-8">
+                                    <p class="text-sm sm:text-base text-yellow-800">
+                                        <strong>Atenção:</strong> O sistema está em <strong>manutenção</strong> para melhorias e otimizações.
+                                        Durante este período, algumas funcionalidades podem estar temporariamente indisponíveis.
+                                        Agradecemos sua compreensão.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     {{-- Alerta informativo sobre o sistema --}}
-                    <div 
+                    {{-- <div 
                         x-data="{ showAlert: true }"
                         x-show="showAlert"
                         x-transition:enter="transition ease-out duration-300"
@@ -66,7 +74,6 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                 </div>
                             </div>
                             
-                            {{-- Botão para fechar o alerta --}}
                             <div class="flex-shrink-0 mt-3 sm:mt-0 self-start sm:ml-4 font-montserrat">
                                 <button @click="showAlert = false"
                                         class="text-blue-400 hover:text-blue-600 transition-colors p-1 font-montserrat">
@@ -76,7 +83,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div> --}}
 
                     {{-- Container principal do conteúdo --}}
                     <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden font-montserrat">
@@ -147,15 +154,11 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                         class="inline-flex items-center justify-center px-2.5 py-2 rounded-md text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md focus:outline-none focus:ring-2 focus:ring-[#0071B9]/40 disabled:opacity-50 text-xs font-medium whitespace-nowrap font-montserrat"
                                                         title="Atualizar dados"
                                                     >
-                                                        <span wire:loading.remove wire:target="refreshData" class="flex items-center font-montserrat">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <span class="flex items-center font-montserrat">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                             </svg>
                                                             Atualizar
-                                                        </span>
-                                                        <span wire:loading wire:target="refreshData" class="flex items-center font-montserrat">
-                                                            <div class="w-4 h-4 border-2 border-t-white border-white/30 rounded-full animate-spin mr-1"></div>
-                                                            Atualizando...
                                                         </span>
                                                     </button>
 
@@ -166,15 +169,11 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                         class="inline-flex items-center justify-center px-2.5 py-2 rounded-md text-gray-700 bg-gray-100 border border-gray-300 hover:bg-gray-200 shadow-md focus:outline-none focus:ring-2 focus:ring-gray-400/40 disabled:opacity-50 text-xs font-medium whitespace-nowrap font-montserrat"
                                                         title="Limpar todos os filtros"
                                                     >
-                                                        <span wire:loading.remove wire:target="resetFilters" class="flex items-center font-montserrat">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <span class="flex items-center font-montserrat">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                             </svg>
                                                             Limpar
-                                                        </span>
-                                                        <span wire:loading wire:target="resetFilters" class="flex items-center font-montserrat">
-                                                            <div class="w-4 h-4 border-2 border-t-gray-600 border-gray-600/30 rounded-full animate-spin mr-1"></div>
-                                                            Limpando...
                                                         </span>
                                                     </button>
                                                 </div>
@@ -395,15 +394,11 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                 class="inline-flex items-center justify-center px-3 py-2 rounded-md text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md focus:outline-none focus:ring-2 focus:ring-[#0071B9]/40 disabled:opacity-50 text-xs font-medium whitespace-nowrap font-montserrat"
                                                 title="Atualizar dados"
                                             >
-                                                <span wire:loading.remove wire:target="refreshData" class="flex items-center font-montserrat">
+                                                <span class="flex items-center font-montserrat">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                     </svg>
                                                     Atualizar
-                                                </span>
-                                                <span wire:loading wire:target="refreshData" class="flex items-center font-montserrat">
-                                                    <div class="w-4 h-4 border-2 border-t-white border-white/30 rounded-full animate-spin mr-1.5"></div>
-                                                    Atualizando...
                                                 </span>
                                             </button>
 
@@ -414,15 +409,11 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                                 class="inline-flex items-center justify-center px-3 py-2 rounded-md text-gray-700 bg-gray-100 border border-gray-300 hover:bg-gray-200 shadow-md focus:outline-none focus:ring-2 focus:ring-gray-400/40 disabled:opacity-50 text-xs font-medium whitespace-nowrap font-montserrat"
                                                 title="Limpar todos os filtros"
                                             >
-                                                <span wire:loading.remove wire:target="resetFilters" class="flex items-center font-montserrat">
+                                                <span class="flex items-center font-montserrat">
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                     Limpar
-                                                </span>
-                                                <span wire:loading wire:target="resetFilters" class="flex items-center font-montserrat">
-                                                    <div class="w-4 h-4 border-2 border-t-gray-600 border-gray-600/30 rounded-full animate-spin mr-1.5"></div>
-                                                    Limpando...
                                                 </span>
                                             </button>
                                         </div>
@@ -430,11 +421,23 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                                 </div>
                             </div>
                         </div>
-                        
+
+                        {{-- <pre>{{ var_dump($patients) }}</pre>   --}}
+
+        
                         {{-- Container dos cards de pacientes --}}
                         <div id="patientsContainer" class="p-2 sm:p-3 lg:p-4 bg-white font-montserrat">
+                            @if($loading && $failedPatient)
+                                <div class="bg-red-100 border border-red-300 p-4 rounded mb-4">
+                                    <strong>Paciente com erro:</strong>
+                                    <div>Nome: {{ $failedPatient['nm_pessoa_fisica'] ?? 'N/A' }}</div>
+                                    <div>Prontuário: {{ $failedPatient['nr_prontuario'] ?? 'N/A' }}</div>
+                                    <div>Atendimento: {{ $failedPatient['nr_atendimento'] ?? 'N/A' }}</div>
+                                    <div>Data/Hora problemática: {{ $failedPatient['algum_campo_data'] ?? 'N/A' }}</div>
+                                </div>
+                            @endif
+
                             @if(isset($errorMessage) && $errorMessage)
-                                {{-- Mensagem de erro --}}
                                 <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6 font-montserrat">
                                     <div class="flex items-center font-montserrat">
                                         <svg class="w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -481,3 +484,24 @@ Sistema SBAR para Passagem de Plantão - Interface principal
         </div>
     </div>
 </div>
+
+<script>
+    // Função para mostrar/esconder o overlay global
+    function showGlobalLoading(show = true) {
+        const overlay = document.getElementById('modal-global-loading');
+        if (!overlay) return;
+        overlay.classList.toggle('hidden', !show);
+        overlay.classList.toggle('flex', show);
+    }
+
+    // Livewire hooks para mostrar/esconder overlay durante requisições
+    document.addEventListener('livewire:loading', function() {
+        showGlobalLoading(true);
+    });
+    document.addEventListener('livewire:load', function() {
+        showGlobalLoading(false);
+    });
+    document.addEventListener('livewire:finished', function() {
+        showGlobalLoading(false);
+    });
+</script>

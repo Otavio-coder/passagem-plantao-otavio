@@ -2,51 +2,32 @@
     showAlertsModal: <?php if ((object) ('showAlertsModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showAlertsModal'->value()); ?>')<?php echo e('showAlertsModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showAlertsModal'); ?>')<?php endif; ?>,
     showModal: <?php if ((object) ('showModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showModal'->value()); ?>')<?php echo e('showModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showModal'); ?>')<?php endif; ?>,
     init() {
-        console.log('PatientModal Alpine init:', { showModal: this.showModal, showAlertsModal: this.showAlertsModal });
-        
-        // Force refresh when modal should open
-        this.$watch('showModal', (value) => {
-            console.log('showModal changed to:', value);
+        this.$watch('showAlertsModal', (value) => {
             if (value) {
-                // Force Alpine refresh
-                this.$nextTick(() => {
-                    console.log('Modal should be visible now');
-                });
+                document.body.style.overflow = 'hidden';
+            } else if (!this.showModal) {
+                document.body.style.overflow = '';
             }
         });
         
-        // Listen for Livewire events
-        Livewire.on('modal-opened', () => {
-            console.log('Modal opened event received');
-            this.showModal = true;
-        });
-        
-        // Responsividade e controle de scroll do body
-        this.$watch('showAlertsModal', (value) => {
-            console.log('showAlertsModal changed to:', value);
-            document.body.style.overflow = value ? 'hidden' : '';
-        });
         this.$watch('showModal', (value) => {
-            console.log('showModal changed to:', value);
-            document.body.style.overflow = value ? 'hidden' : '';
             if (value) {
+                document.body.style.overflow = 'hidden';
                 document.body.classList.add('modal-active');
-                // Mobile: fixar html para evitar bounce
+                
                 if (window.innerWidth < 640) {
                     document.documentElement.style.position = 'fixed';
                     document.documentElement.style.width = '100%';
                     document.documentElement.style.height = '100%';
                     document.documentElement.style.top = '0';
-                    document.documentElement.style.left = '0';
                 }
             } else {
+                document.body.style.overflow = '';
                 document.body.classList.remove('modal-active');
                 document.documentElement.style.position = '';
                 document.documentElement.style.width = '';
                 document.documentElement.style.height = '';
                 document.documentElement.style.top = '';
-                document.documentElement.style.left = '';
-                document.body.style.overflow = '';
             }
         });
     }
@@ -75,67 +56,63 @@
 <?php endif; ?>
 
     
-
     <div 
         x-show="showModal"
         x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95"
-        x-transition:enter-end="opacity-100 scale-100"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
         x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100 scale-100"
-        x-transition:leave-end="opacity-0 scale-95"
-        class="modal-backdrop-container"
-        style="touch-action: none;"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-[9998]"
+        style="display: none;"
     >
-            
-            <div class="modal-backdrop-overlay"
-                 @click="!showAlertsModal && (showModal = false); setTimeout(() => $wire.closeModal(), 150)"></div>
-            
-            
+        
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+             @click="showModal = false; $wire.closeModal();"></div>
+        
+        
+        <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
             <div
-                class="modal-main-container"
+                class="relative bg-white flex flex-col overflow-hidden
+                       w-full h-full
+                       sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
+                       lg:w-[85vw] lg:h-[90vh] lg:max-w-[1600px]
+                       shadow-2xl"
                 x-data="{
                     activeTab: 'tab-s',
                     activeCpoeCategory: 'cpoe-exames',
-                    swipeStartX: null,
-                    swipeStartY: null,
-                    swipeStartTime: null,
                     currentTabIndex: 0,
                     tabs: ['tab-s', 'tab-b', 'tab-a', 'tab-r'],
-                    tabLabels: ['Situação', 'Background', 'Avaliação', 'Recomendações'],
-                    isSwipeEnabled: false,
-                    swipeThreshold: 50,
-                    swipeVelocity: 0.3,
+                    isSwipeEnabled: window.innerWidth < 1024,
+                    swipeStartX: null,
+                    swipeStartY: null,
                     isTransitioning: false,
-                    deviceType: 'desktop',
                     
                     init() {
-                        this.updateDeviceType();
-                        this.currentTabIndex = this.tabs.indexOf(this.activeTab);
-                        
-                        // Responsive observer
-                        const resizeObserver = new ResizeObserver(() => {
-                            this.updateDeviceType();
-                        });
-                        resizeObserver.observe(document.body);
-                        
-                        window.addEventListener('orientationchange', () => {
-                            setTimeout(() => this.updateDeviceType(), 150);
-                        });
+                        this.updateSwipeEnabled();
+                        window.addEventListener('resize', () => this.updateSwipeEnabled());
                     },
                     
-                    updateDeviceType() {
-                        const width = window.innerWidth;
-                        if (width < 640) {
-                            this.deviceType = 'mobile';
-                            this.isSwipeEnabled = true;
-                        } else if (width < 1024) {
-                            this.deviceType = 'tablet';
-                            this.isSwipeEnabled = true;
-                        } else {
-                            this.deviceType = 'desktop';
-                            this.isSwipeEnabled = false;
+                    updateSwipeEnabled() {
+                        this.isSwipeEnabled = window.innerWidth < 1024;
+                    },
+                    
+                    switchTab(tabName) {
+                        if (this.isTransitioning) return;
+                        
+                        this.isTransitioning = true;
+                        this.activeTab = tabName;
+                        this.currentTabIndex = this.tabs.indexOf(tabName);
+                        
+                        // Haptic feedback
+                        if (navigator.vibrate) {
+                            navigator.vibrate(10);
                         }
+                        
+                        setTimeout(() => {
+                            this.isTransitioning = false;
+                        }, 300);
                     },
                     
                     handleSwipe(direction) {
@@ -146,93 +123,47 @@
                             : Math.max(this.currentTabIndex - 1, 0);
                             
                         if (newIndex !== this.currentTabIndex) {
-                            this.switchTab(newIndex);
+                            this.switchTab(this.tabs[newIndex]);
                         }
-                    },
-                    
-                    switchTab(newIndex) {
-                        if (this.isTransitioning) return;
-                        
-                        this.isTransitioning = true;
-                        this.currentTabIndex = newIndex;
-                        this.activeTab = this.tabs[this.currentTabIndex];
-                        
-                        // Haptic feedback
-                        if (navigator.vibrate) {
-                            navigator.vibrate(10);
-                        }
-                        
-                        setTimeout(() => {
-                            this.isTransitioning = false;
-                        }, 200);
                     }
                 }"
-                x-init="
-                    currentTabIndex = tabs.indexOf(activeTab);
-                "
-                data-patient-id="<?php echo e($currentPatient['nr_atendimento'] ?? ''); ?>"
-                data-shift="<?php echo e($currentShift ?? ''); ?>"
                 @click.stop
                 @touchstart.passive="
-                    if (!isSwipeEnabled || isTransitioning) return;
-                    
+                    if (!isSwipeEnabled) return;
                     const touch = $event.touches[0];
                     swipeStartX = touch.clientX;
                     swipeStartY = touch.clientY;
-                    swipeStartTime = Date.now();
-                "
-                @touchmove="
-                    if (!isSwipeEnabled || swipeStartX === null || isTransitioning) return;
-                    
-                    const touch = $event.touches[0];
-                    const deltaX = touch.clientX - swipeStartX;
-                    const deltaY = touch.clientY - swipeStartY;
-                    
-                    // Prevent horizontal scroll only if it's clearly a horizontal swipe
-                    if (Math.abs(deltaX) > Math.abs(deltaY) + 40 && Math.abs(deltaX) > 60) {
-                        $event.preventDefault();
-                    }
                 "
                 @touchend.passive="
-                    if (!isSwipeEnabled || swipeStartX === null || swipeStartY === null || isTransitioning) return;
+                    if (!isSwipeEnabled || swipeStartX === null) return;
                     
                     const touch = $event.changedTouches[0];
                     const deltaX = touch.clientX - swipeStartX;
                     const deltaY = touch.clientY - swipeStartY;
-                    const deltaTime = Date.now() - (swipeStartTime || 0);
-                    const velocity = Math.abs(deltaX) / deltaTime;
                     
-                    // Trigger swipe only for horizontal dominant movement
-                    if (Math.abs(deltaX) > Math.abs(deltaY) + 20 && 
-                        (Math.abs(deltaX) > swipeThreshold || velocity > swipeVelocity)) {
+                    if (Math.abs(deltaX) > Math.abs(deltaY) + 30 && Math.abs(deltaX) > 80) {
                         handleSwipe(deltaX > 0 ? 'right' : 'left');
                     }
                     
                     swipeStartX = null;
                     swipeStartY = null;
-                    swipeStartTime = null;
                 "
             >
                 
                 <!--[if BLOCK]><![endif]--><?php if($loadingPatient): ?>
-                    <div id="modal-global-loading" class="modal-loading-overlay">
-                        <div class="modal-loading-content">
-                            <div class="modal-loading-spinner">
-                                <div class="spinner-primary"></div>
-                                <div class="spinner-secondary"></div>
+                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur-sm">
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="relative">
+                                <div class="w-12 h-12 border-4 border-[#004D9D] border-t-transparent rounded-full animate-spin"></div>
+                                <div class="absolute inset-0 w-12 h-12 border-4 border-[#004D9D]/20 border-t-transparent rounded-full animate-pulse"></div>
                             </div>
-                            <span class="modal-loading-text">Carregando dados do paciente...</span>
-                            <div class="modal-loading-dots">
-                                <div class="dot dot-1"></div>
-                                <div class="dot dot-2"></div>
-                                <div class="dot dot-3"></div>
-                            </div>
+                            <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
                         </div>
                     </div>
                 <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                 
-                <div class="modal-header">
+                <div class="flex-shrink-0">
                     <?php if (isset($component)) { $__componentOriginal4bf6bb988fdfe580fbc23256011219b6 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal4bf6bb988fdfe580fbc23256011219b6 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.header','data' => ['currentHospitalName' => $currentHospitalName,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -256,7 +187,7 @@
                 </div>
 
                 
-                <div class="modal-tabs-container">
+                <div class="flex-shrink-0 border-b border-gray-200">
                     <?php if (isset($component)) { $__componentOriginalf5e3eb31ed4066b4d609e56376850514 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalf5e3eb31ed4066b4d609e56376850514 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.tabs','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -277,30 +208,22 @@
 <?php $component = $__componentOriginalf5e3eb31ed4066b4d609e56376850514; ?>
 <?php unset($__componentOriginalf5e3eb31ed4066b4d609e56376850514); ?>
 <?php endif; ?>
-                    
-                    
-                    <div x-show="isSwipeEnabled && deviceType === 'mobile'" class="mobile-swipe-indicator">
-                        <div class="swipe-hint">
-                            <svg class="swipe-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l4-4-4-4m6 8l4-4-4-4"></path>
-                            </svg>
-                            <span>Deslize para navegar</span>
-                            <svg class="swipe-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l4-4-4-4m6 8l4-4-4-4"></path>
-                            </svg>
-                        </div>
-                    </div>
                 </div>
 
                 
-                <div class="modal-content-wrapper">
+                <div class="flex-1 bg-gray-50 relative overflow-hidden min-h-0">
                     
-                    <div
-                        x-show="activeTab === 'tab-s'"
-                        class="modal-tab-content"
-                        x-bind:class="activeTab === 'tab-s' ? 'active' : ''"
-                    >
-                        <div class="tab-content-padding">
+                    <div class="absolute inset-0">
+                        
+                        <div x-show="activeTab === 'tab-s'" 
+                             x-transition:enter="transition-opacity ease-out duration-300"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition-opacity ease-in duration-200"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                             style="display: none;">
                             <?php if (isset($component)) { $__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal7d98fd0210ab584bddbed0ec9645a4a1 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-situacao','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -322,15 +245,17 @@
 <?php unset($__componentOriginal7d98fd0210ab584bddbed0ec9645a4a1); ?>
 <?php endif; ?>
                         </div>
-                    </div>
 
-                    
-                    <div
-                        x-show="activeTab === 'tab-b'"
-                        class="modal-tab-content"
-                        x-bind:class="activeTab === 'tab-b' ? 'active' : ''"
-                    >
-                        <div class="tab-content-padding">
+                        
+                        <div x-show="activeTab === 'tab-b'" 
+                             x-transition:enter="transition-opacity ease-out duration-300"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition-opacity ease-in duration-200"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                             style="display: none;">
                             <?php if (isset($component)) { $__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalcdde50ed7fba9ea869fd8fc0728335a2 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-background','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -352,15 +277,18 @@
 <?php unset($__componentOriginalcdde50ed7fba9ea869fd8fc0728335a2); ?>
 <?php endif; ?>
                         </div>
-                    </div>
 
-                    
-                    <div
-                        x-show="activeTab === 'tab-a'"
-                        class="modal-tab-content modal-tab-chat"
-                        x-bind:class="activeTab === 'tab-a' ? 'active' : ''"
-                    >
-                        <?php if (isset($component)) { $__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c = $component; } ?>
+                        
+                        <div x-show="activeTab === 'tab-a'" 
+                             x-transition:enter="transition-opacity ease-out duration-300"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition-opacity ease-in duration-200"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="absolute inset-0"
+                             style="display: none;">
+                            <?php if (isset($component)) { $__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-avaliacao','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('patient-modal.content.sbar-avaliacao'); ?>
@@ -380,15 +308,18 @@
 <?php $component = $__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c; ?>
 <?php unset($__componentOriginaldcb788dfdd3ddcea40c1ffd8d1adfe9c); ?>
 <?php endif; ?>
-                    </div>
+                        </div>
 
-                    
-                    <div
-                        x-show="activeTab === 'tab-r'"
-                        class="modal-tab-content"
-                        x-bind:class="activeTab === 'tab-r' ? 'active' : ''"
-                    >
-                        <div class="tab-content-padding">
+                        
+                        <div x-show="activeTab === 'tab-r'" 
+                             x-transition:enter="transition-opacity ease-out duration-300"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition-opacity ease-in duration-200"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                             style="display: none;">
                             <?php if (isset($component)) { $__componentOriginal17f895e11d1d0760497c472b26dd09a1 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal17f895e11d1d0760497c472b26dd09a1 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.patient-modal.content.sbar-recomendacoes','data' => ['loadingPatient' => $loadingPatient,'currentPatient' => $currentPatient,'patientDetails' => $patientDetails]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -414,523 +345,73 @@
                 </div>
             </div>
         </div>
+    </div>
 
     <style>
-        /* ================================
-           MOBILE FIRST RESPONSIVE DESIGN
-           ================================ */
-        
-        /* Base styles - Mobile First */
-        .modal-backdrop-container {
-            position: fixed;
-            inset: 0;
-            z-index: 50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-backdrop-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-            transition: all 0.3s ease;
-        }
-        
-        /* Mobile First Modal Container */
-        .modal-main-container {
-            position: relative;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            contain: layout style paint;
-            will-change: transform;
-            
-            /* Mobile: Fullscreen */
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh; /* Dynamic viewport height for mobile browsers */
-            max-width: 100vw;
-            max-height: 100vh;
-            max-height: 100dvh;
-            border-radius: 0;
-            margin: 0;
-        }
-        
-        /* Header - Fixed */
-        .modal-header {
-            flex-shrink: 0;
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            z-index: 10;
-        }
-        
-        /* Tabs Container */
-        .modal-tabs-container {
-            flex-shrink: 0;
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            z-index: 10;
-        }
-        
-        /* Mobile Swipe Indicator */
-        .mobile-swipe-indicator {
-            display: flex;
-            justify-content: center;
-            padding: 8px 0;
-            background: rgba(249, 250, 251, 0.5);
-        }
-        
-        .swipe-hint {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: #6b7280;
-        }
-        
-        .swipe-icon {
-            width: 16px;
-            height: 16px;
-        }
-        
-        /* Content Wrapper - Mobile Optimized */
-        .modal-content-wrapper {
-            flex: 1;
-            background: #f9fafb;
-            overflow: hidden;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        /* Tab Content - Mobile Scroll Optimized */
-        .modal-tab-content {
-            position: absolute;
-            inset: 0;
-            overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-y: contain;
-            scroll-behavior: auto; /* Better performance on mobile */
-            
-            /* Mobile touch optimization */
-            touch-action: pan-y pinch-zoom;
-            pointer-events: auto;
-            
-            /* Hide by default */
-            display: none;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-        
-        .modal-tab-content.active {
-            display: block;
-            opacity: 1;
-            transform: translateY(0);
-        }
-        
-        /* Chat tab special handling */
-        .modal-tab-chat {
-            padding: 0; /* Chat component handles its own padding */
-        }
-        
-        /* Content padding for non-chat tabs */
-        .tab-content-padding {
-            padding: 16px;
-        }
-        
-        /* Mobile Navigation Indicators */
-        .mobile-nav-indicators {
-            position: absolute;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 20;
-            pointer-events: none;
-        }
-        
-        .nav-indicator-container {
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(16px);
-            border-radius: 24px;
-            padding: 12px 16px;
-            box-shadow: 0 10px 25px -12px rgba(0, 0, 0, 0.3);
-        }
-        
-        .nav-dots {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-            justify-content: center;
-        }
-        
-        .nav-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.4);
-            transition: all 0.2s ease;
-            pointer-events: auto;
-            border: none;
-            cursor: pointer;
-        }
-        
-        .nav-dot.active {
-            background: white;
-            transform: scale(1.25);
-        }
-        
-        .nav-dot:hover {
-            background: rgba(255, 255, 255, 0.6);
-        }
-        
-        .nav-label {
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 12px;
-            font-weight: 500;
-            text-align: center;
-        }
-        
-        /* Loading States - Global fullscreen overlay */
-        .modal-loading-overlay,
-        #modal-global-loading {
-            position: fixed !important; /* Fixed para cobrir toda a viewport */
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            height: 100dvh !important; /* Dynamic viewport height */
-            z-index: 9999 !important; /* Z-index muito alto para ficar acima de tudo */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent !important; /* Background transparente */
-            backdrop-filter: none !important;
-            
-            /* Bloqueia todas as interações */
-            pointer-events: auto !important;
-            touch-action: none !important;
-            user-select: none !important;
-            -webkit-user-select: none !important;
-            -webkit-touch-callout: none !important;
-            
-            /* Performance */
-            will-change: opacity;
-            contain: layout style paint;
-        }
-        
-        /* Estado hidden para compatibilidade */
-        .modal-loading-overlay.hidden,
-        #modal-global-loading.hidden {
-            display: none !important;
-        }
-        
-        /* Loading content com fundo semi-transparente */
-        .modal-loading-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            padding: 24px;
-            background: rgba(255, 255, 255, 0.95) !important;
-            backdrop-filter: blur(8px) !important;
-            border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            
-            /* Bloqueia interações no conteúdo também */
-            pointer-events: auto;
-            touch-action: none;
-        }
-        
-        .modal-loading-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-        }
-        
-        .modal-loading-spinner {
-            position: relative;
-        }
-        
-        .spinner-primary {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #004D9D;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        .spinner-secondary {
-            position: absolute;
-            inset: 0;
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(0, 77, 157, 0.2);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        .modal-loading-text {
-            color: #004D9D;
-            font-weight: 500;
-            font-size: 14px;
-        }
-        
-        .modal-loading-dots {
-            display: flex;
-            gap: 4px;
-        }
-        
-        .dot {
-            width: 8px;
-            height: 8px;
-            background: #004D9D;
-            border-radius: 50%;
-            animation: bounce 1.4s ease-in-out infinite both;
-        }
-        
-        .dot-1 { animation-delay: 0ms; }
-        .dot-2 { animation-delay: 150ms; }
-        .dot-3 { animation-delay: 300ms; }
-        
-        /* Mobile Scrollbar Styling */
-        .modal-tab-content {
-            scrollbar-width: thin;
-            scrollbar-color: #cbd5e1 transparent;
-        }
-        
-        .modal-tab-content::-webkit-scrollbar {
-            width: 2px;
-            display: block;
-        }
-        
-        .modal-tab-content::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        
-        .modal-tab-content::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 2px;
-            transition: background-color 0.2s ease;
-        }
-        
-        .modal-tab-content::-webkit-scrollbar-thumb:active {
-            background: #94a3b8;
-        }
-        
         /* Body modal state */
         body.modal-active {
             overflow: hidden !important;
-            height: 100vh;
-            height: 100dvh;
             position: fixed;
             width: 100%;
-            top: 0;
-            left: 0;
+            height: 100%;
         }
         
-        /* Body loading state */
-        body.loading-active {
-            overflow: hidden !important;
-            height: 100vh;
-            height: 100dvh;
-            position: relative;
+        /* Scrollbar customizado */
+        .overflow-y-auto {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
         }
         
-        /* Disable pointer events on everything when loading */
-        body.loading-active > *:not(#modal-global-loading):not(.modal-loading-overlay) {
-            pointer-events: none !important;
-            touch-action: none !important;
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 6px;
         }
         
-        /* Animations */
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: #f1f5f9;
         }
         
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
         }
         
-        @keyframes bounce {
-            0%, 80%, 100% { 
-                transform: scale(0);
-                opacity: 0.5;
-            }
-            40% { 
-                transform: scale(1);
-                opacity: 1;
-            }
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
         
-        /* ================================
-           TABLET STYLES (641px and up)
-           ================================ */
-        
-        @media (min-width: 641px) {
-            .modal-backdrop-container {
-                padding: 32px;
-            }
-            
-            .modal-main-container {
-                width: 90vw;
-                height: 88vh;
-                max-width: 90vw;
-                max-height: 88vh;
-                border-radius: 16px;
-                margin: 0 auto;
-            }
-            
-            .mobile-swipe-indicator {
-                padding: 12px 0;
-            }
-            
-            .tab-content-padding {
-                padding: 24px;
-            }
-            
-            .modal-tab-content::-webkit-scrollbar {
-                width: 4px;
-            }
-            
-            .mobile-nav-indicators {
-                display: none; /* Hide on tablet and up */
-            }
-        }
-        
-        /* ================================
-           DESKTOP STYLES (1025px and up)
-           ================================ */
-        
-        @media (min-width: 1025px) {
-            .modal-backdrop-container {
-                padding: 48px;
-            }
-            
-            .modal-main-container {
-                width: 80vw;
-                height: 90vh;
-                max-width: min(80vw, 1400px);
-                max-height: 90vh;
-                border-radius: 24px;
-            }
-            
-            .mobile-swipe-indicator {
-                display: none;
-            }
-            
-            .tab-content-padding {
-                padding: 32px;
-            }
-            
-            .modal-tab-content {
-                scroll-behavior: smooth; /* Smooth scrolling on desktop */
-            }
-            
-            .modal-tab-content::-webkit-scrollbar {
-                width: 6px;
-            }
-            
-            .modal-tab-content::-webkit-scrollbar-track {
-                background: #f8fafc;
-                border-radius: 3px;
-            }
-            
-            .modal-tab-content::-webkit-scrollbar-thumb:hover {
-                background: #64748b;
-            }
-        }
-        
-        /* ================================
-           ACCESSIBILITY & PERFORMANCE
-           ================================ */
-        
-        /* High contrast support */
-        @media (prefers-contrast: high) {
-            .modal-tab-content::-webkit-scrollbar-thumb {
-                background: #000;
-            }
-        }
-        
-        /* Reduced motion support */
-        @media (prefers-reduced-motion: reduce) {
-            .modal-main-container,
-            .modal-tab-content,
-            .nav-dot,
-            * {
-                transition: none !important;
-                animation: none !important;
-            }
-        }
-        
-        /* Focus management */
-        .modal-main-container *:focus {
-            outline: 2px solid #3b82f6;
-            outline-offset: 2px;
-            border-radius: 4px;
-        }
-        
-        /* Touch target optimization */
+        /* Mobile optimizations */
         @media (max-width: 640px) {
-            button, 
-            [role="button"], 
-            .clickable,
-            input,
-            textarea,
-            select {
-                min-height: 44px;
-                touch-action: manipulation;
+            .overflow-y-auto {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
             }
             
-            /* Prevent zoom on form inputs */
+            .overflow-y-auto::-webkit-scrollbar {
+                width: 3px;
+            }
+        }
+        
+        /* Prevent zoom on inputs in mobile */
+        @media (max-width: 640px) {
             input[type="text"],
             input[type="email"],
             input[type="number"],
-            input[type="tel"],
-            input[type="url"],
-            input[type="password"],
             textarea,
             select {
                 font-size: 16px !important;
             }
         }
         
-        /* Safe area support for devices with notch */
-        @supports (padding-top: env(safe-area-inset-top)) {
-            @media (max-width: 640px) {
-                .modal-main-container {
-                    padding-top: env(safe-area-inset-top);
-                    padding-bottom: env(safe-area-inset-bottom);
-                    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-                }
-            }
+        /* Transitions suaves */
+        .transition-opacity {
+            transition-property: opacity;
         }
         
-        /* Landscape mobile optimization */
-        @media (max-width: 640px) and (orientation: landscape) {
-            .modal-main-container {
-                height: 100vh;
-                height: 100dvh;
-            }
-            
-            .mobile-nav-indicators {
-                bottom: 8px;
-            }
-            
-            .nav-indicator-container {
-                padding: 8px 12px;
-            }
+        /* Garantir que tabs ocultas não ocupem espaço e não interfiram */
+        [x-show][style*="display: none"] {
+            display: none !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
         }
     </style>
 </div><?php /**PATH /var/www/passagem-plantao/resources/views/livewire/patient-modal.blade.php ENDPATH**/ ?>

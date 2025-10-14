@@ -467,41 +467,31 @@ class SbarReport extends Component
     {
         $descending = $this->orderDirection === 'desc';
 
-        return match($this->orderBy) {
-            'bed' => $collection->sortBy(function($p) {
+        // Se ordenar por leito, mantém o padrão original
+        if ($this->orderBy === 'bed') {
+            return $collection->sortBy(function($p) {
                 return sprintf('%s-%03d', 
                     $p['cd_unidade_basica'] ?? '', 
                     $p['bed_sequence'] ?? 0
                 );
-            }, SORT_STRING, $descending),
-            
-            'mews' => $collection->sortBy(function($p) {
-                return $p['has_patient'] ? ($p['mews_score'] ?? -1) : -999;
-            }, SORT_NUMERIC, $descending),
-            
-            'name' => $collection->sortBy(function($p) {
-                return strtolower($p['nm_pessoa_fisica'] ?? 'zzz');
-            }, SORT_STRING, $descending),
-            
-            'prontuario' => $collection->sortBy(function($p) {
-                return $p['nr_prontuario'] ?? 'zzz';
-            }, SORT_STRING, $descending),
-            
-            'internment' => $collection->sortBy(function($p) {
-                return $p['internment_days'] ?? -1;
-            }, SORT_NUMERIC, $descending),
-            
-            'age' => $collection->sortBy(function($p) {
-                return $p['age'] ?? 0;
-            }, SORT_NUMERIC, $descending),
-            
-            default => $collection->sortBy(function($p) {
-                return sprintf('%s-%03d', 
-                    $p['cd_unidade_basica'] ?? '', 
-                    $p['bed_sequence'] ?? 0
-                );
-            }, SORT_STRING, $descending)
-        };
+            }, SORT_STRING, $descending);
+        }
+
+        // Para outros tipos de ordenação, joga leitos vazios para o final
+        return $collection->sortBy(function($p) {
+            if (!($p['has_patient'] ?? false)) {
+                return PHP_INT_MAX; // sempre no final
+            }
+            // ...original sort logic for each field...
+            return match($this->orderBy) {
+                'mews' => $p['mews_score'] ?? -1,
+                'name' => strtolower($p['nm_pessoa_fisica'] ?? 'zzz'),
+                'prontuario' => $p['nr_prontuario'] ?? 'zzz',
+                'internment' => $p['internment_days'] ?? -1,
+                'age' => $p['age'] ?? 0,
+                default => sprintf('%s-%03d', $p['cd_unidade_basica'] ?? '', $p['bed_sequence'] ?? 0)
+            };
+        }, $this->orderBy === 'name' || $this->orderBy === 'prontuario' ? SORT_STRING : SORT_NUMERIC, $descending);
     }
 
     //Função para mudar o hospital selecionado

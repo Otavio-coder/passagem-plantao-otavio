@@ -422,7 +422,7 @@ Sistema SBAR para Passagem de Plantão - Interface principal
                             </div>
                         </div>
 
-                        {{-- <pre>{{ var_dump($patients) }}</pre>   --}}
+                        <pre>{{ var_dump($patients) }}</pre>   
 
         
                         {{-- Container dos cards de pacientes --}}

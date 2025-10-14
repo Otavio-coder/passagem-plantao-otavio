@@ -2,19 +2,23 @@
     <div class="card-inner rounded-xl shadow-lg h-[28rem] sm:h-80 lg:h-96 overflow-hidden max-w-full min-w-0">
         @if(!($patient['has_patient'] ?? false))
             {{-- Empty Bed Card --}}
-            <div class="h-full bg-gradient-to-br from-gray-200 to-gray-300 p-3 sm:p-4 flex flex-col min-h-0">
-                <div class="flex justify-between items-center mb-3 flex-shrink-0 min-w-0">
-                    <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                        Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
-                    </span>
-                </div>
+            <div class="h-full w-full flex flex-col min-h-0">
+                <div class="flex-1 flex items-center justify-center min-w-0">
+                    <div class="w-full h-full flex flex-col bg-gradient-to-br from-gray-200 to-gray-300 p-3 sm:p-4 rounded-xl overflow-hidden min-h-0">
+                        <div class="flex justify-between items-center mb-3 flex-shrink-0 min-w-0">
+                            <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                                Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
+                            </span>
+                        </div>
 
-                <div class="flex-grow flex items-center justify-center min-w-0">
-                    <div class="text-center max-w-full">
-                        <svg class="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <p class="text-gray-500 text-sm font-medium truncate">Leito Vago</p>
+                        <div class="flex-grow flex items-center justify-center min-w-0">
+                            <div class="text-center max-w-full">
+                                <svg class="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <p class="text-gray-500 text-sm font-medium truncate">Leito Vago</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -44,7 +48,6 @@
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
                                     </button>
                                     
                                     {{-- Tooltip responsivo --}}

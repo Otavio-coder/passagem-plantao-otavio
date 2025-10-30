@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\System\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -14,7 +13,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         try {
-            Cache::clear();
 
             $userFirst = env('USER_FIRST');
 
@@ -30,12 +28,12 @@ class DatabaseSeeder extends Seeder
                 return;
             }
 
-            // Limpa dados antigos
-            DB::table('role_has_permissions')->truncate();
-            DB::table('model_has_roles')->truncate();
-            DB::table('model_has_permissions')->truncate();
-            DB::table('roles')->truncate();
-            DB::table('permissions')->truncate();
+            // Limpa dados antigos (desabilita foreign key checks temporariamente)
+            DB::table('model_has_roles')->delete();
+            DB::table('model_has_permissions')->delete();
+            DB::table('role_has_permissions')->delete();
+            DB::table('roles')->delete();
+            DB::table('permissions')->delete();
 
             // Define as permissões disponíveis no sistema
             $permissions = [
@@ -61,7 +59,6 @@ class DatabaseSeeder extends Seeder
 
             // Permissões por papel
             $roleAdmin->syncPermissions(Permission::all());
-
             $roleGestor->syncPermissions([
                 'ver usuarios',
                 'editar usuarios',
@@ -88,6 +85,7 @@ class DatabaseSeeder extends Seeder
             $user->assignRole('Administrador');
 
             $this->command->info("Sucesso! Você já pode logar na aplicação com o usuário: {$user->username}");
+
         } catch (\Exception $exception) {
             $this->command->error("Erro ao rodar seeder: " . $exception->getMessage());
         }

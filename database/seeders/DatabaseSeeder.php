@@ -9,68 +9,87 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-
         try {
-
             Cache::clear();
 
             $userFirst = env('USER_FIRST');
 
-            if ( $userFirst ) {
-
-                $ldapUser = \LdapRecord\Models\ActiveDirectory\User::query()->findBy('samaccountname', $userFirst);
-
-                if ( $ldapUser ) {
-
-                    DB::table('roles')->delete();
-                    DB::table('permissions')->delete();
-
-                    $roleAdmin = Role::create(['name' => 'Administrador']);
-                    Permission::create(['name' => 'ver usuarios']);
-                    Permission::create(['name' => 'criar usuarios']);
-                    Permission::create(['name' => 'editar usuarios']);
-                    Permission::create(['name' => 'ver perfis']);
-                    Permission::create(['name' => 'criar perfis']);
-                    Permission::create(['name' => 'editar perfis']);
-                    Permission::create(['name' => 'ver logs']);
-                    Permission::create(['name' => 'acessar como']);
-
-                    $permissions = Permission::all()->pluck('name')->toArray();
-
-                    $roleAdmin->syncPermissions($permissions);
-
-
-                    $user = User::create([
-                        'username'  => $ldapUser->getFirstAttribute('samaccountname'),
-                        'name'      => $ldapUser->getFirstAttribute('displayname'),
-                        'email'     => $ldapUser->getFirstAttribute('mail'),
-                        'guid'      => $ldapUser->getConvertedGuid(),
-                        'domain'    => 'default',
-                    ]);
-
-                    $user->assignRole('Administrador');
-
-                    $this->command->info( "Sucesso! Você já pode logar na aplicação com o usuário: {$user->username}" );
-                } else {
-                    $this->command->alert( "Usuário '{$userFirst}' não encontrado no AD!" );
-                }
-
-
-            } else {
-                $this->command->alert( "Por favor informe um usuário válido do AD no atributo 'USER_FIRST' no arquivo .env" );
+            if (! $userFirst) {
+                $this->command->alert("Por favor, informe um usuário válido do AD no atributo 'USER_FIRST' no arquivo .env");
+                return;
             }
 
-        } catch ( \Exception $exception ) {
-            $this->command->error( $exception->getMessage() );
+            $ldapUser = \LdapRecord\Models\ActiveDirectory\User::query()->findBy('samaccountname', $userFirst);
+
+            if (! $ldapUser) {
+                $this->command->alert("Usuário '{$userFirst}' não encontrado no AD!");
+                return;
+            }
+
+            // Limpa dados antigos
+            DB::table('role_has_permissions')->truncate();
+            DB::table('model_has_roles')->truncate();
+            DB::table('model_has_permissions')->truncate();
+            DB::table('roles')->truncate();
+            DB::table('permissions')->truncate();
+
+            // Define as permissões disponíveis no sistema
+            $permissions = [
+                'ver usuarios',
+                'criar usuarios',
+                'editar usuarios',
+                'acessar como',
+                'ver perfis',
+                'criar perfis',
+                'editar perfis',
+                'ver logs',
+                'configurar sistema',
+            ];
+
+            foreach ($permissions as $perm) {
+                Permission::firstOrCreate(['name' => $perm]);
+            }
+
+            // Cria papéis (roles)
+            $roleAdmin = Role::firstOrCreate(['name' => 'Administrador']);
+            $roleGestor = Role::firstOrCreate(['name' => 'Gestor']);
+            $roleUsuario = Role::firstOrCreate(['name' => 'Usuário Padrão']);
+
+            // Permissões por papel
+            $roleAdmin->syncPermissions(Permission::all());
+
+            $roleGestor->syncPermissions([
+                'ver usuarios',
+                'editar usuarios',
+                'ver perfis',
+                'editar perfis',
+                'ver logs',
+                'configurar sistema',
+            ]);
+
+            // Usuário Padrão → sem permissões
+            $roleUsuario->syncPermissions([]);
+
+            // Cria usuário inicial administrador
+            $user = User::firstOrCreate(
+                ['username' => $ldapUser->getFirstAttribute('samaccountname')],
+                [
+                    'name'   => $ldapUser->getFirstAttribute('displayname'),
+                    'email'  => $ldapUser->getFirstAttribute('mail'),
+                    'guid'   => $ldapUser->getConvertedGuid(),
+                    'domain' => 'default',
+                ]
+            );
+
+            $user->assignRole('Administrador');
+
+            $this->command->info("Sucesso! Você já pode logar na aplicação com o usuário: {$user->username}");
+        } catch (\Exception $exception) {
+            $this->command->error("Erro ao rodar seeder: " . $exception->getMessage());
         }
     }
 }

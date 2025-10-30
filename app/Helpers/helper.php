@@ -476,12 +476,12 @@ function extractScaleScore($scaleValue) {
     if ($scaleValue === null || $scaleValue === '') {
         return null;
     }
-    
+
     // Se já é um número, retorna como inteiro
     if (is_numeric($scaleValue)) {
         return intval($scaleValue);
     }
-    
+
     // Se é string, tenta extrair o número
     if (is_string($scaleValue)) {
         // Padrões de busca por score
@@ -492,14 +492,14 @@ function extractScaleScore($scaleValue) {
             '/^(\d+)$/',             // "15" (número puro)
             '/\b(\d+)\b/'            // qualquer número isolado
         ];
-        
+
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $scaleValue, $matches)) {
                 return intval($matches[1]);
             }
         }
     }
-    
+
     return null;
 }
 
@@ -515,9 +515,9 @@ function getMewsRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num >= 5) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num == 4) {
@@ -540,9 +540,9 @@ function getPewsRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num >= 4) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num >= 2) {
@@ -564,9 +564,9 @@ function getBradenRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num <= 12) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num <= 14) {
@@ -589,9 +589,9 @@ function getMorseRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num >= 45) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num >= 25) {
@@ -613,9 +613,9 @@ function getPainRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num >= 7) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num >= 4) {
@@ -638,9 +638,9 @@ function getTevRiskStyling($score, $forceNormalText = false) {
     if ($num === null) {
         return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
     }
-    
+
     $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-    
+
     if ($num >= 7) {
         return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
     } elseif ($num >= 3) {
@@ -652,36 +652,37 @@ function getTevRiskStyling($score, $forceNormalText = false) {
 
 
 
-function getCurrentShift() {
-    $now = now();
-    $hour = $now->hour;
-    $minute = $now->minute;
-    $time = $hour * 60 + $minute;
-    
-    // Manhã: 07:15 - 13:14 (435 - 794)
-    // Tarde: 13:15 - 19:14 (795 - 1154)
-    // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
-    if ($time >= 435 && $time < 795) {
-        return 'M';
-    } elseif ($time >= 795 && $time < 1155) {
-        return 'T';
-    } else {
-        return 'N';
-    }
-}
+if (!function_exists('getCurrentShift')) {
+    /**
+     * Retorna o turno atual como 'M', 'T' ou 'N'
+     * Opcionalmente aceita uma $time string parseable pelo Carbon
+     */
+    function getCurrentShift($time = null)
+    {
+        try {
+            $dt = $time ? \Carbon\Carbon::parse($time) : now();
+        } catch (\Exception $e) {
+            $dt = now();
+        }
 
-function getShiftLabel($shift) {
-    return match($shift) {
-        'manha', 'M' => 'Manhã',
-        'tarde', 'T' => 'Tarde',
-        'noite', 'N' => 'Noite',
-        default => $shift
-    };
+        $minutes = $dt->hour * 60 + $dt->minute;
+
+        // Manhã: 07:15 - 13:14 (435 - 794)
+        // Tarde: 13:15 - 19:14 (795 - 1154)
+        // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
+        if ($minutes >= 435 && $minutes <= 794) {
+            return 'M';
+        } elseif ($minutes >= 795 && $minutes <= 1154) {
+            return 'T';
+        } else {
+            return 'N';
+        }
+    }
 }
 
 function getMewsCardGradient($score, $isNewPatient = false) {
     $num = extractScaleScore($score);
-    
+
     // Paciente novo sempre verde
     if ($isNewPatient) {
         return [
@@ -690,7 +691,7 @@ function getMewsCardGradient($score, $isNewPatient = false) {
             'text' => 'text-green-800'
         ];
     }
-    
+
     // Sem MEWS - azul claro padrão
     if ($num === null) {
         return [
@@ -699,7 +700,7 @@ function getMewsCardGradient($score, $isNewPatient = false) {
             'text' => 'text-gray-800'
         ];
     }
-    
+
     // MEWS ≥ 5: Vermelho intenso
     if ($num >= 5) {
         return [
@@ -708,7 +709,7 @@ function getMewsCardGradient($score, $isNewPatient = false) {
             'text' => 'text-red-900'
         ];
     }
-    
+
     // MEWS = 4: Laranja
     if ($num == 4) {
         return [
@@ -717,7 +718,7 @@ function getMewsCardGradient($score, $isNewPatient = false) {
             'text' => 'text-orange-900'
         ];
     }
-    
+
     // MEWS = 3: Amarelo
     if ($num == 3) {
         return [
@@ -726,7 +727,7 @@ function getMewsCardGradient($score, $isNewPatient = false) {
             'text' => 'text-yellow-900'
         ];
     }
-    
+
     // MEWS 0-2: Azul claro (normal)
     return [
         'gradient' => 'from-blue-50 to-blue-100',

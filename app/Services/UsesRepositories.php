@@ -3,14 +3,30 @@
 namespace App\Services;
 
 use App\Repositories\MySQL\UserRepository;
-use App\Repositories\EMR\PatientScales;
-use App\Repositories\EMR\PatientClinical;
-use App\Repositories\EMR\PatientCPOE;
+use App\Repositories\EMR\{
+    PatientCoreRepository,
+    PatientClinicalRepository,
+    PatientCPOERepository,
+    PatientScalesRepository
+};
 
 trait UsesRepositories
 {
     /**
-     * Metodo utilizado apenas para deixar a sintaxe mais legível
+     * Local cache for resolved repository instances.
+     * Avoids repeated container resolution overhead.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $resolvedRepos = [];
+
+    private function getRepo(string $class)
+    {
+        return $this->resolvedRepos[$class] ??= app($class);
+    }
+
+    /**
+     * Método utilizado apenas para deixar a sintaxe mais legível
      *
      * @return $this
      */
@@ -19,23 +35,30 @@ trait UsesRepositories
         return $this;
     }
 
-    public function users()
+    /**
+     * Repository de usuários (MySQL)
+     */
+    public function users(): UserRepository
     {
-        return new UserRepository();
+        return $this->getRepo(UserRepository::class);
     }
 
-    public function scales()
+    /**
+     * EMR repositories accessors
+     */
+    public function scales(): PatientScalesRepository
     {
-        return new PatientScales();
+        return $this->getRepo(PatientScalesRepository::class);
     }
 
-    public function clinical()
+    public function clinical(): PatientClinicalRepository
     {
-        return new PatientClinical();
+        return $this->getRepo(PatientClinicalRepository::class);
     }
 
-    public function cpoe()
+    public function cpoe(): PatientCPOERepository
     {
-        return new PatientCPOE();
+        return $this->getRepo(PatientCPOERepository::class);
     }
+
 }

@@ -14,12 +14,34 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Add custom styles for Montserrat font -->
     <style>
         .font-montserrat {
             font-family: 'Montserrat', sans-serif;
         }
+
+        /* Loading Overlay Styles */
+        .sbar-loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 77, 157, 0.3);
+            backdrop-filter: blur(4px);
+        }
+
+        .sbar-loading-overlay.active {
+            display: flex;
+        }
+
+        body.sbar-loading-active {
+            overflow: hidden;
+        }
     </style>
+
+    <!-- Allow pages to push scripts/styles into head -->
+    @stack('head')
 
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js'])
@@ -38,23 +60,6 @@
 
 <!-- MENU MOBILE -->
 @include('partials.menu-mobile')
-
-    <!-- Global Modal Loading Overlay - IMPROVED -->
-    <div id="modal-global-loading" class="fixed inset-0 z-[99999] hidden">
-        <!-- Backdrop com blur mais intenso -->
-        <div class="absolute inset-0 bg-[#004D9D]/40 backdrop-blur-sm"></div>
-        
-        <!-- Loading content centralizado -->
-        <div class="relative flex items-center justify-center min-h-screen">
-            <div class="bg-white rounded-xl shadow-2xl p-6 flex flex-col items-center space-y-4 mx-4">
-                <!-- Spinner animado -->
-                <div class="relative">
-                    <div class="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
-                    <div class="w-16 h-16 border-4 border-t-[#004D9D] border-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-                </div>               
-            </div>
-        </div>
-    </div>
 
 <!-- PRINCIPAL -->
 <main class="flex-grow bg-gray-50 pt-2">
@@ -79,37 +84,75 @@
 @stack('scripts')
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Welcome modal logic
-    const welcomeShown = localStorage.getItem('sbar_welcome_shown');
-    if (welcomeShown) {
-        const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
-        if (welcomeElement && welcomeElement.__x) {
-            welcomeElement.__x.$data.showWelcome = false;
+    document.addEventListener('DOMContentLoaded', function() {
+        // Welcome modal logic
+        const welcomeShown = localStorage.getItem('sbar_welcome_shown');
+        if (welcomeShown) {
+            const welcomeElement = document.querySelector('[x-data*="showWelcome"]');
+            if (welcomeElement && welcomeElement.__x) {
+                welcomeElement.__x.$data.showWelcome = false;
+            }
         }
-    }
-    
-    // Debugging: Log when overlay element is found
-    const overlay = document.getElementById('modal-global-loading');
-    if (overlay) {
-        //console.log('Global modal loading overlay found in DOM');
-    } else {
-        //console.warn('Global modal loading overlay NOT found in DOM');
-    }
-});
 
-// Form submission prevention
-if (typeof $ !== 'undefined') {
-    $(document).ready(function(){
-        $("form").submit(function(){
-            setTimeout(function() {
-                $('input').attr('disabled', 'disabled');
-                $('button').attr('disabled', 'disabled');
-                $('a').attr('disabled', 'disabled');
-            }, 50);
+        // Global Loading Overlay Controller
+        const overlay = document.getElementById('sbar-loading-overlay');
+        let loadingCount = 0;
+
+        function showLoading() {
+            loadingCount++;
+            if (overlay) {
+                overlay.classList.add('active');
+                document.body.classList.add('sbar-loading-active');
+            }
+        }
+
+        function hideLoading() {
+            loadingCount = Math.max(0, loadingCount - 1);
+            if (loadingCount === 0 && overlay) {
+                overlay.classList.remove('active');
+                document.body.classList.remove('sbar-loading-active');
+            }
+        }
+
+        // Livewire hooks (Livewire 3)
+        document.addEventListener('livewire:navigating', showLoading);
+        document.addEventListener('livewire:navigated', hideLoading);
+
+        // Livewire wire:loading events
+        document.addEventListener('livewire:init', () => {
+            Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
+                showLoading();
+
+                succeed(() => {
+                    hideLoading();
+                });
+
+                fail(() => {
+                    hideLoading();
+                });
+            });
         });
+
+        // Fallback: Manual event listeners
+        window.addEventListener('sbar:loading:show', showLoading);
+        window.addEventListener('sbar:loading:hide', hideLoading);
+
+        // Auto-hide on page load
+        window.addEventListener('load', hideLoading);
     });
-}
+
+    // Form submission prevention
+    if (typeof $ !== 'undefined') {
+        $(document).ready(function(){
+            $("form").submit(function(){
+                setTimeout(function() {
+                    $('input').attr('disabled', 'disabled');
+                    $('button').attr('disabled', 'disabled');
+                    $('a').attr('disabled', 'disabled');
+                }, 50);
+            });
+        });
+    }
 </script>
 
 </body>

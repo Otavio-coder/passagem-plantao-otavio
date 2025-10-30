@@ -36,14 +36,15 @@ class UpdateUserRequest extends FormRequest
                         $fail('Você não tem permissão suficiente para editar este usuário');
                 }
             ],
-            'edit_profile' => [ 'required' ]
+            'edit_profile' => [ 'nullable', 'array' ]
         ];
     }
 
     public function messages()
     {
         return [
-            'edit_profile.required' => 'Você deve selecionar um perfil para o usuário'
+            //'edit_profile.required' => 'Você deve selecionar um perfil para o usuário'
+            'edit_profile.array' => 'O perfil informado é inválido'
         ];
     }
 

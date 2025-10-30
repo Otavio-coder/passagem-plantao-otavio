@@ -1,4 +1,4 @@
-<div x-data="{ 
+<div x-data="{
     showAlertsModal: @entangle('showAlertsModal'),
     showModal: @entangle('showModal'),
     init() {
@@ -9,12 +9,12 @@
                 document.body.style.overflow = '';
             }
         });
-        
+
         this.$watch('showModal', (value) => {
             if (value) {
                 document.body.style.overflow = 'hidden';
                 document.body.classList.add('modal-active');
-                
+
                 if (window.innerWidth < 640) {
                     document.documentElement.style.position = 'fixed';
                     document.documentElement.style.width = '100%';
@@ -34,14 +34,14 @@
 }">
 
     {{-- Modal de Alertas --}}
-    <x-patient-modal.alerts-modal 
+    <x-patient-modal.alerts-modal
         :showAlertsModal="$showAlertsModal"
         :patientAlerts="$patientAlerts"
         :currentPatient="$currentPatient"
     />
 
     {{-- Modal Principal --}}
-    <div 
+    <div
         x-show="showModal"
         x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0"
@@ -55,7 +55,7 @@
         {{-- Backdrop --}}
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
              @click="showModal = false; $wire.closeModal();"></div>
-        
+
         {{-- Container do Modal --}}
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
             <div
@@ -73,40 +73,40 @@
                     swipeStartX: null,
                     swipeStartY: null,
                     isTransitioning: false,
-                    
+
                     init() {
                         this.updateSwipeEnabled();
                         window.addEventListener('resize', () => this.updateSwipeEnabled());
                     },
-                    
+
                     updateSwipeEnabled() {
                         this.isSwipeEnabled = window.innerWidth < 1024;
                     },
-                    
+
                     switchTab(tabName) {
                         if (this.isTransitioning) return;
-                        
+
                         this.isTransitioning = true;
                         this.activeTab = tabName;
                         this.currentTabIndex = this.tabs.indexOf(tabName);
-                        
+
                         // Haptic feedback
                         if (navigator.vibrate) {
                             navigator.vibrate(10);
                         }
-                        
+
                         setTimeout(() => {
                             this.isTransitioning = false;
                         }, 300);
                     },
-                    
+
                     handleSwipe(direction) {
                         if (!this.isSwipeEnabled || this.isTransitioning) return;
-                        
-                        const newIndex = direction === 'left' 
+
+                        const newIndex = direction === 'left'
                             ? Math.min(this.currentTabIndex + 1, this.tabs.length - 1)
                             : Math.max(this.currentTabIndex - 1, 0);
-                            
+
                         if (newIndex !== this.currentTabIndex) {
                             this.switchTab(this.tabs[newIndex]);
                         }
@@ -121,15 +121,15 @@
                 "
                 @touchend.passive="
                     if (!isSwipeEnabled || swipeStartX === null) return;
-                    
+
                     const touch = $event.changedTouches[0];
                     const deltaX = touch.clientX - swipeStartX;
                     const deltaY = touch.clientY - swipeStartY;
-                    
+
                     if (Math.abs(deltaX) > Math.abs(deltaY) + 30 && Math.abs(deltaX) > 80) {
                         handleSwipe(deltaX > 0 ? 'right' : 'left');
                     }
-                    
+
                     swipeStartX = null;
                     swipeStartY = null;
                 "
@@ -149,10 +149,10 @@
 
                 {{-- Header - ALTURA FIXA --}}
                 <div class="flex-shrink-0">
-                    <x-patient-modal.header 
+                    <x-patient-modal.header
                         :currentHospitalName="$currentHospitalName"
                         :currentPatient="$currentPatient"
-                        :patientDetails="$patientDetails" 
+                        :patientDetails="$patientDetails"
                     />
                 </div>
 
@@ -166,7 +166,7 @@
                     {{-- Container com position relative para as tabs absolutas --}}
                     <div class="absolute inset-0">
                         {{-- Situação --}}
-                        <div x-show="activeTab === 'tab-s'" 
+                        <div x-show="activeTab === 'tab-s'"
                              x-transition:enter="transition-opacity ease-out duration-300"
                              x-transition:enter-start="opacity-0"
                              x-transition:enter-end="opacity-100"
@@ -175,15 +175,15 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0 overflow-y-auto overflow-x-hidden"
                              style="display: none;">
-                            <x-patient-modal.content.sbar-situacao 
+                            <x-patient-modal.content.sbar-situacao
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
+                                :patientDetails="$patientDetails"
                             />
                         </div>
 
                         {{-- Background --}}
-                        <div x-show="activeTab === 'tab-b'" 
+                        <div x-show="activeTab === 'tab-b'"
                              x-transition:enter="transition-opacity ease-out duration-300"
                              x-transition:enter-start="opacity-0"
                              x-transition:enter-end="opacity-100"
@@ -192,15 +192,15 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0 overflow-y-auto overflow-x-hidden"
                              style="display: none;">
-                            <x-patient-modal.content.sbar-background 
+                            <x-patient-modal.content.sbar-background
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
+                                :patientDetails="$patientDetails"
                             />
                         </div>
 
                         {{-- Avaliação (Chat) --}}
-                        <div x-show="activeTab === 'tab-a'" 
+                        <div x-show="activeTab === 'tab-a'"
                              x-transition:enter="transition-opacity ease-out duration-300"
                              x-transition:enter-start="opacity-0"
                              x-transition:enter-end="opacity-100"
@@ -209,7 +209,7 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0"
                              style="display: none;">
-                            <x-patient-modal.content.sbar-avaliacao 
+                            <x-patient-modal.content.sbar-avaliacao
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
                                 :patientDetails="$patientDetails"
@@ -217,7 +217,7 @@
                         </div>
 
                         {{-- Recomendações --}}
-                        <div x-show="activeTab === 'tab-r'" 
+                        <div x-show="activeTab === 'tab-r'"
                              x-transition:enter="transition-opacity ease-out duration-300"
                              x-transition:enter-start="opacity-0"
                              x-transition:enter-end="opacity-100"
@@ -226,10 +226,13 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0 overflow-y-auto overflow-x-hidden"
                              style="display: none;">
-                            <x-patient-modal.content.sbar-recomendacoes 
+                            <x-patient-modal.content.sbar-recomendacoes
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
-                                :patientDetails="$patientDetails" 
+                                :patientDetails="$patientDetails"
+                                :cpoeDataFormatted="$cpoeDataFormatted ?? null"
+                                :cpoeLoaded="$cpoeLoaded"
+                                :cpoeLoading="$cpoeLoading"
                             />
                         </div>
                     </div>
@@ -246,42 +249,42 @@
             width: 100%;
             height: 100%;
         }
-        
+
         /* Scrollbar customizado */
         .overflow-y-auto {
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 #f1f5f9;
         }
-        
+
         .overflow-y-auto::-webkit-scrollbar {
             width: 6px;
         }
-        
+
         .overflow-y-auto::-webkit-scrollbar-track {
             background: #f1f5f9;
         }
-        
+
         .overflow-y-auto::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 3px;
         }
-        
+
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
-        
+
         /* Mobile optimizations */
         @media (max-width: 640px) {
             .overflow-y-auto {
                 -webkit-overflow-scrolling: touch;
                 overscroll-behavior: contain;
             }
-            
+
             .overflow-y-auto::-webkit-scrollbar {
                 width: 3px;
             }
         }
-        
+
         /* Prevent zoom on inputs in mobile */
         @media (max-width: 640px) {
             input[type="text"],
@@ -292,12 +295,12 @@
                 font-size: 16px !important;
             }
         }
-        
+
         /* Transitions suaves */
         .transition-opacity {
             transition-property: opacity;
         }
-        
+
         /* Garantir que tabs ocultas não ocupem espaço e não interfiram */
         [x-show][style*="display: none"] {
             display: none !important;

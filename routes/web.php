@@ -1,11 +1,7 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SystemConfigurationController;
 use Illuminate\Support\Facades\Route;
-use App\Models\ChatMensagem; 
-use App\Events\ChatMessageSent;
-use App\Repositories\MySQL\ChatRepository;
 
 Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
@@ -47,10 +43,14 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             $patientId = $request->get('patientId');
             $shift = $request->get('shift');
             $date = $request->get('date', now()->toDateString());
-            $repo = new \App\Repositories\MySQL\ChatRepository();
+            $repo = new \App\Repositories\MySQL\Chat\ChatRepository();
             $messages = $repo->getMessages($patientId, $shift, $date, 50);
             return response()->json(['messages' => $messages]);
         });
+
+        Route::get('/sbar/avaliacoes-turno',
+            [App\Http\Controllers\ChatAuditoriaController::class, 'avaliacoesTurno'])
+            ->name('sbar.avaliacoes.turno');
 
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );
 
@@ -58,10 +58,6 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             return view('sbar.report');
         })->name('sbar.report');
 
-       // Auditoria do Chat
-        Route::get('/chat-auditoria', [\App\Http\Controllers\ChatAuditoriaController::class, 'index'])
-            ->middleware('can:configurar sistema')
-            ->name('chat-auditoria');
     });
 
 });

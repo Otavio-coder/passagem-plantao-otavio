@@ -21,8 +21,9 @@ class UserRepository extends BaseRepository
 	    'domain'        => 'default'
         ], true );
 
-        if ( $user )
+        if ( is_object($user) && method_exists($user, 'syncRoles') ) {
             $user->syncRoles( $request->profile );
+        }
 
         return $user;
     }
@@ -34,8 +35,10 @@ class UserRepository extends BaseRepository
             'status' => $request->status,
         ], true );
 
-        if ( $user )
-            $user->syncRoles( $request->edit_profile );
+        if ( is_object($user) && method_exists($user, 'syncRoles') && $request->has('edit_profile_present') ) {
+            $roles = $request->input('edit_profile', []);
+            $user->syncRoles( $roles );
+        }
 
         return $user;
     }

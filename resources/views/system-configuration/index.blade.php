@@ -18,9 +18,9 @@
             <label class="block text-[#004D9D] text-sm font-semibold mb-2">Hospitais Permitidos:</label>
             <select name="hospital_codes[]" id="hospitalSelect" multiple class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-2 pr-4 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors">
                 @foreach($hospitals as $hospital)
-                    <option value="{{ $hospital->code }}"
-                        @if(in_array($hospital->code, $selectedHospitals)) selected @endif>
-                        {{ $hospital->name }} ({{ $hospital->code }})
+                    <option value="{{ data_get($hospital, 'code') }}"
+                        @if(in_array(data_get($hospital, 'code'), $selectedHospitals)) selected @endif>
+                        {{ data_get($hospital, 'name') }} ({{ data_get($hospital, 'code') }})
                     </option>
                 @endforeach
             </select>
@@ -40,10 +40,10 @@
                     <div class="max-h-64 overflow-y-auto border rounded-lg bg-blue-50/40 p-2">
                         <select name="sector_codes[]" id="sectorSelect" multiple class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-2 pr-4 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors">
                         @foreach($sectors as $sector)
-                            @if(in_array($sector->hospital_id, $selectedHospitals))
-                                <option value="{{ $sector->code }}"
-                                    @if(in_array($sector->code, $selectedSectors)) selected @endif>
-                                    {{ $sector->name }} 
+                            @if(in_array(data_get($sector, 'hospital_id'), $selectedHospitals))
+                                <option value="{{ data_get($sector, 'code') }}"
+                                    @if(in_array(data_get($sector, 'code'), $selectedSectors)) selected @endif>
+                                    {{ data_get($sector, 'name') }}
                                 </option>
                             @endif
                         @endforeach
@@ -60,10 +60,10 @@
                         </button>
                         <select name="bed_codes[]" id="bedSelect" multiple class="appearance-none bg-white text-gray-700 border border-gray-300 rounded py-2 px-2 pr-4 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#0071B9]/50 hover:border-[#0071B9]/30 transition-colors">
                         @foreach($bedunits as $bed)
-                            @if(in_array($bed->cd_setor_atendimento, $selectedSectors))
-                                <option value="{{ $bed->code }}|{{ $bed->cd_setor_atendimento }}"
-                                    @if(in_array($bed->code . '|' . $bed->cd_setor_atendimento, $selectedBeds)) selected @endif>
-                                    {{ $bed->name }} ({{ $bed->code }}) - Setor {{ $bed->cd_setor_atendimento }}
+                            @if(in_array(data_get($bed, 'cd_setor_atendimento'), $selectedSectors))
+                                <option value="{{ data_get($bed, 'code') }}|{{ data_get($bed, 'cd_setor_atendimento') }}"
+                                    @if(in_array(data_get($bed, 'code') . '|' . data_get($bed, 'cd_setor_atendimento'), $selectedBeds)) selected @endif>
+                                    {{ data_get($bed, 'name') }} ({{ data_get($bed, 'code') }}) - Setor {{ data_get($bed, 'cd_setor_atendimento') }}
                                 </option>
                             @endif
                         @endforeach
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-    
+
 });
 </script>
 @endpush

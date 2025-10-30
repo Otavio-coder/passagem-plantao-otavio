@@ -6,29 +6,17 @@ use Carbon\Carbon;
 
 class ShiftService
 {
-    public static function getCurrentShift($time = null): string
-    {
-        $hour = $time ? Carbon::parse($time)->hour : now()->hour;
-        
-        if ($hour >= 7 && $hour < 13) {
-            return 'manha';
-        } elseif ($hour >= 13 && $hour < 19) {
-            return 'tarde';
-        } else {
-            return 'noite';
-        }
-    }
-    
+
     public static function getShiftLabel(string $shift): string
     {
         return match($shift) {
             'manha' => 'Manhã (07-13h)',
-            'tarde' => 'Tarde (13-19h)', 
+            'tarde' => 'Tarde (13-19h)',
             'noite' => 'Noite (19-07h)',
             default => 'Indefinido'
         };
     }
-    
+
     public static function getShiftColors(string $shift): array
     {
         return match($shift) {
@@ -62,38 +50,5 @@ class ShiftService
             ]
         };
     }
-    
-    public static function getShiftTheme(string $shift): array
-    {
-        return match($shift) {
-            'manha' => [
-                'description' => 'Novo dia começando',
-                'mood' => 'energético',
-                'icon' => 'heroicon-o-sun',
-                'pattern' => 'dots',
-                'atmosphere' => 'bright'
-            ],
-            'tarde' => [
-                'description' => 'Período produtivo',
-                'mood' => 'focado',
-                'icon' => 'heroicon-o-cloud-sun',
-                'pattern' => 'squares',
-                'atmosphere' => 'balanced'
-            ],
-            'noite' => [
-                'description' => 'Cuidado noturno',
-                'mood' => 'vigilante',
-                'icon' => 'heroicon-o-moon',
-                'pattern' => 'stars',
-                'atmosphere' => 'calm'
-            ],
-            default => [
-                'description' => 'Plantão ativo',
-                'mood' => 'neutro',
-                'icon' => 'heroicon-o-clock',
-                'pattern' => 'none',
-                'atmosphere' => 'standard'
-            ]
-            };
-    }
+
 }

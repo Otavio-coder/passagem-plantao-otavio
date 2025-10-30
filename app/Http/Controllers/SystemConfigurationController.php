@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\EMR\Core\Bed;
+use App\Models\EMR\Core\Hospital;
+use App\Models\EMR\Core\Sector;
 use App\Models\System\SystemConfiguration;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class SystemConfigurationController extends Controller
 {
@@ -21,17 +23,16 @@ class SystemConfigurationController extends Controller
     }
 
     /**
-     * OTIMIZADO: Carrega dados estruturais com cache e queries otimizadas
+     * Mostrar a tela de edição (carrega dados estruturais via Eloquent)
      */
     public function edit()
     {
-        $cacheKey = 'system_config_structural_data_v2';
-        
+        $cacheKey = 'system_config_structural_data';
+
         $data = Cache::remember($cacheKey, 1800, function() {
-            return $this->loadStructuralData();
+            return $this->getStructuralData();
         });
 
-        // Busca selecionados do banco (não cachear pois muda frequentemente)
         $selectedHospitals = SystemConfiguration::allowedHospitalCodes();
         $selectedSectors   = SystemConfiguration::allowedSectorCodes();
         $selectedBeds      = SystemConfiguration::allowedBedCodes();
@@ -44,363 +45,226 @@ class SystemConfigurationController extends Controller
     }
 
     /**
-     * NOVA: Carrega dados estruturais de forma otimizada
+     * Retorna hospitais, setores e leitos usando apenas Eloquent
      */
-    private function loadStructuralData(): array
+    private function getStructuralData(): array
     {
-        $hospitalIds = self::ALLOWED_HOSPITAL_IDS;
-        $placeholders = implode(',', $hospitalIds);
+        // Hospitals
+        $hospitals = Hospital::whereIn('nr_sequencia', self::ALLOWED_HOSPITAL_IDS)
+            ->where('ie_situacao', 'A')
+            ->orderBy('ds_agrupamento')
+            ->get()
+            ->map(fn($h) => ['code' => (string)$h->nr_sequencia, 'name' => $h->ds_agrupamento])
+            ->values()
+            ->toArray();
 
-        // Query única para hospitais
-        $hospitals = DB::connection('tasy')->select("
-            SELECT nr_sequencia AS code, ds_agrupamento AS name
-            FROM TASY.AGRUPAMENTO_SETOR
-            WHERE ie_situacao = 'A'
-            AND nr_sequencia IN ({$placeholders})
-            ORDER BY ds_agrupamento
-        ");
+        // Sectors that belong to allowed hospitals and have active beds
+        $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
+            ->where('ie_situacao', 'A')
+            ->orderBy('ds_setor_atendimento')
+            ->get()
+            ->filter(fn($s) => Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)->where('ie_situacao','A')->exists())
+            ->map(fn($s) => ['code' => (string)$s->cd_setor_atendimento, 'name' => $s->ds_setor_atendimento, 'hospital_id' => (string)$s->nr_seq_agrupamento])
+            ->values()
+            ->toArray();
 
-        // Query única para setores com filtro de hospitais permitidos
-        $sectors = DB::connection('tasy')->select("
-            SELECT 
-                cd_setor_atendimento AS code, 
-                ds_setor_atendimento AS name,
-                nr_seq_agrupamento AS hospital_id
-            FROM TASY.SETOR_ATENDIMENTO
-            WHERE ie_situacao = 'A'
-            AND nr_seq_agrupamento IN ({$placeholders})
-            AND EXISTS (
-                SELECT 1 FROM TASY.UNIDADE_ATENDIMENTO u
-                WHERE u.cd_setor_atendimento = SETOR_ATENDIMENTO.cd_setor_atendimento
-                    AND u.ie_situacao = 'A'
-            )
-            ORDER BY ds_setor_atendimento
-        ");
-
-        // Query única para leitos com filtro de setores válidos
-        $sectorCodes = collect($sectors)->pluck('code')->toArray();
+        // Beds for the sectors above
+        $sectorCodes = array_column($sectors, 'code');
         $bedunits = [];
-        
         if (!empty($sectorCodes)) {
-            $sectorPlaceholders = implode(',', $sectorCodes);
-            $bedunits = DB::connection('tasy')->select("
-                SELECT 
-                    cd_unidade_basica AS code, 
-                    cd_unidade_basica AS name,
-                    cd_setor_atendimento
-                FROM TASY.UNIDADE_ATENDIMENTO
-                WHERE ie_situacao = 'A'
-                AND cd_setor_atendimento IN ({$sectorPlaceholders})
-                ORDER BY cd_setor_atendimento, cd_unidade_basica
-            ");
+            $beds = Bed::whereIn('cd_setor_atendimento', $sectorCodes)
+                ->where('ie_situacao', 'A')
+                ->orderBy('cd_setor_atendimento')
+                ->orderBy('cd_unidade_basica')
+                ->get();
+
+            $bedunits = $beds->map(fn($b) => ['code' => (string)$b->cd_unidade_basica, 'name' => (string)$b->cd_unidade_basica, 'cd_setor_atendimento' => (string)$b->cd_setor_atendimento])
+                ->values()
+                ->toArray();
         }
 
         return [
             'hospitals' => $hospitals,
             'sectors' => $sectors,
-            'bedunits' => $bedunits
+            'bedunits' => $bedunits,
         ];
     }
 
     /**
-     * OTIMIZADO: Busca setores por hospital com cache e validação
+     * Retorna setores por hospitais (Eloquent)
      */
     public function getSectorsByHospital(Request $request)
     {
         $hospitalIds = array_intersect(
-            $request->input('hospital_ids', []), 
-            self::ALLOWED_HOSPITAL_IDS
+            array_map('strval', $request->input('hospital_ids', [])),
+            array_map('strval', self::ALLOWED_HOSPITAL_IDS)
         );
 
         if (empty($hospitalIds)) {
             return response()->json([]);
         }
 
-        $cacheKey = 'sectors_by_hospitals_' . implode('_', sort($hospitalIds));
-        
+        $cacheKey = 'sectors_by_hospitals_' . implode('_', $hospitalIds);
+
         $sectors = Cache::remember($cacheKey, 1200, function() use ($hospitalIds) {
-            $placeholders = implode(',', $hospitalIds);
-            
-            return DB::connection('tasy')->select("
-                SELECT 
-                    s.cd_setor_atendimento AS code, 
-                    s.ds_setor_atendimento AS name,
-                    s.nr_seq_agrupamento AS hospital_id
-                FROM TASY.SETOR_ATENDIMENTO s
-                WHERE s.ie_situacao = 'A'
-                AND s.nr_seq_agrupamento IN ({$placeholders})
-                AND EXISTS (
-                    SELECT 1 FROM TASY.UNIDADE_ATENDIMENTO u
-                    WHERE u.cd_setor_atendimento = s.cd_setor_atendimento
-                        AND u.ie_situacao = 'A'
-                )
-                ORDER BY s.ds_setor_atendimento
-            ");
+            return Sector::whereIn('nr_seq_agrupamento', $hospitalIds)
+                ->where('ie_situacao', 'A')
+                ->get()
+                ->filter(fn($s) => Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)->where('ie_situacao','A')->exists())
+                ->map(fn($s) => ['code' => (string)$s->cd_setor_atendimento, 'name' => $s->ds_setor_atendimento, 'hospital_id' => (string)$s->nr_seq_agrupamento])
+                ->values()
+                ->toArray();
         });
 
         return response()->json($sectors);
     }
 
     /**
-     * OTIMIZADO: Busca leitos por setor com validação e cache
+     * Retorna leitos por setor (valida setores contra hospitais permitidos inline)
      */
     public function getBedsBySector(Request $request)
     {
-        $sectorIds = $request->input('sector_ids', []);
-        
+        $sectorIds = array_map('strval', $request->input('sector_ids', []));
         if (empty($sectorIds)) {
             return response()->json([]);
         }
 
-        // Valida se os setores pertencem a hospitais permitidos
-        $validSectors = $this->validateSectorIds($sectorIds);
-        
+        // Ensure sectors belong to allowed hospitals
+        $validSectors = Sector::whereIn('cd_setor_atendimento', $sectorIds)
+            ->whereIn('nr_seq_agrupamento', array_map('strval', self::ALLOWED_HOSPITAL_IDS))
+            ->where('ie_situacao', 'A')
+            ->pluck('cd_setor_atendimento')
+            ->map(fn($v) => (string)$v)
+            ->values()
+            ->toArray();
+
         if (empty($validSectors)) {
             return response()->json([]);
         }
 
-        $cacheKey = 'beds_by_sectors_' . md5(implode(',', sort($validSectors)));
-        
+        $cacheKey = 'beds_by_sectors_' . md5(implode(',', $validSectors));
+
         $beds = Cache::remember($cacheKey, 600, function() use ($validSectors) {
-            $placeholders = implode(',', $validSectors);
-            
-            return DB::connection('tasy')->select("
-                SELECT 
-                    cd_unidade_basica AS code, 
-                    cd_unidade_basica AS name, 
-                    cd_setor_atendimento
-                FROM TASY.UNIDADE_ATENDIMENTO
-                WHERE ie_situacao = 'A'
-                AND cd_setor_atendimento IN ({$placeholders})
-                ORDER BY cd_setor_atendimento, cd_unidade_basica
-            ");
+            return Bed::whereIn('cd_setor_atendimento', $validSectors)
+                ->where('ie_situacao', 'A')
+                ->orderBy('cd_setor_atendimento')
+                ->orderBy('cd_unidade_basica')
+                ->get()
+                ->map(fn($b) => ['code' => (string)$b->cd_unidade_basica, 'name' => (string)$b->cd_unidade_basica, 'cd_setor_atendimento' => (string)$b->cd_setor_atendimento])
+                ->values()
+                ->toArray();
         });
 
         return response()->json($beds);
     }
 
     /**
-     * NOVA: Valida se setores pertencem a hospitais permitidos
-     */
-    private function validateSectorIds(array $sectorIds): array
-    {
-        if (empty($sectorIds)) {
-            return [];
-        }
-
-        $placeholders = implode(',', $sectorIds);
-        $allowedHospitals = implode(',', self::ALLOWED_HOSPITAL_IDS);
-
-        $validSectors = DB::connection('tasy')->select("
-            SELECT cd_setor_atendimento
-            FROM TASY.SETOR_ATENDIMENTO
-            WHERE cd_setor_atendimento IN ({$placeholders})
-            AND nr_seq_agrupamento IN ({$allowedHospitals})
-            AND ie_situacao = 'A'
-        ");
-
-        return array_column($validSectors, 'cd_setor_atendimento');
-    }
-
-    /**
-     * OTIMIZADO: Update com validações e limpeza de cache inteligente
+     * Atualiza as configurações usando apenas Eloquent models (menor número de funções)
      */
     public function update(Request $request)
     {
         try {
-            DB::beginTransaction();
-            
-            // Limpa configurações existentes
+            \DB::beginTransaction();
+
+            // remove todas as configurações atuais
             SystemConfiguration::whereIn('configuration_type', ['hospital','sector','bed'])->delete();
 
-            // Processa hospitais
-            $hospitalCodes = array_intersect($request->input('hospital_codes', []), self::ALLOWED_HOSPITAL_IDS);
-            $this->processHospitals($hospitalCodes);
+            // hospitals selecionados (filtra contra a lista permitida)
+            $hospitalCodes = array_values(array_intersect($request->input('hospital_codes', []), self::ALLOWED_HOSPITAL_IDS));
 
-            // Processa setores (validando se pertencem aos hospitais selecionados)
-            $sectorCodes = $request->input('sector_codes', []);
-            $this->processSectors($sectorCodes, $hospitalCodes);
+            foreach ($hospitalCodes as $code) {
+                $h = Hospital::where('nr_sequencia', (string)$code)->where('ie_situacao','A')->first();
+                if ($h) {
+                    SystemConfiguration::create([
+                        'hospital_code' => (string)$h->nr_sequencia,
+                        'hospital_name' => $h->ds_agrupamento ?? null,
+                        'configuration_type' => 'hospital',
+                        'is_active' => true,
+                        'configured_by' => auth()->user()->id ?? 0,
+                    ]);
+                }
+            }
 
-            // Processa leitos (validando se pertencem aos setores selecionados)
+            // setores selecionados: apenas registre setores que pertencem aos hospitais escolhidos
+            $sectorCodes = array_map('strval', $request->input('sector_codes', []));
+            if (!empty($sectorCodes) && !empty($hospitalCodes)) {
+                $validSectors = Sector::whereIn('cd_setor_atendimento', $sectorCodes)
+                    ->whereIn('nr_seq_agrupamento', array_map('strval', $hospitalCodes))
+                    ->where('ie_situacao','A')
+                    ->get();
+
+                foreach ($validSectors as $s) {
+                    SystemConfiguration::create([
+                        'sector_code' => (string)$s->cd_setor_atendimento,
+                        'sector_name' => $s->ds_setor_atendimento ?? null,
+                        'configuration_type' => 'sector',
+                        'is_active' => true,
+                        'configured_by' => auth()->user()->id ?? 0,
+                    ]);
+                }
+            }
+
+            // leitos selecionados: espera-se array de strings 'bed|sector'
             $bedCodes = $request->input('bed_codes', []);
-            $this->processBeds($bedCodes, $sectorCodes);
+            if (!empty($bedCodes)) {
+                foreach ($bedCodes as $comp) {
+                    if (!str_contains($comp, '|')) continue;
+                    [$code, $sector] = explode('|', $comp, 2);
+                    // valida se o setor foi configurado ou pertence aos hospitais permitidos
+                    $sectorExists = Sector::where('cd_setor_atendimento', (string)$sector)
+                        ->whereIn('nr_seq_agrupamento', array_map('strval', self::ALLOWED_HOSPITAL_IDS))
+                        ->where('ie_situacao','A')
+                        ->exists();
 
-            DB::commit();
+                    if (! $sectorExists) continue;
 
-            // Limpa caches relacionados de forma inteligente
+                    $b = Bed::where('cd_unidade_basica', (string)$code)
+                        ->where('cd_setor_atendimento', (string)$sector)
+                        ->where('ie_situacao','A')
+                        ->first();
+
+                    if ($b) {
+                        SystemConfiguration::create([
+                            'bed_code' => (string)$b->cd_unidade_basica,
+                            'bed_name' => $b->cd_unidade_basica ?? null,
+                            'sector_code' => (string)$b->cd_setor_atendimento,
+                            'configuration_type' => 'bed',
+                            'is_active' => true,
+                            'configured_by' => auth()->user()->id ?? 0,
+                        ]);
+                    }
+                }
+            }
+
+            \DB::commit();
+
             $this->clearRelatedCaches();
 
-            return redirect()
-                ->route('system-configuration.index')
-                ->with('success', 'Configuração atualizada com sucesso!');
+            return redirect()->route('system-configuration.index')->with('success', 'Configuração atualizada com sucesso!');
 
         } catch (\Exception $e) {
-            DB::rollBack();
-            
-            Log::error('SystemConfiguration: Erro durante atualização', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            \DB::rollBack();
+            Log::error('SystemConfiguration update error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
 
-            return redirect()
-                ->route('system-configuration.index')
-                ->with('error', 'Erro ao atualizar configuração: ' . $e->getMessage());
+            return redirect()->route('system-configuration.index')->with('error', 'Erro ao atualizar configuração: ' . $e->getMessage());
         }
     }
 
     /**
-     * NOVA: Processa hospitais com validação
-     */
-    private function processHospitals(array $hospitalCodes): void
-    {
-        foreach ($hospitalCodes as $code) {
-            $hospital = DB::connection('tasy')->selectOne("
-                SELECT nr_sequencia, ds_agrupamento AS name
-                FROM TASY.AGRUPAMENTO_SETOR
-                WHERE nr_sequencia = :code
-                AND ie_situacao = 'A'
-            ", ['code' => $code]);
-
-            if ($hospital) {
-                SystemConfiguration::create([
-                    'hospital_code'      => $code,
-                    'hospital_name'      => $hospital->name,
-                    'configuration_type' => 'hospital',
-                    'is_active'          => true,
-                    'configured_by'      => auth()->user()->id ?? 0,
-                ]);
-            }
-        }
-    }
-
-    /**
-     * NOVA: Processa setores com validação hierárquica
-     */
-    private function processSectors(array $sectorCodes, array $allowedHospitals): void
-    {
-        if (empty($allowedHospitals)) {
-            return;
-        }
-
-        $allowedHospitalsStr = implode(',', $allowedHospitals);
-        
-        foreach ($sectorCodes as $code) {
-            $sector = DB::connection('tasy')->selectOne("
-                SELECT 
-                    cd_setor_atendimento, 
-                    ds_setor_atendimento AS name, 
-                    nr_seq_agrupamento AS hospital_id
-                FROM TASY.SETOR_ATENDIMENTO
-                WHERE cd_setor_atendimento = :code
-                AND nr_seq_agrupamento IN ({$allowedHospitalsStr})
-                AND ie_situacao = 'A'
-            ", ['code' => $code]);
-
-            if ($sector) {
-                SystemConfiguration::create([
-                    'sector_code'        => $code,
-                    'sector_name'        => $sector->name,
-                    'configuration_type' => 'sector',
-                    'is_active'          => true,
-                    'configured_by'      => auth()->user()->id ?? 0,
-                ]);
-            }
-        }
-    }
-
-    /**
-     * NOVA: Processa leitos com validação hierárquica
-     */
-    private function processBeds(array $bedCodes, array $allowedSectors): void
-    {
-        if (empty($allowedSectors)) {
-            return;
-        }
-
-        foreach ($bedCodes as $bedComposite) {
-            if (!str_contains($bedComposite, '|')) {
-                continue;
-            }
-
-            [$code, $sector] = explode('|', $bedComposite, 2);
-            
-            // Valida se o setor está permitido
-            if (!in_array($sector, $allowedSectors)) {
-                continue;
-            }
-
-            $bed = DB::connection('tasy')->selectOne("
-                SELECT 
-                    cd_unidade_basica, 
-                    cd_unidade_basica AS name, 
-                    cd_setor_atendimento
-                FROM TASY.UNIDADE_ATENDIMENTO
-                WHERE cd_unidade_basica = :code 
-                AND cd_setor_atendimento = :sector
-                AND ie_situacao = 'A'
-            ", ['code' => $code, 'sector' => $sector]);
-
-            if ($bed) {
-                SystemConfiguration::create([
-                    'bed_code'           => $code,
-                    'bed_name'           => $bed->name,
-                    'sector_code'        => $sector,
-                    'configuration_type' => 'bed',
-                    'is_active'          => true,
-                    'configured_by'      => auth()->user()->id ?? 0,
-                ]);
-            }
-        }
-    }
-
-    /**
-     * NOVA: Limpa caches relacionados de forma inteligente
+     * Limpa caches relacionados
      */
     private function clearRelatedCaches(): void
     {
-        $cachesToClear = [
-            // Caches específicos do SystemConfiguration
+        $keys = [
             'allowed_hospital_codes',
             'allowed_sector_codes',
             'allowed_bed_codes',
-            
-            // Caches estruturais
-            'system_config_structural_data_v2',
-            'sbar_hierarchical_structure_v2',
-            'allowed_sectors_list',
-            'hospitals_with_sectors',
-            
-            // Caches de configuração SBAR
-            'sbar_config_v3',
-            'sbar_config_forever',
+            'sbar_config',
         ];
 
-        foreach ($cachesToClear as $key) {
-            Cache::forget($key);
-        }
-    }
-    
-
-    /**
-     * NOVA: Endpoint para limpar caches manualmente (útil para debugging)
-     */
-    public function clearCaches()
-    {
-        if (!auth()->user() || !auth()->user()->can('manage-system-configuration')) {
-            abort(403);
-        }
-
-        $this->clearRelatedCaches();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Caches limpos com sucesso'
-        ]);
+        foreach ($keys as $k) Cache::forget($k);
     }
 
-    /**
-     * NOVA: Endpoint para estatísticas da configuração
-     */
     public function getStats()
     {
         $stats = [
@@ -413,3 +277,4 @@ class SystemConfigurationController extends Controller
         return response()->json($stats);
     }
 }
+

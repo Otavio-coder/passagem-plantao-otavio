@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\ChatMensagem;
-use App\Models\ChatSessao;
+use App\Models\System\Chat\ChatMensagem;
+use App\Models\System\Chat\ChatSessao;
 use App\Models\System\User;
 use App\Services\ChatAuditoriaService;
+use Illuminate\Database\Seeder;
 
 class ChatMensagemDemoSeeder extends Seeder
 {

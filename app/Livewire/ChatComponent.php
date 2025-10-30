@@ -2,15 +2,14 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
-use Illuminate\Support\Facades\Auth;
-use App\Models\ChatSessao;
-use App\Models\ChatMensagem;
-use App\Repositories\MySQL\ChatRepository;
+use App\Models\System\Chat\ChatMensagem;
+use App\Models\System\Chat\ChatSessao;
+use App\Repositories\MySQL\Chat\ChatRepository;
 use App\Services\ChatAuditoriaService;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Component;
 
 class ChatComponent extends Component
 {
@@ -18,26 +17,26 @@ class ChatComponent extends Component
     public $bedUnit;
     public $currentShift;
     public $currentDate;
-    
+
     public $messages = [];
     public $newMessage = '';
     public $viewingHistory = false;
     public $availableSessions = [];
     public $groupedSessions = [];
     public $selectedSession = null;
-    
+
     // Paginação do histórico
     public $currentHistoryPage = 0;
     public $totalHistoryPages = 1;
     public $sessionsPerPage = 10; // Dias por página (controla quantos dias aparecem por vez)
-    
+
     public $loadingMessages = false;
     public $sendingMessage = false;
     public $loadingHistory = false;
-    
+
     public $currentUser;
     public $isShiftClosed = false;
-    
+
     public $initialized = false;
     private $currentSessionId = null;
     private $userCache = [];
@@ -60,14 +59,14 @@ class ChatComponent extends Component
     {
         $this->patientId = $patientId;
         $this->bedUnit = $bedUnit;
-        
+
         $user = Auth::user();
         $this->currentUser = [
             'id' => $user->id,
             'name' => $user->name,
             'photo' => $this->getUserPhotoBase64($user),
         ];
-        
+
         $this->setCurrentShift();
         $this->currentDate = now()->toDateString();
         $this->isShiftClosed = $this->checkIfShiftClosed();
@@ -76,23 +75,23 @@ class ChatComponent extends Component
     public function initialize()
     {
         if ($this->initialized || !$this->patientId) return;
-        
+
         try {
             $this->loadingMessages = true;
-            
+
             $this->openChatSession();
             $this->loadMessages();
             $this->loadAvailableSessions(); // Carrega primeira página automaticamente
-            
+
             $this->initialized = true;
-            
+
             $this->dispatch('chat-initialized', [
                 'patientId' => $this->patientId,
                 'shift' => $this->currentShift,
                 'componentId' => $this->getId(),
                 'totalHistoryPages' => $this->totalHistoryPages
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro na inicialização:', [
                 'patient_id' => $this->patientId,
@@ -109,17 +108,17 @@ class ChatComponent extends Component
         if ($this->viewingHistory || $this->isShiftClosed) {
             return ['success' => false, 'error' => 'Operação não permitida'];
         }
-        
+
         if ($this->sendingMessage) {
             return ['success' => false, 'error' => 'Aguarde o envio anterior'];
         }
-        
+
         $this->sendingMessage = true;
-        
+
         try {
             $message = $messageContent ?? trim($this->newMessage);
             $this->newMessage = '';
-            
+
             if (empty($message)) {
                 return ['success' => false, 'error' => 'Mensagem vazia'];
             }
@@ -151,23 +150,23 @@ class ChatComponent extends Component
                 'id' => $newMessage->id,
                 'mensagem' => $message,
                 'usuario_id' => $this->currentUser['id'],
-                'dt_criacao' => now()->toISOString(),
+                'dt_criacao' => now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
                 'is_fixed' => false,
             ]);
-            
+
             $this->dispatch('scroll-to-bottom');
 
             return [
                 'success' => true,
                 'message_id' => $newMessage->id
             ];
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao enviar mensagem', [
                 'error' => $e->getMessage(),
                 'patient_id' => $this->patientId
             ]);
-            
+
             return ['success' => false, 'error' => 'Erro ao enviar mensagem'];
         } finally {
             $this->sendingMessage = false;
@@ -180,26 +179,26 @@ class ChatComponent extends Component
         if ($this->viewingHistory || $this->isShiftClosed || !$this->patientId || !$messageId) {
             return ['success' => false, 'error' => 'Operação não permitida'];
         }
-        
+
         try {
             $repo = new ChatRepository();
             $updatedMessage = $repo->pinMessage($messageId, $this->currentUser['id']);
-            
+
             if (!$updatedMessage) {
                 return ['success' => false, 'error' => 'Mensagem não encontrada'];
             }
-            
+
             // Atualiza localmente (otimização de UI)
             $this->updateLocalMessagePin($messageId, $updatedMessage->is_fixed);
-            
+
             return ['success' => true, 'is_fixed' => $updatedMessage->is_fixed];
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao alterar pin', [
                 'message_id' => $messageId,
                 'error' => $e->getMessage()
             ]);
-            
+
             return ['success' => false, 'error' => 'Erro ao fixar mensagem'];
         }
     }
@@ -210,29 +209,29 @@ class ChatComponent extends Component
         if (!$this->selectedSession || $this->loadingHistory || !$this->patientId) {
             return ['success' => false, 'error' => 'Parâmetros inválidos'];
         }
-        
+
         $this->loadingHistory = true;
-        
+
         try {
             $parts = explode('|', $this->selectedSession);
             if (count($parts) !== 2) {
                 throw new \InvalidArgumentException('Formato de sessão inválido');
             }
-            
+
             [$date, $shift] = $parts;
-            
+
             $this->viewingHistory = true;
-            
+
             $session = ChatSessao::where([
                 'nr_atendimento' => $this->patientId,
                 'data_sessao' => $date,
                 'turno_id' => $shift
             ])->first();
-            
+
             if (!$session) {
                 throw new \Exception('Sessão não encontrada');
             }
-            
+
             $messages = ChatMensagem::where('sessao_id', $session->id)
                 ->where('is_deleted', false)
                 ->orderBy('dt_criacao', 'asc')
@@ -240,32 +239,32 @@ class ChatComponent extends Component
                 ->get();
 
             $this->messages = $this->formatMessages($messages->toArray());
-            
+
             // Registra auditoria
             ChatAuditoriaService::registrarAcessoHistorico($this->patientId, $shift, $date);
-            
+
             $this->dispatch('history-loaded', [
                 'date' => $date,
                 'shift' => $shift,
                 'messageCount' => count($this->messages)
             ]);
-            
+
             return ['success' => true, 'messageCount' => count($this->messages)];
-            
+
         } catch (\Exception $e) {
             $this->messages = [];
             $this->viewingHistory = false;
-            
+
             $this->dispatch('history-error', [
                 'message' => 'Erro ao carregar histórico'
             ]);
-            
+
             Log::error('[Chat] Erro ao carregar histórico', [
                 'patient_id' => $this->patientId,
                 'session' => $this->selectedSession,
                 'error' => $e->getMessage()
             ]);
-            
+
             return ['success' => false, 'error' => 'Erro ao carregar histórico'];
         } finally {
             $this->loadingHistory = false;
@@ -281,11 +280,11 @@ class ChatComponent extends Component
     public function returnToCurrentShift()
     {
         if (!$this->viewingHistory) return;
-        
+
         $this->viewingHistory = false;
         $this->selectedSession = null;
         $this->refreshCurrentMessages();
-        
+
         $this->dispatch('returned-to-current', [
             'shift' => $this->currentShift,
             'date' => $this->currentDate
@@ -295,7 +294,7 @@ class ChatComponent extends Component
     public function refreshCurrentMessages()
     {
         if ($this->loadingMessages || $this->viewingHistory) return;
-        
+
         $this->loadingMessages = true;
         try {
             $this->loadMessages();
@@ -312,13 +311,13 @@ class ChatComponent extends Component
     public function loadHistoryPage($page = 0)
     {
         if (!$this->patientId) return;
-        
+
         $this->currentHistoryPage = max(0, $page);
         $this->loadingHistory = true;
-        
+
         try {
             $this->loadAvailableSessions();
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar página do histórico', [
                 'patient_id' => $this->patientId,
@@ -337,21 +336,21 @@ class ChatComponent extends Component
         if (!$this->initialized || $this->viewingHistory || !$data || !isset($data['id'])) {
             return;
         }
-        
+
         // Verifica se é para o contexto atual
-        if (($data['nr_atendimento'] ?? null) != $this->patientId || 
+        if (($data['nr_atendimento'] ?? null) != $this->patientId ||
             ($data['turno_id'] ?? null) != $this->currentShift) {
             return;
         }
-        
+
         // Verifica se a mensagem já existe
         if ($this->messageExists($data['id'])) {
             return;
         }
-        
+
         // Adiciona a mensagem
         $this->addMessageToLocal($data);
-        
+
         $this->dispatch('scroll-to-bottom');
     }
 
@@ -362,19 +361,19 @@ class ChatComponent extends Component
         if (!$this->initialized || !$data || !isset($data['id'])) {
             return;
         }
-        
+
         // Verifica se é para o contexto atual
-        if (($data['nr_atendimento'] ?? null) != $this->patientId || 
+        if (($data['nr_atendimento'] ?? null) != $this->patientId ||
             ($data['turno_id'] ?? null) != $this->currentShift) {
             return;
         }
-        
+
         $messageId = $data['id'];
         $isPinned = $data['is_fixed'] ?? false;
-        
+
         // Atualiza o estado local das mensagens
         $this->updateLocalMessagePin($messageId, $isPinned);
-        
+
     }
 
     // Método auxiliar para verificar se mensagem existe
@@ -390,11 +389,53 @@ class ChatComponent extends Component
             'id' => $data['id'],
             'mensagem' => $data['mensagem'] ?? '',
             'usuario_id' => $data['usuario_id'] ?? null,
-            'dt_criacao' => $data['created_at'] ?? $data['dt_criacao'] ?? now()->toISOString(),
+            'dt_criacao' => $data['created_at'] ?? $data['dt_criacao'] ?? now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
             'is_fixed' => $data['is_fixed'] ?? false,
         ]);
-        
+
         $this->messages[] = $message;
+    }
+
+    private function parseDateTime($value): ?\Carbon\Carbon
+    {
+        if (!$value) {
+            return null;
+        }
+
+        // If it's already a DateTime/Carbon instance
+        if ($value instanceof \DateTimeInterface) {
+            return \Carbon\Carbon::instance($value)->setTimezone(config('app.timezone'));
+        }
+
+        // Try known formats (includes d/m/Y H:i:s used in broadcasts)
+        $formats = [
+            'd/m/Y H:i:s',
+            'd/m/Y H:i',
+            'Y-m-d H:i:s',
+            'Y-m-d\TH:i:sP',
+            'Y-m-d\TH:i:s',
+            'Y-m-d',
+            'd/m/Y',
+        ];
+
+        foreach ($formats as $format) {
+            try {
+                $dt = \Carbon\Carbon::createFromFormat($format, $value);
+                if ($dt !== false) {
+                    return $dt->setTimezone(config('app.timezone'));
+                }
+            } catch (\Exception $e) {
+                // ignore and continue
+            }
+        }
+
+        // Last resort: let Carbon try to parse flexibly (catch exceptions)
+        try {
+            $dt = \Carbon\Carbon::parse($value);
+            return $dt->setTimezone(config('app.timezone'));
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function loadMessages()
@@ -407,12 +448,12 @@ class ChatComponent extends Component
                 'turno_id' => $this->currentShift,
                 'data_sessao' => $this->currentDate
             ])->first();
-            
+
             if (!$session) {
                 $this->messages = [];
                 return;
             }
-            
+
             $messages = ChatMensagem::where('sessao_id', $session->id)
                 ->where('is_deleted', false)
                 ->orderBy('dt_criacao', 'asc')
@@ -420,7 +461,7 @@ class ChatComponent extends Component
                 ->get();
 
             $this->messages = $this->formatMessages($messages->toArray());
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar mensagens:', [
                 'patient_id' => $this->patientId,
@@ -433,7 +474,7 @@ class ChatComponent extends Component
     private function loadAvailableSessions()
     {
         if (!$this->patientId) return;
-        
+
         try {
             // Busca todas as sessões (sem cache para paginação dinâmica)
             $allSessions = ChatSessao::select([
@@ -461,14 +502,14 @@ class ChatComponent extends Component
                 return $sessions->map(function($session) use ($date) {
                     $carbonDate = \Carbon\Carbon::parse($session->data_sessao);
                     $key = $session->data_sessao . '|' . $session->turno_id;
-                    
+
                     $shiftLabel = match($session->turno_id) {
                         'manha' => 'Manhã',
-                        'tarde' => 'Tarde', 
+                        'tarde' => 'Tarde',
                         'noite' => 'Noite',
                         default => ucfirst($session->turno_id)
                     };
-                    
+
                     return [
                         'key' => $key,
                         'date' => $session->data_sessao,
@@ -483,21 +524,21 @@ class ChatComponent extends Component
             // Calcula paginação (por datas)
             $totalDates = $sessionsByDate->count();
             $this->totalHistoryPages = max(1, ceil($totalDates / $this->sessionsPerPage));
-            
+
             // Garante que a página atual é válida
             $this->currentHistoryPage = min($this->currentHistoryPage, $this->totalHistoryPages - 1);
             $this->currentHistoryPage = max(0, $this->currentHistoryPage);
-            
+
             // Pega apenas as datas da página atual
             $offset = $this->currentHistoryPage * $this->sessionsPerPage;
             $pagedDates = $sessionsByDate->slice($offset, $this->sessionsPerPage);
-            
+
             // Formata para o frontend com labels corretos
             $this->groupedSessions = [];
             $pagedDates->each(function($sessions, $date) {
                 $carbonDate = \Carbon\Carbon::parse($date);
                 $dateLabel = $carbonDate->format('d/m/Y');
-                
+
                 // Adiciona dia da semana se for recente
                 if ($carbonDate->isToday()) {
                     $dateLabel .= ' (Hoje)';
@@ -506,13 +547,13 @@ class ChatComponent extends Component
                 } elseif ($carbonDate->diffInDays(now()) <= 7) {
                     $dateLabel .= ' (' . $carbonDate->dayName . ')';
                 }
-                
+
                 $this->groupedSessions[$dateLabel] = $sessions;
             });
-            
+
             // Mantém compatibilidade com o código existente
             $this->availableSessions = collect($this->groupedSessions)->flatten(1)->toArray();
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar sessões:', [
                 'patient_id' => $this->patientId,
@@ -527,9 +568,9 @@ class ChatComponent extends Component
     private function formatMessages($messages)
     {
         if (empty($messages)) return [];
-        
+
         $userIds = collect($messages)->pluck('usuario_id')->unique()->filter();
-        
+
         $users = collect();
         if ($userIds->isNotEmpty()) {
             try {
@@ -537,7 +578,7 @@ class ChatComponent extends Component
                     ->select(['id', 'name'])
                     ->get()
                     ->keyBy('id');
-                    
+
                 foreach ($users as $user) {
                     $this->photoCache[$user->id] = $this->getUserPhotoBase64($user);
                 }
@@ -545,7 +586,7 @@ class ChatComponent extends Component
                 Log::error('[Chat] Erro ao carregar usuários:', ['error' => $e->getMessage()]);
             }
         }
-        
+
         return collect($messages)->map(function($msg) use ($users) {
             return $this->formatSingleMessage($msg, $users);
         })->toArray();
@@ -561,7 +602,7 @@ class ChatComponent extends Component
         $userId = $msg['usuario_id'] ?? null;
         $user = null;
         $photo = '';
-        
+
         if ($users && $userId) {
             $user = $users->get($userId);
             $photo = $user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '';
@@ -569,20 +610,27 @@ class ChatComponent extends Component
             $user = $this->getUserFromCache($userId);
             $photo = $user ? $this->getUserPhotoBase64($user) : '';
         }
-        
+
         // Garante foto do usuário atual se for própria
         if ($userId == $this->currentUser['id'] && empty($photo)) {
             $photo = $this->currentUser['photo'] ?? '';
         }
-        
+
+        // Robust date handling: try created_at first, then dt_criacao
+        $rawDate = $msg['created_at'] ?? $msg['dt_criacao'] ?? null;
+        $time = '';
+
+        if ($parsed = $this->parseDateTime($rawDate)) {
+            $time = $parsed->format('H:i');
+        }
+
         return [
             'id' => $msg['id'] ?? null,
             'mensagem' => $this->formatMessageText($msg['mensagem'] ?? ''),
             'usuario_id' => $userId,
             'author' => $user ? $user->name : 'Usuário',
             'photo' => $photo,
-            'time' => isset($msg['dt_criacao']) ? 
-                \Carbon\Carbon::parse($msg['dt_criacao'])->format('H:i') : '',
+            'time' => $time,
             'is_pinned' => $msg['is_fixed'] ?? false,
             'is_fixed' => $msg['is_fixed'] ?? false,
             'is_own' => $userId == $this->currentUser['id'],
@@ -592,28 +640,28 @@ class ChatComponent extends Component
     private function getUserPhotoBase64($user)
     {
         if (!$user) return '';
-        
+
         $userId = $user->id ?? null;
         if (!$userId) return '';
-        
+
         if (isset($this->photoCache[$userId])) {
             return $this->photoCache[$userId];
         }
-        
+
         try {
             $photo = '';
-            
+
             if (method_exists($user, 'getUserPhoto')) {
                 $photo = $user->getUserPhoto();
             } elseif (isset($user->photo)) {
                 $photo = $user->photo;
             }
-            
+
             if (!$photo) {
                 $photoData = DB::table('users')
                     ->where('id', $userId)
                     ->value('photo');
-                    
+
                 if ($photoData) {
                     if (!str_starts_with($photoData, 'data:')) {
                         $photo = $photoData;
@@ -622,10 +670,10 @@ class ChatComponent extends Component
                     }
                 }
             }
-            
+
             $this->photoCache[$userId] = $photo;
             return $photo;
-            
+
         } catch (\Exception $e) {
             return '';
         }
@@ -634,15 +682,15 @@ class ChatComponent extends Component
     private function getUserFromCache($userId)
     {
         if (!$userId) return null;
-        
+
         if (isset($this->userCache[$userId])) {
             return $this->userCache[$userId];
         }
-        
+
         try {
             $user = \App\Models\System\User::select(['id', 'name'])
                 ->find($userId);
-                
+
             $this->userCache[$userId] = $user;
             return $user;
         } catch (\Exception $e) {
@@ -667,9 +715,9 @@ class ChatComponent extends Component
     private function formatMessageText($text)
     {
         if (empty($text)) return '';
-        
+
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-        
+
         // Formatação markdown simples
         $text = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $text);
         $text = preg_replace('/__(.*?)__/', '<strong>$1</strong>', $text);
@@ -677,7 +725,7 @@ class ChatComponent extends Component
         $text = preg_replace('/_(.*?)_/', '<em>$1</em>', $text);
         $text = nl2br($text);
         $text = preg_replace('/^[\-\*]\s(.+)$/m', '• $1', $text);
-        
+
         return $text;
     }
 
@@ -695,9 +743,9 @@ class ChatComponent extends Component
                 'inicio' => now(),
                 'encerrada' => false,
             ]);
-            
+
             $this->currentSessionId = $session->id;
-            
+
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao abrir sessão:', [
                 'patient_id' => $this->patientId,
@@ -711,16 +759,16 @@ class ChatComponent extends Component
         if ($this->currentSessionId) {
             return $this->currentSessionId;
         }
-        
+
         if (!$this->patientId) return null;
-        
+
         $session = ChatSessao::where([
             'nr_atendimento' => $this->patientId,
             'turno_id' => $this->currentShift,
             'data_sessao' => $this->currentDate,
             'encerrada' => false,
         ])->first();
-        
+
         $this->currentSessionId = $session?->id;
         return $this->currentSessionId;
     }
@@ -740,7 +788,7 @@ class ChatComponent extends Component
     private function checkIfShiftClosed()
     {
         $hour = now()->hour;
-        
+
         switch ($this->currentShift) {
             case 'manha':
                 return $hour < 7 || $hour >= 13;

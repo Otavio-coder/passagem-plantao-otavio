@@ -1,10 +1,9 @@
 <?php
-
 namespace App\Livewire;
 
 use Livewire\Component;
 use Livewire\Attributes\On;
-use App\Models\EMR\Patient;
+use App\Models\EMR\Core\Patient;
 use Illuminate\Support\Facades\Log;
 
 class PatientModal extends Component
@@ -17,7 +16,13 @@ class PatientModal extends Component
     public $showAlertsModal = false;
     public $currentShift = 'dia';
     public $loadingPatient = false;
-    
+
+    // ✅ Controles para CPOE lazy loading
+    public $cpoeData = null;
+    public $cpoeLoaded = false;
+    public $cpoeLoading = false;
+    public $cpoeExpanded = false;
+
     // Model centralizada
     protected $patientModel;
 
@@ -29,19 +34,15 @@ class PatientModal extends Component
     public function mount()
     {
         $this->currentShift = $this->getCurrentShift();
-        
     }
 
-    /**
-     * Determina o turno atual baseado no horário
-     */
     private function getCurrentShift()
     {
         $now = now();
         $hour = $now->hour;
         $minute = $now->minute;
         $time = $hour * 60 + $minute;
-        
+
         if ($time >= 435 && $time < 795) {
             return 'manha';
         } elseif ($time >= 795 && $time < 1155) {
@@ -65,10 +66,8 @@ class PatientModal extends Component
             $this->resetModalState();
             $this->loadingPatient = true;
             $this->showModal = true;
-
-            
             $this->dispatch('modal-opened');
-            
+
             $this->currentPatient = [
                 'nr_atendimento' => $attendanceNumber,
                 'has_patient' => true,
@@ -80,39 +79,107 @@ class PatientModal extends Component
                 'shift' => $this->currentShift
             ]);
 
-            // Carrega dados do paciente
+            // Carrega dados do paciente (SEM CPOE)
             $this->loadPatientData($attendanceNumber);
-            
+
         } catch (\Exception $e) {
             Log::error('PatientModal: Error in openModal', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
             $this->loadingPatient = false;
             $this->showModal = false;
         }
     }
 
     /**
-     * Carrega dados do paciente com tratamento de erro robusto
+     * ✅ Carrega dados CPOE sob demanda - LISTENER PARA EVENTO
      */
+    #[On('loadCpoeData')]
+    public function loadCpoeData()
+    {
+        if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
+            Log::warning('PatientModal: Cannot load CPOE - no current patient');
+            return;
+        }
+
+        if ($this->cpoeLoaded) {
+            // Se já carregou, apenas expande/colapsa
+            $this->cpoeExpanded = !$this->cpoeExpanded;
+            return;
+        }
+
+        try {
+            $this->cpoeLoading = true;
+
+            Log::info('PatientModal: Loading CPOE data', [
+                'attendance_number' => $this->currentPatient['nr_atendimento']
+            ]);
+
+            $startTime = microtime(true);
+
+            // Carrega apenas dados CPOE
+            $this->cpoeData = $this->patientModel->getPatientCPOEOnly($this->currentPatient['nr_atendimento']);
+
+            $loadTime = microtime(true) - $startTime;
+
+            Log::info('PatientModal: CPOE data loaded', [
+                'attendance_number' => $this->currentPatient['nr_atendimento'],
+                'load_time' => round($loadTime, 2) . 's',
+                'has_procedures' => isset($this->cpoeData->cpoe_procedures),
+                'has_medications' => isset($this->cpoeData->cpoe_medications),
+                'has_nutrition' => isset($this->cpoeData->cpoe_nutrition),
+                'has_recommendations' => isset($this->cpoeData->cpoe_recommendations),
+                'has_interventions' => isset($this->cpoeData->cpoe_interventions),
+            ]);
+
+            // ✅ IMPORTANTE: Mescla os dados CPOE com patientDetails para a view
+            if ($this->patientDetails) {
+                $this->patientDetails->cpoe_procedures = $this->cpoeData->cpoe_procedures ?? null;
+                $this->patientDetails->cpoe_medications = $this->cpoeData->cpoe_medications ?? null;
+                $this->patientDetails->cpoe_nutrition = $this->cpoeData->cpoe_nutrition ?? null;
+                $this->patientDetails->cpoe_recommendations = $this->cpoeData->cpoe_recommendations ?? null;
+                $this->patientDetails->cpoe_interventions = $this->cpoeData->cpoe_interventions ?? null;
+            }
+
+            $this->cpoeLoaded = true;
+            $this->cpoeExpanded = true;
+
+            $this->dispatch('cpoe-data-loaded', [
+                'success' => true,
+                'loadTime' => round($loadTime, 2)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('PatientModal: Error loading CPOE data', [
+                'error' => $e->getMessage(),
+                'attendance_number' => $this->currentPatient['nr_atendimento'],
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            $this->dispatch('cpoe-data-loaded', [
+                'success' => false,
+                'error' => 'Erro ao carregar prescrições'
+            ]);
+
+        } finally {
+            $this->cpoeLoading = false;
+        }
+    }
+
     private function loadPatientData($attendanceNumber)
     {
         try {
-
-            
             // Limpa cache antes de buscar dados atualizados
             $this->patientModel->clearPatientCache($attendanceNumber);
-            
-            // Busca dados completos do paciente
-            $this->patientDetails = $this->patientModel->getFullPatientData($attendanceNumber);
+
+            // ✅ Busca dados completos do paciente SEM CPOE (mais rápido)
+            $this->patientDetails = $this->patientModel->getFullPatientDataWithoutCPOE($attendanceNumber);
 
             if ($this->patientDetails) {
-                
                 // Extrai alertas dos dados completos
                 $this->patientAlerts = $this->patientDetails->alerts ?? [];
-                
+
                 // Atualiza dados do paciente atual
                 $this->currentPatient = array_merge($this->currentPatient, [
                     'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
@@ -122,17 +189,16 @@ class PatientModal extends Component
                     'convenio' => $this->patientDetails->convenio ?? 'N/A',
                     'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName
                 ]);
-                
+
                 // Verifica e mostra alertas se necessário
                 $this->checkAndShowAlertsModal();
-                
             } else {
                 Log::warning('PatientModal: No patient data found', [
                     'attendanceNumber' => $attendanceNumber
                 ]);
-                
+
                 $this->patientAlerts = [];
-                
+
                 // Mantém dados básicos mesmo sem detalhes
                 $this->currentPatient = array_merge($this->currentPatient, [
                     'nm_pessoa_fisica' => 'Paciente',
@@ -158,23 +224,18 @@ class PatientModal extends Component
         }
     }
 
-    /**
-     * Tratamento de erro melhorado
-     */
     private function handlePatientLoadError(\Exception $e, $attendanceNumber)
     {
         $this->patientDetails = null;
         $this->patientAlerts = [];
         $this->loadingPatient = false;
-        
-        // NÃO fecha o modal em caso de erro - apenas mostra mensagem
-        
+
         Log::error("PatientModal: Erro ao carregar dados do paciente", [
             'attendance_number' => $attendanceNumber,
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
         ]);
-        
+
         // Define dados básicos para exibir mensagem de erro
         if (!$this->currentPatient) {
             $this->currentPatient = [
@@ -188,7 +249,7 @@ class PatientModal extends Component
                 'hospital_name' => $this->currentHospitalName
             ];
         }
-        
+
         $this->dispatch('patient-data-loaded', [
             'patientId' => $attendanceNumber,
             'shift' => $this->currentShift,
@@ -197,9 +258,6 @@ class PatientModal extends Component
         ]);
     }
 
-    /**
-     * Verificação e exibição de alertas
-     */
     private function checkAndShowAlertsModal()
     {
         if (empty($this->patientAlerts)) {
@@ -207,9 +265,9 @@ class PatientModal extends Component
         }
 
         $activeAlerts = collect($this->patientAlerts)->filter(function($alert) {
-            return !isset($alert['end_date']) || 
-                   $alert['end_date'] === null || 
-                   \Carbon\Carbon::parse($alert['end_date'])->isFuture();
+            return !isset($alert['end_date']) ||
+                $alert['end_date'] === null ||
+                \Carbon\Carbon::parse($alert['end_date'])->isFuture();
         });
 
         if ($activeAlerts->count() > 0) {
@@ -217,9 +275,6 @@ class PatientModal extends Component
         }
     }
 
-    /**
-     * Reset do estado do modal
-     */
     private function resetModalState()
     {
         $this->currentPatient = null;
@@ -228,11 +283,14 @@ class PatientModal extends Component
         $this->patientAlerts = [];
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
+
+        // ✅ Reseta estado do CPOE
+        $this->cpoeData = null;
+        $this->cpoeLoaded = false;
+        $this->cpoeLoading = false;
+        $this->cpoeExpanded = false;
     }
 
-    /**
-     * Força refresh dos dados (limpa cache e recarrega)
-     */
     public function refreshPatientData()
     {
         if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
@@ -241,19 +299,24 @@ class PatientModal extends Component
         }
 
         $this->loadingPatient = true;
-        
+
         // Limpa cache antes de recarregar
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
-        
+
+        // ✅ Se CPOE estava carregado, limpa também
+        if ($this->cpoeLoaded) {
+            $this->cpoeData = null;
+            $this->cpoeLoaded = false;
+            $this->cpoeExpanded = false;
+        }
+
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
     }
 
     public function closeModal()
     {
-        
         $this->showModal = false;
         $this->resetModalState();
-        
         $this->dispatch('modal-closed');
         $this->dispatch('closeModal');
     }
@@ -263,17 +326,11 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
     }
 
-    /**
-     * Verifica se tem dados do paciente
-     */
     public function hasPatientData()
     {
         return $this->patientDetails !== null;
     }
 
-    /**
-     * Getter para alertas ativos
-     */
     public function getActiveAlertsProperty()
     {
         if (empty($this->patientAlerts)) {
@@ -281,50 +338,20 @@ class PatientModal extends Component
         }
 
         return collect($this->patientAlerts)->filter(function($alert) {
-            return !isset($alert['end_date']) || 
-                   $alert['end_date'] === null || 
-                   \Carbon\Carbon::parse($alert['end_date'])->isFuture();
+            return !isset($alert['end_date']) ||
+                $alert['end_date'] === null ||
+                \Carbon\Carbon::parse($alert['end_date'])->isFuture();
         });
     }
 
-    /**
-     * Getter para contagem de alertas críticos
-     */
     public function getCriticalAlertsCountProperty()
     {
         return $this->activeAlerts->filter(function($alert) {
-            return ($alert['severity'] ?? 'warning') === 'danger' || 
-                   ($alert['type'] ?? '') === 'ALERTA';
+            return ($alert['severity'] ?? 'warning') === 'danger' ||
+                ($alert['type'] ?? '') === 'ALERTA';
         })->count();
     }
 
-    /**
-     * Getter para dados CPOE organizados
-     */
-    public function getCpoeDataProperty()
-    {
-        if (!$this->patientDetails) {
-            return [
-                'procedures' => 'Nenhum procedimento registrado',
-                'medications' => 'Nenhuma medicação registrada',
-                'nutrition' => 'Nenhuma dieta registrada',
-                'recommendations' => 'Nenhuma recomendação registrada',
-                'interventions' => 'Nenhuma intervenção registrada',
-            ];
-        }
-
-        return [
-            'procedures' => $this->patientDetails->cpoe_procedures ?? 'Nenhum procedimento registrado',
-            'medications' => $this->patientDetails->cpoe_medications ?? 'Nenhuma medicação registrada',
-            'nutrition' => $this->patientDetails->cpoe_nutrition ?? 'Nenhuma dieta registrada',
-            'recommendations' => $this->patientDetails->cpoe_recommendations ?? 'Nenhuma recomendação registrada',
-            'interventions' => $this->patientDetails->cpoe_interventions ?? 'Nenhuma intervenção registrada',
-        ];
-    }
-
-    /**
-     * Getter para escalas organizadas
-     */
     public function getScalesDataProperty()
     {
         if (!$this->patientDetails) {
@@ -332,7 +359,6 @@ class PatientModal extends Component
         }
 
         $isPediatric = isset($this->patientDetails->age) && intval($this->patientDetails->age) < 16;
-
         $scales = [];
 
         // MEWS (adultos) ou PEWS (pediátricos)
@@ -390,9 +416,6 @@ class PatientModal extends Component
         return $scales;
     }
 
-    /**
-     * Getter para dados clínicos organizados
-     */
     public function getClinicalDataProperty()
     {
         if (!$this->patientDetails) {
@@ -431,7 +454,6 @@ class PatientModal extends Component
     public function changeShift($shift)
     {
         $this->currentShift = $shift;
-        
     }
 
     public function render()
@@ -440,9 +462,11 @@ class PatientModal extends Component
             'activeAlerts' => $this->activeAlerts,
             'criticalAlertsCount' => $this->criticalAlertsCount,
             'hasPatientData' => $this->hasPatientData(),
-            'cpoeData' => $this->cpoeData,
             'scalesData' => $this->scalesData,
-            'clinicalData' => $this->clinicalData
+            'clinicalData' => $this->clinicalData,
+            'cpoeLoaded' => $this->cpoeLoaded,
+            'cpoeLoading' => $this->cpoeLoading,
+            'cpoeExpanded' => $this->cpoeExpanded,
         ]);
     }
 }

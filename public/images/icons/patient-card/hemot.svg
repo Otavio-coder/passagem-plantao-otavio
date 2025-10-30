@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>1. Status and Feedback / Transfusion / transfusion</title>
+    <defs>
+        <polygon id="path-1" points="4.4408921e-16 18 9 18 9 0.0004 0 0.0004 0 18"></polygon>
+        <polygon id="path-3" points="0 20 13 20 13 0 0 0"></polygon>
+    </defs>
+    <g id="1.-Status-and-Feedback-/-Transfusion-/-transfusion" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Page-1" transform="translate(6.000000, 2.000000)">
+            <path d="M13,13.9932 C13,15.0992 12.11,16.0002 11.004,16.0002 L1.996,16.0002 C0.891,16.0002 0,15.0992 0,13.9932 L0,2.0072 C0,0.9002 0.89,0.0002 1.996,0.0002 L11.004,0.0002 C12.109,0.0002 13,0.9002 13,2.0072 L13,13.9932 Z M12,13.9932 L12,2.0072 C12,1.4502 11.554,1.0002 11.004,1.0002 L1.996,1.0002 C1.445,1.0002 1,1.4512 1,2.0072 L1,13.9932 C1,14.5502 1.446,15.0002 1.996,15.0002 L11.004,15.0002 C11.555,15.0002 12,14.5492 12,13.9932 Z" id="Fill-1" fill="#8C8C8C"></path>
+            <g id="Group-5" transform="translate(2.000000, 2.000000)">
+                <mask id="mask-2" fill="white">
+                    <use xlink:href="#path-1"></use>
+                </mask>
+                <g id="Clip-4"></g>
+                <path d="M5,10.1904 C8.096,9.0114 9,11.0004 9,11.0004 L9,0.9954 C9,0.4454 8.553,0.0004 8.002,0.0004 L0.998,0.0004 C0.446,0.0004 0,0.4454 0,0.9954 L0,11.0004 C0,11.0004 0.904,11.9034 4,10.6184 L4,18.0004 L5,18.0004 L5,10.1904 Z" id="Fill-3" fill="#8C8C8C" mask="url(#mask-2)"></path>
+            </g>
+            <mask id="mask-4" fill="white">
+                <use xlink:href="#path-3"></use>
+            </mask>
+            <g id="Clip-7"></g>
+            <polygon id="Fill-6" fill="#8C8C8C" mask="url(#mask-4)" points="9 16 10 16 10 14 9 14"></polygon>
+            <polygon id="Fill-8" fill="#8C8C8C" mask="url(#mask-4)" points="3 16 4 16 4 14 3 14"></polygon>
+            <polygon id="Fill-9" fill="#8C8C8C" mask="url(#mask-4)" points="3 17 10 17 10 16 3 16"></polygon>
+            <polygon id="Fill-10" fill="#8C8C8C" mask="url(#mask-4)" points="5 18 8 18 8 17 5 17"></polygon>
+        </g>
+    </g>
+</svg>

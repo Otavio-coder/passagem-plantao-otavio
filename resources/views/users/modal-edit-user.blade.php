@@ -1,4 +1,3 @@
-
 <div id="modal-edit-user" class="fixed z-50 inset-0 overflow-y-auto hidden">
 
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:px-4">
@@ -21,6 +20,8 @@
                 @csrf
 
                 <input type="hidden" name="user_id" id="user_id" />
+                <!-- Hidden flag to indicate profile editing was submitted (allows removing all roles) -->
+                <input type="hidden" name="edit_profile_present" value="1" />
 
                 <div class="w-full text-gray-600">
 
@@ -55,7 +56,7 @@
                                 <label for="profile" class="block text-sm font-medium text-gray-700">Perfil *</label>
                                 <select multiple class="mt-1 p-2 text-sm border border-solid border-gray-300 rounded shadow-sm hover:border-blue-500 w-full md:w-1/2 focus:outline-none" name="edit_profile[]" id="edit_profile">
                                     @foreach( $roles as $role )
-                                        <option id="edit-profile-{{ $role->name }}">{{ $role->name }}</option>
+                                        <option value="{{ $role->name }}" id="edit-profile-{{ $role->name }}">{{ $role->name }}</option>
                                     @endforeach
                                 </select>
                             </div>

@@ -17,7 +17,6 @@ class PatientModal extends Component
     public $currentShift = 'dia';
     public $loadingPatient = false;
 
-    // ✅ Controles para CPOE lazy loading
     public $cpoeData = null;
     public $cpoeLoaded = false;
     public $cpoeLoading = false;
@@ -92,9 +91,6 @@ class PatientModal extends Component
         }
     }
 
-    /**
-     * ✅ Carrega dados CPOE sob demanda - LISTENER PARA EVENTO
-     */
     #[On('loadCpoeData')]
     public function loadCpoeData()
     {
@@ -112,10 +108,6 @@ class PatientModal extends Component
         try {
             $this->cpoeLoading = true;
 
-            Log::info('PatientModal: Loading CPOE data', [
-                'attendance_number' => $this->currentPatient['nr_atendimento']
-            ]);
-
             $startTime = microtime(true);
 
             // Carrega apenas dados CPOE
@@ -123,17 +115,7 @@ class PatientModal extends Component
 
             $loadTime = microtime(true) - $startTime;
 
-            Log::info('PatientModal: CPOE data loaded', [
-                'attendance_number' => $this->currentPatient['nr_atendimento'],
-                'load_time' => round($loadTime, 2) . 's',
-                'has_procedures' => isset($this->cpoeData->cpoe_procedures),
-                'has_medications' => isset($this->cpoeData->cpoe_medications),
-                'has_nutrition' => isset($this->cpoeData->cpoe_nutrition),
-                'has_recommendations' => isset($this->cpoeData->cpoe_recommendations),
-                'has_interventions' => isset($this->cpoeData->cpoe_interventions),
-            ]);
 
-            // ✅ IMPORTANTE: Mescla os dados CPOE com patientDetails para a view
             if ($this->patientDetails) {
                 $this->patientDetails->cpoe_procedures = $this->cpoeData->cpoe_procedures ?? null;
                 $this->patientDetails->cpoe_medications = $this->cpoeData->cpoe_medications ?? null;
@@ -284,7 +266,6 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
 
-        // ✅ Reseta estado do CPOE
         $this->cpoeData = null;
         $this->cpoeLoaded = false;
         $this->cpoeLoading = false;

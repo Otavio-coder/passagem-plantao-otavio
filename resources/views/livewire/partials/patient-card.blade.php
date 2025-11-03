@@ -411,25 +411,11 @@
 
                 {{-- Pending Events Section --}}
                 @php
-                    $rawPending = trim((string) ($patient['pending_events'] ?? ''));
-                    $parts = $rawPending === '' ? [] : array_values(array_filter(array_map('trim', preg_split('/\s*\|\s*|[\r\n]+/', $rawPending))));
-                    $pickIcon = function(string $text) {
-                        $t = mb_strtolower($text);
-                        if (str_contains($t, 'alta')) return 'alta.svg';
-                        if (str_contains($t, 'alta médica')) return 'alta.svg';
-                        if (str_contains($t, 'previsão de alta')) return 'alert-circle.svg';
-                        if (str_contains($t, 'óbito')) return 'alert-circle.svg';
-                        if (str_contains($t, 'proc')) return 'outpatient-department.svg';
-                        if (str_contains($t, 'exame')) return 'tac.svg';
-                        if (str_contains($t, 'hemot')) return 'blood-drop.svg';
-                        if (str_contains($t, 'quimio')) return 'infusion-pump.svg';
-                        if (str_contains($t, 'rec')) return 'alert-circle.svg';
-                        return 'alert-circle.svg';
-                    };
-                    $hasScroll = count($parts) >= 1;
+                    $pendingEvents = $patient['pending_events'] ?? [];
+                    $hasScroll = is_array($pendingEvents) && count($pendingEvents) >= 1;
                 @endphp
                 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col" x-data="{ showPendingModal: false }">
-                    @if(!empty($parts))
+                    @if(!empty($pendingEvents) && is_array($pendingEvents))
                         <div class="bg-white/20 rounded-lg p-2">
                             <div class="flex items-center justify-between mb-1">
                                 <h4 class="text-xs font-semibold text-gray-800">Pendências</h4>
@@ -448,11 +434,15 @@
                             </div>
                             <div class="h-[200px] max-h-[200px] overflow-y-auto overflow-x-hidden rounded-md p-1 my-1 custom-scrollbar-pending">
                                 <div class="flex flex-col gap-2">
-                                    @foreach($parts as $p)
-                                        @php $icon = $pickIcon($p); @endphp
+                                    @foreach($pendingEvents as $event)
+                                        @php
+                                            $icon = $event['icon'] ?? 'alert-circle.svg';
+                                            $text = $event['text'] ?? '';
+                                            $type = $event['type'] ?? 'default';
+                                        @endphp
                                         <div class="flex items-start gap-2 p-1 transition-colors duration-150 rounded hover:bg-white/10">
-                                            <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-5 h-5" alt="">
-                                            <span class="text-[11px] text-gray-800 leading-snug break-words">{{ $p }}</span>
+                                            <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-5 h-5 flex-shrink-0" alt="{{ $type }}">
+                                            <span class="text-[11px] text-gray-800 leading-snug break-words">{{ $text }}</span>
                                         </div>
                                     @endforeach
                                 </div>
@@ -476,11 +466,15 @@
                                         </button>
                                     </div>
                                     <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                                        @foreach($parts as $p)
-                                            @php $icon = $pickIcon($p); @endphp
+                                        @foreach($pendingEvents as $event)
+                                            @php
+                                                $icon = $event['icon'] ?? 'alert-circle.svg';
+                                                $text = $event['text'] ?? '';
+                                                $type = $event['type'] ?? 'default';
+                                            @endphp
                                             <div class="flex items-start gap-2 p-2 rounded-md bg-gray-50 transition-colors duration-150 hover:bg-gray-100">
-                                                <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-4 h-4 flex-shrink-0" alt="">
-                                                <span class="text-xs text-gray-800">{{ $p }}</span>
+                                                <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-4 h-4 flex-shrink-0" alt="{{ $type }}">
+                                                <span class="text-xs text-gray-800">{{ $text }}</span>
                                             </div>
                                         @endforeach
                                     </div>

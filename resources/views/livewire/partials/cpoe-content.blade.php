@@ -1,7 +1,6 @@
 {{-- resources/views/livewire/partials/cpoe-content.blade.php --}}
 
 @php
-    // ✅ Validação robusta de estrutura de dados
     $hasProcedures = isset($patientDetails->cpoe_procedures) &&
                      is_array($patientDetails->cpoe_procedures) &&
                      isset($patientDetails->cpoe_procedures['total_count']);
@@ -34,7 +33,7 @@
                 <svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
-                <span>Exames</span>
+                <span>Procedimentos</span>
                 @if($hasProcedures && $patientDetails->cpoe_procedures['total_count'] > 0)
                     <span class="ml-1 px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full">
                         {{ $patientDetails->cpoe_procedures['total_count'] }}

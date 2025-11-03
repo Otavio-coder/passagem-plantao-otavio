@@ -84,9 +84,6 @@ class TasyService
         $cacheKey = "patient_cpoe_modal_{$attendanceNumber}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function() use ($attendanceNumber) {
-            Log::info('TasyService: Fetching CPOE data', [
-                'attendance_number' => $attendanceNumber
-            ]);
 
             return $this->fetchCPOEData($attendanceNumber);
         });
@@ -397,134 +394,41 @@ class TasyService
         SELECT
             ua.nr_atendimento,
             pf.dt_obito,
-            COALESCE(
-                TRIM(
-                    -- ALTA / ALTA MÉDICA / PREVISÃO DE ALTA
-                    CASE
-                        WHEN ap.dt_alta IS NOT NULL THEN
-                            '[ALTA] ' || TO_CHAR(ap.dt_alta, 'DD/MM HH24:MI') || NVL(' Motivo: ' || ma2.ds_motivo_alta, '') ||
-                            CASE WHEN ap.dt_previsto_alta IS NOT NULL THEN ' | Previsão: ' || TO_CHAR(ap.dt_previsto_alta, 'DD/MM HH24:MI') ELSE '' END
-                        WHEN ap.dt_alta_medico IS NOT NULL THEN
-                            '[ALTA MÉDICA] ' || TO_CHAR(ap.dt_alta_medico, 'DD/MM HH24:MI') ||
-                            CASE WHEN ap.dt_previsto_alta IS NOT NULL THEN ' | Previsão: ' || TO_CHAR(ap.dt_previsto_alta, 'DD/MM HH24:MI') ELSE '' END
-                        WHEN ap.dt_previsto_alta IS NOT NULL THEN
-                            '[PREVISÃO DE ALTA] ' || TO_CHAR(ap.dt_previsto_alta, 'DD/MM HH24:MI')
-                        ELSE ''
-                    END
-
-                    -- PROCEDIMENTOS (próximas 12h)
-                    || CASE WHEN (
-                        SELECT COUNT(*)
-                        FROM tasy.prescr_medica pm
-                        JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
-                        WHERE pm.nr_atendimento = ua.nr_atendimento
-                          AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
-                          AND pp.dt_baixa IS NULL
-                          AND pm.dt_liberacao IS NOT NULL
-                          AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
-                    ) > 0 THEN ' | ' ELSE '' END
-                    || NVL((
-                        SELECT LISTAGG(
-                            '[Proc] ' || TASY.OBTER_DESC_PROC_INTERNO(pp.nr_seq_proc_interno) ||
-                            ' ' || TO_CHAR(pp.dt_prev_execucao, 'DD/MM HH24:MI'),
-                            ' | '
-                        ) WITHIN GROUP (ORDER BY pp.dt_prev_execucao)
-                        FROM (
-                            SELECT DISTINCT pp.nr_seq_proc_interno, pp.dt_prev_execucao
-                            FROM tasy.prescr_medica pm
-                            JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
-                            WHERE pm.nr_atendimento = ua.nr_atendimento
-                              AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
-                              AND pp.dt_baixa IS NULL
-                              AND pm.dt_liberacao IS NOT NULL
-                              AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
-                        ) pp
-                    ), '')
-
-                    -- EXAMES (próximos 30 dias) - COM DESCRIÇÃO CORRETA
-                    || CASE WHEN (
-                        SELECT COUNT(*)
-                        FROM tasy.agenda_paciente ae
-                        WHERE ae.nr_atendimento = ua.nr_atendimento
-                          AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                          AND ae.ie_status_agenda NOT IN ('C', 'S')
-                    ) > 0 THEN ' | ' ELSE '' END
-                    || NVL((
-                        SELECT LISTAGG(
-                            '[Exame] ' ||
-                            COALESCE(
-                                TASY.obter_exame_agenda(
-                                    ae.cd_procedimento,
-                                    ae.ie_origem_proced,
-                                    ae.nr_seq_proc_interno
-                                ),
-                                TASY.Obter_exame_procedimento(
-                                    ae.cd_procedimento,
-                                    ae.ie_origem_proced,
-                                    ae.nr_atendimento
-                                ),
-                                ae.ds_cirurgia,
-                                'Exame agendado'
-                            ) || ' ' || TO_CHAR(ae.dt_agenda, 'DD/MM HH24:MI'),
-                            ' | '
-                        ) WITHIN GROUP (ORDER BY ae.dt_agenda, ae.hr_inicio)
-                        FROM tasy.agenda_paciente ae
-                        WHERE ae.nr_atendimento = ua.nr_atendimento
-                          AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                          AND ae.ie_status_agenda NOT IN ('C', 'S')
-                    ), '')
-
-                    -- HEMOTERAPIA (próximos 30 dias)
-                    || CASE
-                         WHEN (
-                             SELECT COUNT(*)
-                             FROM tasy.cpoe_hemoterapia hemo
-                             WHERE hemo.nr_atendimento = ua.nr_atendimento
-                               AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                               AND hemo.dt_suspensao IS NULL
-                         ) > 0 THEN ' | ' ELSE ''
-                       END
-                    || NVL((
-                        SELECT LISTAGG(
-                            TO_CHAR(hemo.dt_programada, 'DD/MM HH24:MI') || ' ' ||
-                            NVL(hemo.IE_TIPO_HEMOTERAP,'Tipo não informado') || ' ' ||
-                            'Qtde:' || NVL(TO_CHAR(hemo.QT_PROCEDIMENTO),'N/A') || ' ' ||
-                            'Vol:' || NVL(TO_CHAR(hemo.QT_VOL_HEMOCOMP),'N/A') ||
-                            CASE WHEN NVL(hemo.IE_URGENCIA,'N')='S' THEN ' [URGENTE]' ELSE '' END ||
-                            NVL(' Obs:' || hemo.DS_OBSERVACAO || ' ' || hemo.DS_JUSTIFICATIVA,''),
-                            ' | '
-                        ) WITHIN GROUP (ORDER BY hemo.dt_programada)
-                        FROM tasy.cpoe_hemoterapia hemo
-                        WHERE hemo.nr_atendimento = ua.nr_atendimento
-                          AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                          AND hemo.dt_suspensao IS NULL
-                    ), '')
-
-                    -- QUIMIOTERAPIA (próximos 30 dias)
-                    || CASE
-                         WHEN (
-                             SELECT COUNT(*)
-                             FROM tasy.agenda_quimioterapia_pep_v aq
-                             WHERE aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
-                               AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                         ) > 0 THEN ' | ' ELSE ''
-                       END
-                    || NVL((
-                        SELECT LISTAGG(
-                            '[Quimio] ' ||TO_CHAR(aq.dt_agenda, 'DD/MM HH24:MI') || ' ' ||
-                            NVL(aq.ds_local,'') || ' ' ||
-                            NVL(aq.nm_medico_resp,'') || ' ' ||
-                            NVL(aq.ds_protocolo_medic,'') || ' ' ||
-                            NVL(aq.nr_ciclo || 'ª',''),
-                            ' | '
-                        ) WITHIN GROUP (ORDER BY aq.dt_agenda)
-                        FROM tasy.agenda_quimioterapia_pep_v aq
-                        WHERE aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
-                          AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                    ), '')
-                ),
-                ''
-            ) AS pending_events
+            -- ALTA
+            ap.dt_alta,
+            ap.dt_alta_medico,
+            ap.dt_previsto_alta,
+            ma2.ds_motivo_alta,
+            -- PROCEDIMENTOS
+            (SELECT COUNT(*)
+             FROM tasy.prescr_medica pm
+             JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
+             WHERE pm.nr_atendimento = ua.nr_atendimento
+               AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
+               AND pp.dt_baixa IS NULL
+               AND pm.dt_liberacao IS NOT NULL
+               AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
+            ) as proc_count,
+            -- EXAMES
+            (SELECT COUNT(*)
+             FROM tasy.agenda_paciente ae
+             WHERE ae.nr_atendimento = ua.nr_atendimento
+               AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+               AND ae.ie_status_agenda NOT IN ('C', 'S')
+            ) as exam_count,
+            -- HEMOTERAPIA
+            (SELECT COUNT(*)
+             FROM tasy.cpoe_hemoterapia hemo
+             WHERE hemo.nr_atendimento = ua.nr_atendimento
+               AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+               AND hemo.dt_suspensao IS NULL
+            ) as hemo_count,
+            -- QUIMIOTERAPIA
+            (SELECT COUNT(*)
+             FROM tasy.agenda_quimioterapia_pep_v aq
+             WHERE aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
+               AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+            ) as quimio_count
         FROM tasy.unidade_atendimento ua
         JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
         JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
@@ -535,13 +439,180 @@ class TasyService
     ", ['sector_id' => $sectorId]);
 
         $map = [];
+
         foreach ($results as $row) {
+            $nr_atendimento = $row->nr_atendimento;
+
+            // Caso especial: Óbito
             if (!empty($row->dt_obito)) {
                 $horaObito = date('d/m/Y H:i', strtotime($row->dt_obito));
-                $map[$row->nr_atendimento] = '[ÓBITO] - Horário: ' . $horaObito;
-            } else {
-                $map[$row->nr_atendimento] = $row->pending_events ?? '';
+                $map[$nr_atendimento] = [[
+                    'icon' => 'alert-circle.svg',
+                    'text' => '[ÓBITO] - Horário: ' . $horaObito,
+                    'type' => 'obito'
+                ]];
+                continue;
             }
+
+            $events = [];
+
+            // ALTA / ALTA MÉDICA / PREVISÃO DE ALTA
+            if (!empty($row->dt_alta)) {
+                $text = '[ALTA] ' . date('d/m H:i', strtotime($row->dt_alta));
+                if (!empty($row->ds_motivo_alta)) {
+                    $text .= ' Motivo: ' . $row->ds_motivo_alta;
+                }
+                if (!empty($row->dt_previsto_alta)) {
+                    $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
+                }
+                $events[] = [
+                    'icon' => 'alta.svg',
+                    'text' => $text,
+                    'type' => 'alta'
+                ];
+            } elseif (!empty($row->dt_alta_medico)) {
+                $text = '[ALTA MÉDICA] ' . date('d/m H:i', strtotime($row->dt_alta_medico));
+                if (!empty($row->dt_previsto_alta)) {
+                    $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
+                }
+                $events[] = [
+                    'icon' => 'alta.svg',
+                    'text' => $text,
+                    'type' => 'alta_medica'
+                ];
+            } elseif (!empty($row->dt_previsto_alta)) {
+                $events[] = [
+                    'icon' => 'alert-circle.svg',
+                    'text' => '[PREVISÃO DE ALTA] ' . date('d/m H:i', strtotime($row->dt_previsto_alta)),
+                    'type' => 'previsao_alta'
+                ];
+            }
+
+            // PROCEDIMENTOS
+            if ($row->proc_count > 0) {
+                $procs = DB::connection('tasy')->select("
+                SELECT DISTINCT
+                    pp.nr_seq_proc_interno,
+                    pp.dt_prev_execucao,
+                    TASY.OBTER_DESC_PROC_INTERNO(pp.nr_seq_proc_interno) as descricao
+                FROM tasy.prescr_medica pm
+                JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
+                WHERE pm.nr_atendimento = :nr_atendimento
+                  AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
+                  AND pp.dt_baixa IS NULL
+                  AND pm.dt_liberacao IS NOT NULL
+                  AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
+                ORDER BY pp.dt_prev_execucao
+            ", ['nr_atendimento' => $nr_atendimento]);
+
+                foreach ($procs as $proc) {
+                    $events[] = [
+                        'icon' => 'outpatient-department.svg',
+                        'text' => '[Proc] ' . $proc->descricao . ' ' . date('d/m H:i', strtotime($proc->dt_prev_execucao)),
+                        'type' => 'procedimento'
+                    ];
+                }
+            }
+
+            // EXAMES
+            if ($row->exam_count > 0) {
+                $exams = DB::connection('tasy')->select("
+                SELECT
+                    ae.dt_agenda,
+                    ae.hr_inicio,
+                    COALESCE(
+                        TASY.obter_exame_agenda(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_seq_proc_interno),
+                        TASY.Obter_exame_procedimento(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_atendimento),
+                        ae.ds_cirurgia,
+                        'Exame agendado'
+                    ) as descricao
+                FROM tasy.agenda_paciente ae
+                WHERE ae.nr_atendimento = :nr_atendimento
+                  AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                  AND ae.ie_status_agenda NOT IN ('C', 'S')
+                ORDER BY ae.dt_agenda, ae.hr_inicio
+            ", ['nr_atendimento' => $nr_atendimento]);
+
+                foreach ($exams as $exam) {
+                    $events[] = [
+                        'icon' => 'tac.svg',
+                        'text' => '[Exame] ' . $exam->descricao . ' ' . date('d/m H:i', strtotime($exam->dt_agenda)),
+                        'type' => 'exame'
+                    ];
+                }
+            }
+
+            // HEMOTERAPIA
+            if ($row->hemo_count > 0) {
+                $hemos = DB::connection('tasy')->select("
+                SELECT
+                    hemo.dt_programada,
+                    hemo.IE_TIPO_HEMOTERAP,
+                    hemo.QT_PROCEDIMENTO,
+                    hemo.QT_VOL_HEMOCOMP,
+                    hemo.IE_URGENCIA,
+                    hemo.DS_OBSERVACAO,
+                    hemo.DS_JUSTIFICATIVA
+                FROM tasy.cpoe_hemoterapia hemo
+                WHERE hemo.nr_atendimento = :nr_atendimento
+                  AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                  AND hemo.dt_suspensao IS NULL
+                ORDER BY hemo.dt_programada
+            ", ['nr_atendimento' => $nr_atendimento]);
+
+                foreach ($hemos as $hemo) {
+                    $text = '[Hemoterapia] ' . date('d/m H:i', strtotime($hemo->dt_programada)) . ' ';
+                    $text .= ($hemo->IE_TIPO_HEMOTERAP ?? 'Tipo não informado') . ' ';
+                    $text .= 'Qtde:' . ($hemo->QT_PROCEDIMENTO ?? 'N/A') . ' ';
+                    $text .= 'Vol:' . ($hemo->QT_VOL_HEMOCOMP ?? 'N/A');
+
+                    if (($hemo->IE_URGENCIA ?? 'N') === 'S') {
+                        $text .= ' [URGENTE]';
+                    }
+
+                    if (!empty($hemo->DS_OBSERVACAO) || !empty($hemo->DS_JUSTIFICATIVA)) {
+                        $text .= ' Obs:' . trim(($hemo->DS_OBSERVACAO ?? '') . ' ' . ($hemo->DS_JUSTIFICATIVA ?? ''));
+                    }
+
+                    $events[] = [
+                        'icon' => 'blood-drop.svg',
+                        'text' => $text,
+                        'type' => 'hemoterapia'
+                    ];
+                }
+            }
+
+            // QUIMIOTERAPIA
+            if ($row->quimio_count > 0) {
+                $quimios = DB::connection('tasy')->select("
+                SELECT
+                    aq.dt_agenda,
+                    aq.ds_local,
+                    aq.nm_medico_resp,
+                    aq.ds_protocolo_medic,
+                    aq.nr_ciclo
+                FROM tasy.agenda_quimioterapia_pep_v aq
+                WHERE aq.cd_pessoa_fisica = :cd_pessoa_fisica
+                  AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                ORDER BY aq.dt_agenda
+            ", ['cd_pessoa_fisica' => $row->cd_pessoa_fisica ?? null]);
+
+                foreach ($quimios as $quimio) {
+                    $text = '[Quimio] ' . date('d/m H:i', strtotime($quimio->dt_agenda)) . ' ';
+                    $text .= ($quimio->ds_local ?? '') . ' ';
+                    $text .= ($quimio->nm_medico_resp ?? '') . ' ';
+                    $text .= ($quimio->ds_protocolo_medic ?? '') . ' ';
+                    $text .= ($quimio->nr_ciclo ? $quimio->nr_ciclo . 'ª' : '');
+
+                    $events[] = [
+                        'icon' => 'infusion-pump.svg',
+                        'text' => trim($text),
+                        'type' => 'quimioterapia'
+                    ];
+                }
+            }
+
+            $map[$nr_atendimento] = $events;
         }
 
         return $map;
@@ -763,15 +834,12 @@ class TasyService
             'alergias_detalhadas' => $clinicalDetails->alergias_detalhadas ?? null,
             'materiais' => $clinicalDetails->materiais ?? null,
 
-            // Alertas (não vêm no batch do SBAR, só no modal individual)
             'alerts' => [],
 
-            // ✅ Flags
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
 
-            // Pendências
-            'pending_events' => $batchData['pending_events'][$attendanceNumber] ?? '',
+            'pending_events' => $batchData['pending_events'][$attendanceNumber] ?? [],
         ];
 
         // Adiciona escalas

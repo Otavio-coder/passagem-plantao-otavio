@@ -1,0 +1,351 @@
+/**
+ * Sistema de Proteção de Conteúdo - SBAR
+ * Proteção de Dados Sensíveis de Pacientes (LGPD)
+ */
+(function() {
+    'use strict';
+
+    const config = {
+        blurStrength: 25,
+        logoPath: '/images/logo-santacasa-app.png',
+    };
+
+    // Obter nome do usuário
+    function getUserName() {
+        const userName = document.querySelector('meta[name="sbar-user-name"]');
+        return userName ? userName.getAttribute('content') : 'Usuário';
+    }
+
+    // Criar overlay
+    function createProtectionOverlay() {
+        if (document.getElementById('sbar-protection-overlay')) return;
+
+        const userName = getUserName();
+        const overlay = document.createElement('div');
+        overlay.id = 'sbar-protection-overlay';
+        overlay.innerHTML = `
+            <div class="sbar-protection-wrapper">
+                <img src="${config.logoPath}" alt="Logo Santa Casa" class="sbar-protection-logo">
+                <div class="sbar-protection-text">
+                    <h6 class="sbar-protection-title">
+                        <span class="sbar-highlight">Atenção ${userName},</span> conteúdo protegido
+                    </h6>
+                    <p class="sbar-protection-subtitle">
+                        Dados sensíveis de pacientes protegidos pela LGPD.
+                    </p>
+                    <p class="sbar-protection-legal">
+                        Art. 11 da Lei nº 13.709/2018 - Lei Geral de Proteção de Dados
+                    </p>
+                    <p class="sbar-protection-info">
+                        ${new Date().toLocaleString('pt-BR')}
+                    </p>
+                    <button id="sbar-close-btn" class="sbar-close-button">
+                        Entendi
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+            #sbar-protection-overlay {
+                position: fixed;
+                inset: 0;
+                background: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
+                z-index: 999999;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                font-family: 'Montserrat', sans-serif;
+            }
+
+            #sbar-protection-overlay.active {
+                display: flex;
+                opacity: 1;
+            }
+
+            .sbar-protection-wrapper {
+                text-align: center;
+                padding: 2rem;
+                max-width: 600px;
+            }
+
+            .sbar-protection-logo {
+                max-width: 200px;
+                max-height: 100px;
+                height: auto;
+                margin: 0 auto 1.5rem;
+                border-radius: 0.5rem;
+                display: block;
+                object-fit: contain;
+            }
+
+            .sbar-protection-text {
+                margin-top: 1rem;
+            }
+
+            .sbar-protection-title {
+                font-size: 1rem;
+                font-weight: 700;
+                text-align: center;
+                color: #f3f4f6;
+                margin: 0 0 1rem 0;
+            }
+
+            .sbar-highlight {
+                color: #0c4a6e;
+                background: white;
+                padding: 0 0.5rem;
+                border-radius: 0.25rem;
+            }
+
+            .sbar-protection-subtitle {
+                text-align: center;
+                color: #e5e7eb;
+                font-size: 1.125rem;
+                margin: 0 0 1rem 0;
+                font-weight: 500;
+            }
+
+            .sbar-protection-legal {
+                text-align: center;
+                color: #cbd5e1;
+                font-size: 0.9rem;
+                margin: 0 0 1.5rem 0;
+                padding: 0.75rem;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 0.5rem;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                font-weight: 500;
+            }
+
+            .sbar-protection-info {
+                text-align: center;
+                color: #d1d5db;
+                font-size: 0.875rem;
+                margin: 0 0 1.5rem 0;
+                opacity: 0.8;
+            }
+
+            .sbar-close-button {
+                background: white;
+                color: #0c4a6e;
+                border: none;
+                padding: 0.75rem 2rem;
+                font-size: 1rem;
+                font-weight: 600;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-family: 'Montserrat', sans-serif;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            }
+
+            .sbar-close-button:hover {
+                background: #f1f5f9;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+            }
+
+            .sbar-close-button:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            }
+
+            body.sbar-screenshot-detected main,
+            body.sbar-screenshot-detected header,
+            body.sbar-screenshot-detected footer {
+                filter: blur(${config.blurStrength}px) !important;
+                transition: filter 0.2s ease;
+            }
+
+            @media (min-width: 768px) {
+                .sbar-protection-title {
+                    font-size: 2.25rem;
+                }
+                .sbar-protection-subtitle {
+                    font-size: 1.25rem;
+                }
+                .sbar-protection-logo {
+                    max-width: 250px;
+                    max-height: 120px;
+                }
+            }
+        `;
+
+        document.head.appendChild(style);
+        document.body.appendChild(overlay);
+
+        document.getElementById('sbar-close-btn').addEventListener('click', function() {
+            hideProtection();
+        });
+    }
+
+    function showProtection() {
+        const overlay = document.getElementById('sbar-protection-overlay');
+        if (overlay) {
+            // Força mostrar, sem nenhuma verificação de estado
+            document.body.classList.add('sbar-screenshot-detected');
+            overlay.classList.add('active');
+
+            // Atualiza timestamp sempre
+            const infoElement = overlay.querySelector('.sbar-protection-info');
+            if (infoElement) {
+                infoElement.textContent = new Date().toLocaleString('pt-BR');
+            }
+        }
+    }
+
+    function hideProtection() {
+        const overlay = document.getElementById('sbar-protection-overlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+            document.body.classList.remove('sbar-screenshot-detected');
+        }
+    }
+
+    // === PROTEÇÃO 1: PRINT SCREEN / SCREENSHOT ===
+    // keydown
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
+            e.key === 'Insert' || e.code === 'Insert' ||
+            e.keyCode === 44 || e.keyCode === 45) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            showProtection();
+            return false;
+        }
+
+        if (e.metaKey && e.shiftKey && ['3','4','5'].includes(e.key)) {
+            e.preventDefault();
+            e.stopPropagation();
+            showProtection();
+            return false;
+        }
+
+        if (e.shiftKey && (e.metaKey || e.key === 'Meta') && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showProtection();
+            return false;
+        }
+    }, true);
+
+    // keyup
+    window.addEventListener('keyup', function(e) {
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
+            e.key === 'Insert' || e.code === 'Insert' ||
+            e.keyCode === 44 || e.keyCode === 45) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            showProtection();
+            return false;
+        }
+    }, true);
+
+    // Listener adicional no document
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
+            e.key === 'Insert' || e.code === 'Insert' ||
+            e.keyCode === 44 || e.keyCode === 45) {
+            e.preventDefault();
+            showProtection();
+            return false;
+        }
+    }, true);
+
+    document.addEventListener('keyup', function(e) {
+        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
+            e.key === 'Insert' || e.code === 'Insert' ||
+            e.keyCode === 44 || e.keyCode === 45) {
+            e.preventDefault();
+            showProtection();
+            return false;
+        }
+    }, true);
+
+    // === PROTEÇÃO 2: COPIAR / COLAR / SELECIONAR ===
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && ['c','x','v','a','s','p'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    document.addEventListener('copy', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    document.addEventListener('cut', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    document.addEventListener('paste', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    // === PROTEÇÃO 3: SELEÇÃO DE TEXTO ===
+    document.addEventListener('selectstart', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    document.addEventListener('mousedown', function(e) {
+        if (e.detail > 1) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // === PROTEÇÃO 4: BOTÃO DIREITO ===
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    // === PROTEÇÃO 5: DRAG & DROP ===
+    document.addEventListener('dragstart', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    document.addEventListener('drop', function(e) {
+        e.preventDefault();
+        return false;
+    });
+
+    // === PROTEÇÃO 6: DEVTOOLS ===
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12' || e.keyCode === 123) {
+            e.preventDefault();
+            return false;
+        }
+
+        if (e.ctrlKey && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
+            e.preventDefault();
+            return false;
+        }
+
+        if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // Inicializar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', createProtectionOverlay);
+    } else {
+        createProtectionOverlay();
+    }
+
+})();

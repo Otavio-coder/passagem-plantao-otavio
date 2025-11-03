@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    @auth
+        <meta name="sbar-user-name" content="{{ strtok(auth()->user()->name, ' ') }}">
+        <meta name="sbar-user-full-name" content="{{ auth()->user()->name }}">
+    @endauth
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/noty.css' ) }}"/>
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/themes/nest.css' ) }}"/>
     <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset( 'images/favicon.ico') }}">
@@ -44,7 +48,7 @@
     @stack('head')
 
     <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js', 'resources/js/content-protection.js'])
 
     <title>{{ env( 'APP_NAME' ) }}</title>
 

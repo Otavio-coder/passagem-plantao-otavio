@@ -4,10 +4,10 @@
     'patientDetails' => null,
 ])
 
-<div x-show="activeTab === 'tab-a'" 
+<div x-show="activeTab === 'tab-a'"
      class="p-1 sm:p-2 lg:p-3 h-full flex flex-col"
      style="min-height: 0;">
-    
+
     @if($currentPatient && !$currentPatient['has_patient'])
         <div class="flex flex-col items-center justify-center py-4 sm:py-6 text-gray-600 flex-1">
             <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -21,7 +21,7 @@
         <div class="flex-1 min-h-0">
             @livewire('chat-component', [
                 'patientId' => $currentPatient['nr_atendimento'] ?? '',
-                'bedUnit' => $patientDetails->cd_unidade_basica ?? null
+                'bedUnit' => $patientDetails->bed_name ?? $patientDetails->cd_unidade_basica ?? null
             ], key('chat-' . ($currentPatient['nr_atendimento'] ?? 'empty')))
         </div>
     @else

@@ -5,7 +5,6 @@
 <div class="w-full my-2 text-[#004D9D] relative font-montserrat">
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4">
-
             <div class="relative" x-data="sbarDashboard()" x-init="init()" @auto-refreshed.window="handleAutoRefresh()">
 
                 {{-- Container principal do conteúdo --}}
@@ -23,8 +22,8 @@
                                     {{-- Timestamp da última atualização - apenas em desktop --}}
                                     @if($lastRefresh)
                                         <span class="hidden sm:block text-white/80 text-xs font-montserrat mr-2">
-                                                Última atualização: {{ $lastRefresh }}
-                                            </span>
+                                            Última atualização: {{ $lastRefresh }}
+                                        </span>
                                     @endif
 
                                     <div x-show="autoRefreshEnabled" class="flex items-center gap-1 bg-green-500/20 px-1.5 py-0.5 rounded-full">
@@ -33,7 +32,9 @@
                                         <span x-text="nextRefreshIn + 's'" class="text-green-200 text-xs"></span>
                                     </div>
 
-                                    <button @click="toggleAutoRefresh()" class="hidden sm:inline-flex items-center px-2 py-1 rounded-md text-xs focus:outline-none" :class="autoRefreshEnabled ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'">
+                                    <button @click="toggleAutoRefresh()"
+                                            class="hidden sm:inline-flex items-center px-2 py-1 rounded-md text-xs focus:outline-none"
+                                            :class="autoRefreshEnabled ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'">
                                         <span x-text="autoRefreshEnabled ? 'Auto-refresh ON' : 'Auto-refresh OFF'"></span>
                                     </button>
                                 </div>
@@ -327,8 +328,6 @@
                         </div>
                     </div>
 
-
-
                     {{-- Patients container --}}
                     <div id="patientsContainer" class="p-2 sm:p-3 lg:p-4 bg-white">
                         @if($loading && $failedPatient)
@@ -360,13 +359,36 @@
                                 </div>
                             </div>
                         @else
+                            {{-- Grid de pacientes --}}
                             <div id="patientCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-4 font-montserrat">
                                 @foreach($patients as $index => $patient)
-                                    <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}" class="relative patient-card font-montserrat" x-data>
+                                    <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}"
+                                         class="relative patient-card font-montserrat"
+                                         x-data>
                                         @include('livewire.partials.patient-card', ['patient' => $patient, 'currentHospitalName' => $currentHospitalName])
                                     </div>
                                 @endforeach
                             </div>
+
+                            @if($hasMore)
+                                <div class="mt-6 flex justify-center">
+                                    <button wire:click="loadMore"
+                                            wire:loading.attr="disabled"
+                                            wire:target="loadMore"
+                                            class="inline-flex items-center px-6 py-3 bg-[#004D9D] hover:bg-[#003D7A] text-white rounded-lg shadow-md font-medium transition-all duration-150 disabled:opacity-50">
+                                        <span wire:loading.remove wire:target="loadMore">
+                                            Carregar mais pacientes
+                                        </span>
+                                        <span wire:loading wire:target="loadMore" class="flex items-center">
+                                            <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Carregando...
+                                        </span>
+                                    </button>
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -380,8 +402,8 @@
                 <div class="font-montserrat">
                     @livewire('patient-modal', [], key('patient-modal'))
                 </div>
+
             </div>
         </div>
     </div>
 </div>
-

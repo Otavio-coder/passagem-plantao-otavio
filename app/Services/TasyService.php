@@ -12,8 +12,9 @@ class TasyService
     use UsesRepositories;
 
     // ==================== CONSTANTES ====================
-    private const CACHE_TTL_SECTOR = 300;  // 5 minutos
-    private const CACHE_TTL_PATIENT = 180; // 3 minutos
+    private const CACHE_TTL_SECTOR = 900;  // 15 minutos
+    private const CACHE_TTL_PATIENT = 600; // 10 minutos
+    private const CACHE_TTL_PENDING_EVENTS = 600; // ✅ 10 minutos para pending events
 
     private const DEFAULT_SCALE_DATA = [
         'score' => null,
@@ -39,7 +40,7 @@ class TasyService
             $rawBeds = $this->fetchSectorBedsRaw($sectorId);
             $attendanceNumbers = $this->extractAttendanceNumbers($rawBeds);
 
-            // Busca dados em batch (otimizado e centralizado)
+            // Busca dados em batch (otimizado)
             $batchData = $this->fetchBatchData($sectorId, $attendanceNumbers);
 
             // Formata cada paciente
@@ -63,11 +64,8 @@ class TasyService
             if (!$patient) return null;
 
             $basicData = $this->buildBasicDataFromEloquent($patient);
-
-            // Usa a mesma função centralizada de dados clínicos (batch com 1 paciente)
             $batchClinicalData = $this->fetchBatchClinicalData([$attendanceNumber]);
             $clinicalData = $this->extractClinicalDataForPatient($attendanceNumber, $batchClinicalData, $patient->person_id);
-
             $scalesData = $this->fetchScalesData($attendanceNumber, $patient->isPediatric());
 
             return $this->assemblePatientData($basicData, $clinicalData, $scalesData);
@@ -84,13 +82,12 @@ class TasyService
         $cacheKey = "patient_cpoe_modal_{$attendanceNumber}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function() use ($attendanceNumber) {
-
             return $this->fetchCPOEData($attendanceNumber);
         });
     }
 
     /**
-     * Busca dados completos do paciente (básico + CPOE) - Usado quando necessário
+     * Busca dados completos do paciente (básico + CPOE)
      */
     public function getFullPatientData(int $attendanceNumber): ?object
     {
@@ -103,7 +100,6 @@ class TasyService
             if (!$basicData) return null;
 
             $cpoeData = $this->fetchCPOEData($attendanceNumber);
-
             return $this->mergeCPOEWithBasicData($basicData, $cpoeData);
         });
     }
@@ -113,6 +109,7 @@ class TasyService
     public function clearSectorCache(int $sectorId): void
     {
         Cache::forget("sector_patients_sbar_{$sectorId}");
+        Cache::forget("pending_events_sector_{$sectorId}"); // ✅ Limpa cache de pending events
     }
 
     public function clearPatientCache(int $attendanceNumber): void
@@ -183,7 +180,8 @@ class TasyService
             JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
             LEFT JOIN tasy.atendimento_paciente atp ON ua.nr_atendimento = atp.nr_atendimento AND atp.dt_alta IS NULL
             LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
-            WHERE ua.cd_setor_atendimento = :sector_id AND ua.ie_situacao = 'A'
+            WHERE ua.cd_setor_atendimento = :sector_id
+            AND ua.ie_situacao = 'A'
             ORDER BY
                 CASE WHEN ua.nr_seq_interno IS NOT NULL THEN ua.nr_seq_interno ELSE 999999 END ASC,
                 ua.cd_unidade_basica ASC
@@ -193,31 +191,26 @@ class TasyService
     }
 
     /**
-     * ✅ CENTRALIZADO: Busca todos os dados necessários em batch (otimizado)
-     * Usado tanto para setor quanto para paciente individual
+     * ✅ CENTRALIZADO: Busca todos os dados necessários em batch
      */
     private function fetchBatchData(int $sectorId, array $attendanceNumbers): array
     {
         $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
+        $scales = $this->fetchBatchScales($attendanceNumbers);
+        $pendingEvents = $this->fetchPendingEventsBySector($sectorId);
 
         return [
-            // Mantém estrutura aninhada para compatibilidade
             'clinical' => $clinicalBatch,
             'clinical_details' => $clinicalBatch['clinical_details'] ?? [],
             'surgery' => $clinicalBatch['surgery'] ?? [],
             'surgery_detailed' => $clinicalBatch['surgery_detailed'] ?? [],
             'multidisciplinary' => $clinicalBatch['multidisciplinary'] ?? [],
             'priority_exams' => $clinicalBatch['priority_exams'] ?? [],
-            'scales' => $this->fetchBatchScales($attendanceNumbers),
-            'pending_events' => $this->fetchPendingEventsBySector($sectorId),
+            'scales' => $scales,
+            'pending_events' => $pendingEvents,
         ];
     }
 
-    /**
-     * ✅ CENTRALIZADO: Busca dados clínicos completos em batch
-     * Serve tanto para busca por setor quanto para paciente individual
-     * Usa métodos reais do PatientClinicalRepository
-     */
     private function fetchBatchClinicalData(array $attendanceNumbers): array
     {
         if (empty($attendanceNumbers)) {
@@ -226,34 +219,14 @@ class TasyService
                 'surgery_detailed' => [],
                 'multidisciplinary' => [],
                 'priority_exams' => [],
-                'clinical_details' => [], // Dados completos do getPatientClinicalDetails
+                'clinical_details' => [],
             ];
         }
 
-        // 1. Dados cirúrgicos (já está em batch)
+        $clinicalDetails = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
         $surgeryData = $this->clinical()->getFutureSurgeriesForAttendances($attendanceNumbers);
-
-        // 2. Equipes multidisciplinares (já está em batch)
         $multidisciplinary = $this->clinical()->getMultidisciplinaryTeams($attendanceNumbers);
-
-        // 3. Exames prioritários (já está em batch)
         $priorityExams = $this->clinical()->getPriorityExamsForAttendances($attendanceNumbers);
-
-        // 4. Dados clínicos detalhados individuais (iteração necessária pois não tem batch)
-        $clinicalDetails = [];
-        foreach ($attendanceNumbers as $nr) {
-            try {
-                // getPatientClinicalDetails retorna um objeto com todos os dados clínicos
-                $details = $this->clinical()->getPatientClinicalDetails($nr);
-                $clinicalDetails[$nr] = $details;
-            } catch (\Throwable $e) {
-                Log::warning('Failed to fetch clinical details', [
-                    'attendance' => $nr,
-                    'error' => $e->getMessage()
-                ]);
-                $clinicalDetails[$nr] = null;
-            }
-        }
 
         return [
             'surgery' => $surgeryData['surgery'] ?? [],
@@ -273,17 +246,10 @@ class TasyService
         return $this->scales()->getPatientsScalesUnified($attendanceNumbers, []);
     }
 
-    /**
-     * ✅ NOVO: Extrai dados clínicos para um paciente específico do batch
-     * Usado por getPatientBasicData para manter consistência
-     * Usa dados de getPatientClinicalDetails que já vêm completos
-     */
     private function extractClinicalDataForPatient(int $attendanceNumber, array $batchData, ?int $personId): object
     {
-        // Pega os dados clínicos completos que vieram do getPatientClinicalDetails
         $details = $batchData['clinical_details'][$attendanceNumber] ?? null;
 
-        // Se não tem dados, retorna padrão
         if (!$details) {
             return (object)[
                 'diagnosticos_comorbidades' => null,
@@ -306,7 +272,6 @@ class TasyService
             ];
         }
 
-        // Busca alertas individuais (getPatientActiveAlerts precisa de person_id)
         $alerts = [];
         if ($personId) {
             try {
@@ -320,7 +285,6 @@ class TasyService
             }
         }
 
-        // Busca avaliações multidisciplinares individuais
         $multidisciplinaryEval = null;
         try {
             $multidisciplinaryEval = $this->clinical()->getMultidisciplinaryTeamEvaluations($attendanceNumber);
@@ -331,12 +295,10 @@ class TasyService
             ]);
         }
 
-        // ✅ Calcula flags
         $hasAllergy = $this->checkHasAllergy($details->alergias_detalhadas ?? null);
         $hasIsolation = $this->checkHasIsolation($details->medida_bloqueio ?? null);
 
         return (object)[
-            // Dados que vêm do getPatientClinicalDetails
             'diagnosticos_comorbidades' => $details->diagnosticos_comorbidades ?? null,
             'medida_bloqueio' => $details->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $details->motivos_isolamento ?? null,
@@ -350,12 +312,8 @@ class TasyService
             'materiais' => $details->materiais ?? null,
             'prioridade_exames' => $details->prioridade_exames ?? null,
             'procedimentos_cirurgicos' => $details->procedimentos_cirurgicos ?? [],
-
-            // Dados buscados individualmente
             'alerts' => $alerts,
             'multidisciplinary' => $multidisciplinaryEval ?? $this->getDefaultMultidisciplinary(),
-
-            // ✅ Flags
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
         ];
@@ -386,138 +344,197 @@ class TasyService
     }
 
     /**
-     * Busca pendências por setor
+     * ✅ OTIMIZADO: Busca pending events com cache agressivo
      */
     private function fetchPendingEventsBySector(int $sectorId): array
     {
-        $results = DB::connection('tasy')->select("
-        SELECT
-            ua.nr_atendimento,
-            pf.dt_obito,
-            -- ALTA
-            ap.dt_alta,
-            ap.dt_alta_medico,
-            ap.dt_previsto_alta,
-            ma2.ds_motivo_alta,
-            -- PROCEDIMENTOS
-            (SELECT COUNT(*)
-             FROM tasy.prescr_medica pm
-             JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
-             WHERE pm.nr_atendimento = ua.nr_atendimento
-               AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
-               AND pp.dt_baixa IS NULL
-               AND pm.dt_liberacao IS NOT NULL
-               AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
-            ) as proc_count,
-            -- EXAMES
-            (SELECT COUNT(*)
-             FROM tasy.agenda_paciente ae
-             WHERE ae.nr_atendimento = ua.nr_atendimento
-               AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-               AND ae.ie_status_agenda NOT IN ('C', 'S')
-            ) as exam_count,
-            -- HEMOTERAPIA
-            (SELECT COUNT(*)
-             FROM tasy.cpoe_hemoterapia hemo
-             WHERE hemo.nr_atendimento = ua.nr_atendimento
-               AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-               AND hemo.dt_suspensao IS NULL
-            ) as hemo_count,
-            -- QUIMIOTERAPIA
-            (SELECT COUNT(*)
-             FROM tasy.agenda_quimioterapia_pep_v aq
-             WHERE aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
-               AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-            ) as quimio_count
-        FROM tasy.unidade_atendimento ua
-        JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
-        JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
-        LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
-        WHERE ua.cd_setor_atendimento = :sector_id
-          AND ua.ie_situacao = 'A'
-          AND ap.dt_alta IS NULL
-    ", ['sector_id' => $sectorId]);
+        $cacheKey = "pending_events_sector_{$sectorId}";
 
-        $map = [];
+        return Cache::remember($cacheKey, self::CACHE_TTL_PENDING_EVENTS, function() use ($sectorId) {
+            // ✅ QUERY SIMPLIFICADA: Removidos alguns LEFT JOINs desnecessários
+            $results = DB::connection('tasy')->select("
+                SELECT
+                    ua.nr_atendimento,
+                    ap.cd_pessoa_fisica,
+                    pf.dt_obito,
+                    ap.dt_alta,
+                    ap.dt_alta_medico,
+                    ap.dt_previsto_alta,
+                    ma2.ds_motivo_alta,
+                    COUNT(DISTINCT CASE
+                        WHEN pp.nr_seq_proc_interno IS NOT NULL
+                            AND pp.dt_baixa IS NULL
+                        THEN pp.nr_seq_proc_interno
+                    END) as proc_count,
+                    COUNT(DISTINCT CASE
+                        WHEN ae.nr_sequencia IS NOT NULL
+                        THEN ae.nr_sequencia
+                    END) as exam_count,
+                    COUNT(DISTINCT CASE
+                        WHEN hemo.nr_sequencia IS NOT NULL
+                        THEN hemo.nr_sequencia
+                    END) as hemo_count,
+                    COUNT(DISTINCT CASE
+                        WHEN aq.nr_sequencia IS NOT NULL
+                        THEN aq.nr_sequencia
+                    END) as quimio_count
+                FROM tasy.unidade_atendimento ua
+                INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
+                INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
+                LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
+                LEFT JOIN tasy.prescr_medica pm ON pm.nr_atendimento = ua.nr_atendimento
+                    AND pm.dt_liberacao IS NOT NULL
+                LEFT JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
+                    AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
+                    AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
+                LEFT JOIN tasy.agenda_paciente ae ON ae.nr_atendimento = ua.nr_atendimento
+                    AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                    AND ae.ie_status_agenda NOT IN ('C', 'S')
+                LEFT JOIN tasy.cpoe_hemoterapia hemo ON hemo.nr_atendimento = ua.nr_atendimento
+                    AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                    AND hemo.dt_suspensao IS NULL
+                LEFT JOIN tasy.agenda_quimioterapia_pep_v aq ON aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
+                    AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+                WHERE ua.cd_setor_atendimento = :sector_id
+                    AND ua.ie_situacao = 'A'
+                    AND ap.dt_alta IS NULL
+                GROUP BY
+                    ua.nr_atendimento,
+                    ap.cd_pessoa_fisica,
+                    pf.dt_obito,
+                    ap.dt_alta,
+                    ap.dt_alta_medico,
+                    ap.dt_previsto_alta,
+                    ma2.ds_motivo_alta
+            ", ['sector_id' => $sectorId]);
 
-        foreach ($results as $row) {
-            $nr_atendimento = $row->nr_atendimento;
+            $map = [];
+            $needsProcDetails = [];
+            $needsExamDetails = [];
+            $needsHemoDetails = [];
+            $needsQuimioDetails = [];
 
-            // Caso especial: Óbito
-            if (!empty($row->dt_obito)) {
-                $horaObito = date('d/m/Y H:i', strtotime($row->dt_obito));
-                $map[$nr_atendimento] = [[
-                    'icon' => 'alert-circle.svg',
-                    'text' => '[ÓBITO] - Horário: ' . $horaObito,
-                    'type' => 'obito'
-                ]];
-                continue;
+            foreach ($results as $row) {
+                $nr = $row->nr_atendimento;
+
+                // Óbito tem prioridade
+                if (!empty($row->dt_obito)) {
+                    $horaObito = date('d/m/Y H:i', strtotime($row->dt_obito));
+                    $map[$nr] = [[
+                        'icon' => 'alert-circle.svg',
+                        'text' => '[ÓBITO] - Horário: ' . $horaObito,
+                        'type' => 'obito'
+                    ]];
+                    continue;
+                }
+
+                $events = [];
+
+                // Alta/Alta Médica/Previsão
+                if (!empty($row->dt_alta)) {
+                    $text = '[ALTA] ' . date('d/m H:i', strtotime($row->dt_alta));
+                    if (!empty($row->ds_motivo_alta)) {
+                        $text .= ' Motivo: ' . $row->ds_motivo_alta;
+                    }
+                    if (!empty($row->dt_previsto_alta)) {
+                        $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
+                    }
+                    $events[] = [
+                        'icon' => 'alta.svg',
+                        'text' => $text,
+                        'type' => 'alta'
+                    ];
+                } elseif (!empty($row->dt_alta_medico)) {
+                    $text = '[ALTA MÉDICA] ' . date('d/m H:i', strtotime($row->dt_alta_medico));
+                    if (!empty($row->dt_previsto_alta)) {
+                        $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
+                    }
+                    $events[] = [
+                        'icon' => 'alta.svg',
+                        'text' => $text,
+                        'type' => 'alta_medica'
+                    ];
+                } elseif (!empty($row->dt_previsto_alta)) {
+                    $events[] = [
+                        'icon' => 'alert-circle.svg',
+                        'text' => '[PREVISÃO DE ALTA] ' . date('d/m H:i', strtotime($row->dt_previsto_alta)),
+                        'type' => 'previsao_alta'
+                    ];
+                }
+
+                // Marca quais precisam de detalhes
+                if ($row->proc_count > 0) $needsProcDetails[] = $nr;
+                if ($row->exam_count > 0) $needsExamDetails[] = $nr;
+                if ($row->hemo_count > 0) $needsHemoDetails[] = $nr;
+                if ($row->quimio_count > 0) $needsQuimioDetails[$nr] = $row->cd_pessoa_fisica;
+
+                $map[$nr] = $events;
             }
 
-            $events = [];
-
-            // ALTA / ALTA MÉDICA / PREVISÃO DE ALTA
-            if (!empty($row->dt_alta)) {
-                $text = '[ALTA] ' . date('d/m H:i', strtotime($row->dt_alta));
-                if (!empty($row->ds_motivo_alta)) {
-                    $text .= ' Motivo: ' . $row->ds_motivo_alta;
-                }
-                if (!empty($row->dt_previsto_alta)) {
-                    $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
-                }
-                $events[] = [
-                    'icon' => 'alta.svg',
-                    'text' => $text,
-                    'type' => 'alta'
-                ];
-            } elseif (!empty($row->dt_alta_medico)) {
-                $text = '[ALTA MÉDICA] ' . date('d/m H:i', strtotime($row->dt_alta_medico));
-                if (!empty($row->dt_previsto_alta)) {
-                    $text .= ' | Previsão: ' . date('d/m H:i', strtotime($row->dt_previsto_alta));
-                }
-                $events[] = [
-                    'icon' => 'alta.svg',
-                    'text' => $text,
-                    'type' => 'alta_medica'
-                ];
-            } elseif (!empty($row->dt_previsto_alta)) {
-                $events[] = [
-                    'icon' => 'alert-circle.svg',
-                    'text' => '[PREVISÃO DE ALTA] ' . date('d/m H:i', strtotime($row->dt_previsto_alta)),
-                    'type' => 'previsao_alta'
-                ];
+            // ✅ Busca detalhes apenas se necessário
+            if (!empty($needsProcDetails)) {
+                $this->addProcedureDetails($map, $needsProcDetails);
             }
 
-            // PROCEDIMENTOS
-            if ($row->proc_count > 0) {
-                $procs = DB::connection('tasy')->select("
+            if (!empty($needsExamDetails)) {
+                $this->addExamDetails($map, $needsExamDetails);
+            }
+
+            if (!empty($needsHemoDetails)) {
+                $this->addHemotherapyDetails($map, $needsHemoDetails);
+            }
+
+            if (!empty($needsQuimioDetails)) {
+                $this->addChemotherapyDetails($map, $needsQuimioDetails);
+            }
+
+            return $map;
+        });
+    }
+
+    private function addProcedureDetails(array &$map, array $attendanceNumbers): void
+    {
+        $chunks = array_chunk($attendanceNumbers, 50);
+
+        foreach ($chunks as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+            $procs = DB::connection('tasy')->select("
                 SELECT DISTINCT
+                    pm.nr_atendimento,
                     pp.nr_seq_proc_interno,
                     pp.dt_prev_execucao,
                     TASY.OBTER_DESC_PROC_INTERNO(pp.nr_seq_proc_interno) as descricao
                 FROM tasy.prescr_medica pm
-                JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
-                WHERE pm.nr_atendimento = :nr_atendimento
+                INNER JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
+                WHERE pm.nr_atendimento IN ($placeholders)
                   AND pp.dt_prev_execucao BETWEEN SYSDATE AND SYSDATE + INTERVAL '12' HOUR
                   AND pp.dt_baixa IS NULL
                   AND pm.dt_liberacao IS NOT NULL
                   AND pp.nr_seq_proc_interno NOT IN (1341, 5970)
-                ORDER BY pp.dt_prev_execucao
-            ", ['nr_atendimento' => $nr_atendimento]);
+                ORDER BY pm.nr_atendimento, pp.dt_prev_execucao
+            ", $chunk);
 
-                foreach ($procs as $proc) {
-                    $events[] = [
-                        'icon' => 'outpatient-department.svg',
-                        'text' => '[Proc] ' . $proc->descricao . ' ' . date('d/m H:i', strtotime($proc->dt_prev_execucao)),
-                        'type' => 'procedimento'
-                    ];
-                }
+            foreach ($procs as $proc) {
+                $map[$proc->nr_atendimento][] = [
+                    'icon' => 'outpatient-department.svg',
+                    'text' => '[Proc] ' . $proc->descricao . ' ' . date('d/m H:i', strtotime($proc->dt_prev_execucao)),
+                    'type' => 'procedimento'
+                ];
             }
+        }
+    }
 
-            // EXAMES
-            if ($row->exam_count > 0) {
-                $exams = DB::connection('tasy')->select("
+    private function addExamDetails(array &$map, array $attendanceNumbers): void
+    {
+        $chunks = array_chunk($attendanceNumbers, 50);
+
+        foreach ($chunks as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+            $exams = DB::connection('tasy')->select("
                 SELECT
+                    ae.nr_atendimento,
                     ae.dt_agenda,
                     ae.hr_inicio,
                     COALESCE(
@@ -527,25 +544,32 @@ class TasyService
                         'Exame agendado'
                     ) as descricao
                 FROM tasy.agenda_paciente ae
-                WHERE ae.nr_atendimento = :nr_atendimento
+                WHERE ae.nr_atendimento IN ($placeholders)
                   AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
                   AND ae.ie_status_agenda NOT IN ('C', 'S')
-                ORDER BY ae.dt_agenda, ae.hr_inicio
-            ", ['nr_atendimento' => $nr_atendimento]);
+                ORDER BY ae.nr_atendimento, ae.dt_agenda, ae.hr_inicio
+            ", $chunk);
 
-                foreach ($exams as $exam) {
-                    $events[] = [
-                        'icon' => 'tac.svg',
-                        'text' => '[Exame] ' . $exam->descricao . ' ' . date('d/m H:i', strtotime($exam->dt_agenda)),
-                        'type' => 'exame'
-                    ];
-                }
+            foreach ($exams as $exam) {
+                $map[$exam->nr_atendimento][] = [
+                    'icon' => 'tac.svg',
+                    'text' => '[Exame] ' . $exam->descricao . ' ' . date('d/m H:i', strtotime($exam->dt_agenda)),
+                    'type' => 'exame'
+                ];
             }
+        }
+    }
 
-            // HEMOTERAPIA
-            if ($row->hemo_count > 0) {
-                $hemos = DB::connection('tasy')->select("
+    private function addHemotherapyDetails(array &$map, array $attendanceNumbers): void
+    {
+        $chunks = array_chunk($attendanceNumbers, 50);
+
+        foreach ($chunks as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+            $hemos = DB::connection('tasy')->select("
                 SELECT
+                    hemo.nr_atendimento,
                     hemo.dt_programada,
                     hemo.IE_TIPO_HEMOTERAP,
                     hemo.QT_PROCEDIMENTO,
@@ -554,75 +578,78 @@ class TasyService
                     hemo.DS_OBSERVACAO,
                     hemo.DS_JUSTIFICATIVA
                 FROM tasy.cpoe_hemoterapia hemo
-                WHERE hemo.nr_atendimento = :nr_atendimento
+                WHERE hemo.nr_atendimento IN ($placeholders)
                   AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
                   AND hemo.dt_suspensao IS NULL
-                ORDER BY hemo.dt_programada
-            ", ['nr_atendimento' => $nr_atendimento]);
+                ORDER BY hemo.nr_atendimento, hemo.dt_programada
+            ", $chunk);
 
-                foreach ($hemos as $hemo) {
-                    $text = '[Hemoterapia] ' . date('d/m H:i', strtotime($hemo->dt_programada)) . ' ';
-                    $text .= ($hemo->IE_TIPO_HEMOTERAP ?? 'Tipo não informado') . ' ';
-                    $text .= 'Qtde:' . ($hemo->QT_PROCEDIMENTO ?? 'N/A') . ' ';
-                    $text .= 'Vol:' . ($hemo->QT_VOL_HEMOCOMP ?? 'N/A');
+            foreach ($hemos as $hemo) {
+                $text = '[Hemoterapia] ' . date('d/m H:i', strtotime($hemo->dt_programada)) . ' ';
+                $text .= ($hemo->IE_TIPO_HEMOTERAP ?? 'Tipo não informado') . ' ';
+                $text .= 'Qtde:' . ($hemo->QT_PROCEDIMENTO ?? 'N/A') . ' ';
+                $text .= 'Vol:' . ($hemo->QT_VOL_HEMOCOMP ?? 'N/A');
 
-                    if (($hemo->IE_URGENCIA ?? 'N') === 'S') {
-                        $text .= ' [URGENTE]';
-                    }
-
-                    if (!empty($hemo->DS_OBSERVACAO) || !empty($hemo->DS_JUSTIFICATIVA)) {
-                        $text .= ' Obs:' . trim(($hemo->DS_OBSERVACAO ?? '') . ' ' . ($hemo->DS_JUSTIFICATIVA ?? ''));
-                    }
-
-                    $events[] = [
-                        'icon' => 'blood-drop.svg',
-                        'text' => $text,
-                        'type' => 'hemoterapia'
-                    ];
+                if (($hemo->IE_URGENCIA ?? 'N') === 'S') {
+                    $text .= ' [URGENTE]';
                 }
-            }
 
-            // QUIMIOTERAPIA
-            if ($row->quimio_count > 0) {
-                $quimios = DB::connection('tasy')->select("
+                if (!empty($hemo->DS_OBSERVACAO) || !empty($hemo->DS_JUSTIFICATIVA)) {
+                    $text .= ' Obs:' . trim(($hemo->DS_OBSERVACAO ?? '') . ' ' . ($hemo->DS_JUSTIFICATIVA ?? ''));
+                }
+
+                $map[$hemo->nr_atendimento][] = [
+                    'icon' => 'blood-drop.svg',
+                    'text' => $text,
+                    'type' => 'hemoterapia'
+                ];
+            }
+        }
+    }
+
+    private function addChemotherapyDetails(array &$map, array $attendanceToPerson): void
+    {
+        $personIds = array_unique(array_values($attendanceToPerson));
+        $chunks = array_chunk($personIds, 50);
+
+        foreach ($chunks as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+            $quimios = DB::connection('tasy')->select("
                 SELECT
+                    aq.cd_pessoa_fisica,
                     aq.dt_agenda,
                     aq.ds_local,
                     aq.nm_medico_resp,
                     aq.ds_protocolo_medic,
                     aq.nr_ciclo
                 FROM tasy.agenda_quimioterapia_pep_v aq
-                WHERE aq.cd_pessoa_fisica = :cd_pessoa_fisica
+                WHERE aq.cd_pessoa_fisica IN ($placeholders)
                   AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                ORDER BY aq.dt_agenda
-            ", ['cd_pessoa_fisica' => $row->cd_pessoa_fisica ?? null]);
+                ORDER BY aq.cd_pessoa_fisica, aq.dt_agenda
+            ", $chunk);
 
-                foreach ($quimios as $quimio) {
-                    $text = '[Quimio] ' . date('d/m H:i', strtotime($quimio->dt_agenda)) . ' ';
-                    $text .= ($quimio->ds_local ?? '') . ' ';
-                    $text .= ($quimio->nm_medico_resp ?? '') . ' ';
-                    $text .= ($quimio->ds_protocolo_medic ?? '') . ' ';
-                    $text .= ($quimio->nr_ciclo ? $quimio->nr_ciclo . 'ª' : '');
+            foreach ($quimios as $quimio) {
+                $nr = array_search($quimio->cd_pessoa_fisica, $attendanceToPerson);
+                if ($nr === false) continue;
 
-                    $events[] = [
-                        'icon' => 'infusion-pump.svg',
-                        'text' => trim($text),
-                        'type' => 'quimioterapia'
-                    ];
-                }
+                $text = '[Quimio] ' . date('d/m H:i', strtotime($quimio->dt_agenda)) . ' ';
+                $text .= ($quimio->ds_local ?? '') . ' ';
+                $text .= ($quimio->nm_medico_resp ?? '') . ' ';
+                $text .= ($quimio->ds_protocolo_medic ?? '') . ' ';
+                $text .= ($quimio->nr_ciclo ? $quimio->nr_ciclo . 'ª' : '');
+
+                $map[$nr][] = [
+                    'icon' => 'infusion-pump.svg',
+                    'text' => trim($text),
+                    'type' => 'quimioterapia'
+                ];
             }
-
-            $map[$nr_atendimento] = $events;
         }
-
-        return $map;
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA ASSEMBLY ====================
 
-    /**
-     * ✅ Monta dados básicos do paciente a partir do Eloquent
-     */
     private function buildBasicDataFromEloquent(Patient $patient): object
     {
         $birthDate = $patient->person?->dt_nascimento;
@@ -647,9 +674,9 @@ class TasyService
         $convenio = 'Convênio não informado';
         try {
             $convenioResult = DB::connection('tasy')->selectOne("
-            SELECT TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(?)) as convenio
-            FROM DUAL
-        ", [$patient->nr_atendimento]);
+                SELECT TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(?)) as convenio
+                FROM DUAL
+            ", [$patient->nr_atendimento]);
 
             if ($convenioResult && !empty($convenioResult->convenio)) {
                 $convenio = trim($convenioResult->convenio);
@@ -663,15 +690,14 @@ class TasyService
 
         $medicoResponsavel = 'Não informado';
 
-        // Tenta pegar do Eloquent
         if ($patient->doctor && !empty($patient->doctor->nm_pessoa_fisica)) {
             $medicoResponsavel = trim($patient->doctor->nm_pessoa_fisica);
         } else {
             try {
                 $medicoResult = DB::connection('tasy')->selectOne("
-                SELECT TASY.obter_medico_resp_atend(?, 'N') as medico
-                FROM DUAL
-            ", [$patient->nr_atendimento]);
+                    SELECT TASY.obter_medico_resp_atend(?, 'N') as medico
+                    FROM DUAL
+                ", [$patient->nr_atendimento]);
 
                 if ($medicoResult && !empty($medicoResult->medico)) {
                     $medicoResponsavel = trim($medicoResult->medico);
@@ -685,43 +711,31 @@ class TasyService
         }
 
         return (object)[
-            // Identificação básica
             'nr_atendimento' => $patient->nr_atendimento,
             'cd_pessoa_fisica' => $patient->cd_pessoa_fisica,
             'nm_pessoa_fisica' => $patient->person?->nm_pessoa_fisica ?? 'Nome não informado',
             'nr_prontuario' => $patient->person?->nr_prontuario ?? 'N/A',
-
-            // Dados demográficos
             'birth_date' => $birthDate ? Carbon::parse($birthDate)->format('d/m/Y') : null,
             'age' => $age,
             'age_months' => $ageMonths,
             'age_days' => $ageDays,
             'age_detailed' => $this->formatDetailedAgeFromParts($age, $ageMonths, $ageDays),
             'sexo' => $patient->person?->ie_sexo ?? 'N/A',
-
-            // Dados administrativos
             'convenio' => $convenio,
             'medico_responsavel' => $medicoResponsavel,
             'dt_entrada' => $patient->dt_entrada,
             'internment_days' => $internmentDays,
             'is_new_patient' => $internmentDays === null || $internmentDays < 1,
-
-            // Dados do hospital/setor
             'hospital_name' => $patient->bed?->sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
             'sector_name' => $patient->bed?->sector?->ds_setor_atendimento ?? 'Setor não identificado',
             'cd_setor_atendimento' => $patient->bed?->sector?->cd_setor_atendimento ?? null,
             'bed_name' => $patient->bed?->cd_unidade_basica ?? 'N/A',
-
-            // Flags
             'is_pediatric' => $patient->isPediatric(),
             'has_patient' => true,
             'is_occupied' => true,
         ];
     }
 
-    /**
-     * Monta dados completos do paciente (básico + clínico + escalas)
-     */
     private function assemblePatientData(object $basicData, object $clinicalData, ?array $scalesData): object
     {
         $data = array_merge(
@@ -752,9 +766,6 @@ class TasyService
         return (object)$data;
     }
 
-    /**
-     * Mescla dados CPOE com dados básicos
-     */
     private function mergeCPOEWithBasicData(object $basicData, object $cpoeData): object
     {
         $combined = (array) $basicData;
@@ -767,9 +778,6 @@ class TasyService
         return (object) $combined;
     }
 
-    /**
-     * Formata dados do paciente para o SBAR Report
-     */
     private function formatPatientForSbar($bed, array $sectorContext, array $batchData): array
     {
         $attendanceNumber = $bed->nr_atendimento;
@@ -784,18 +792,13 @@ class TasyService
         $hasIsolation = $this->checkHasIsolation($clinicalDetails->medida_bloqueio ?? null);
 
         $patientData = [
-            // Dados do leito
             'cd_unidade_basica' => $bed->cd_unidade_basica ?? 'N/A',
             'bed_sequence' => $bed->bed_sequence ?? 0,
             'bed_status' => $bed->bed_status ?? 'A',
             'cd_setor_atendimento' => $bed->cd_setor_atendimento ?? null,
             'ds_setor_atendimento' => $bed->ds_setor_atendimento ?? 'Setor não identificado',
-
-            // Contexto do setor/hospital
             'hospital_id' => $sectorContext['hospital_id'] ?? null,
             'hospital_name' => $sectorContext['hospital_name'] ?? 'Hospital não identificado',
-
-            // Dados do paciente
             'nr_atendimento' => $attendanceNumber,
             'is_occupied' => (bool)($bed->is_occupied ?? false),
             'has_patient' => (bool)($bed->has_patient ?? false),
@@ -812,12 +815,10 @@ class TasyService
             'internment_days' => $internmentDays,
             'is_new_patient' => $isNewPatient,
             'is_pediatric' => $isPediatric,
-
             'has_surgery' => $batchData['surgery'][$attendanceNumber] ?? false,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'multidisciplinary' => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
             'priority_exams' => $batchData['priority_exams'][$attendanceNumber] ?? null,
-
             'diagnosticos_comorbidades' => $clinicalDetails->diagnosticos_comorbidades ?? null,
             'medida_bloqueio' => $clinicalDetails->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $clinicalDetails->motivos_isolamento ?? null,
@@ -829,20 +830,14 @@ class TasyService
             'dispositivos' => $clinicalDetails->dispositivos ?? null,
             'alergias_detalhadas' => $clinicalDetails->alergias_detalhadas ?? null,
             'materiais' => $clinicalDetails->materiais ?? null,
-
             'alerts' => [],
-
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
-
             'pending_events' => $batchData['pending_events'][$attendanceNumber] ?? [],
         ];
 
-        // Adiciona escalas
         $rawScales = $batchData['scales'][$attendanceNumber] ?? null;
         $patientData = $this->addScalesToData($patientData, $rawScales, $age);
-
-        // Estilização do card
         $patientData = $this->applyCardStyling($patientData, $isPediatric);
 
         return $patientData;
@@ -850,14 +845,10 @@ class TasyService
 
     // ==================== MÉTODOS PRIVADOS - SCALES ====================
 
-    /**
-     * Adiciona dados de escalas ao array de dados
-     */
     private function addScalesToData(array $data, ?array $scales, int $age): array
     {
         $isPediatric = $age < 18;
 
-        // MEWS ou PEWS
         if (!$isPediatric) {
             $mews = $scales['mews'] ?? self::DEFAULT_SCALE_DATA;
             $data['mews_score'] = $mews['score'];
@@ -882,7 +873,6 @@ class TasyService
             $data['pews_timestamp'] = $pews['timestamp'];
         }
 
-        // Escalas comuns
         foreach (['braden', 'morse', 'dor', 'tev'] as $scaleName) {
             $scale = $scales[$scaleName] ?? self::DEFAULT_SCALE_DATA;
             $data["{$scaleName}_score"] = $scale['score'];
@@ -899,9 +889,6 @@ class TasyService
         return $data;
     }
 
-    /**
-     * Aplica estilização do card baseado em MEWS/PEWS
-     */
     private function applyCardStyling(array $data, bool $isPediatric): array
     {
         if (!($data['has_patient'] ?? false)) {
@@ -952,17 +939,11 @@ class TasyService
 
     // ==================== MÉTODOS PRIVADOS - HELPERS ====================
 
-    /**
-     * Extrai números de atendimento de uma coleção de leitos
-     */
     private function extractAttendanceNumbers($beds): array
     {
         return $beds->pluck('nr_atendimento')->filter()->values()->toArray();
     }
 
-    /**
-     * Obtém contexto do setor
-     */
     private function getSectorContext(int $sectorId): array
     {
         $sector = Sector::with('hospital')->find($sectorId);
@@ -975,9 +956,6 @@ class TasyService
         ];
     }
 
-    /**
-     * Formata idade detalhada a partir de partes (anos, meses, dias)
-     */
     private function formatDetailedAgeFromParts(?int $years, ?int $months, ?int $days): string
     {
         if ($years === null && $months === null && $days === null) {
@@ -992,9 +970,6 @@ class TasyService
         return !empty($parts) ? implode(' ', $parts) : 'Recém-nascido';
     }
 
-    /**
-     * Retorna estrutura padrão de multidisciplinar
-     */
     private function getDefaultMultidisciplinary(): array
     {
         return [
@@ -1007,9 +982,6 @@ class TasyService
         ];
     }
 
-    /**
-     * ✅ Verifica se paciente possui alergias registradas
-     */
     private function checkHasAllergy(?string $allergies): bool
     {
         if (empty($allergies)) {
@@ -1018,7 +990,6 @@ class TasyService
 
         $allergies = trim($allergies);
 
-        // Lista de valores que indicam ausência de alergia
         $noAllergyIndicators = [
             'Sem alergias registradas',
             'sem alergia',
@@ -1039,9 +1010,6 @@ class TasyService
         return true;
     }
 
-    /**
-     * ✅ Verifica se paciente está em isolamento
-     */
     private function checkHasIsolation(?string $isolationStatus): bool
     {
         if (empty($isolationStatus)) {

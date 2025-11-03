@@ -16,6 +16,10 @@ class SbarReport extends Component
     public $errorMessage = null;
     public $lastRefresh = null;
 
+    // Paginação lazy loading
+    public $perPage = 20;
+    public $hasMore = false;
+
     // Dados principais
     public $hospitals = [];
     public $sectors = [];
@@ -49,20 +53,18 @@ class SbarReport extends Component
 
     public function mount()
     {
-        /*Log::info('SbarReport: mount() iniciado');*/
         $this->loading = true;
         $this->loadingMessage = 'Inicializando sistema SBAR...';
 
         try {
             $this->loadInitialData();
         } catch (\Exception $e) {
-            Log::error('SbarReport mount error: ' . $e->getMessage());
+            Log::error('SBAR mount error: ' . $e->getMessage());
             $this->errorMessage = "Erro durante inicialização: " . $e->getMessage();
         } finally {
             $this->loading = false;
             $this->loadingMessage = '';
         }
-        /*Log::info('SbarReport: mount() finalizado');*/
     }
 
     protected function loadInitialData()
@@ -133,10 +135,6 @@ class SbarReport extends Component
 
     public function loadPatients()
     {
-        /*Log::info('SbarReport: loadPatients() iniciado', [
-            'sector' => $this->selectedSector
-        ]);*/
-
         if (!$this->selectedSector) {
             $this->patients = [];
             return;
@@ -146,39 +144,24 @@ class SbarReport extends Component
         $this->errorMessage = null;
 
         try {
-            $startTime = microtime(true);
-
-            // Busca dados brutos do service (já processados)
+            // Busca dados do service
             $patientsData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
 
-            $fetchTime = microtime(true) - $startTime;
-            /*Log::info('SbarReport: Dados buscados em ' . round($fetchTime, 2) . 's', [
-                'count' => count($patientsData)
-            ]);*/
-
-            // ✅ Armazena mapa raw para detecção de mudanças
+            // Monta mapa raw
             $this->rawPatientsMap = collect($patientsData)
                 ->keyBy(fn($p) => $p['nr_atendimento'] ?? ('empty-' . uniqid()))
                 ->toArray();
 
-            // ✅ Hashes para detecção de mudanças
             $this->rawPatientsHashes = array_map(fn($p) => md5(serialize($p)), $this->rawPatientsMap);
 
-            /*Log::info('SbarReport: rawPatientsMap armazenado', [
-                'count' => count($this->rawPatientsMap),
-                'keys' => array_keys($this->rawPatientsMap)
-            ]);*/
-
-            // Aplica filtros e ordenação
-            $this->patients = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+            // Aplica filtros e paginação
+            $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+            $this->patients = array_slice($allFiltered, 0, $this->perPage);
+            $this->hasMore = count($allFiltered) > $this->perPage;
 
             $this->lastRefresh = now()->format('H:i:s');
             $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
 
-           /* Log::info('SbarReport: loadPatients() concluído', [
-                'total_pacientes' => count($this->patients),
-                'tempo_total' => round(microtime(true) - $startTime, 2) . 's'
-            ]);*/
         } catch (\Exception $e) {
             Log::error('Error loading patients: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
@@ -190,11 +173,24 @@ class SbarReport extends Component
         }
     }
 
+    public function loadMore()
+    {
+        try {
+            $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+
+            $currentCount = count($this->patients);
+            $nextBatch = array_slice($allFiltered, $currentCount, $this->perPage);
+
+            $this->patients = array_merge($this->patients, $nextBatch);
+            $this->hasMore = count($this->patients) < count($allFiltered);
+        } catch (\Exception $e) {
+            Log::error('Error loading more patients: ' . $e->getMessage());
+        }
+    }
+
     protected function applyFiltersAndSort($data)
     {
-        $startTime = microtime(true);
         $filtered = collect($data);
-        $originalCount = $filtered->count();
 
         // Filtro MEWS
         if ($this->mewsFilter !== 'all') {
@@ -212,8 +208,6 @@ class SbarReport extends Component
             });
         }
 
-        $afterMews = $filtered->count();
-
         // Filtro cirúrgico
         if ($this->surgicalFilter === 'with_surgery') {
             $filtered = $filtered->filter(fn($patient) =>
@@ -225,26 +219,10 @@ class SbarReport extends Component
             );
         }
 
-        $afterSurgery = $filtered->count();
-
         // Ordenação
         $filtered = $this->sortPatients($filtered);
 
-        $result = $filtered->values()->toArray();
-
-       /* Log::info('SbarReport: Filtros aplicados', [
-            'original' => $originalCount,
-            'after_mews' => $afterMews,
-            'after_surgery' => $afterSurgery,
-            'final' => count($result),
-            'mews_filter' => $this->mewsFilter,
-            'surgical_filter' => $this->surgicalFilter,
-            'order_by' => $this->orderBy,
-            'order_direction' => $this->orderDirection,
-            'tempo' => round((microtime(true) - $startTime) * 1000, 2) . 'ms'
-        ]);*/
-
-        return $result;
+        return $filtered->values()->toArray();
     }
 
     protected function sortPatients($collection)
@@ -278,8 +256,6 @@ class SbarReport extends Component
 
     public function changeHospital($hospitalId)
     {
-       /* Log::info('SbarReport: changeHospital() chamado', ['hospital_id' => $hospitalId]);*/
-
         $this->loading = true;
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
@@ -304,57 +280,35 @@ class SbarReport extends Component
 
     public function changeSector($sectorId)
     {
-        /*Log::info('SbarReport: changeSector() chamado', ['sector_id' => $sectorId]);*/
         $this->selectedSector = $sectorId;
-
         $this->rawPatientsMap = [];
         $this->rawPatientsHashes = [];
-
         $this->loadPatients();
     }
 
     public function updatedMewsFilter($value)
     {
-        /*Log::info('SbarReport: updatedMewsFilter() chamado', [
-            'new_value' => $value,
-            'raw_count' => count($this->rawPatientsMap)
-        ]);*/
         $this->refilterFromRaw();
     }
 
     public function updatedSurgicalFilter($value)
     {
-        /*Log::info('SbarReport: updatedSurgicalFilter() chamado', [
-            'new_value' => $value,
-            'raw_count' => count($this->rawPatientsMap)
-        ]);*/
         $this->refilterFromRaw();
     }
 
     public function updatedOrderBy($value)
     {
-       /* Log::info('SbarReport: updatedOrderBy() chamado', [
-            'new_value' => $value,
-            'raw_count' => count($this->rawPatientsMap)
-        ]);*/
         $this->refilterFromRaw();
     }
 
     public function toggleOrderDirection()
     {
-        /*Log::info('SbarReport: toggleOrderDirection() chamado', [
-            'current' => $this->orderDirection,
-            'raw_count' => count($this->rawPatientsMap)
-        ]);*/
         $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
         $this->refilterFromRaw();
     }
 
     public function resetFilters()
     {
-        /*Log::info('SbarReport: resetFilters() chamado', [
-            'raw_count' => count($this->rawPatientsMap)
-        ]);*/
         $this->mewsFilter = 'all';
         $this->surgicalFilter = 'all';
         $this->orderBy = 'bed';
@@ -364,24 +318,18 @@ class SbarReport extends Component
 
     protected function refilterFromRaw()
     {
-       /* Log::info('SbarReport: refilterFromRaw() chamado', [
-            'raw_patients_count' => count($this->rawPatientsMap),
-            'has_data' => !empty($this->rawPatientsMap)
-        ]);*/
-
         if (empty($this->rawPatientsMap)) {
-/*            Log::warning('SbarReport: rawPatientsMap vazio, recarregando dados');*/
             $this->loadPatients();
             return;
         }
 
-        $this->patients = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+        $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+        $this->patients = array_slice($allFiltered, 0, $this->perPage);
+        $this->hasMore = count($allFiltered) > $this->perPage;
     }
 
     public function refreshData()
     {
-        /*Log::info('SbarReport: refreshData() chamado');*/
-
         try {
             if ($this->selectedSector) {
                 $this->tasyService->clearSectorCache($this->selectedSector);
@@ -408,7 +356,6 @@ class SbarReport extends Component
 
         $newHashes = array_map(fn($p) => md5(serialize($p)), $newMap);
 
-        // Detecta mudanças
         $changedIds = [];
         foreach ($newHashes as $id => $hash) {
             if (!isset($this->rawPatientsHashes[$id]) || $this->rawPatientsHashes[$id] !== $hash) {
@@ -423,18 +370,15 @@ class SbarReport extends Component
             return;
         }
 
-        // Atualiza dados alterados
         foreach ($changedIds as $id) {
             $this->rawPatientsMap[$id] = $newMap[$id];
             $this->rawPatientsHashes[$id] = $newHashes[$id];
         }
 
-        // Remove pacientes que saíram
         foreach ($removedIds as $id) {
             unset($this->rawPatientsMap[$id], $this->rawPatientsHashes[$id]);
         }
 
-        // Reaplica filtros
         $this->patients = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
 
         $this->lastRefresh = now()->format('H:i:s');
@@ -457,7 +401,7 @@ class SbarReport extends Component
 
     public function render()
     {
-        $data = [
+        return view('livewire.sbar-report', [
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
             'patients' => $this->patients,
@@ -472,8 +416,7 @@ class SbarReport extends Component
             'currentHospitalName' => $this->currentHospitalName,
             'loading' => $this->loading,
             'lastRefresh' => $this->lastRefresh,
-        ];
-
-        return view('livewire.sbar-report', $data);
+            'hasMore' => $this->hasMore,
+        ]);
     }
 }

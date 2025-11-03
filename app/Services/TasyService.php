@@ -260,7 +260,7 @@ class TasyService
             'surgery_detailed' => $surgeryData['surgery_detailed'] ?? [],
             'multidisciplinary' => $multidisciplinary,
             'priority_exams' => $priorityExams,
-            'clinical_details' => $clinicalDetails, // Contém: medida_bloqueio, motivos_isolamento, avaliacao_enf, plano_educ, pe_data, ds_queda, diag, dispositivos, alergias_detalhadas, diagnosticos_comorbidades, materiais
+            'clinical_details' => $clinicalDetails,
         ];
     }
 
@@ -778,10 +778,8 @@ class TasyService
         $internmentDays = is_numeric($bed->internment_days ?? null) ? floatval($bed->internment_days) : null;
         $isNewPatient = ($internmentDays === null || $internmentDays < 1);
 
-        // Pega dados clínicos detalhados do batch
         $clinicalDetails = $batchData['clinical_details'][$attendanceNumber] ?? null;
 
-        // ✅ Calcula flags
         $hasAllergy = $this->checkHasAllergy($clinicalDetails->alergias_detalhadas ?? null);
         $hasIsolation = $this->checkHasIsolation($clinicalDetails->medida_bloqueio ?? null);
 
@@ -815,13 +813,11 @@ class TasyService
             'is_new_patient' => $isNewPatient,
             'is_pediatric' => $isPediatric,
 
-            // Dados cirúrgicos e equipes
             'has_surgery' => $batchData['surgery'][$attendanceNumber] ?? false,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'multidisciplinary' => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
             'priority_exams' => $batchData['priority_exams'][$attendanceNumber] ?? null,
 
-            // ✅ Dados clínicos detalhados (vêm do clinical_details)
             'diagnosticos_comorbidades' => $clinicalDetails->diagnosticos_comorbidades ?? null,
             'medida_bloqueio' => $clinicalDetails->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $clinicalDetails->motivos_isolamento ?? null,

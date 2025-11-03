@@ -10,13 +10,11 @@
         logoPath: '/images/logo-santacasa-app.png',
     };
 
-    // Obter nome do usuário
     function getUserName() {
         const userName = document.querySelector('meta[name="sbar-user-name"]');
         return userName ? userName.getAttribute('content') : 'Usuário';
     }
 
-    // Criar overlay
     function createProtectionOverlay() {
         if (document.getElementById('sbar-protection-overlay')) return;
 
@@ -36,12 +34,8 @@
                     <p class="sbar-protection-legal">
                         Art. 11 da Lei nº 13.709/2018 - Lei Geral de Proteção de Dados
                     </p>
-                    <p class="sbar-protection-info">
-                        ${new Date().toLocaleString('pt-BR')}
-                    </p>
-                    <button id="sbar-close-btn" class="sbar-close-button">
-                        Entendi
-                    </button>
+                    <p class="sbar-protection-info"></p>
+                    <button id="sbar-close-btn" class="sbar-close-button">Entendi</button>
                 </div>
             </div>
         `;
@@ -50,22 +44,35 @@
         style.textContent = `
             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
 
+            * {
+                -webkit-user-select: none !important;
+                -moz-user-select: none !important;
+                user-select: none !important;
+            }
+
+            input, textarea, [contenteditable="true"] {
+                -webkit-user-select: text !important;
+                -moz-user-select: text !important;
+                user-select: text !important;
+            }
+
             #sbar-protection-overlay {
                 position: fixed;
                 inset: 0;
                 background: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
                 z-index: 999999;
-                display: none;
+                display: flex;
                 align-items: center;
                 justify-content: center;
-                opacity: 0;
-                transition: opacity 0.3s ease;
                 font-family: 'Montserrat', sans-serif;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
             }
 
-            #sbar-protection-overlay.active {
-                display: flex;
+            #sbar-protection-overlay.show {
                 opacity: 1;
+                pointer-events: all;
             }
 
             .sbar-protection-wrapper {
@@ -89,7 +96,7 @@
             }
 
             .sbar-protection-title {
-                font-size: 1rem;
+                font-size: 1.5rem;
                 font-weight: 700;
                 text-align: center;
                 color: #f3f4f6;
@@ -106,7 +113,7 @@
             .sbar-protection-subtitle {
                 text-align: center;
                 color: #e5e7eb;
-                font-size: 1.125rem;
+                font-size: 1rem;
                 margin: 0 0 1rem 0;
                 font-weight: 500;
             }
@@ -114,7 +121,7 @@
             .sbar-protection-legal {
                 text-align: center;
                 color: #cbd5e1;
-                font-size: 0.9rem;
+                font-size: 0.85rem;
                 margin: 0 0 1.5rem 0;
                 padding: 0.75rem;
                 background: rgba(255, 255, 255, 0.1);
@@ -151,16 +158,10 @@
                 box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
             }
 
-            .sbar-close-button:active {
-                transform: translateY(0);
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            }
-
-            body.sbar-screenshot-detected main,
-            body.sbar-screenshot-detected header,
-            body.sbar-screenshot-detected footer {
+            body.blur-content main,
+            body.blur-content header,
+            body.blur-content footer {
                 filter: blur(${config.blurStrength}px) !important;
-                transition: filter 0.2s ease;
             }
 
             @media (min-width: 768px) {
@@ -180,166 +181,74 @@
         document.head.appendChild(style);
         document.body.appendChild(overlay);
 
-        document.getElementById('sbar-close-btn').addEventListener('click', function() {
-            hideProtection();
-        });
+        document.getElementById('sbar-close-btn').onclick = function() {
+            overlay.classList.remove('show');
+            document.body.classList.remove('blur-content');
+        };
     }
 
-    function showProtection() {
-        const overlay = document.getElementById('sbar-protection-overlay');
-        if (overlay) {
-            // Força mostrar, sem nenhuma verificação de estado
-            document.body.classList.add('sbar-screenshot-detected');
-            overlay.classList.add('active');
-
-            // Atualiza timestamp sempre
-            const infoElement = overlay.querySelector('.sbar-protection-info');
-            if (infoElement) {
-                infoElement.textContent = new Date().toLocaleString('pt-BR');
-            }
+    // Mostrar overlay
+    function show() {
+        const el = document.getElementById('sbar-protection-overlay');
+        if (el) {
+            document.body.classList.add('blur-content');
+            el.classList.add('show');
+            const info = el.querySelector('.sbar-protection-info');
+            if (info) info.textContent = new Date().toLocaleString('pt-BR');
         }
     }
 
-    function hideProtection() {
-        const overlay = document.getElementById('sbar-protection-overlay');
-        if (overlay) {
-            overlay.classList.remove('active');
-            document.body.classList.remove('sbar-screenshot-detected');
-        }
-    }
+    // DESKTOP: Print Screen / Insert
+    document.onkeydown = function(e) {
+        e = e || window.event;
 
-    // === PROTEÇÃO 1: PRINT SCREEN / SCREENSHOT ===
-    // keydown
-    window.addEventListener('keydown', function(e) {
-        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
-            e.key === 'Insert' || e.code === 'Insert' ||
-            e.keyCode === 44 || e.keyCode === 45) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            showProtection();
+        // Print Screen / Insert (Fn+Print)
+        if (e.keyCode === 44 || e.keyCode === 45 ||
+            e.key === 'PrintScreen' || e.key === 'Insert') {
+            show();
             return false;
         }
 
-        if (e.metaKey && e.shiftKey && ['3','4','5'].includes(e.key)) {
-            e.preventDefault();
-            e.stopPropagation();
-            showProtection();
+        // Mac Screenshots
+        if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) {
+            show();
             return false;
         }
 
-        if (e.shiftKey && (e.metaKey || e.key === 'Meta') && (e.key === 's' || e.key === 'S')) {
-            e.preventDefault();
-            e.stopPropagation();
-            showProtection();
-            return false;
-        }
-    }, true);
-
-    // keyup
-    window.addEventListener('keyup', function(e) {
-        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
-            e.key === 'Insert' || e.code === 'Insert' ||
-            e.keyCode === 44 || e.keyCode === 45) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            showProtection();
-            return false;
-        }
-    }, true);
-
-    // Listener adicional no document
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
-            e.key === 'Insert' || e.code === 'Insert' ||
-            e.keyCode === 44 || e.keyCode === 45) {
-            e.preventDefault();
-            showProtection();
-            return false;
-        }
-    }, true);
-
-    document.addEventListener('keyup', function(e) {
-        if (e.key === 'PrintScreen' || e.code === 'PrintScreen' ||
-            e.key === 'Insert' || e.code === 'Insert' ||
-            e.keyCode === 44 || e.keyCode === 45) {
-            e.preventDefault();
-            showProtection();
-            return false;
-        }
-    }, true);
-
-    // === PROTEÇÃO 2: COPIAR / COLAR / SELECIONAR ===
-    document.addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && ['c','x','v','a','s','p'].includes(e.key.toLowerCase())) {
-            e.preventDefault();
-            return false;
-        }
-    });
-
-    document.addEventListener('copy', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    document.addEventListener('cut', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    document.addEventListener('paste', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    // === PROTEÇÃO 3: SELEÇÃO DE TEXTO ===
-    document.addEventListener('selectstart', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    document.addEventListener('mousedown', function(e) {
-        if (e.detail > 1) {
-            e.preventDefault();
-            return false;
-        }
-    });
-
-    // === PROTEÇÃO 4: BOTÃO DIREITO ===
-    document.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    // === PROTEÇÃO 5: DRAG & DROP ===
-    document.addEventListener('dragstart', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    document.addEventListener('drop', function(e) {
-        e.preventDefault();
-        return false;
-    });
-
-    // === PROTEÇÃO 6: DEVTOOLS ===
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'F12' || e.keyCode === 123) {
-            e.preventDefault();
+        // Windows Snipping Tool
+        if (e.shiftKey && e.key === 's' && (e.metaKey || e.keyCode === 91)) {
+            show();
             return false;
         }
 
-        if (e.ctrlKey && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
-            e.preventDefault();
+        // Bloquear Copiar/Colar/Selecionar
+        if ((e.ctrlKey || e.metaKey) && ['c','x','v','a','s','p','u'].indexOf(e.key.toLowerCase()) !== -1) {
             return false;
         }
 
-        if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
-            e.preventDefault();
+        // Bloquear DevTools
+        if (e.keyCode === 123 ||
+            (e.ctrlKey && e.shiftKey && ['i','j','c'].indexOf(e.key.toLowerCase()) !== -1)) {
             return false;
         }
-    });
+    };
+
+    document.onkeyup = function(e) {
+        e = e || window.event;
+        if (e.keyCode === 44 || e.keyCode === 45 ||
+            e.key === 'PrintScreen' || e.key === 'Insert') {
+            show();
+            return false;
+        }
+    };
+
+    // Bloquear interações
+    document.onselectstart = function() { return false; };
+    document.oncopy = function() { return false; };
+    document.oncut = function() { return false; };
+    document.onpaste = function() { return false; };
+    document.ondragstart = function() { return false; };
+    document.oncontextmenu = function() { return false; };
 
     // Inicializar
     if (document.readyState === 'loading') {

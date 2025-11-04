@@ -589,43 +589,39 @@ class TasyService
 
     private function addHemotherapyDetails(array &$map, array $attendanceNumbers): void
     {
-        $chunks = array_chunk($attendanceNumbers, 50);
+        foreach (array_chunk($attendanceNumbers, 50) as $chunk) {
+            $in = implode(',', array_fill(0, count($chunk), '?'));
+            $rows = DB::connection('tasy')->select("
+            SELECT nr_atendimento, dt_programada, ie_tipo_hemoterap, qt_procedimento,
+                   qt_vol_hemocomp, ie_via_aplicacao, ie_filtrado, ie_irradiado,
+                   ie_lavado, ie_urgencia, NVL(ds_observacao, ds_justificativa) ds_obs
+            FROM tasy.cpoe_hemoterapia
+            WHERE nr_atendimento IN ($in)
+              AND dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+              AND dt_suspensao IS NULL AND ie_item_valido = 'S'
+            ORDER BY nr_atendimento, dt_programada
+        ", $chunk);
 
-        foreach ($chunks as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            foreach ($rows as $r) {
+                $flags = array_filter([
+                    ($r->ie_filtrado  ?? 'N') === 'S' ? 'Filtrado'  : null,
+                    ($r->ie_irradiado ?? 'N') === 'S' ? 'Irradiado' : null,
+                    ($r->ie_lavado    ?? 'N') === 'S' ? 'Lavado'    : null,
+                ]);
 
-            $hemos = DB::connection('tasy')->select("
-                SELECT
-                    hemo.nr_atendimento,
-                    hemo.dt_programada,
-                    hemo.IE_TIPO_HEMOTERAP,
-                    hemo.QT_PROCEDIMENTO,
-                    hemo.QT_VOL_HEMOCOMP,
-                    hemo.IE_URGENCIA,
-                    hemo.DS_OBSERVACAO,
-                    hemo.DS_JUSTIFICATIVA
-                FROM tasy.cpoe_hemoterapia hemo
-                WHERE hemo.nr_atendimento IN ($placeholders)
-                  AND hemo.dt_programada BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                  AND hemo.dt_suspensao IS NULL
-                ORDER BY hemo.nr_atendimento, hemo.dt_programada
-            ", $chunk);
+                $text = sprintf(
+                    '[Hemoterapia] %s %s - Qtde: %s - Vol: %sml - Via: %s%s%s%s',
+                    date('d/m H:i', strtotime($r->dt_programada)),
+                    $r->ie_tipo_hemoterap ?? 'Tipo não informado',
+                    $r->qt_procedimento ?? 'N/A',
+                    $r->qt_vol_hemocomp ?? 'N/A',
+                    $r->ie_via_aplicacao ?? 'N/A',
+                    $flags ? ' (' . implode(', ', $flags) . ')' : '',
+                    ($r->ie_urgencia ?? 'N') === 'S' ? ' [URGENTE]' : '',
+                    !empty($r->ds_obs) ? ' Obs: ' . trim($r->ds_obs) : ''
+                );
 
-            foreach ($hemos as $hemo) {
-                $text = '[Hemoterapia] ' . date('d/m H:i', strtotime($hemo->dt_programada)) . ' ';
-                $text .= ($hemo->IE_TIPO_HEMOTERAP ?? 'Tipo não informado') . ' ';
-                $text .= 'Qtde:' . ($hemo->QT_PROCEDIMENTO ?? 'N/A') . ' ';
-                $text .= 'Vol:' . ($hemo->QT_VOL_HEMOCOMP ?? 'N/A');
-
-                if (($hemo->IE_URGENCIA ?? 'N') === 'S') {
-                    $text .= ' [URGENTE]';
-                }
-
-                if (!empty($hemo->DS_OBSERVACAO) || !empty($hemo->DS_JUSTIFICATIVA)) {
-                    $text .= ' Obs:' . trim(($hemo->DS_OBSERVACAO ?? '') . ' ' . ($hemo->DS_JUSTIFICATIVA ?? ''));
-                }
-
-                $map[$hemo->nr_atendimento][] = [
+                $map[$r->nr_atendimento][] = [
                     'icon' => 'blood-drop.svg',
                     'text' => $text,
                     'type' => 'hemoterapia'

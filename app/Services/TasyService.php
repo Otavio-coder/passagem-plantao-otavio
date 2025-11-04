@@ -14,7 +14,7 @@ class TasyService
     // ==================== CONSTANTES ====================
     private const CACHE_TTL_SECTOR = 900;  // 15 minutos
     private const CACHE_TTL_PATIENT = 600; // 10 minutos
-    private const CACHE_TTL_PENDING_EVENTS = 600; // ✅ 10 minutos para pending events
+    private const CACHE_TTL_PENDING_EVENTS = 600; //  10 minutos para pending events
 
     private const DEFAULT_SCALE_DATA = [
         'score' => null,
@@ -109,7 +109,7 @@ class TasyService
     public function clearSectorCache(int $sectorId): void
     {
         Cache::forget("sector_patients_sbar_{$sectorId}");
-        Cache::forget("pending_events_sector_{$sectorId}"); // ✅ Limpa cache de pending events
+        Cache::forget("pending_events_sector_{$sectorId}");
     }
 
     public function clearPatientCache(int $attendanceNumber): void
@@ -190,9 +190,6 @@ class TasyService
         return collect($results);
     }
 
-    /**
-     * ✅ CENTRALIZADO: Busca todos os dados necessários em batch
-     */
     private function fetchBatchData(int $sectorId, array $attendanceNumbers): array
     {
         $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
@@ -343,15 +340,11 @@ class TasyService
         ];
     }
 
-    /**
-     * ✅ OTIMIZADO: Busca pending events com cache agressivo
-     */
     private function fetchPendingEventsBySector(int $sectorId): array
     {
         $cacheKey = "pending_events_sector_{$sectorId}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PENDING_EVENTS, function() use ($sectorId) {
-            // ✅ QUERY SIMPLIFICADA: Removidos alguns LEFT JOINs desnecessários
             $results = DB::connection('tasy')->select("
                 SELECT
                     ua.nr_atendimento,
@@ -533,27 +526,61 @@ class TasyService
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
             $exams = DB::connection('tasy')->select("
-                SELECT
-                    ae.nr_atendimento,
-                    ae.dt_agenda,
-                    ae.hr_inicio,
-                    COALESCE(
-                        TASY.obter_exame_agenda(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_seq_proc_interno),
-                        TASY.Obter_exame_procedimento(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_atendimento),
-                        ae.ds_cirurgia,
-                        'Exame agendado'
-                    ) as descricao
-                FROM tasy.agenda_paciente ae
-                WHERE ae.nr_atendimento IN ($placeholders)
-                  AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
-                  AND ae.ie_status_agenda NOT IN ('C', 'S')
-                ORDER BY ae.nr_atendimento, ae.dt_agenda, ae.hr_inicio
-            ", $chunk);
+            SELECT
+                ae.nr_atendimento,
+                ae.dt_agenda,
+                ae.hr_inicio,
+                ae.nr_seq_sala,
+                TASY.OBTER_DS_SETOR_ATENDIMENTO(TASY.OBTER_SETOR_AGENDA(ae.cd_agenda)) as nome_setor,
+                COALESCE(
+                    TASY.obter_exame_agenda(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_seq_proc_interno),
+                    TASY.Obter_exame_procedimento(ae.cd_procedimento, ae.ie_origem_proced, ae.nr_atendimento),
+                    ae.ds_cirurgia,
+                    'Exame agendado'
+                ) as descricao,
+                TO_CHAR(ae.dt_agenda, 'DD/MM') as data_formatada,
+                TO_CHAR(ae.hr_inicio, 'HH24:MI') as hora_formatada
+            FROM tasy.agenda_paciente ae
+            WHERE ae.nr_atendimento IN ($placeholders)
+              AND ae.dt_agenda BETWEEN SYSDATE AND SYSDATE + INTERVAL '30' DAY
+              AND ae.ie_status_agenda NOT IN ('C', 'S')
+            ORDER BY ae.nr_atendimento, ae.dt_agenda, ae.hr_inicio
+        ", $chunk);
 
             foreach ($exams as $exam) {
+                // Monta data/hora
+                $dataHora = '';
+                if (!empty($exam->data_formatada)) {
+                    $dataHora = $exam->data_formatada;
+                    if (!empty($exam->hora_formatada)) {
+                        $dataHora .= ' ' . $exam->hora_formatada;
+                    }
+                }
+
+                // Monta o texto do exame
+                $text = '[Exame] ' . ($exam->descricao ?? 'Exame não especificado');
+
+                // Adiciona data/hora se disponível
+                if (!empty($dataHora)) {
+                    $text .= ' ' . $dataHora;
+                }
+
+                // Monta informação de local (setor ou sala)
+                $local = '';
+                if (!empty($exam->nome_setor)) {
+                    $local = trim($exam->nome_setor);
+                }
+                if (!empty($exam->nr_seq_sala)) {
+                    $local .= ($local ? ' - ' : '') . 'Sala ' . $exam->nr_seq_sala;
+                }
+
+                if (!empty($local)) {
+                    $text .= ' | ' . $local;
+                }
+
                 $map[$exam->nr_atendimento][] = [
                     'icon' => 'tac.svg',
-                    'text' => '[Exame] ' . $exam->descricao . ' ' . date('d/m H:i', strtotime($exam->dt_agenda)),
+                    'text' => $text,
                     'type' => 'exame'
                 ];
             }

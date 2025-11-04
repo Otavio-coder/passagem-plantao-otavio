@@ -1,6 +1,7 @@
 /**
- * Sistema de Proteção de Conteúdo - SBAR
+ * Sistema de Proteção de Conteúdo - SBAR v2.1
  * Proteção de Dados Sensíveis de Pacientes (LGPD)
+ * Versão equilibrada - menos sensível
  */
 (function() {
     'use strict';
@@ -8,7 +9,36 @@
     const config = {
         blurStrength: 25,
         logoPath: '/images/logo-santacasa-app.png',
+
+        // ⚙️ CONFIGURAÇÕES DE DETECÇÃO - Ative/desative o que precisar
+        detection: {
+            // 🖥Desktop
+            printScreen: true,          // Print Screen, Insert
+            macScreenshot: true,        // Cmd+Shift+3/4/5
+            snippingTool: true,         // Win+Shift+S
+            devTools: false,            // F12, Ctrl+Shift+I (pode incomodar devs)
+
+            //  Mobile/Tablet
+            mobileGesture: true,        // Gesto de 3 dedos
+            iosScreenshot: true,        // Power + Volume (iOS)
+            androidScreenshot: true,    // Power + Volume Down
+
+            tabChange: false,           // Trocar de aba (visibilitychange)
+            windowBlur: false,          // Perder foco da janela
+            orientationChange: false,   // Rotação de tela
+
+            //  Gravação e impressão
+            screenRecording: true,      // Gravação de tela
+            printing: true,             // Ctrl+P, beforeprint
+        },
+
+        // Delays e thresholds
+        visibilityDelay: 500,          // ms entre detecções (aumentado)
+        devToolsCheckInterval: 2000,   // ms (verificar devtools a cada 2s, não 500ms)
     };
+
+    let isProtectionActive = false;
+    let lastVisibilityChange = 0;
 
     function getUserName() {
         const userName = document.querySelector('meta[name="sbar-user-name"]');
@@ -162,6 +192,7 @@
             body.blur-content header,
             body.blur-content footer {
                 filter: blur(${config.blurStrength}px) !important;
+                transition: filter 0.3s ease;
             }
 
             @media (min-width: 768px) {
@@ -182,67 +213,212 @@
         document.body.appendChild(overlay);
 
         document.getElementById('sbar-close-btn').onclick = function() {
-            overlay.classList.remove('show');
-            document.body.classList.remove('blur-content');
+            hide();
         };
     }
 
-    // Mostrar overlay
-    function show() {
+    // Mostrar overlay com proteção contra spam
+    function show(reason = '') {
+        if (isProtectionActive) return;
+
+        const now = Date.now();
+        if (now - lastVisibilityChange < config.visibilityDelay) return;
+
+        lastVisibilityChange = now;
+        isProtectionActive = true;
+
         const el = document.getElementById('sbar-protection-overlay');
         if (el) {
             document.body.classList.add('blur-content');
             el.classList.add('show');
+
             const info = el.querySelector('.sbar-protection-info');
-            if (info) info.textContent = new Date().toLocaleString('pt-BR');
+            if (info) {
+                info.textContent = new Date().toLocaleString('pt-BR');
+            }
+
+            // Log opcional para auditoria
+            if (window.console) {
+                console.warn('[SBAR] Tentativa detectada:', reason);
+            }
         }
     }
 
-    // DESKTOP: Print Screen / Insert
+    function hide() {
+        const el = document.getElementById('sbar-protection-overlay');
+        if (el) {
+            el.classList.remove('show');
+            document.body.classList.remove('blur-content');
+        }
+        isProtectionActive = false;
+    }
+
+    // ==================== DETECÇÃO DESKTOP ====================
+
     document.onkeydown = function(e) {
         e = e || window.event;
 
-        // Print Screen / Insert (Fn+Print)
-        if (e.keyCode === 44 || e.keyCode === 45 ||
-            e.key === 'PrintScreen' || e.key === 'Insert') {
-            show();
-            return false;
+        // Print Screen / Insert
+        if (config.detection.printScreen) {
+            if (e.keyCode === 44 || e.keyCode === 45 ||
+                e.key === 'PrintScreen' || e.key === 'Insert') {
+                show('Print Screen');
+                return false;
+            }
         }
 
         // Mac Screenshots
-        if (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) {
-            show();
-            return false;
+        if (config.detection.macScreenshot) {
+            if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+                show('Screenshot Mac');
+                return false;
+            }
         }
 
         // Windows Snipping Tool
-        if (e.shiftKey && e.key === 's' && (e.metaKey || e.keyCode === 91)) {
-            show();
-            return false;
+        if (config.detection.snippingTool) {
+            if (e.shiftKey && e.key === 's' && (e.metaKey || e.keyCode === 91)) {
+                show('Snipping Tool');
+                return false;
+            }
         }
 
         // Bloquear Copiar/Colar/Selecionar
         if ((e.ctrlKey || e.metaKey) && ['c','x','v','a','s','p','u'].indexOf(e.key.toLowerCase()) !== -1) {
+            e.preventDefault();
             return false;
         }
 
-        // Bloquear DevTools
-        if (e.keyCode === 123 ||
-            (e.ctrlKey && e.shiftKey && ['i','j','c'].indexOf(e.key.toLowerCase()) !== -1)) {
-            return false;
+        // DevTools (opcional)
+        if (config.detection.devTools) {
+            if (e.keyCode === 123 ||
+                (e.ctrlKey && e.shiftKey && ['i','j','c'].indexOf(e.key.toLowerCase()) !== -1)) {
+                e.preventDefault();
+                return false;
+            }
         }
     };
 
     document.onkeyup = function(e) {
         e = e || window.event;
-        if (e.keyCode === 44 || e.keyCode === 45 ||
-            e.key === 'PrintScreen' || e.key === 'Insert') {
-            show();
-            return false;
+        if (config.detection.printScreen) {
+            if (e.keyCode === 44 || e.keyCode === 45 ||
+                e.key === 'PrintScreen' || e.key === 'Insert') {
+                show('Print Screen');
+                return false;
+            }
         }
     };
 
-    // Bloquear interações
+    // ==================== DETECÇÃO MOBILE/TABLET ====================
+
+    // Gesto de 3 dedos
+    if (config.detection.mobileGesture) {
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length >= 3) {
+                show('Gesto de screenshot');
+            }
+        }, { passive: true });
+    }
+
+    // iOS Screenshot detection
+    if (config.detection.iosScreenshot && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        let lastTimestamp = Date.now();
+        setInterval(() => {
+            const now = Date.now();
+            const diff = now - lastTimestamp;
+
+            // Detectar "freeze" típico do iOS ao fazer screenshot
+            if (diff > 150 && diff < 500 && !document.hidden) {
+                show('Screenshot iOS');
+            }
+
+            lastTimestamp = now;
+        }, 100);
+    }
+
+    // Android Screenshot detection (quando disponível)
+    if (config.detection.androidScreenshot) {
+        let volumeDownPressed = false;
+
+        window.addEventListener('volumedownbutton', function() {
+            volumeDownPressed = true;
+            setTimeout(() => { volumeDownPressed = false; }, 1000);
+        }, false);
+    }
+
+    // ==================== MUDANÇA DE CONTEXTO (OPCIONAL) ====================
+
+    // Page Visibility API - trocar de aba
+    if (config.detection.tabChange) {
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                show('Troca de aba');
+            }
+        });
+    }
+
+    // Blur - perder foco
+    if (config.detection.windowBlur) {
+        window.addEventListener('blur', function() {
+            show('Perda de foco');
+        });
+    }
+
+    // Mudança de orientação
+    if (config.detection.orientationChange) {
+        window.addEventListener('orientationchange', function() {
+            show('Rotação de tela');
+        });
+    }
+
+    // ==================== GRAVAÇÃO E IMPRESSÃO ====================
+
+    // Detectar gravação de tela
+    if (config.detection.screenRecording && navigator.mediaDevices) {
+        const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+        if (originalGetDisplayMedia) {
+            navigator.mediaDevices.getDisplayMedia = function() {
+                show('Gravação de tela');
+                return Promise.reject(new Error('Screen recording blocked'));
+            };
+        }
+    }
+
+    // Detectar impressão
+    if (config.detection.printing) {
+        window.addEventListener('beforeprint', function() {
+            show('Impressão');
+        });
+    }
+
+    // ==================== DEVTOOLS (OPCIONAL) ====================
+
+    if (config.detection.devTools) {
+        (function detectDevTools() {
+            const threshold = 160;
+            const devtools = { isOpen: false };
+
+            const check = function() {
+                const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+                const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+
+                if (widthThreshold || heightThreshold) {
+                    if (!devtools.isOpen) {
+                        show('DevTools');
+                    }
+                    devtools.isOpen = true;
+                } else {
+                    devtools.isOpen = false;
+                }
+            };
+
+            setInterval(check, config.devToolsCheckInterval);
+        })();
+    }
+
+    // ==================== PROTEÇÕES BÁSICAS ====================
+
     document.onselectstart = function() { return false; };
     document.oncopy = function() { return false; };
     document.oncut = function() { return false; };
@@ -250,11 +426,20 @@
     document.ondragstart = function() { return false; };
     document.oncontextmenu = function() { return false; };
 
-    // Inicializar
+    // ==================== INICIALIZAÇÃO ====================
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', createProtectionOverlay);
     } else {
         createProtectionOverlay();
     }
+
+    // Expor controles
+    window.SBARProtection = {
+        show: show,
+        hide: hide,
+        isActive: () => isProtectionActive,
+        config: config // Permite ajustar em runtime
+    };
 
 })();

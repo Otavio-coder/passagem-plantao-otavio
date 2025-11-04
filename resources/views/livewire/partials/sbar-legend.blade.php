@@ -1,14 +1,12 @@
 {{-- resources/views/livewire/partials/sbar-legend.blade.php --}}
 <div class="mt-6 mb-4 font-montserrat" x-data="{ legendOpen: false }">
     <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-
         {{-- Cabeçalho Clicável (Header) --}}
         <button
             @click="legendOpen = !legendOpen"
             class="w-full p-3 sm:p-4 flex items-center justify-between text-left focus:outline-none focus:bg-gray-50 transition-colors"
         >
             <h2 class="text-base sm:text-lg font-bold text-gray-800 font-montserrat">Legenda do Sistema SBAR</h2>
-
             {{-- Ícone de Seta (Chevron) --}}
             <svg
                 class="h-6 w-6 text-gray-600 transition-transform duration-200 flex-shrink-0"
@@ -56,7 +54,6 @@
                             'green' => 'bg-green-100 border-green-300',
                         ];
                     @endphp
-
                     @foreach ($scales as $name => $scale)
                         <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200">
                             <h4 class="font-bold text-gray-800 text-sm mb-1">{{ $name }}</h4>
@@ -76,7 +73,6 @@
 
             <div class="mt-6 pt-4 border-t border-gray-200">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
                     <div>
                         <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <span class="w-1 h-4 bg-red-500 rounded"></span>
@@ -94,7 +90,6 @@
                                     <p class="text-xs text-gray-600">Clique no ícone para ver detalhes</p>
                                 </div>
                             </div>
-
                             <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <button type="button" class="isolation-icon w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg animate-pulse" aria-label="Ver isolamento">
                                     <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="h-6 w-6" alt="Isolamento" />
@@ -104,10 +99,9 @@
                                     <p class="text-xs text-gray-600">Clique no ícone para ver motivos</p>
                                 </div>
                             </div>
-
                             <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <button type="button" class="surgery-icon w-10 h-10 bg-purple-700 rounded-full flex items-center justify-center shadow-lg animate-pulse" aria-label="Ver isolamento">
-                                    <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="w-6 h-6  flex-shrink-0" alt="Cirurgia" />
+                                <button type="button" class="surgery-icon w-10 h-10 bg-purple-700 rounded-full flex items-center justify-center shadow-lg animate-pulse" aria-label="Ver procedimentos cirúrgicos">
+                                    <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="w-6 h-6 flex-shrink-0" alt="Cirurgia" />
                                 </button>
                                 <div>
                                     <span class="text-sm font-medium text-gray-800">Procedimentos Cirúrgicos</span>
@@ -143,7 +137,6 @@
                                 <span class="text-xs text-gray-600"><span class="font-bold">Bolinha piscante</span>: Score aumentou</span>
                             </div>
                         </div>
-
                         <h4 class="text-xs font-semibold text-gray-600 mt-5 mb-2">Turnos de Avaliação</h4>
                         <div class="space-y-1.5 text-xs text-gray-700 pl-2">
                             <p><span class="font-semibold text-gray-800 w-6 inline-block">(M)</span> Manhã - 07:00 às 13:00</p>
@@ -155,33 +148,40 @@
                     <div>
                         <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <span class="w-1 h-4 bg-purple-500 rounded"></span>
-                            Pendências das Próximas Horas
+                            Eventos e Pendências
                         </h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/alta.svg') }}" class="w-8 h-8 flex-shrink-0" alt="Alta" />
-                                <span class="text-xs text-gray-600">[ALTA] / [PREV. ALTA] - Alta médica liberada ou prevista</span>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-red-50">
+                                <img src="{{ asset('images/icons/patient-card/alert-circle.svg') }}" class="w-6 h-6" alt="Óbito" />
+                                <span class="font-semibold text-red-700">[ÓBITO]</span>
                             </div>
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/outpatient-department.svg') }}" class="w-8 h-8  flex-shrink-0" alt="Procedimento" />
-                                <span class="text-xs text-gray-600">[Proc] - Procedimentos prescritos </span>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/alta.svg') }}" class="w-6 h-6" alt="Alta" />
+                                <span>[ALTA]</span>
                             </div>
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/tac.svg') }}" class="w-8 h-8  flex-shrink-0" alt="Exame" />
-                                <span class="text-xs text-gray-600">[Exame] - Exames agendados</span>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/alta.svg') }}" class="w-6 h-6" alt="Alta Médica" />
+                                <span>[ALTA MÉDICA]</span>
                             </div>
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/alert-circle.svg') }}" class="w-8 h-8  flex-shrink-0" alt="Recomendações" />
-                                <span class="text-xs text-gray-600">[Rec] - Recomendações</span>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/alert-circle.svg') }}" class="w-6 h-6" alt="Previsão" />
+                                <span>[PREV. ALTA]</span>
                             </div>
-
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/hemot.svg') }}" class="w-8 h-8  flex-shrink-0" alt="Hemoterapia" />
-                                <span class="text-xs text-gray-600">[Hemo] - Hemoterapia</span>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/outpatient-department.svg') }}" class="w-6 h-6" alt="Proc" />
+                                <span>[Proc] 12h</span>
                             </div>
-                            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <img src="{{ asset('images/icons/patient-card/blood-drop.svg') }}" class="w-8 h-8  flex-shrink-0" alt="Quimioterapia" />
-                                <span class="text-xs text-gray-600">[Quimio] - Quimioterapia</span>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/tac.svg') }}" class="w-6 h-6" alt="Exame" />
+                                <span>[Exame] 30d</span>
+                            </div>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/blood-drop.svg') }}" class="w-6 h-6" alt="Hemo" />
+                                <span>[Hemo] 30d</span>
+                            </div>
+                            <div class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50">
+                                <img src="{{ asset('images/icons/patient-card/infusion-pump.svg') }}" class="w-6 h-6" alt="Quimio" />
+                                <span>[Quimio] 30d</span>
                             </div>
                         </div>
                     </div>

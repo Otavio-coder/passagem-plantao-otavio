@@ -3,6 +3,15 @@
 use App\Http\Controllers\SystemConfigurationController;
 use Illuminate\Support\Facades\Route;
 
+// Rota pública para documentação do sistema
+Route::get('/doc-passagem.pdf', function () {
+    $path = public_path('doc-passagem.pdf');
+    if (file_exists($path)) {
+        return response()->file($path);
+    }
+    abort(404, 'Documentação não encontrada');
+})->name('documentation');
+
 Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
     Route::view( '/', 'index' )->name( 'home' );

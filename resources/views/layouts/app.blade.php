@@ -12,17 +12,14 @@
     <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset( 'images/favicon.ico') }}">
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/fontawesome-free-6.3.0-web/css/all.min.css' ) }}"/>
     <link rel="stylesheet" href="https://cdn.datatables.net/2.2.2/css/dataTables.dataTables.min.css"/>
-
     <!-- Add Montserrat font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
     <style>
         .font-montserrat {
             font-family: 'Montserrat', sans-serif;
         }
-
         /* Loading Overlay Styles */
         .sbar-loading-overlay {
             position: fixed;
@@ -34,37 +31,25 @@
             background-color: rgba(0, 77, 157, 0.3);
             backdrop-filter: blur(4px);
         }
-
         .sbar-loading-overlay.active {
             display: flex;
         }
-
         body.sbar-loading-active {
             overflow: hidden;
         }
     </style>
-
     <!-- Allow pages to push scripts/styles into head -->
     @stack('head')
-
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js', 'resources/js/content-protection.js'])
-
     <title>{{ env( 'APP_NAME' ) }}</title>
-
     @laravelPWA
 </head>
-
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
-
-<!-- NAVBAR -->
+<!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
     @include('partials.navbar')
 </header>
-
-<!-- MENU MOBILE -->
-@include('partials.menu-mobile')
-
 <!-- PRINCIPAL -->
 <main class="flex-grow bg-gray-50 pt-2">
     <div class="relative py-2 flex justify-center">
@@ -75,18 +60,13 @@
         </div>
     </div>
 </main>
-
 @include('partials.footer')
-
 <!-- Scripts -->
 <script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>
 <script src="{{ asset('/js/common.js' . preventCache()) }}"></script>
 <script src="{{ asset('/vendor/noty/noty.min.js') }}"></script>
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.min.js"></script>
-
-
 @stack('scripts')
-
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Welcome modal logic
@@ -97,11 +77,9 @@
                 welcomeElement.__x.$data.showWelcome = false;
             }
         }
-
         // Global Loading Overlay Controller
         const overlay = document.getElementById('sbar-loading-overlay');
         let loadingCount = 0;
-
         function showLoading() {
             loadingCount++;
             if (overlay) {
@@ -109,7 +87,6 @@
                 document.body.classList.add('sbar-loading-active');
             }
         }
-
         function hideLoading() {
             loadingCount = Math.max(0, loadingCount - 1);
             if (loadingCount === 0 && overlay) {
@@ -117,34 +94,27 @@
                 document.body.classList.remove('sbar-loading-active');
             }
         }
-
         // Livewire hooks (Livewire 3)
         document.addEventListener('livewire:navigating', showLoading);
         document.addEventListener('livewire:navigated', hideLoading);
-
         // Livewire wire:loading events
         document.addEventListener('livewire:init', () => {
             Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
                 showLoading();
-
                 succeed(() => {
                     hideLoading();
                 });
-
                 fail(() => {
                     hideLoading();
                 });
             });
         });
-
         // Fallback: Manual event listeners
         window.addEventListener('sbar:loading:show', showLoading);
         window.addEventListener('sbar:loading:hide', hideLoading);
-
         // Auto-hide on page load
         window.addEventListener('load', hideLoading);
     });
-
     // Form submission prevention
     if (typeof $ !== 'undefined') {
         $(document).ready(function(){
@@ -158,6 +128,5 @@
         });
     }
 </script>
-
 </body>
 </html>

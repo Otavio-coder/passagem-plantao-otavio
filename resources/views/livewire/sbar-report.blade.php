@@ -60,6 +60,15 @@
                                                     </svg>
                                                 </button>
 
+                                                {{-- Escalas Vencidas button --}}
+                                                <button
+                                                    @click="$dispatch('openEscalasVencidasModal', { sectorId: {{ $selectedSector }} })"
+                                                    class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500/40 text-xs sm:text-sm font-medium whitespace-nowrap font-montserrat transition-all duration-150"
+                                                    title="Ver Escalas Pendentes">
+                                                    <i class="fas fa-exclamation-triangle h-4 w-4 sm:h-5 sm:w-5 sm:mr-1.5"></i>
+                                                    <span class="hidden sm:inline">Escalas</span>
+                                                </button>
+
                                                 {{-- Avaliações button --}}
                                                 <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $selectedSector]) }}"
                                                    class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] active:bg-[#003D7A] shadow-md focus:outline-none focus:ring-2 focus:ring-[#0071B9]/40 text-xs sm:text-sm font-medium whitespace-nowrap font-montserrat transition-all duration-150"
@@ -180,14 +189,13 @@
                                                             <button wire:click="toggleOrderDirection"
                                                                     wire:loading.attr="disabled"
                                                                     wire:target="toggleOrderDirection"
-                                                                    class="bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 border-l-0 rounded-r-lg px-3 py-2 transition-colors duration-150 flex-shrink-0">
-                                                                <svg class="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    @if($orderDirection === 'asc')
-                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6" />
-                                                                    @else
-                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9" />
-                                                                    @endif
-                                                                </svg>
+                                                                    class="bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 border-l-0 rounded-r-lg px-3 py-2 transition-colors duration-150 flex-shrink-0"
+                                                                    title="{{ $orderDirection === 'asc' ? 'Crescente' : 'Decrescente' }}">
+                                                                @if($orderDirection === 'asc')
+                                                                    <i class="fas fa-sort-amount-up text-gray-600 h-4 w-4 sm:h-5 sm:w-5"></i>
+                                                                @else
+                                                                    <i class="fas fa-sort-amount-down text-gray-600 h-4 w-4 sm:h-5 sm:w-5"></i>
+                                                                @endif
                                                             </button>
                                                         </div>
                                                     </div>
@@ -272,14 +280,13 @@
                                                         <button wire:click="toggleOrderDirection"
                                                                 wire:loading.attr="disabled"
                                                                 wire:target="toggleOrderDirection"
-                                                                class="bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 border-l-0 rounded-r-lg px-3 py-2 transition-colors duration-150">
-                                                            <svg class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                @if($orderDirection === 'asc')
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6" />
-                                                                @else
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9" />
-                                                                @endif
-                                                            </svg>
+                                                                class="bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 border-l-0 rounded-r-lg px-3 py-2 transition-colors duration-150"
+                                                                title="{{ $orderDirection === 'asc' ? 'Crescente' : 'Decrescente' }}">
+                                                            @if($orderDirection === 'asc')
+                                                                <i class="fas fa-sort-amount-up text-gray-600"></i>
+                                                            @else
+                                                                <i class="fas fa-sort-amount-down text-gray-600"></i>
+                                                            @endif
                                                         </button>
                                                     </div>
                                                 </div>
@@ -305,6 +312,15 @@
                                                 </svg>
                                                 Atualizando...
                                             </span>
+                                        </button>
+
+                                        {{-- Botão de Escalas Vencidas --}}
+                                        <button
+                                            @click="$dispatch('openEscalasVencidasModal', { sectorId: {{ $selectedSector }} })"
+                                            class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500/40 text-sm font-medium whitespace-nowrap font-montserrat transition-all duration-150"
+                                            title="Ver Escalas Pendentes">
+                                            <i class="fas fa-exclamation-triangle mr-1.5"></i>
+                                            Escalas Pendentes
                                         </button>
 
                                         {{-- Botão de Avaliações --}}
@@ -401,6 +417,11 @@
                 {{-- Modal de detalhes do paciente --}}
                 <div class="font-montserrat">
                     @livewire('patient-modal', [], key('patient-modal'))
+                </div>
+
+                {{-- Modal de escalas vencidas --}}
+                <div class="font-montserrat">
+                    @livewire('escalas-vencidas-modal', ['sectorId' => $selectedSector], key('escalas-vencidas-modal'))
                 </div>
 
             </div>

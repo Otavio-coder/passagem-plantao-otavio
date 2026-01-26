@@ -680,6 +680,73 @@ if (!function_exists('getCurrentShift')) {
     }
 }
 
+if (!function_exists('getShiftDateForSession')) {
+    /**
+     * Retorna a data correta para a sessão de chat baseada no turno.
+     * Para o turno da noite (19h-07h), se estiver entre 00:00 e 07:00,
+     * a data deve ser do dia anterior (quando o turno começou).
+     *
+     * @param \Carbon\Carbon|null $dateTime
+     * @return string Data no formato Y-m-d
+     */
+    function getShiftDateForSession($dateTime = null)
+    {
+        $dt = $dateTime ? \Carbon\Carbon::parse($dateTime) : now();
+        $hour = $dt->hour;
+
+        // Se está entre 00:00 e 06:59, pertence ao turno da noite do dia anterior
+        if ($hour >= 0 && $hour < 7) {
+            return $dt->copy()->subDay()->toDateString();
+        }
+
+        return $dt->toDateString();
+    }
+}
+
+if (!function_exists('getShiftInfo')) {
+    /**
+     * Retorna informações completas do turno: shift_id, data_sessao
+     * Corrige a lógica do turno da noite que começa em um dia e termina no próximo.
+     *
+     * Turnos:
+     * - Manhã (manha): 07:00 - 13:00
+     * - Tarde (tarde): 13:00 - 19:00
+     * - Noite (noite): 19:00 - 07:00 (próximo dia)
+     *
+     * @param \Carbon\Carbon|null $dateTime
+     * @return array ['shift' => string, 'date' => string]
+     */
+    function getShiftInfo($dateTime = null)
+    {
+        $dt = $dateTime ? \Carbon\Carbon::parse($dateTime) : now();
+        $hour = $dt->hour;
+
+        // Determina o turno
+        if ($hour >= 7 && $hour < 13) {
+            $shift = 'manha';
+            $date = $dt->toDateString();
+        } elseif ($hour >= 13 && $hour < 19) {
+            $shift = 'tarde';
+            $date = $dt->toDateString();
+        } else {
+            // Turno da noite
+            $shift = 'noite';
+            // Se entre 00:00 e 06:59, o turno começou ontem
+            if ($hour >= 0 && $hour < 7) {
+                $date = $dt->copy()->subDay()->toDateString();
+            } else {
+                // Se entre 19:00 e 23:59, o turno começou hoje
+                $date = $dt->toDateString();
+            }
+        }
+
+        return [
+            'shift' => $shift,
+            'date' => $date
+        ];
+    }
+}
+
 function getMewsCardGradient($score, $isNewPatient = false) {
     $num = extractScaleScore($score);
 

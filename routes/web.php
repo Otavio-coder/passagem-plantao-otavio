@@ -61,6 +61,10 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             [App\Http\Controllers\ChatAuditoriaController::class, 'avaliacoesTurno'])
             ->name('sbar.avaliacoes.turno');
 
+        Route::get('/sbar/avaliacoes-turno/export',
+            [App\Http\Controllers\ExportController::class, 'exportAvaliacoesTurno'])
+            ->name('sbar.avaliacoes.export');
+
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );
 
         Route::get('/sbar', function() {

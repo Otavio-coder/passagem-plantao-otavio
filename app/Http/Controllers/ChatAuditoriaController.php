@@ -10,9 +10,12 @@ use App\Repositories\MySQL\Chat\ChatRepository;
 use App\Services\TasyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ChatAuditoriaController extends Controller
 {
+    private const ITEMS_PER_PAGE = 10;
+
     /**
      * Exibe avaliações do turno organizadas por leito (refatorado)
      * Usa TasyService para obter pacientes do setor e ChatRepository para mensagens.
@@ -22,6 +25,8 @@ class ChatAuditoriaController extends Controller
     {
         try {
             $sectorId = $request->get('sector_id');
+            $search = $request->get('search', '');
+            $page = max(1, (int)$request->get('page', 1));
 
             if (!$sectorId) {
                 return redirect()->route('sbar.report')
@@ -36,8 +41,25 @@ class ChatAuditoriaController extends Controller
                     ->with('error', 'Nenhum paciente encontrado para o setor selecionado.');
             }
 
-            $currentShift = $this->getCurrentShift();
-            $shifts = $this->getShiftsForAvaliacoes($currentShift);
+            // Buscar todas as sessões relevantes de uma vez (otimização)
+            // Mostra sessões dos últimos 2 dias para garantir que nada seja perdido
+            $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
+            $today = now()->toDateString();
+            $yesterday = now()->subDay()->toDateString();
+
+            $sessionsQuery = ChatSessao::with(['messages' => function($q) {
+                    $q->where('is_deleted', false)
+                      ->orderBy('dt_criacao', 'desc')
+                      ->with('usuario');
+                }])
+                ->whereIn('nr_atendimento', $attendanceNumbers)
+                ->where(function($q) use ($today, $yesterday) {
+                    $q->whereDate('data_sessao', $today)
+                      ->orWhereDate('data_sessao', $yesterday);
+                })
+                ->where('total_mensagens', '>', 0);
+
+            $sessions = $sessionsQuery->get()->groupBy('nr_atendimento');
 
             $beds = [];
 
@@ -48,20 +70,32 @@ class ChatAuditoriaController extends Controller
                 }
 
                 $leito = $patient['cd_unidade_basica'] ?? 'N/A';
+                $patientSessions = $sessions->get($nrAtendimento, collect());
 
-                foreach ($shifts as $shift) {
-                    $date = $shift['date'];
-                    $shiftId = $shift['shift'];
+                if ($patientSessions->isEmpty()) {
+                    continue;
+                }
 
-                    // Load session with messages, message user and message auditorias with user
-                    $session = ChatSessao::with(['messages.usuario', 'messages.auditorias.usuario'])
-                        ->where('nr_atendimento', $nrAtendimento)
-                        ->where('turno_id', $shiftId)
-                        ->whereDate('data_sessao', $date)
-                        ->first();
+                // Filtro de busca
+                if (!empty($search)) {
+                    $searchLower = mb_strtolower($search);
+                    $leitoLower = mb_strtolower($leito);
+                    $nomeLower = mb_strtolower($patient['nm_pessoa_fisica'] ?? '');
+                    $prontuario = (string)($patient['nr_prontuario'] ?? '');
+                    $atendimento = (string)$nrAtendimento;
 
-                    $messages = $session ? $session->messages : collect();
+                    if (
+                        strpos($leitoLower, $searchLower) === false &&
+                        strpos($nomeLower, $searchLower) === false &&
+                        strpos($prontuario, $search) === false &&
+                        strpos($atendimento, $search) === false
+                    ) {
+                        continue;
+                    }
+                }
 
+                foreach ($patientSessions as $session) {
+                    $messages = $session->messages;
                     if ($messages->isEmpty()) {
                         continue;
                     }
@@ -84,18 +118,8 @@ class ChatAuditoriaController extends Controller
                             'user_photo' => $this->getUserPhoto($message->usuario),
                             'user_initials' => $this->getUserInitials($message->usuario?->name ?? 'U'),
                             'timestamp' => \Carbon\Carbon::parse($message->dt_criacao)->format('d/m/Y H:i'),
-                            'turno' => $this->getShiftLabel($message->turno_id ?? $shiftId),
+                            'turno' => $this->getShiftLabel($message->turno_id ?? $session->turno_id),
                             'is_pinned' => $message->is_fixed ?? false,
-                            'auditoria' => $message->auditorias
-                                ->sortByDesc('dt_acao')
-                                ->values()
-                                ->map(function($a) {
-                                    return [
-                                        'acao' => $a->acao,
-                                        'usuario' => $a->usuario?->name ?? 'N/A',
-                                        'data' => $a->dt_acao?->format('d/m/Y H:i')
-                                    ];
-                                })->toArray(),
                         ];
 
                         $beds[$leito]['total_mensagens']++;
@@ -109,9 +133,23 @@ class ChatAuditoriaController extends Controller
                 });
             }
 
+            // Paginação
+            $allBeds = array_values($beds);
+            $totalBeds = count($allBeds);
+            $totalPages = max(1, ceil($totalBeds / self::ITEMS_PER_PAGE));
+            $page = min($page, $totalPages);
+            $offset = ($page - 1) * self::ITEMS_PER_PAGE;
+            $pagedBeds = array_slice($allBeds, $offset, self::ITEMS_PER_PAGE);
+
             return view('sbar.avaliacoes-turno', [
                 'sectorName' => $patients[0]['ds_setor_atendimento'] ?? 'Setor',
-                'beds' => array_values($beds),
+                'sectorId' => $sectorId,
+                'beds' => $pagedBeds,
+                'totalBeds' => $totalBeds,
+                'currentPage' => $page,
+                'totalPages' => $totalPages,
+                'search' => $search,
+                'perPage' => self::ITEMS_PER_PAGE,
             ]);
 
         } catch (\Exception $e) {
@@ -226,58 +264,6 @@ class ChatAuditoriaController extends Controller
             return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
         }
         return strtoupper(substr($name, 0, 2));
-    }
-
-    /**
-     * Retorna turnos para busca (atual + anterior)
-     */
-    private function getShiftsForAvaliacoes($currentShift)
-    {
-        $today = now()->toDateString();
-        $yesterday = now()->subDay()->toDateString();
-
-        $shiftsOrder = ['manha', 'tarde', 'noite'];
-        $currentIndex = array_search($currentShift, $shiftsOrder);
-
-        $shifts = [];
-
-        // Turno atual
-        $shifts[] = [
-            'date' => $today,
-            'shift' => $currentShift
-        ];
-
-        // Turno anterior
-        if ($currentIndex > 0) {
-            $previousShift = $shiftsOrder[$currentIndex - 1];
-            $shifts[] = [
-                'date' => $today,
-                'shift' => $previousShift
-            ];
-        } else {
-            $shifts[] = [
-                'date' => $yesterday,
-                'shift' => 'noite'
-            ];
-        }
-
-        return $shifts;
-    }
-
-    /**
-     * Retorna turno atual
-     */
-    private function getCurrentShift()
-    {
-        $hour = now()->hour;
-
-        if ($hour >= 7 && $hour < 13) {
-            return 'manha';
-        } elseif ($hour >= 13 && $hour < 19) {
-            return 'tarde';
-        } else {
-            return 'noite';
-        }
     }
 
     /**

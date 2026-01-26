@@ -422,13 +422,25 @@
             @if($viewingHistory && $selectedSession)
                 @php
                     $session = collect($availableSessions)->firstWhere('key', $selectedSession);
+                    $sessionParts = explode('|', $selectedSession);
+                    $historyDate = $sessionParts[0] ?? '';
+                    $historyShift = $sessionParts[1] ?? '';
+                    $formattedDate = $historyDate ? \Carbon\Carbon::parse($historyDate)->format('d/m/Y') : '';
+                    $shiftName = match($historyShift) {
+                        'manha' => 'Manhã',
+                        'tarde' => 'Tarde',
+                        'noite' => 'Noite',
+                        default => ucfirst($historyShift)
+                    };
                 @endphp
                 <div class="flex items-center justify-between">
-                    <div class="inline-flex items-center space-x-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <div class="inline-flex items-center space-x-2 text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full border border-amber-200">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
                         </svg>
-                        <span class="font-medium">{{ $session['label'] ?? 'Histórico' }}</span>
+                        <span class="font-bold">HISTÓRICO:</span>
+                        <span class="font-medium">{{ $formattedDate }}</span>
+                        <span class="px-1.5 py-0.5 bg-amber-200 rounded text-amber-800 font-semibold">{{ $shiftName }}</span>
                     </div>
                 </div>
             @else

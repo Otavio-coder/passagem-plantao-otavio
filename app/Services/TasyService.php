@@ -354,6 +354,8 @@ class TasyService
                     ap.dt_alta_medico,
                     ap.dt_previsto_alta,
                     ma2.ds_motivo_alta,
+                    apa.dt_previsto_alta as dt_previsto_alta_tabela,
+                    apa.dt_registro as dt_registro_previsao,
                     COUNT(DISTINCT CASE
                         WHEN pp.nr_seq_proc_interno IS NOT NULL
                             AND pp.dt_baixa IS NULL
@@ -375,6 +377,12 @@ class TasyService
                 INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
                 INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
                 LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
+                LEFT JOIN (
+                    SELECT nr_atendimento, dt_previsto_alta, dt_registro,
+                           ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) as rn
+                    FROM tasy.atend_previsao_alta
+                    WHERE dt_registro >= SYSDATE - 10
+                ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
                 LEFT JOIN tasy.prescr_medica pm ON pm.nr_atendimento = ua.nr_atendimento
                     AND pm.dt_liberacao IS NOT NULL
                 LEFT JOIN tasy.prescr_procedimento pp ON pm.nr_prescricao = pp.nr_prescricao
@@ -398,7 +406,9 @@ class TasyService
                     ap.dt_alta,
                     ap.dt_alta_medico,
                     ap.dt_previsto_alta,
-                    ma2.ds_motivo_alta
+                    ma2.ds_motivo_alta,
+                    apa.dt_previsto_alta,
+                    apa.dt_registro
             ", ['sector_id' => $sectorId]);
 
             $map = [];
@@ -452,6 +462,23 @@ class TasyService
                         'icon' => 'alert-circle.svg',
                         'text' => '[PREVISÃO DE ALTA] ' . date('d/m H:i', strtotime($row->dt_previsto_alta)),
                         'type' => 'previsao_alta'
+                    ];
+                }
+
+                // Previsão de Alta da tabela atend_previsao_alta (permanente quando registrado nos últimos 10 dias)
+                if (!empty($row->dt_previsto_alta_tabela)) {
+                    $dtPrevistoFormatted = date('d/m/Y H:i', strtotime($row->dt_previsto_alta_tabela));
+                    $dtRegistroFormatted = !empty($row->dt_registro_previsao)
+                        ? date('d/m/Y', strtotime($row->dt_registro_previsao))
+                        : '';
+                    $text = '[PREVISÃO DE ALTA] ' . $dtPrevistoFormatted;
+                    if ($dtRegistroFormatted) {
+                        $text .= ' (Reg: ' . $dtRegistroFormatted . ')';
+                    }
+                    $events[] = [
+                        'icon' => 'alta.svg',
+                        'text' => $text,
+                        'type' => 'previsao_alta_registrada'
                     ];
                 }
 

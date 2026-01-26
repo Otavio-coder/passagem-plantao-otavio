@@ -162,8 +162,14 @@ class ChatRepository
     private function clearMessageCaches($nr_atendimento, $turno_id)
     {
         try {
+            // Usa a data correta do turno (importante para turno da noite)
+            $shiftInfo = getShiftInfo();
+            $currentDate = $shiftInfo['date'];
             $today = now()->toDateString();
+
             $cacheKeys = [
+                "chat_messages_{$nr_atendimento}_{$turno_id}_{$currentDate}",
+                "session_id_{$nr_atendimento}_{$turno_id}_{$currentDate}",
                 "chat_messages_{$nr_atendimento}_{$turno_id}_{$today}",
                 "session_id_{$nr_atendimento}_{$turno_id}_{$today}",
                 "chat_sessions_{$nr_atendimento}_v4",
@@ -175,5 +181,31 @@ class ChatRepository
         } catch (\Exception $e) {
             // Silent fail
         }
+    }
+
+    /**
+     * Obtém ou cria uma sessão de chat para o atendimento/turno/data
+     */
+    public function getOrCreateSession($nr_atendimento, $turno_id, $date = null)
+    {
+        // Usa a data correta baseada no turno
+        if ($date === null) {
+            $shiftInfo = getShiftInfo();
+            $date = $shiftInfo['date'];
+            $turno_id = $turno_id ?? $shiftInfo['shift'];
+        }
+
+        return ChatSessao::firstOrCreate(
+            [
+                'nr_atendimento' => $nr_atendimento,
+                'turno_id' => $turno_id,
+                'data_sessao' => $date,
+            ],
+            [
+                'inicio' => now(),
+                'encerrada' => false,
+                'total_mensagens' => 0,
+            ]
+        );
     }
 }

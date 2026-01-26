@@ -67,8 +67,8 @@ class ChatComponent extends Component
             'photo' => $this->getUserPhotoBase64($user),
         ];
 
+        // setCurrentShift agora também define currentDate corretamente
         $this->setCurrentShift();
-        $this->currentDate = now()->toDateString();
         $this->isShiftClosed = $this->checkIfShiftClosed();
     }
 
@@ -494,19 +494,25 @@ class ChatComponent extends Component
                     });
             })
             ->orderBy('data_sessao', 'desc')
-            ->orderBy('turno_id', 'desc')
+            ->orderByRaw("FIELD(turno_id, 'noite', 'tarde', 'manha')") // Ordena turnos do mais recente ao mais antigo do dia
             ->get();
 
             // Agrupa por data
             $sessionsByDate = $allSessions->groupBy('data_sessao')->map(function($sessions, $date) {
-                return $sessions->map(function($session) use ($date) {
+                // Ordena turnos: noite > tarde > manhã (ordem cronológica reversa)
+                $shiftOrder = ['noite' => 0, 'tarde' => 1, 'manha' => 2];
+                $sorted = $sessions->sortBy(function($s) use ($shiftOrder) {
+                    return $shiftOrder[$s->turno_id] ?? 3;
+                });
+
+                return $sorted->map(function($session) use ($date) {
                     $carbonDate = \Carbon\Carbon::parse($session->data_sessao);
                     $key = $session->data_sessao . '|' . $session->turno_id;
 
                     $shiftLabel = match($session->turno_id) {
-                        'manha' => 'Manhã',
-                        'tarde' => 'Tarde',
-                        'noite' => 'Noite',
+                        'manha' => 'Manhã (07h-13h)',
+                        'tarde' => 'Tarde (13h-19h)',
+                        'noite' => 'Noite (19h-07h)',
                         default => ucfirst($session->turno_id)
                     };
 
@@ -518,7 +524,7 @@ class ChatComponent extends Component
                         'messageCount' => $session->total_mensagens,
                         'isCompleted' => $session->fim !== null,
                     ];
-                })->toArray();
+                })->values()->toArray();
             });
 
             // Calcula paginação (por datas)
@@ -545,7 +551,8 @@ class ChatComponent extends Component
                 } elseif ($carbonDate->isYesterday()) {
                     $dateLabel .= ' (Ontem)';
                 } elseif ($carbonDate->diffInDays(now()) <= 7) {
-                    $dateLabel .= ' (' . $carbonDate->dayName . ')';
+                    $dayName = $carbonDate->locale('pt_BR')->dayName;
+                    $dateLabel .= ' (' . ucfirst($dayName) . ')';
                 }
 
                 $this->groupedSessions[$dateLabel] = $sessions;
@@ -734,14 +741,20 @@ class ChatComponent extends Component
         if (!$this->patientId) return;
 
         try {
+            // Garante que a data está correta para o turno (especialmente noite)
+            $shiftInfo = getShiftInfo();
+            if ($this->currentShift === $shiftInfo['shift']) {
+                $this->currentDate = $shiftInfo['date'];
+            }
+
             $session = ChatSessao::firstOrCreate([
                 'nr_atendimento' => $this->patientId,
                 'turno_id' => $this->currentShift,
                 'data_sessao' => $this->currentDate,
-                'encerrada' => false,
             ], [
                 'inicio' => now(),
                 'encerrada' => false,
+                'total_mensagens' => 0,
             ]);
 
             $this->currentSessionId = $session->id;
@@ -775,30 +788,141 @@ class ChatComponent extends Component
 
     private function setCurrentShift()
     {
-        $hour = now()->hour;
-        if ($hour >= 7 && $hour < 13) {
-            $this->currentShift = 'manha';
-        } elseif ($hour >= 13 && $hour < 19) {
-            $this->currentShift = 'tarde';
-        } else {
-            $this->currentShift = 'noite';
-        }
+        // Usa a função helper que corrige a lógica do turno da noite
+        $shiftInfo = getShiftInfo();
+        $this->currentShift = $shiftInfo['shift'];
+        // A data da sessão também é ajustada para turno da noite
+        $this->currentDate = $shiftInfo['date'];
     }
 
     private function checkIfShiftClosed()
     {
-        $hour = now()->hour;
+        // O turno nunca é fechado para permitir anotações a qualquer momento
+        // Isso é importante para enfermeiros que precisam registrar informações
+        // mesmo durante transições de turno ou em situações emergenciais
+        return false;
+    }
 
-        switch ($this->currentShift) {
-            case 'manha':
-                return $hour < 7 || $hour >= 13;
-            case 'tarde':
-                return $hour < 13 || $hour >= 19;
-            case 'noite':
-                return $hour >= 7 && $hour < 19;
-            default:
-                return false;
+    /**
+     * Verifica se o turno atual é diferente do turno da sessão atual
+     * Útil para mostrar aviso visual ao usuário
+     */
+    public function isOutsideCurrentShift(): bool
+    {
+        $shiftInfo = getShiftInfo();
+        return $this->currentShift !== $shiftInfo['shift'] ||
+               $this->currentDate !== $shiftInfo['date'];
+    }
+
+    /**
+     * Edita uma mensagem existente
+     */
+    public function editMessage($messageId, $newContent)
+    {
+        if ($this->viewingHistory || !$messageId) {
+            return ['success' => false, 'error' => 'Operação não permitida'];
         }
+
+        $newContent = trim($newContent);
+        if (empty($newContent)) {
+            return ['success' => false, 'error' => 'Mensagem não pode ser vazia'];
+        }
+
+        try {
+            $message = ChatMensagem::find($messageId);
+
+            if (!$message) {
+                return ['success' => false, 'error' => 'Mensagem não encontrada'];
+            }
+
+            // Apenas o autor pode editar
+            if ($message->usuario_id != $this->currentUser['id']) {
+                return ['success' => false, 'error' => 'Apenas o autor pode editar'];
+            }
+
+            $repo = new ChatRepository();
+            $repo->updateMessage($messageId, $newContent);
+
+            // Atualiza localmente
+            foreach ($this->messages as &$msg) {
+                if ($msg['id'] == $messageId) {
+                    $msg['mensagem'] = $this->formatMessageText($newContent);
+                    break;
+                }
+            }
+
+            return ['success' => true];
+
+        } catch (\Exception $e) {
+            Log::error('[Chat] Erro ao editar mensagem', [
+                'message_id' => $messageId,
+                'error' => $e->getMessage()
+            ]);
+            return ['success' => false, 'error' => 'Erro ao editar mensagem'];
+        }
+    }
+
+    /**
+     * Deleta (soft delete) uma mensagem
+     */
+    public function deleteMessage($messageId)
+    {
+        if ($this->viewingHistory || !$messageId) {
+            return ['success' => false, 'error' => 'Operação não permitida'];
+        }
+
+        try {
+            $message = ChatMensagem::find($messageId);
+
+            if (!$message) {
+                return ['success' => false, 'error' => 'Mensagem não encontrada'];
+            }
+
+            // Apenas o autor pode deletar
+            if ($message->usuario_id != $this->currentUser['id']) {
+                return ['success' => false, 'error' => 'Apenas o autor pode excluir'];
+            }
+
+            $repo = new ChatRepository();
+            $repo->deleteMessage($messageId);
+
+            // Remove localmente
+            $this->messages = array_values(array_filter($this->messages, function($msg) use ($messageId) {
+                return $msg['id'] != $messageId;
+            }));
+
+            // Decrementa contador da sessão
+            ChatSessao::where('id', $message->sessao_id)->decrement('total_mensagens');
+
+            return ['success' => true];
+
+        } catch (\Exception $e) {
+            Log::error('[Chat] Erro ao deletar mensagem', [
+                'message_id' => $messageId,
+                'error' => $e->getMessage()
+            ]);
+            return ['success' => false, 'error' => 'Erro ao excluir mensagem'];
+        }
+    }
+
+    /**
+     * Retorna estatísticas da sessão atual
+     */
+    public function getSessionStats(): array
+    {
+        return [
+            'total_messages' => count($this->messages),
+            'shift' => $this->currentShift,
+            'date' => $this->currentDate,
+            'shift_label' => match($this->currentShift) {
+                'manha' => 'Manhã',
+                'tarde' => 'Tarde',
+                'noite' => 'Noite',
+                default => ucfirst($this->currentShift)
+            },
+            'pinned_count' => collect($this->messages)->where('is_pinned', true)->count(),
+            'has_history' => count($this->availableSessions) > 0,
+        ];
     }
 
     public function render()

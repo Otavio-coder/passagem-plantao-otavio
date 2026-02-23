@@ -62,7 +62,7 @@
 
                                                 {{-- Escalas Vencidas button --}}
                                                 <button
-                                                    @click="$dispatch('openEscalasVencidasModal', { sectorId: {{ $selectedSector }} })"
+                                                    @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector }} })"
                                                     class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500/40 text-xs sm:text-sm font-medium whitespace-nowrap font-montserrat transition-all duration-150"
                                                     title="Ver Escalas Pendentes">
                                                     <i class="fas fa-exclamation-triangle h-4 w-4 sm:h-5 sm:w-5 sm:mr-1.5"></i>
@@ -316,7 +316,7 @@
 
                                         {{-- Botão de Escalas Vencidas --}}
                                         <button
-                                            @click="$dispatch('openEscalasVencidasModal', { sectorId: {{ $selectedSector }} })"
+                                            @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector }} })"
                                             class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500/40 text-sm font-medium whitespace-nowrap font-montserrat transition-all duration-150"
                                             title="Ver Escalas Pendentes">
                                             <i class="fas fa-exclamation-triangle mr-1.5"></i>
@@ -421,8 +421,101 @@
 
                 {{-- Modal de escalas vencidas --}}
                 <div class="font-montserrat">
-                    @livewire('escalas-vencidas-modal', ['sectorId' => $selectedSector], key('escalas-vencidas-modal'))
+                    @livewire('expired-scales-modal', ['sectorId' => $selectedSector], key('expired-scales-modal'))
                 </div>
+
+                {{-- Sector preferences onboarding modal --}}
+                @if($showSectorOnboarding)
+                    <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-montserrat">
+                        <div class="relative w-full max-w-lg bg-white rounded-xl shadow-2xl flex flex-col" style="max-height: 85vh;">
+
+                            {{-- Header --}}
+                            <div class="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-[#004D9D] to-blue-700 rounded-t-xl flex-shrink-0">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-white/20 rounded-lg">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-base font-bold text-white">Configurar Setores</h2>
+                                        <p class="text-xs text-white/80">Selecione os setores que deseja acompanhar</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Body --}}
+                            <div class="flex-1 overflow-y-auto p-5 min-h-0">
+                                @if(empty($availableSectors))
+                                    <div class="flex flex-col items-center justify-center py-8 text-center">
+                                        <svg class="w-10 h-10 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <p class="text-sm text-gray-500">Nenhum setor disponível no momento.</p>
+                                        <p class="text-xs text-gray-400 mt-1">Entre em contato com o administrador do sistema.</p>
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-600 mb-4">
+                                        Escolha os setores que aparecerão na sua visão do SBAR. Você pode alterar isso a qualquer momento.
+                                    </p>
+
+                                    @php
+                                        $byHospital = collect($availableSectors)->groupBy('hospital_code');
+                                    @endphp
+
+                                    @foreach($byHospital as $hospitalCode => $sectors)
+                                        <div class="mb-4">
+                                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                                {{ $sectors->first()['hospital_name'] ?? 'Hospital' }}
+                                            </p>
+                                            <div class="space-y-1.5">
+                                                @foreach($sectors as $sector)
+                                                    <label class="flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors
+                                                        {{ in_array($sector['sector_code'], $selectedSectors) ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200 hover:border-blue-200 hover:bg-blue-50/50' }}">
+                                                        <input
+                                                            type="checkbox"
+                                                            wire:model.live="selectedSectors"
+                                                            value="{{ $sector['sector_code'] }}"
+                                                            class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                        >
+                                                        <span class="text-sm text-gray-700 font-medium">{{ $sector['sector_name'] }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                @endif
+                            </div>
+
+                            {{-- Footer --}}
+                            <div class="px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl flex-shrink-0 flex items-center justify-between gap-3">
+                                <span class="text-xs text-gray-500">
+                                    {{ count($selectedSectors) }} setor(es) selecionado(s)
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    @if(auth()->user()->hasConfiguredSectors())
+                                        <button
+                                            wire:click="$set('showSectorOnboarding', false)"
+                                            class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    @endif
+                                    <button
+                                        wire:click="saveSectorPreferences"
+                                        wire:loading.attr="disabled"
+                                        @disabled(empty($selectedSectors))
+                                        class="px-4 py-1.5 bg-[#004D9D] hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+                                    >
+                                        <span wire:loading.remove wire:target="saveSectorPreferences">Salvar</span>
+                                        <span wire:loading wire:target="saveSectorPreferences">Salvando...</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                @endif
 
             </div>
         </div>

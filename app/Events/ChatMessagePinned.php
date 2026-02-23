@@ -1,12 +1,8 @@
 <?php
-// =============================================================================
-// ARQUIVO: app/Events/ChatMessagePinned.php
-// AÇÃO: MODIFICAR - Usar PrivateChannel em vez de Channel
-// =============================================================================
 
 namespace App\Events;
 
-use App\Models\System\Chat\ChatMensagem;
+use App\Models\System\Chat\ChatMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -17,56 +13,38 @@ class ChatMessagePinned implements ShouldBroadcastNow
 {
     use InteractsWithSockets, SerializesModels;
 
-    public $mensagem;
+    public $message;
+    public $isPinned;
 
-    public function __construct(ChatMensagem $mensagem)
+    public function __construct(ChatMessage $message, bool $isPinned)
     {
-        $this->mensagem = $mensagem;
-
+        $this->message  = $message;
+        $this->isPinned = $isPinned;
     }
 
     public function broadcastOn()
     {
-        $channelName = 'chat.' . $this->mensagem->nr_atendimento . '.' . $this->mensagem->turno_id;
-        return new PrivateChannel($channelName);
+        return new PrivateChannel("chat.{$this->message->nr_atendimento}");
     }
 
     public function broadcastWith()
     {
-        $author = 'Usuário';
+        $pinnedBy = null;
 
         try {
-            if ($this->mensagem->fixed_by) {
-                $user = \App\Models\System\User::find($this->mensagem->fixed_by);
-                if ($user) {
-                    $author = $user->name;
-                }
+            if ($this->isPinned && $this->message->activePin) {
+                $user = \App\Models\System\User::find($this->message->activePin->pinned_by);
+                $pinnedBy = $user?->name;
             }
         } catch (\Exception $e) {
-            Log::warning('[Chat] Erro ao obter dados do usuário que fixou: ' . $e->getMessage());
-        }
-
-        // Ensure fixed_at uses application timezone (or null)
-        $fixedAt = null;
-        try {
-            if ($this->mensagem->fixed_at) {
-                $fixedAt = $this->mensagem->fixed_at->setTimezone(config('app.timezone'))->format('d/m/Y H:i:s');
-            } else {
-                $fixedAt = null;
-            }
-        } catch (\Throwable $e) {
-            $fixedAt = null;
+            Log::warning('[Chat] Erro ao obter dados do pin: ' . $e->getMessage());
         }
 
         return [
-            'id' => $this->mensagem->id,
-            'is_fixed' => $this->mensagem->is_fixed,
-            'fixed_by' => $this->mensagem->fixed_by,
-            'fixed_at' => $fixedAt,
-            'sessao_id' => $this->mensagem->sessao_id,
-            'nr_atendimento' => $this->mensagem->nr_atendimento,
-            'turno_id' => $this->mensagem->turno_id,
-            'author' => $author,
+            'id'             => $this->message->id,
+            'is_pinned'      => $this->isPinned,
+            'pinned_by'      => $pinnedBy,
+            'nr_atendimento' => $this->message->nr_atendimento,
         ];
     }
 
@@ -77,8 +55,6 @@ class ChatMessagePinned implements ShouldBroadcastNow
 
     public function broadcastWhen()
     {
-        $shouldBroadcast = !empty($this->mensagem->nr_atendimento) && !empty($this->mensagem->turno_id);
-
-        return $shouldBroadcast;
+        return !empty($this->message->nr_atendimento);
     }
 }

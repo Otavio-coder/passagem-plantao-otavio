@@ -1,13 +1,10 @@
 <?php
-// =============================================================================
-// ARQUIVO: app/Events/ChatMessageSent.php
-// AÇÃO: MODIFICAR - Usar PrivateChannel em vez de Channel
-// =============================================================================
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PrivateChannel;
+use App\Models\System\Chat\ChatMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -20,34 +17,33 @@ class ChatMessageSent implements ShouldBroadcastNow
 
     public $message;
 
-    public function __construct($message)
+    public function __construct(ChatMessage $message)
     {
         $this->message = $message;
     }
 
     public function broadcastOn()
     {
-        $channelName = "chat.{$this->message->nr_atendimento}.{$this->message->turno_id}";
-        return new PrivateChannel($channelName);
+        return new PrivateChannel("chat.{$this->message->nr_atendimento}");
     }
 
     public function broadcastWith()
     {
-        $photo = '';
+        $photo  = '';
         $author = 'Usuário';
 
         try {
-            if (!$this->message->relationLoaded('usuario')) {
-                $this->message->load('usuario');
+            if (!$this->message->relationLoaded('user')) {
+                $this->message->load('user');
             }
 
-            if ($this->message->usuario) {
-                $author = $this->message->usuario->name;
-                if (method_exists($this->message->usuario, 'getUserPhoto')) {
-                    $photo = $this->message->usuario->getUserPhoto();
+            if ($this->message->user) {
+                $author = $this->message->user->name;
+                if (method_exists($this->message->user, 'getUserPhoto')) {
+                    $photo = $this->message->user->getUserPhoto();
                 }
-            } elseif ($this->message->usuario_id) {
-                $authorDb = \App\Models\System\User::find($this->message->usuario_id);
+            } elseif ($this->message->user_id) {
+                $authorDb = \App\Models\System\User::find($this->message->user_id);
                 if ($authorDb) {
                     $author = $authorDb->name;
                     if (method_exists($authorDb, 'getUserPhoto')) {
@@ -56,9 +52,9 @@ class ChatMessageSent implements ShouldBroadcastNow
                 }
             }
 
-            if (!$photo && $this->message->usuario_id) {
+            if (!$photo && $this->message->user_id) {
                 $photoData = DB::table('users')
-                    ->where('id', $this->message->usuario_id)
+                    ->where('id', $this->message->user_id)
                     ->value('photo');
 
                 if ($photoData) {
@@ -73,29 +69,24 @@ class ChatMessageSent implements ShouldBroadcastNow
             Log::warning('[Chat] Erro ao obter dados do autor: ' . $e->getMessage());
         }
 
-        // Ensure created_at uses application timezone
         $createdAt = null;
         try {
-            if ($this->message->dt_criacao) {
-                $createdAt = $this->message->dt_criacao->setTimezone(config('app.timezone'))->format('d/m/Y H:i:s');
-            } else {
-                $createdAt = now()->setTimezone(config('app.timezone'))->format('d/m/Y H:i:s');
-            }
+            $createdAt = $this->message->created_at
+                ? $this->message->created_at->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
+                : now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
         } catch (\Throwable $e) {
-            $createdAt = now()->setTimezone(config('app.timezone'))->format('d/m/Y H:i:s');
+            $createdAt = now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
         }
 
         return [
-            'id' => $this->message->id,
-            'mensagem' => $this->message->mensagem,
-            'usuario_id' => $this->message->usuario_id,
-            'author' => $author,
-            'photo' => $photo,
-            'created_at' => $createdAt,
-            'is_fixed' => $this->message->is_fixed ?? false,
+            'id'             => $this->message->id,
+            'content'        => $this->message->content,
+            'user_id'        => $this->message->user_id,
+            'author'         => $author,
+            'photo'          => $photo,
+            'created_at'     => $createdAt,
+            'is_pinned'      => false,
             'nr_atendimento' => $this->message->nr_atendimento,
-            'turno_id' => $this->message->turno_id,
-            'sessao_id' => $this->message->sessao_id,
         ];
     }
 
@@ -106,8 +97,6 @@ class ChatMessageSent implements ShouldBroadcastNow
 
     public function broadcastWhen()
     {
-        $shouldBroadcast = !empty($this->message->nr_atendimento) && !empty($this->message->turno_id);
-
-        return $shouldBroadcast;
+        return !empty($this->message->nr_atendimento);
     }
 }

@@ -2,8 +2,10 @@
 
 namespace App\Models\System;
 
+use App\Models\System\UserSectorPreference;
 use App\Services\MSGraph\GetUserPhoto;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use LdapRecord\Laravel\Auth\AuthenticatesWithLdap;
@@ -130,5 +132,15 @@ class User extends Authenticatable implements LdapAuthenticatable
     public function getPhotoAttribute($value)
     {
         return $value;
+    }
+
+    public function sectorPreferences(): HasMany
+    {
+        return $this->hasMany(UserSectorPreference::class, 'user_id');
+    }
+
+    public function hasConfiguredSectors(): bool
+    {
+        return $this->sectorPreferences()->exists();
     }
 }

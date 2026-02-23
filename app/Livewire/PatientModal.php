@@ -4,6 +4,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Models\EMR\Core\Patient;
+use App\Services\TasyService;
 use Illuminate\Support\Facades\Log;
 
 class PatientModal extends Component
@@ -14,20 +15,21 @@ class PatientModal extends Component
     public $patientDetails = null;
     public $patientAlerts = [];
     public $showAlertsModal = false;
-    public $currentShift = 'dia';
+    public $currentShift = 'morning';
     public $loadingPatient = false;
 
-    public $cpoeData = null;
     public $cpoeLoaded = false;
     public $cpoeLoading = false;
     public $cpoeExpanded = false;
 
     // Model centralizada
     protected $patientModel;
+    protected TasyService $tasyService;
 
-    public function boot()
+    public function boot(TasyService $tasyService)
     {
         $this->patientModel = new Patient();
+        $this->tasyService = $tasyService;
     }
 
     public function mount()
@@ -43,16 +45,16 @@ class PatientModal extends Component
         $time = $hour * 60 + $minute;
 
         if ($time >= 435 && $time < 795) {
-            return 'manha';
+            return 'morning';
         } elseif ($time >= 795 && $time < 1155) {
-            return 'tarde';
+            return 'afternoon';
         } else {
-            return 'noite';
+            return 'night';
         }
     }
 
     #[On('openModal')]
-    public function openModal($attendanceNumber, $hospital = '')
+    public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null)
     {
         if (!$attendanceNumber || $attendanceNumber == 0) {
             Log::warning('PatientModal: Invalid attendanceNumber', [
@@ -78,8 +80,12 @@ class PatientModal extends Component
                 'shift' => $this->currentShift
             ]);
 
-            // Carrega dados do paciente (SEM CPOE)
-            $this->loadPatientData($attendanceNumber);
+            // Se o payload do SBAR foi passado, usa diretamente (evita re-fetch)
+            if (!empty($sbarPatient) && is_array($sbarPatient)) {
+                $this->loadFromSbarData($sbarPatient, $attendanceNumber);
+            } else {
+                $this->loadPatientData($attendanceNumber);
+            }
 
         } catch (\Exception $e) {
             Log::error('PatientModal: Error in openModal', [
@@ -91,62 +97,81 @@ class PatientModal extends Component
         }
     }
 
-    #[On('loadCpoeData')]
-    public function loadCpoeData()
+    private function loadFromSbarData(array $sbarData, int $attendanceNumber): void
     {
-        if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
-            Log::warning('PatientModal: Cannot load CPOE - no current patient');
-            return;
-        }
-
-        if ($this->cpoeLoaded) {
-            // Se já carregou, apenas expande/colapsa
-            $this->cpoeExpanded = !$this->cpoeExpanded;
-            return;
-        }
-
         try {
-            $this->cpoeLoading = true;
+            $details = (object) $sbarData;
 
-            $startTime = microtime(true);
+            // O SBAR usa 'priority_exams', o modal espera 'prioridade_exames'
+            $details->prioridade_exames = $sbarData['priority_exams'] ?? null;
 
-            // Carrega apenas dados CPOE
-            $this->cpoeData = $this->patientModel->getPatientCPOEOnly($this->currentPatient['nr_atendimento']);
-
-            $loadTime = microtime(true) - $startTime;
-
-
-            if ($this->patientDetails) {
-                $this->patientDetails->cpoe_procedures = $this->cpoeData->cpoe_procedures ?? null;
-                $this->patientDetails->cpoe_medications = $this->cpoeData->cpoe_medications ?? null;
-                $this->patientDetails->cpoe_nutrition = $this->cpoeData->cpoe_nutrition ?? null;
-                $this->patientDetails->cpoe_recommendations = $this->cpoeData->cpoe_recommendations ?? null;
-                $this->patientDetails->cpoe_interventions = $this->cpoeData->cpoe_interventions ?? null;
+            // Busca apenas os alertas (não vêm no payload do SBAR)
+            $details->alerts = [];
+            $personId = $sbarData['cd_pessoa_fisica'] ?? null;
+            if ($personId) {
+                try {
+                    $details->alerts = $this->tasyService->getPatientAlerts($attendanceNumber, (int) $personId);
+                } catch (\Throwable $e) {
+                    Log::warning('PatientModal: Failed to fetch alerts', [
+                        'attendance' => $attendanceNumber,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
 
-            $this->cpoeLoaded = true;
-            $this->cpoeExpanded = true;
+            $this->patientDetails = $details;
+            $this->patientAlerts = $details->alerts;
 
-            $this->dispatch('cpoe-data-loaded', [
-                'success' => true,
-                'loadTime' => round($loadTime, 2)
+            $this->currentPatient = array_merge($this->currentPatient, [
+                'nm_pessoa_fisica' => $sbarData['nm_pessoa_fisica'] ?? 'Paciente',
+                'nr_prontuario'    => $sbarData['nr_prontuario'] ?? 'N/A',
+                'age_detailed'     => $sbarData['age_detailed'] ?? 'N/A',
+                'sexo'             => $sbarData['sexo'] ?? 'N/A',
+                'convenio'         => $sbarData['convenio'] ?? 'N/A',
+                'hospital_name'    => $sbarData['hospital_name'] ?? $this->currentHospitalName,
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('PatientModal: Error loading CPOE data', [
-                'error' => $e->getMessage(),
-                'attendance_number' => $this->currentPatient['nr_atendimento'],
-                'trace' => $e->getTraceAsString()
-            ]);
+            $this->checkAndShowAlertsModal();
 
-            $this->dispatch('cpoe-data-loaded', [
-                'success' => false,
-                'error' => 'Erro ao carregar prescrições'
+        } catch (\Throwable $e) {
+            Log::warning('PatientModal: Failed to load from SBAR data, falling back to DB', [
+                'attendance' => $attendanceNumber,
+                'error' => $e->getMessage()
             ]);
-
-        } finally {
-            $this->cpoeLoading = false;
+            $this->loadPatientData($attendanceNumber);
+            return;
         }
+
+        $this->loadingPatient = false;
+
+        $this->dispatch('patient-data-loaded', [
+            'patientId'  => $attendanceNumber,
+            'shift'      => $this->currentShift,
+            'success'    => true,
+            'hasAlerts'  => !empty($this->patientAlerts),
+        ]);
+    }
+
+    /**
+     * Recebe dados CPOE pré-buscados via fetch() no cliente.
+     * Evita que o Livewire faça a query pesada no Oracle — a query já foi
+     * feita pelo PatientCpoeController e o resultado JSON é passado aqui.
+     */
+    public function receiveCpoeData(array $cpoeData): void
+    {
+        if (!$this->patientDetails) {
+            return;
+        }
+
+        $this->patientDetails->cpoe_procedures      = $cpoeData['cpoe_procedures']      ?? null;
+        $this->patientDetails->cpoe_medications     = $cpoeData['cpoe_medications']     ?? null;
+        $this->patientDetails->cpoe_nutrition       = $cpoeData['cpoe_nutrition']       ?? null;
+        $this->patientDetails->cpoe_recommendations = $cpoeData['cpoe_recommendations'] ?? null;
+        $this->patientDetails->cpoe_interventions   = $cpoeData['cpoe_interventions']   ?? null;
+
+        $this->cpoeLoaded   = true;
+        $this->cpoeExpanded = true;
+        $this->cpoeLoading  = false;
     }
 
     private function loadPatientData($attendanceNumber)
@@ -266,7 +291,6 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
 
-        $this->cpoeData = null;
         $this->cpoeLoaded = false;
         $this->cpoeLoading = false;
         $this->cpoeExpanded = false;
@@ -378,20 +402,20 @@ class PatientModal extends Component
             'needs_assessment' => $this->patientDetails->morse_needs_assessment ?? true
         ];
 
-        $scales['dor'] = [
-            'score' => $this->patientDetails->dor_score ?? null,
-            'timestamp' => $this->patientDetails->dor_timestamp ?? null,
-            'classification' => $this->patientDetails->dor_classification ?? null,
-            'increased' => $this->patientDetails->dor_increased ?? false,
-            'needs_assessment' => $this->patientDetails->dor_needs_assessment ?? true
+        $scales['pain'] = [
+            'score' => $this->patientDetails->pain_score ?? null,
+            'timestamp' => $this->patientDetails->pain_timestamp ?? null,
+            'classification' => $this->patientDetails->pain_classification ?? null,
+            'increased' => $this->patientDetails->pain_increased ?? false,
+            'needs_assessment' => $this->patientDetails->pain_needs_assessment ?? true
         ];
 
-        $scales['tev'] = [
-            'score' => $this->patientDetails->tev_score ?? null,
-            'timestamp' => $this->patientDetails->tev_timestamp ?? null,
-            'classification' => $this->patientDetails->tev_classification ?? null,
-            'increased' => $this->patientDetails->tev_increased ?? false,
-            'needs_assessment' => $this->patientDetails->tev_needs_assessment ?? true
+        $scales['vte'] = [
+            'score' => $this->patientDetails->vte_score ?? null,
+            'timestamp' => $this->patientDetails->vte_timestamp ?? null,
+            'classification' => $this->patientDetails->vte_classification ?? null,
+            'increased' => $this->patientDetails->vte_increased ?? false,
+            'needs_assessment' => $this->patientDetails->vte_needs_assessment ?? true
         ];
 
         return $scales;
@@ -445,9 +469,6 @@ class PatientModal extends Component
             'hasPatientData' => $this->hasPatientData(),
             'scalesData' => $this->scalesData,
             'clinicalData' => $this->clinicalData,
-            'cpoeLoaded' => $this->cpoeLoaded,
-            'cpoeLoading' => $this->cpoeLoading,
-            'cpoeExpanded' => $this->cpoeExpanded,
         ]);
     }
 }

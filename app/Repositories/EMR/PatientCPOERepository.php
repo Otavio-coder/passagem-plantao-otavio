@@ -182,7 +182,7 @@ class PatientCPOERepository
             ORDER BY cr.DT_INICIO, cr.NR_SEQUENCIA
         ", ['attendance' => $attendanceNumber]);
 
-        return $this->organizeByShifts($recommendations, 'recommendations');
+        return $this->organizeFlat($recommendations, 'recommendations');
     }
 
     /**
@@ -206,12 +206,7 @@ class PatientCPOERepository
                 ci.IE_SE_NECESSARIO,
                 ci.IE_ACM,
                 ci.IE_URGENCIA,
-                ci.IE_LADO,
-                CASE
-                    WHEN ci.HR_PRIM_HORARIO IS NOT NULL AND TO_NUMBER(SUBSTR(ci.HR_PRIM_HORARIO, 1, 2)) BETWEEN 7 AND 13 THEN 'MANHÃ'
-                    WHEN ci.HR_PRIM_HORARIO IS NOT NULL AND TO_NUMBER(SUBSTR(ci.HR_PRIM_HORARIO, 1, 2)) BETWEEN 13 AND 19 THEN 'TARDE'
-                    ELSE 'NOITE'
-                END AS turno
+                ci.IE_LADO
             FROM tasy.CPOE_INTERVENCAO ci
             WHERE ci.NR_ATENDIMENTO = :attendance
               AND ci.DT_LIBERACAO IS NOT NULL
@@ -220,7 +215,23 @@ class PatientCPOERepository
             ORDER BY ci.DT_INICIO, ci.NR_SEQUENCIA
         ", ['attendance' => $attendanceNumber]);
 
-        return $this->organizeByShifts($interventions, 'interventions');
+        return $this->organizeFlat($interventions, 'interventions');
+    }
+
+    /**
+     * Retorna lista plana sem divisão por turno.
+     * Usado para recomendações e intervenções, que são prescrições contínuas
+     * sem horário fixo de turno — agrupar por turno resultaria em itens
+     * acumulados erroneamente na coluna "NOITE".
+     */
+    private function organizeFlat($data, $type): array
+    {
+        $items = collect($data)->map(fn($item) => $this->formatItem($item, $type))->values()->toArray();
+
+        return [
+            'total_count' => count($items),
+            'items'       => $items,
+        ];
     }
 
     /**
@@ -284,11 +295,12 @@ class PatientCPOERepository
                     'horario' => $item->ds_horario ?? '',
                     'turno' => $item->turno,
                     'is_administered' => !empty($item->dt_baixa),
-                    'is_suspended' => !empty($item->dt_suspensao),
+                    // A query já filtra suspensos (ie_suspenso <> 'S' / dt_suspensao IS NULL)
+                    'is_suspended' => false,
                     'dispensar' => $item->qt_dispensar ?? '',
                     'nr_prescricao' => $item->nr_prescricao ?? '',
                     'dt_prescricao' => $item->dt_prescricao ?? null,
-                    'resumo_formatado' => $item->resumo_formatado ?? '',
+                    'labels' => [],
                     'has_details' => true,
                 ];
 
@@ -299,38 +311,48 @@ class PatientCPOERepository
                     ($item->ie_dieta_especial === 'S' ? 'Especial' : 'Dieta'));
 
                 return [
+                    'nr_sequencia' => $item->nr_sequencia ?? null,
                     'prescricao' => $isPejeJejum
                         ? 'JEJUM' . ($item->ds_tipo_jejum ? ' - ' . $item->ds_tipo_jejum : '')
                         : ($item->ds_dieta ?? $item->ds_material ?? 'Prescrição nutricional'),
                     'tipo_nutricao' => $tipoNutricao,
                     'is_jejum' => $isPejeJejum,
+                    'tipo_jejum' => $item->ds_tipo_jejum ?? null,
+                    'objetivo_jejum' => $item->ds_objetivo_jejum ?? null,
                     'observacoes' => $item->ds_observacao ?? '',
                     'horario_inicio' => $item->hr_prim_horario ?? '',
+                    'horarios' => $item->ds_horarios ?? null,
                     'volume' => $item->qt_volume ?? null,
+                    'volume_total' => $item->qt_volume_total ?? null,
                     'kcal_total' => $item->qt_kcal_total ?? null,
                     'turno' => $item->turno,
                     'alergias_alimentares' => $item->ds_alergias_alimentares ?? '',
                     'is_enteral' => $item->ie_dieta_enteral === 'S',
                     'is_especial' => $item->ie_dieta_especial === 'S',
+                    'nome_nutricionista' => $item->nome_nutricionista ?? null,
+                    'dt_liberacao' => null, // não disponível na query atual
+                    'data_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : null,
+                    'data_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
                     'periodo_completo' => ($item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '') .
                         (($item->hr_prim_horario ?? '') ? ' ' . $item->hr_prim_horario : ''),
                     'is_active' => true,
                     'has_details' => true,
-                    'resumo_formatado' => $item->resumo_formatado ?? '',
                 ];
 
             case 'recommendations':
+                $textoRecomendacao = $item->ds_recomendacao ?? '';
                 return [
-                    'recomendacao' => $item->ds_recomendacao ?? 'Recomendação não especificada',
+                    'recomendacao' => $textoRecomendacao ?: 'Recomendação não especificada',
                     'tipo_recomendacao' => $item->ds_tipo_recomendacao ?? '',
                     'observacoes' => $item->ds_observacao ?? '',
                     'horario_inicio' => $item->hr_prim_horario ?? '',
-                    'turno' => $item->turno,
+                    'horarios' => $item->ds_horarios ?? null,
                     'nome_profissional' => $item->nome_profissional ?? '',
                     'is_active' => true,
-                    'has_details' => true,
+                    // Expande quando há observações OU quando o texto foi truncado na view (>100 chars)
+                    'has_details' => !empty($item->ds_observacao) || mb_strlen($textoRecomendacao) > 100,
                     'data_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
-                    'resumo_formatado' => $item->resumo_formatado ?? '',
+                    'data_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
                 ];
 
             case 'interventions':
@@ -347,14 +369,13 @@ class PatientCPOERepository
                     'procedimento' => $item->ds_procedimento ?? 'Procedimento não especificado',
                     'observacoes' => $item->ds_observacao ?? '',
                     'horario_inicio' => $item->hr_prim_horario ?? '',
-                    'turno' => $item->turno,
+                    'horarios' => $item->ds_horarios ?? null,
                     'nome_profissional' => $item->nome_profissional ?? '',
-                    'nome_prescritor' => $item->nome_prescritor ?? '',
                     'labels' => $labels,
                     'is_active' => true,
-                    'has_details' => true,
+                    'has_details' => !empty($item->ds_observacao) || !empty($labels),
                     'data_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
-                    'resumo_formatado' => $item->resumo_formatado ?? '',
+                    'data_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
                 ];
 
             default:

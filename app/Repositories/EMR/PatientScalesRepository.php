@@ -3,7 +3,7 @@
 namespace App\Repositories\EMR;
 
 use Illuminate\Support\Facades\Log;
-use App\Models\EMR\Scales\{Mews, Pews, Braden, Morse, Tev, Dor};
+use App\Models\EMR\Scales\{Mews, Pews, Braden, Morse, VteThrombosis, Pain};
 
 class PatientScalesRepository
 {
@@ -58,7 +58,7 @@ class PatientScalesRepository
                     ->get()
                     ->groupBy('nr_atendimento');
 
-                $dorRows = Dor::query()
+                $painRows = Pain::query()
                     ->whereIn('nr_atendimento', $chunk)
                     ->whereNotNull('dt_liberacao')
                     ->whereNull('dt_inativacao')
@@ -67,7 +67,7 @@ class PatientScalesRepository
                     ->get()
                     ->groupBy('nr_atendimento');
 
-                $tevRows = Tev::query()
+                $vteRows = VteThrombosis::query()
                     ->whereIn('nr_atendimento', $chunk)
                     ->whereNotNull('dt_liberacao')
                     ->whereNull('dt_inativacao')
@@ -85,8 +85,8 @@ class PatientScalesRepository
                     [$pewsCurrent, $pewsPrev] = $this->pickCurrentAndPrevious($pewsRows, $attendance);
                     [$bradenCurrent, $bradenPrev] = $this->pickCurrentAndPrevious($bradenRows, $attendance);
                     [$morseCurrent, $morsePrev] = $this->pickCurrentAndPrevious($morseRows, $attendance);
-                    [$dorCurrent, $dorPrev] = $this->pickCurrentAndPrevious($dorRows, $attendance);
-                    [$tevCurrent, $tevPrev] = $this->pickCurrentAndPrevious($tevRows, $attendance);
+                    [$painCurrent, $painPrev] = $this->pickCurrentAndPrevious($painRows, $attendance);
+                    [$vteCurrent, $vtePrev]   = $this->pickCurrentAndPrevious($vteRows, $attendance);
 
                     // Build structures
                     $result[$attendance] = [
@@ -94,8 +94,8 @@ class PatientScalesRepository
                         'pews'   => Pews::buildStructure($pewsCurrent, $pewsPrev, 'turno', $isNew),
                         'braden' => Braden::buildStructure($bradenCurrent, $bradenPrev, '24h', $isNew),
                         'morse'  => Morse::buildStructure($morseCurrent, $morsePrev, '24h', $isNew),
-                        'dor'    => Dor::buildStructure($dorCurrent, $dorPrev, 'turno', $isNew),
-                        'tev'    => Tev::buildStructure($tevCurrent, $tevPrev, '24h', $isNew),
+                        'pain'   => Pain::buildStructure($painCurrent, $painPrev, 'turno', $isNew),
+                        'vte'    => VteThrombosis::buildStructure($vteCurrent, $vtePrev, '24h', $isNew),
                     ];
                 }
             } catch (\Throwable $e) {
@@ -151,7 +151,7 @@ class PatientScalesRepository
             return false;
         }
 
-        $dateCol = get_class($candidate) === Dor::class
+        $dateCol = get_class($candidate) === Pain::class
             ? 'dt_sinal_vital'
             : 'dt_avaliacao';
 

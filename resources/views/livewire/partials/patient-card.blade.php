@@ -341,33 +341,33 @@
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
-                                {{-- Dor --}}
+                                {{-- Pain --}}
                                 <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
-                                    {{ $patient['dor_styling']['bg'] ?? 'bg-gray-50' }}
-                                    {{ $patient['dor_styling']['text'] ?? 'text-gray-800' }}
-                                    {{ $patient['dor_styling']['border'] ?? 'border-gray-300' }}
-                                    {{ ($patient['dor_needs_assessment'] ?? false) ? 'border-b-2 border-b-red-500' : '' }}">
+                                    {{ $patient['pain_styling']['bg'] ?? 'bg-gray-50' }}
+                                    {{ $patient['pain_styling']['text'] ?? 'text-gray-800' }}
+                                    {{ $patient['pain_styling']['border'] ?? 'border-gray-300' }}
+                                    {{ ($patient['pain_needs_assessment'] ?? false) ? 'border-b-2 border-b-red-500' : '' }}">
                                     <strong>Dor:</strong>
-                                    <span class="ml-1">{{ $patient['dor_score'] ?? '-' }}</span>
-                                    @if($patient['dor_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['dor_shift'] }})</span>
+                                    <span class="ml-1">{{ $patient['pain_score'] ?? '-' }}</span>
+                                    @if($patient['pain_shift'] ?? null)
+                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['pain_shift'] }})</span>
                                     @endif
-                                    @if(($patient['dor_increased'] ?? false))
+                                    @if(($patient['pain_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
-                                {{-- TEV --}}
+                                {{-- VTE --}}
                                 <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
-                                    {{ $patient['tev_styling']['bg'] ?? 'bg-gray-50' }}
-                                    {{ $patient['tev_styling']['text'] ?? 'text-gray-800' }}
-                                    {{ $patient['tev_styling']['border'] ?? 'border-gray-300' }}
-                                    {{ ($patient['tev_needs_assessment'] ?? false) ? 'border-b-2 border-b-red-500' : '' }}">
+                                    {{ $patient['vte_styling']['bg'] ?? 'bg-gray-50' }}
+                                    {{ $patient['vte_styling']['text'] ?? 'text-gray-800' }}
+                                    {{ $patient['vte_styling']['border'] ?? 'border-gray-300' }}
+                                    {{ ($patient['vte_needs_assessment'] ?? false) ? 'border-b-2 border-b-red-500' : '' }}">
                                     <strong>TEV:</strong>
-                                    <span class="ml-1">{{ $patient['tev_score'] ?? '-' }}</span>
-                                    @if($patient['tev_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['tev_shift'] }})</span>
+                                    <span class="ml-1">{{ $patient['vte_score'] ?? '-' }}</span>
+                                    @if($patient['vte_shift'] ?? null)
+                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['vte_shift'] }})</span>
                                     @endif
-                                    @if(($patient['tev_increased'] ?? false))
+                                    @if(($patient['vte_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
@@ -493,29 +493,27 @@
                 </div>
 
                 {{-- Details Button --}}
-                <div class="flex-shrink-0 p-1.5 border-t border-white/10 z-10">
+                <div
+                    class="flex-shrink-0 p-1.5 border-t border-white/10 z-10"
+                    x-data='{ isLoading: false, sbarPatient: @json($patient), hospitalName: @json($currentHospitalName ?? "") }'
+                >
                     <button
                         type="button"
-                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs font-medium backdrop-blur-[4px] cursor-pointer hover:not(:disabled):bg-white/30 hover:not(:disabled):shadow-md active:not(:disabled):bg-white/40 disabled:bg-white/10 disabled:text-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
-                        x-data="{ isLoading: false }"
-                        @click.prevent="isLoading = true; $dispatch('openModal', { attendanceNumber: {{ $patient['nr_atendimento'] ?? 0 }}, hospital: '{{ $currentHospitalName ?? '' }}' }); setTimeout(() => isLoading = false, 2000)"
+                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 disabled:bg-white/10 disabled:text-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+                        @click.prevent="isLoading = true; $dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient }); setTimeout(() => isLoading = false, 2000)"
                         :disabled="isLoading"
                     >
-                        <template x-if="isLoading">
-                            <div class="flex items-center gap-2">
-                                <div class="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent"></div>
-                                <span>Carregando...</span>
-                            </div>
-                        </template>
-                        <template x-if="!isLoading">
-                            <div class="flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                <span>Detalhes</span>
-                            </div>
-                        </template>
+                        <span x-show="isLoading" class="flex items-center gap-2">
+                            <span class="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent inline-block"></span>
+                            <span>Carregando...</span>
+                        </span>
+                        <span x-show="!isLoading" class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <span>Detalhes</span>
+                        </span>
                     </button>
                 </div>
             </div>

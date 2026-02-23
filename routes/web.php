@@ -20,7 +20,7 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
 
     /* Rotas de Administração do Sistema */
 
-    Route::prefix( 'administracao' )->group( function () {
+    Route::prefix( 'administration' )->group( function () {
 
         Route::middleware( 'can:ver usuarios' )->prefix( 'usuarios' )->group( function () {
             Route::get( '/', [ \App\Http\Controllers\UserController::class, 'index' ] )->name( 'users.index' );
@@ -48,22 +48,9 @@ Route::middleware( [ 'auth', 'verify.authorization' ] )->group( function () {
             Route::get('/sector-count-for-hospital', [SystemConfigurationController::class, 'getSectorCountForHospital'])->name('system-configuration.sector-count-for-hospital');
         });
 
-        Route::middleware(['auth'])->get('/chat/messages', function (\Illuminate\Http\Request $request) {
-            $patientId = $request->get('patientId');
-            $shift = $request->get('shift');
-            $date = $request->get('date', now()->toDateString());
-            $repo = new \App\Repositories\MySQL\Chat\ChatRepository();
-            $messages = $repo->getMessages($patientId, $shift, $date, 50);
-            return response()->json(['messages' => $messages]);
-        });
-
-        Route::get('/sbar/avaliacoes-turno',
-            [App\Http\Controllers\ChatAuditoriaController::class, 'avaliacoesTurno'])
-            ->name('sbar.avaliacoes.turno');
-
-        Route::get('/sbar/avaliacoes-turno/export',
-            [App\Http\Controllers\ExportController::class, 'exportAvaliacoesTurno'])
-            ->name('sbar.avaliacoes.export');
+        Route::get('/sbar/patient/{attendanceNumber}/cpoe',
+            [App\Http\Controllers\PatientCpoeController::class, 'load'])
+            ->name('sbar.patient.cpoe');
 
         Route::view( 'logs', 'vendor.log-viewer.index' )->middleware('can:ver logs')->name( 'logs' );
 

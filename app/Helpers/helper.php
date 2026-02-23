@@ -723,14 +723,14 @@ if (!function_exists('getShiftInfo')) {
 
         // Determina o turno
         if ($hour >= 7 && $hour < 13) {
-            $shift = 'manha';
+            $shift = 'morning';
             $date = $dt->toDateString();
         } elseif ($hour >= 13 && $hour < 19) {
-            $shift = 'tarde';
+            $shift = 'afternoon';
             $date = $dt->toDateString();
         } else {
-            // Turno da noite
-            $shift = 'noite';
+            // Night shift
+            $shift = 'night';
             // Se entre 00:00 e 06:59, o turno começou ontem
             if ($hour >= 0 && $hour < 7) {
                 $date = $dt->copy()->subDay()->toDateString();

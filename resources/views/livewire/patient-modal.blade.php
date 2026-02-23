@@ -230,9 +230,6 @@
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
                                 :patientDetails="$patientDetails"
-                                :cpoeDataFormatted="$cpoeDataFormatted ?? null"
-                                :cpoeLoaded="$cpoeLoaded"
-                                :cpoeLoading="$cpoeLoading"
                             />
                         </div>
                     </div>

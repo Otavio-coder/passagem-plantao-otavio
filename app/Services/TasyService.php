@@ -130,6 +130,19 @@ class TasyService
         Cache::flush();
     }
 
+    public function getPatientAlerts(int $attendanceNumber, int $personId): array
+    {
+        try {
+            return $this->clinical()->getPatientActiveAlerts($attendanceNumber, $personId);
+        } catch (\Throwable $e) {
+            Log::warning('TasyService: Failed to fetch alerts', [
+                'attendance' => $attendanceNumber,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
     // ==================== MÉTODOS PRIVADOS - DATA FETCHING ====================
 
     /**
@@ -197,7 +210,6 @@ class TasyService
         $pendingEvents = $this->fetchPendingEventsBySector($sectorId);
 
         return [
-            'clinical' => $clinicalBatch,
             'clinical_details' => $clinicalBatch['clinical_details'] ?? [],
             'surgery' => $clinicalBatch['surgery'] ?? [],
             'surgery_detailed' => $clinicalBatch['surgery_detailed'] ?? [],
@@ -220,16 +232,26 @@ class TasyService
             ];
         }
 
+        // getBatchClinicalDetails já chama getFutureSurgeriesForAttendances e
+        // getPriorityExamsForAttendances internamente — aproveitamos o resultado.
         $clinicalDetails = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
-        $surgeryData = $this->clinical()->getFutureSurgeriesForAttendances($attendanceNumbers);
         $multidisciplinary = $this->clinical()->getMultidisciplinaryTeams($attendanceNumbers);
-        $priorityExams = $this->clinical()->getPriorityExamsForAttendances($attendanceNumbers);
+
+        $surgeryMap = [];
+        $surgeryDetailedMap = [];
+        $priorityExamsMap = [];
+
+        foreach ($clinicalDetails as $nr => $detail) {
+            $surgeryDetailedMap[$nr] = $detail->procedimentos_cirurgicos ?? [];
+            $surgeryMap[$nr] = !empty($detail->procedimentos_cirurgicos);
+            $priorityExamsMap[$nr] = $detail->prioridade_exames ?? null;
+        }
 
         return [
-            'surgery' => $surgeryData['surgery'] ?? [],
-            'surgery_detailed' => $surgeryData['surgery_detailed'] ?? [],
+            'surgery' => $surgeryMap,
+            'surgery_detailed' => $surgeryDetailedMap,
             'multidisciplinary' => $multidisciplinary,
-            'priority_exams' => $priorityExams,
+            'priority_exams' => $priorityExamsMap,
             'clinical_details' => $clinicalDetails,
         ];
     }
@@ -923,7 +945,7 @@ class TasyService
             $data['pews_timestamp'] = $pews['timestamp'];
         }
 
-        foreach (['braden', 'morse', 'dor', 'tev'] as $scaleName) {
+        foreach (['braden', 'morse', 'pain', 'vte'] as $scaleName) {
             $scale = $scales[$scaleName] ?? self::DEFAULT_SCALE_DATA;
             $data["{$scaleName}_score"] = $scale['score'];
             $data["{$scaleName}_previous_score"] = $scale['previous_score'] ?? null;

@@ -2,210 +2,178 @@
 
 namespace App\Repositories\MySQL\Chat;
 
-use App\Models\System\Chat\ChatMensagem;
-use App\Models\System\Chat\ChatSessao;
-use App\Services\ChatAuditoriaService;
-use Illuminate\Support\Facades\Cache;
+use App\Models\System\Chat\ChatMessage;
+use App\Models\System\Chat\ChatMessagePin;
 use Illuminate\Support\Facades\DB;
 
 class ChatRepository
 {
-    public function getMessages($nr_atendimento, $turno_id, $date = null, $perPage = 50)
+    /**
+     * Loads all messages for a patient ordered by created_at.
+     * Reactions are grouped and attached to each message.
+     * Pin status comes from an active (unpinned_at IS NULL) record in chat_message_pins.
+     */
+    public function getAllMessages(string $nr_atendimento, int $limit = 300): \Illuminate\Support\Collection
     {
         try {
-            $date = $date ?? now()->toDateString();
-
-            $cacheKey = "session_id_{$nr_atendimento}_{$turno_id}_{$date}";
-            $sessaoId = Cache::remember($cacheKey, 300, function() use ($nr_atendimento, $turno_id, $date) {
-                return ChatSessao::where('nr_atendimento', $nr_atendimento)
-                    ->where('turno_id', $turno_id)
-                    ->where('data_sessao', $date)
-                    ->value('id');
-            });
-
-            if (!$sessaoId) {
-                return collect();
-            }
-
-            $messages = ChatMensagem::select(['id', 'mensagem', 'usuario_id', 'dt_criacao', 'is_fixed'])
-                ->where('sessao_id', $sessaoId)
-                ->where('is_deleted', false)
-                ->orderBy('dt_criacao', 'asc')
-                ->limit($perPage)
+            $messages = DB::table('chat_messages as cm')
+                ->leftJoin('chat_message_pins as cmp', function ($join) {
+                    $join->on('cmp.message_id', '=', 'cm.id')
+                        ->whereNull('cmp.unpinned_at');
+                })
+                ->where('cm.nr_atendimento', $nr_atendimento)
+                ->select([
+                    'cm.id',
+                    'cm.content',
+                    'cm.user_id',
+                    'cm.created_at',
+                    'cm.updated_at',
+                    DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
+                ])
+                ->orderBy('cm.created_at', 'asc')
+                ->limit($limit)
                 ->get();
 
-            return $messages;
+            if ($messages->isEmpty()) {
+                return $messages;
+            }
+
+            $reactions = DB::table('chat_reactions as cr')
+                ->join('users as u', 'cr.user_id', '=', 'u.id')
+                ->whereIn('cr.message_id', $messages->pluck('id'))
+                ->select(['cr.message_id', 'cr.user_id', 'u.name'])
+                ->get()
+                ->groupBy('message_id');
+
+            return $messages->map(function ($msg) use ($reactions) {
+                $msg->reactions = $reactions->get($msg->id, collect())->values()->toArray();
+                return $msg;
+            });
+
         } catch (\Exception $e) {
             return collect();
         }
     }
 
-    public function getMessagesForSession($nr_atendimento, $turno_id, $date, $perPage = 100)
+    /**
+     * Stores a new message. No session/shift tracking.
+     */
+    public function storeMessage(array $data): ChatMessage
     {
-        ChatAuditoriaService::registrarAcessoHistorico($nr_atendimento, $turno_id, $date);
-        return $this->getMessages($nr_atendimento, $turno_id, $date, $perPage);
-    }
-
-    public function storeMessage(array $data, $nr_atendimento = null, $turno_id = null)
-    {
-        $msg = null;
-
-        try {
-            DB::transaction(function() use ($data, &$msg) {
-                // Cria a mensagem
-                $msg = ChatMensagem::create($data);
-
-                // Atualiza contador da sessão
-                ChatSessao::where('id', $msg->sessao_id)->increment('total_mensagens');
-
-                // Registra auditoria
-                ChatAuditoriaService::registrarEnvioMensagem($msg);
-            });
-
-            // Limpa caches relacionados
-            $this->clearMessageCaches($msg->nr_atendimento, $msg->turno_id);
-
-            if ($msg) {
-                // Carrega o relacionamento usuario antes do broadcast
-                $msg->load('usuario');
-
-                // Garante que os campos de broadcast estejam preenchidos
-                $msg->nr_atendimento = $msg->nr_atendimento ?? $nr_atendimento;
-                $msg->turno_id = $msg->turno_id ?? $turno_id;
-
-                // Dispara o evento de broadcast APÓS o commit da transação
-                event(new \App\Events\ChatMessageSent($msg));
-            }
-
-        } catch (\Exception $e) {
-            throw $e;
-        }
-
-        return $msg;
-    }
-
-    public function pinMessage($id, $fixed_by)
-    {
-        $msg = null;
-        $mensagemAnterior = null;
-
-        try {
-            DB::transaction(function() use ($id, $fixed_by, &$msg, &$mensagemAnterior) {
-                $msg = ChatMensagem::findOrFail($id);
-                $mensagemAnterior = $msg->replicate();
-
-                // Busca e desfixa outras mensagens da mesma sessão
-                $mensagensDesfixadas = ChatMensagem::where('sessao_id', $msg->sessao_id)
-                    ->where('id', '!=', $id)
-                    ->where('is_fixed', true)
-                    ->get();
-
-                foreach ($mensagensDesfixadas as $msgDesfixada) {
-                    $msgDesfixada->update([
-                        'is_fixed' => false,
-                        'fixed_by' => null,
-                        'fixed_at' => null
-                    ]);
-
-                    ChatAuditoriaService::registrarFixacaoMensagem($msgDesfixada, false);
-                }
-
-                // Alterna o estado de fixação da mensagem atual
-                $newPinState = !$msg->is_fixed;
-                $msg->update([
-                    'is_fixed' => $newPinState,
-                    'fixed_by' => $newPinState ? $fixed_by : null,
-                    'fixed_at' => $newPinState ? now() : null
-                ]);
-
-                ChatAuditoriaService::registrarFixacaoMensagem($msg, $newPinState, $mensagemAnterior);
-            });
-
-            // Limpa caches relacionados
-            $this->clearMessageCaches($msg->nr_atendimento, $msg->turno_id);
-
-            if ($msg) {
-                // Carrega o relacionamento usuario antes do broadcast
-                $msg->load('usuario');
-
-                // Dispara o evento de broadcast APÓS o commit da transação
-                event(new \App\Events\ChatMessagePinned($msg));
-            }
-
-        } catch (\Exception $e) {
-            throw $e;
-        }
-
-        return $msg;
-    }
-
-    public function updateMessage($id, $newContent)
-    {
-        $msg = ChatMensagem::findOrFail($id);
-        $estadoAnterior = $msg->replicate();
-        $msg->update([
-            'mensagem' => $newContent,
-            'dt_edicao' => now(),
+        $msg = ChatMessage::create([
+            'nr_atendimento'  => $data['nr_atendimento'],
+            'cd_pessoa_fisica' => $data['cd_pessoa_fisica'] ?? null,
+            'user_id'         => $data['user_id'],
+            'content'         => $data['content'],
         ]);
-        \App\Services\ChatAuditoriaService::registrarEdicaoMensagem($msg, $estadoAnterior);
+
+        $msg->load('user');
+
+        event(new \App\Events\ChatMessageSent($msg));
+
         return $msg;
-    }
-
-    public function deleteMessage($id)
-    {
-        $msg = ChatMensagem::findOrFail($id);
-        \App\Services\ChatAuditoriaService::registrarDelecaoMensagem($msg);
-        $msg->update(['is_deleted' => true]);
-        return $msg;
-    }
-
-    private function clearMessageCaches($nr_atendimento, $turno_id)
-    {
-        try {
-            // Usa a data correta do turno (importante para turno da noite)
-            $shiftInfo = getShiftInfo();
-            $currentDate = $shiftInfo['date'];
-            $today = now()->toDateString();
-
-            $cacheKeys = [
-                "chat_messages_{$nr_atendimento}_{$turno_id}_{$currentDate}",
-                "session_id_{$nr_atendimento}_{$turno_id}_{$currentDate}",
-                "chat_messages_{$nr_atendimento}_{$turno_id}_{$today}",
-                "session_id_{$nr_atendimento}_{$turno_id}_{$today}",
-                "chat_sessions_{$nr_atendimento}_v4",
-            ];
-
-            foreach ($cacheKeys as $key) {
-                Cache::forget($key);
-            }
-        } catch (\Exception $e) {
-            // Silent fail
-        }
     }
 
     /**
-     * Obtém ou cria uma sessão de chat para o atendimento/turno/data
+     * Toggles pin state for a message using chat_message_pins table.
+     * If already pinned → unpins (sets unpinned_at).
+     * If not pinned → unpins any other active pin for the patient, creates new pin.
+     * Returns the message with is_pinned property set.
      */
-    public function getOrCreateSession($nr_atendimento, $turno_id, $date = null)
+    public function pinMessage(int $messageId, int $pinnedBy): ChatMessage
     {
-        // Usa a data correta baseada no turno
-        if ($date === null) {
-            $shiftInfo = getShiftInfo();
-            $date = $shiftInfo['date'];
-            $turno_id = $turno_id ?? $shiftInfo['shift'];
+        $msg    = ChatMessage::findOrFail($messageId);
+        $isPinned = false;
+
+        DB::transaction(function () use ($msg, $messageId, $pinnedBy, &$isPinned) {
+            $existingPin = ChatMessagePin::where('message_id', $messageId)
+                ->whereNull('unpinned_at')
+                ->first();
+
+            if ($existingPin) {
+                // Already pinned → unpin
+                $existingPin->update([
+                    'unpinned_at' => now(),
+                    'unpinned_by' => $pinnedBy,
+                ]);
+                $isPinned = false;
+            } else {
+                // Unpin any other active pin for this patient
+                ChatMessagePin::where('nr_atendimento', $msg->nr_atendimento)
+                    ->whereNull('unpinned_at')
+                    ->update([
+                        'unpinned_at' => now(),
+                        'unpinned_by' => $pinnedBy,
+                    ]);
+
+                ChatMessagePin::create([
+                    'message_id'     => $messageId,
+                    'nr_atendimento' => $msg->nr_atendimento,
+                    'pinned_by'      => $pinnedBy,
+                    'pinned_at'      => now(),
+                ]);
+                $isPinned = true;
+            }
+        });
+
+        $msg->is_pinned = $isPinned;
+
+        event(new \App\Events\ChatMessagePinned($msg, $isPinned));
+
+        return $msg;
+    }
+
+    /**
+     * Updates message content (edit). Updates updated_at automatically.
+     */
+    public function updateMessage(int $id, string $newContent): ChatMessage
+    {
+        $msg = ChatMessage::findOrFail($id);
+        DB::table('chat_messages')
+            ->where('id', $id)
+            ->update([
+                'content'    => $newContent,
+                'updated_at' => now(),
+            ]);
+        $msg->content    = $newContent;
+        $msg->updated_at = now();
+        return $msg;
+    }
+
+    /**
+     * Toggles a check reaction for a user on a message.
+     * Returns ['reacted' => bool, 'reactions' => array]
+     */
+    public function toggleReaction(int $messageId, int $userId): array
+    {
+        $existing = DB::table('chat_reactions')
+            ->where('message_id', $messageId)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if ($existing) {
+            DB::table('chat_reactions')
+                ->where('message_id', $messageId)
+                ->where('user_id', $userId)
+                ->delete();
+            $reacted = false;
+        } else {
+            DB::table('chat_reactions')->insert([
+                'message_id' => $messageId,
+                'user_id'    => $userId,
+                'type'       => 'check',
+                'created_at' => now(),
+            ]);
+            $reacted = true;
         }
 
-        return ChatSessao::firstOrCreate(
-            [
-                'nr_atendimento' => $nr_atendimento,
-                'turno_id' => $turno_id,
-                'data_sessao' => $date,
-            ],
-            [
-                'inicio' => now(),
-                'encerrada' => false,
-                'total_mensagens' => 0,
-            ]
-        );
+        $reactions = DB::table('chat_reactions as cr')
+            ->join('users as u', 'cr.user_id', '=', 'u.id')
+            ->where('cr.message_id', $messageId)
+            ->select(['cr.user_id', 'u.name'])
+            ->get()
+            ->toArray();
+
+        return ['reacted' => $reacted, 'reactions' => $reactions];
     }
 }

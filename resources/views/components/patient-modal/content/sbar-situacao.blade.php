@@ -253,15 +253,15 @@
                             :classification="$classification"
                         />
 
-                        {{-- DOR --}}
+                        {{-- PAIN --}}
                         @php
-                            $score = $patientDetails->dor_score ?? null;
-                            $prevScore = $patientDetails->dor_previous_score ?? null;
-                            $styling = $patientDetails->dor_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->dor_increased ?? false;
-                            $timestamp = $patientDetails->dor_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->dor_previous_timestamp ?? null;
-                            $classification = $patientDetails->dor_classification ?? null;
+                            $score = $patientDetails->pain_score ?? null;
+                            $prevScore = $patientDetails->pain_previous_score ?? null;
+                            $styling = $patientDetails->pain_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
+                            $increased = $patientDetails->pain_increased ?? false;
+                            $timestamp = $patientDetails->pain_timestamp ?? null;
+                            $prevTimestamp = $patientDetails->pain_previous_timestamp ?? null;
+                            $classification = $patientDetails->pain_classification ?? null;
                         @endphp
                         <x-scale-card
                             title="Dor"
@@ -275,15 +275,15 @@
                             :classification="$classification"
                         />
 
-                        {{-- TEV --}}
+                        {{-- VTE --}}
                         @php
-                            $score = $patientDetails->tev_score ?? null;
-                            $prevScore = $patientDetails->tev_previous_score ?? null;
-                            $styling = $patientDetails->tev_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->tev_increased ?? false;
-                            $timestamp = $patientDetails->tev_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->tev_previous_timestamp ?? null;
-                            $classification = $patientDetails->tev_classification ?? null;
+                            $score = $patientDetails->vte_score ?? null;
+                            $prevScore = $patientDetails->vte_previous_score ?? null;
+                            $styling = $patientDetails->vte_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
+                            $increased = $patientDetails->vte_increased ?? false;
+                            $timestamp = $patientDetails->vte_timestamp ?? null;
+                            $prevTimestamp = $patientDetails->vte_previous_timestamp ?? null;
+                            $classification = $patientDetails->vte_classification ?? null;
                         @endphp
                         <x-scale-card
                             title="TEV"

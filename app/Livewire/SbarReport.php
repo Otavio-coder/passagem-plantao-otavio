@@ -3,9 +3,11 @@ namespace App\Livewire;
 
 use App\Models\EMR\Core\{Sector, Hospital};
 use App\Models\System\SystemConfiguration;
+use App\Models\System\UserSectorPreference;
 use App\Services\TasyService;
 use Livewire\Component;
 use Livewire\Attributes\Lazy;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 #[Lazy]
@@ -38,12 +40,18 @@ class SbarReport extends Component
     public $orderBy = 'bed';
     public $orderDirection = 'asc';
 
+    // Sector onboarding
+    public bool $showSectorOnboarding = false;
+    public array $availableSectors    = [];
+    public array $selectedSectors     = [];
+
     // Services
     protected TasyService $tasyService;
 
     protected $listeners = [
-        'refreshData' => 'refreshData',
-        'autoRefresh' => 'autoRefresh'
+        'refreshData'           => 'refreshData',
+        'autoRefresh'           => 'autoRefresh',
+        'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
     ];
 
     public function boot(TasyService $tasyService)
@@ -69,8 +77,17 @@ class SbarReport extends Component
 
     protected function loadInitialData()
     {
+        $user = Auth::user();
+
+        // If user has no configured sectors, show onboarding
+        if (!$user->hasConfiguredSectors()) {
+            $this->showSectorOnboarding = true;
+            $this->loadAvailableSectors();
+            $this->loading = false;
+            return;
+        }
+
         $allowedHospitals = SystemConfiguration::allowedHospitalCodes();
-        $allowedSectors = SystemConfiguration::allowedSectorCodes();
 
         if (empty($allowedHospitals)) {
             $this->errorMessage = "Nenhum hospital configurado.";
@@ -84,18 +101,104 @@ class SbarReport extends Component
             return;
         }
 
-        $this->selectedHospital = $this->hospitals[0]['hospital_id'];
+        $this->selectedHospital    = $this->hospitals[0]['hospital_id'];
         $this->currentHospitalName = $this->hospitals[0]['hospital_name'];
 
-        $this->loadSectorsForHospital($this->selectedHospital, $allowedSectors);
+        // Use user's preferred sector codes instead of global whitelist
+        $userSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
+
+        $this->loadSectorsForHospital($this->selectedHospital, $userSectorCodes);
 
         if (!empty($this->sectors)) {
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
             $this->loadPatients();
         } else {
-            $this->errorMessage = "Nenhum setor válido encontrado para o hospital selecionado.";
+            $this->errorMessage = "Nenhum setor configurado para este hospital. Atualize suas preferências de setor.";
             $this->patients = [];
         }
+    }
+
+    protected function loadAvailableSectors(): void
+    {
+        try {
+            $allowedCodes = SystemConfiguration::allowedSectorCodes();
+
+            $sectors = Sector::whereIn('cd_setor_atendimento', $allowedCodes)
+                ->allowed()
+                ->select(['cd_setor_atendimento', 'ds_setor_atendimento', 'nr_seq_agrupamento'])
+                ->get();
+
+            // Build hospital name map to avoid N+1
+            $hospitalIds  = $sectors->pluck('nr_seq_agrupamento')->unique()->filter();
+            $hospitalNames = Hospital::whereIn('nr_sequencia', $hospitalIds)
+                ->pluck('ds_agrupamento', 'nr_sequencia');
+
+            $this->availableSectors = $sectors->map(fn ($s) => [
+                'sector_code'   => $s->cd_setor_atendimento,
+                'sector_name'   => $s->ds_setor_atendimento,
+                'hospital_code' => $s->nr_seq_agrupamento,
+                'hospital_name' => $hospitalNames->get($s->nr_seq_agrupamento, 'Hospital'),
+            ])->toArray();
+        } catch (\Exception $e) {
+            Log::error('Error loading available sectors for onboarding: ' . $e->getMessage());
+            $this->availableSectors = [];
+        }
+    }
+
+    public function saveSectorPreferences(): void
+    {
+        $user = Auth::user();
+
+        if (empty($this->selectedSectors)) {
+            return;
+        }
+
+        try {
+            // Remove existing preferences
+            UserSectorPreference::where('user_id', $user->id)->delete();
+
+            // Build available sectors map for enrichment
+            $sectorsMap = collect($this->availableSectors)->keyBy('sector_code');
+
+            foreach ($this->selectedSectors as $sectorCode) {
+                $meta = $sectorsMap->get($sectorCode, []);
+                UserSectorPreference::create([
+                    'user_id'       => $user->id,
+                    'sector_code'   => $sectorCode,
+                    'sector_name'   => $meta['sector_name'] ?? null,
+                    'hospital_code' => $meta['hospital_code'] ?? null,
+                    'hospital_name' => $meta['hospital_name'] ?? null,
+                ]);
+            }
+
+            $this->showSectorOnboarding = false;
+            $this->selectedSectors = [];
+            $this->loading = true;
+            $this->loadInitialData();
+
+        } catch (\Exception $e) {
+            Log::error('Error saving sector preferences: ' . $e->getMessage());
+        }
+    }
+
+    public function openSectorOnboarding(): void
+    {
+        $this->loadAvailableSectors();
+
+        // Pre-select current user sectors
+        $this->selectedSectors = Auth::user()
+            ->sectorPreferences()
+            ->pluck('sector_code')
+            ->toArray();
+
+        $this->showSectorOnboarding = true;
+    }
+
+    public function onSectorOnboardingSaved(): void
+    {
+        $this->showSectorOnboarding = false;
+        $this->loading = true;
+        $this->loadInitialData();
     }
 
     protected function loadHospitals($allowedHospitals)
@@ -266,8 +369,8 @@ class SbarReport extends Component
         $hospital = collect($this->hospitals)->firstWhere('hospital_id', $hospitalId);
         $this->currentHospitalName = $hospital['hospital_name'] ?? 'Hospital';
 
-        $allowedSectors = SystemConfiguration::allowedSectorCodes();
-        $this->loadSectorsForHospital($hospitalId, $allowedSectors);
+        $userSectorCodes = Auth::user()->sectorPreferences()->pluck('sector_code')->toArray();
+        $this->loadSectorsForHospital($hospitalId, $userSectorCodes);
 
         if (!empty($this->sectors)) {
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];

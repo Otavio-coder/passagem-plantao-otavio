@@ -15,11 +15,13 @@
 
     $hasRecommendations = isset($patientDetails->cpoe_recommendations) &&
                          is_array($patientDetails->cpoe_recommendations) &&
-                         isset($patientDetails->cpoe_recommendations['total_count']);
+                         isset($patientDetails->cpoe_recommendations['total_count']) &&
+                         isset($patientDetails->cpoe_recommendations['items']);
 
     $hasInterventions = isset($patientDetails->cpoe_interventions) &&
                        is_array($patientDetails->cpoe_interventions) &&
-                       isset($patientDetails->cpoe_interventions['total_count']);
+                       isset($patientDetails->cpoe_interventions['total_count']) &&
+                       isset($patientDetails->cpoe_interventions['items']);
 @endphp
 
     <!-- Tabs CPOE -->
@@ -291,14 +293,6 @@
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    @if($medication['resumo_formatado'])
-                                                        <div class="bg-gray-100 p-2 rounded border">
-                                                            <div class="font-medium text-gray-600 text-xs mb-1">Resumo Formatado</div>
-                                                            <div class="text-xs text-gray-700 font-mono break-words leading-relaxed">
-                                                                {{ $medication['resumo_formatado'] }}
-                                                            </div>
-                                                        </div>
-                                                    @endif
                                                 </div>
                                             </div>
                                         </div>
@@ -451,11 +445,13 @@
                                                             <div class="bg-white p-2 rounded border">
                                                                 <div class="font-medium text-gray-600 mb-1">Período & Valores</div>
                                                                 <div class="space-y-1">
-                                                                    @if(($prescription['data_inicio'] ?? null))
+                                                                    @if(($prescription['horarios'] ?? null))
+                                                                        <div><span class="font-medium">Horários:</span> {{ $prescription['horarios'] }}</div>
+                                                                    @elseif(($prescription['data_inicio'] ?? null))
                                                                         <div><span class="font-medium">Início:</span> {{ $prescription['data_inicio'] }}{{ ($prescription['horario_inicio'] ?? null) ? ' às ' . $prescription['horario_inicio'] : '' }}</div>
                                                                     @endif
                                                                     @if(($prescription['data_fim'] ?? null))
-                                                                        <div><span class="font-medium">Fim:</span> {{ $prescription['data_fim'] }}</div>
+                                                                        <div><span class="font-medium">Validade:</span> até {{ $prescription['data_fim'] }}</div>
                                                                     @endif
                                                                     @if(($prescription['volume_total'] ?? null))
                                                                         <div><span class="font-medium">Volume Total:</span> {{ $prescription['volume_total'] }}ml</div>
@@ -486,14 +482,6 @@
                                                                     @if(($prescription['alergias_alimentares'] ?? null))
                                                                         <div class="text-red-700"><span class="font-medium">Alergias:</span> {{ $prescription['alergias_alimentares'] }}</div>
                                                                     @endif
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                        @if(($prescription['resumo_formatado'] ?? null))
-                                                            <div class="bg-gray-100 p-2 rounded border">
-                                                                <div class="font-medium text-gray-600 text-xs mb-1">Resumo Formatado</div>
-                                                                <div class="text-xs text-gray-700 font-mono break-words leading-relaxed">
-                                                                    {{ $prescription['resumo_formatado'] }}
                                                                 </div>
                                                             </div>
                                                         @endif
@@ -534,121 +522,70 @@
          x-transition:enter-end="opacity-100"
          style="display: none;">
         @if($hasRecommendations && $patientDetails->cpoe_recommendations['total_count'] > 0)
-            <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+            @php $recommendations = $patientDetails->cpoe_recommendations['items'] ?? []; @endphp
+            <div class="text-sm text-gray-600 mb-3 flex items-center justify-between">
                 <span>{{ $patientDetails->cpoe_recommendations['total_count'] }} recomendação(ões) ativa(s)</span>
-                <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto">{{ date('d/m/Y') }}</span>
+                <span class="text-xs bg-gray-100 px-2 py-1 rounded">{{ date('d/m/Y') }}</span>
             </div>
-            <div class="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3" x-data="{ selectedRecommendation: null }">
-                @foreach(['MANHÃ', 'TARDE', 'NOITE'] as $shift)
-                    @php
-                        $shiftData = $patientDetails->cpoe_recommendations['shifts'][$shift] ?? ['count' => 0, 'recommendations' => []];
-                    @endphp
-                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                        <div class="px-3 py-2.5 border-b border-gray-200 bg-gray-50">
-                            <div class="flex items-center justify-between">
-                                <h6 class="font-medium text-gray-800 text-sm uppercase tracking-wide">{{ $shift }}</h6>
-                                <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                                    {{ $shiftData['count'] }}
-                                </span>
+            <div class="space-y-2" x-data="{ selectedRecommendation: null }">
+                @foreach($recommendations as $index => $recommendation)
+                    <div class="bg-white rounded-lg border border-gray-200 p-3 shadow-sm {{ $recommendation['has_details'] ? 'cursor-pointer hover:bg-gray-50' : '' }} transition-colors"
+                         @if($recommendation['has_details'])
+                             @click="selectedRecommendation = selectedRecommendation === {{ $index }} ? null : {{ $index }}"
+                        @endif>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                {{-- Tipo + texto da recomendação --}}
+                                <div class="text-xs font-medium text-gray-800 leading-snug break-words mb-1">
+                                    @if($recommendation['tipo_recomendacao'])
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200 mr-1.5 mb-0.5">
+                                            {{ $recommendation['tipo_recomendacao'] }}
+                                        </span>
+                                    @endif
+                                    {{ Str::limit($recommendation['recomendacao'], 120) }}
+                                </div>
+                                {{-- Metadados: horários, profissional, validade --}}
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                                    @if($recommendation['horarios'])
+                                        <span class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{{ $recommendation['horarios'] }}</span>
+                                    @elseif($recommendation['data_inicio'])
+                                        <span class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">desde {{ $recommendation['data_inicio'] }}</span>
+                                    @endif
+                                    @if($recommendation['data_fim'])
+                                        <span class="text-amber-600 font-medium">até {{ $recommendation['data_fim'] }}</span>
+                                    @endif
+                                    @if($recommendation['nome_profissional'])
+                                        <span class="text-gray-400">{{ Str::limit($recommendation['nome_profissional'], 25) }}</span>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
-                        <div class="p-3 lg:max-h-80 lg:overflow-y-auto custom-scroll">
-                            @if($shiftData['count'] > 0)
-                                <div class="space-y-2">
-                                    @foreach($shiftData['recommendations'] as $index => $recommendation)
-                                        <div class="bg-gray-50 rounded-lg border p-3 hover:bg-gray-100 transition-colors shadow-sm {{ $recommendation['has_details'] ? 'cursor-pointer' : '' }}"
-                                             @if($recommendation['has_details'])
-                                                 @click="selectedRecommendation = selectedRecommendation === '{{ $shift }}_{{ $index }}' ? null : '{{ $shift }}_{{ $index }}'"
-                                            @endif>
-                                            <div class="flex items-start justify-between">
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="text-xs font-medium text-gray-800 mb-1 leading-tight break-words">
-                                                        @if($recommendation['tipo_recomendacao'])
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200 mr-2">
-                                                                {{ $recommendation['tipo_recomendacao'] }}
-                                                            </span>
-                                                        @endif
-                                                        {{ Str::limit($recommendation['recomendacao'], 100) }}
-                                                    </div>
-                                                    <div class="text-xs text-gray-600">
-                                                        @if($recommendation['data_inicio'])
-                                                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border">{{ $recommendation['data_inicio'] }}{{ $recommendation['horario_inicio'] ? ' ' . $recommendation['horario_inicio'] : '' }}</span>
-                                                        @endif
-                                                        @if($recommendation['nome_profissional'])
-                                                            <span class="ml-2 font-medium">{{ Str::limit($recommendation['nome_profissional'], 20) }}</span>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                                <div class="flex flex-col items-end space-y-1 ml-2">
-                                                    @if($recommendation['is_active'])
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                                                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                                                            Ativo
-                                                        </span>
-                                                    @else
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                                                            <span class="w-1.5 h-1.5 bg-gray-500 rounded-full mr-1"></span>
-                                                            Inativo
-                                                        </span>
-                                                    @endif
-                                                    @if($recommendation['has_details'])
-                                                        <svg class="w-3 h-3 text-gray-400 transform transition-transform"
-                                                             :class="selectedRecommendation === '{{ $shift }}_{{ $index }}' ? 'rotate-180' : ''"
-                                                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                                        </svg>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                            <!-- Detalhes expandidos -->
-                                            @if($recommendation['has_details'])
-                                                <div x-show="selectedRecommendation === '{{ $shift }}_{{ $index }}'"
-                                                     x-transition:enter="transition ease-out duration-200"
-                                                     x-transition:enter-start="opacity-0 max-h-0"
-                                                     x-transition:enter-end="opacity-100 max-h-96"
-                                                     x-transition:leave="transition ease-in duration-150"
-                                                     x-transition:leave-start="opacity-100 max-h-96"
-                                                     x-transition:leave-end="opacity-0 max-h-0"
-                                                     class="overflow-hidden mt-3 pt-3 border-t border-gray-200">
-                                                    <div class="space-y-3">
-                                                        <div class="bg-indigo-50 p-2 rounded border border-indigo-200">
-                                                            <div class="font-medium text-indigo-800 text-xs mb-1">Recomendação Completa</div>
-                                                            <div class="text-xs text-indigo-700 break-words leading-relaxed">
-                                                                {{ $recommendation['recomendacao'] }}
-                                                            </div>
-                                                        </div>
-                                                        @if($recommendation['observacoes'])
-                                                            <div class="bg-blue-50 p-2 rounded border border-blue-200">
-                                                                <div class="font-medium text-blue-800 text-xs mb-1">Observações</div>
-                                                                <div class="text-xs text-blue-700 break-words leading-relaxed">
-                                                                    {{ $recommendation['observacoes'] }}
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                        @if($recommendation['resumo_formatado'])
-                                                            <div class="bg-gray-100 p-2 rounded border">
-                                                                <div class="font-medium text-gray-600 text-xs mb-1">Resumo Formatado</div>
-                                                                <div class="text-xs text-gray-700 font-mono break-words leading-relaxed">
-                                                                    {{ $recommendation['resumo_formatado'] }}
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @else
-                                <div class="flex flex-col items-center justify-center text-center py-8">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    <div class="text-gray-500 text-sm">Nenhuma recomendação</div>
-                                    <div class="text-gray-400 text-xs">neste turno</div>
-                                </div>
+                            @if($recommendation['has_details'])
+                                <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5 transform transition-transform"
+                                     :class="selectedRecommendation === {{ $index }} ? 'rotate-180' : ''"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
                             @endif
                         </div>
+                        {{-- Painel expandido --}}
+                        @if($recommendation['has_details'])
+                            <div x-show="selectedRecommendation === {{ $index }}"
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 -translate-y-1"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 class="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                <div class="bg-indigo-50 p-2 rounded border border-indigo-200">
+                                    <div class="font-medium text-indigo-800 text-xs mb-1">Recomendação completa</div>
+                                    <div class="text-xs text-indigo-700 break-words leading-relaxed">{{ $recommendation['recomendacao'] }}</div>
+                                </div>
+                                @if($recommendation['observacoes'])
+                                    <div class="bg-blue-50 p-2 rounded border border-blue-200">
+                                        <div class="font-medium text-blue-800 text-xs mb-1">Observações</div>
+                                        <div class="text-xs text-blue-700 break-words leading-relaxed">{{ $recommendation['observacoes'] }}</div>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -657,7 +594,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p class="text-gray-600 text-sm font-medium">Nenhuma recomendação</p>
+                <p class="text-gray-600 text-sm font-medium">Nenhuma recomendação ativa</p>
                 <p class="text-gray-500 text-xs">para o dia {{ date('d/m/Y') }}</p>
             </div>
         @endif
@@ -670,128 +607,74 @@
          x-transition:enter-end="opacity-100"
          style="display: none;">
         @if($hasInterventions && $patientDetails->cpoe_interventions['total_count'] > 0)
-            <div class="text-sm text-gray-600 mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+            @php $interventions = $patientDetails->cpoe_interventions['items'] ?? []; @endphp
+            <div class="text-sm text-gray-600 mb-3 flex items-center justify-between">
                 <span>{{ $patientDetails->cpoe_interventions['total_count'] }} intervenção(ões) ativa(s)</span>
-                <span class="text-xs bg-gray-100 px-2 py-1 rounded self-start sm:self-auto">{{ date('d/m/Y') }}</span>
+                <span class="text-xs bg-gray-100 px-2 py-1 rounded">{{ date('d/m/Y') }}</span>
             </div>
-            <div class="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3" x-data="{ selectedIntervention: null }">
-                @foreach(['MANHÃ', 'TARDE', 'NOITE'] as $shift)
-                    @php
-                        $shiftData = $patientDetails->cpoe_interventions['shifts'][$shift] ?? ['count' => 0, 'interventions' => []];
-                    @endphp
-                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                        <div class="px-3 py-2.5 border-b border-gray-200 bg-gray-50">
-                            <div class="flex items-center justify-between">
-                                <h6 class="font-medium text-gray-800 text-sm uppercase tracking-wide">{{ $shift }}</h6>
-                                <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                                    {{ $shiftData['count'] }}
-                                </span>
+            <div class="space-y-2" x-data="{ selectedIntervention: null }">
+                @foreach($interventions as $index => $intervention)
+                    <div class="bg-white rounded-lg border border-gray-200 p-3 shadow-sm {{ $intervention['has_details'] ? 'cursor-pointer hover:bg-gray-50' : '' }} transition-colors"
+                         @if($intervention['has_details'])
+                             @click="selectedIntervention = selectedIntervention === {{ $index }} ? null : {{ $index }}"
+                        @endif>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                {{-- Nome do procedimento --}}
+                                <div class="text-xs font-medium text-gray-800 leading-snug break-words mb-1">
+                                    {{ $intervention['procedimento'] }}
+                                </div>
+                                {{-- Labels (urgente, se necessário, ACM, lado) --}}
+                                @if(!empty($intervention['labels']))
+                                    <div class="flex flex-wrap gap-1 mb-1">
+                                        @foreach($intervention['labels'] as $label)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium border
+                                                {{ str_contains(strtolower($label), 'urgente') ? 'bg-red-100 text-red-800 border-red-200' :
+                                                   (str_contains(strtolower($label), 'lado') ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                                    'bg-gray-100 text-gray-800 border-gray-200') }}">
+                                                {{ $label }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endif
+                                {{-- Metadados: horários, profissional, validade --}}
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                                    @if($intervention['horarios'])
+                                        <span class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{{ $intervention['horarios'] }}</span>
+                                    @elseif($intervention['data_inicio'])
+                                        <span class="font-mono bg-gray-100 px-1.5 py-0.5 rounded">desde {{ $intervention['data_inicio'] }}</span>
+                                    @endif
+                                    @if($intervention['data_fim'])
+                                        <span class="text-amber-600 font-medium">até {{ $intervention['data_fim'] }}</span>
+                                    @endif
+                                    @if($intervention['nome_profissional'])
+                                        <span class="text-gray-400">{{ Str::limit($intervention['nome_profissional'], 25) }}</span>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
-                        <div class="p-3 lg:max-h-80 lg:overflow-y-auto custom-scroll">
-                            @if($shiftData['count'] > 0)
-                                <div class="space-y-2">
-                                    @foreach($shiftData['interventions'] as $index => $intervention)
-                                        <div class="bg-gray-50 rounded-lg border p-3 hover:bg-gray-100 transition-colors shadow-sm {{ $intervention['has_details'] ? 'cursor-pointer' : '' }}"
-                                             @if($intervention['has_details'])
-                                                 @click="selectedIntervention = selectedIntervention === '{{ $shift }}_{{ $index }}' ? null : '{{ $shift }}_{{ $index }}'"
-                                            @endif>
-                                            <div class="flex items-start justify-between">
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="text-xs font-medium text-gray-800 mb-1 leading-tight break-words">
-                                                        {{ $intervention['procedimento'] }}
-                                                    </div>
-                                                    <div class="text-xs text-gray-600 mb-2">
-                                                        @if($intervention['data_inicio'])
-                                                            <span class="font-mono bg-white px-1.5 py-0.5 rounded border">{{ $intervention['data_inicio'] }}{{ $intervention['horario_inicio'] ? ' ' . $intervention['horario_inicio'] : '' }}</span>
-                                                        @endif
-                                                        @if($intervention['nome_profissional'])
-                                                            <span class="ml-2 font-medium">{{ Str::limit($intervention['nome_profissional'], 20) }}</span>
-                                                        @endif
-                                                    </div>
-                                                    @if(!empty($intervention['labels']))
-                                                        <div class="flex flex-wrap gap-1 mb-1">
-                                                            @foreach($intervention['labels'] as $label)
-                                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium
-                                                                    {{ str_contains(strtolower($label), 'urgente') ? 'bg-red-100 text-red-800 border-red-200' :
-                                                                       (str_contains(strtolower($label), 'lado') ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                                                                        'bg-gray-100 text-gray-800 border-gray-200') }} border">
-                                                                    {{ $label }}
-                                                                </span>
-                                                            @endforeach
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                                <div class="flex flex-col items-end space-y-1 ml-2">
-                                                    @if($intervention['is_active'])
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                                                            <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                                                            Ativo
-                                                        </span>
-                                                    @else
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                                                            <span class="w-1.5 h-1.5 bg-gray-500 rounded-full mr-1"></span>
-                                                            Inativo
-                                                        </span>
-                                                    @endif
-                                                    @if($intervention['has_details'])
-                                                        <svg class="w-3 h-3 text-gray-400 transform transition-transform"
-                                                             :class="selectedIntervention === '{{ $shift }}_{{ $index }}' ? 'rotate-180' : ''"
-                                                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                                        </svg>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                            <!-- Detalhes expandidos -->
-                                            @if($intervention['has_details'])
-                                                <div x-show="selectedIntervention === '{{ $shift }}_{{ $index }}'"
-                                                     x-transition:enter="transition ease-out duration-200"
-                                                     x-transition:enter-start="opacity-0 max-h-0"
-                                                     x-transition:enter-end="opacity-100 max-h-96"
-                                                     x-transition:leave="transition ease-in duration-150"
-                                                     x-transition:leave-start="opacity-100 max-h-96"
-                                                     x-transition:leave-end="opacity-0 max-h-0"
-                                                     class="overflow-hidden mt-3 pt-3 border-t border-gray-200">
-                                                    <div class="space-y-3">
-                                                        <div class="bg-purple-50 p-2 rounded border border-purple-200">
-                                                            <div class="font-medium text-purple-800 text-xs mb-1">Procedimento Completo</div>
-                                                            <div class="text-xs text-purple-700 break-words leading-relaxed">
-                                                                {{ $intervention['procedimento'] }}
-                                                            </div>
-                                                        </div>
-                                                        @if($intervention['observacoes'])
-                                                            <div class="bg-blue-50 p-2 rounded border border-blue-200">
-                                                                <div class="font-medium text-blue-800 text-xs mb-1">Observações</div>
-                                                                <div class="text-xs text-blue-700 break-words leading-relaxed">
-                                                                    {{ $intervention['observacoes'] }}
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                        @if($intervention['resumo_formatado'])
-                                                            <div class="bg-gray-100 p-2 rounded border">
-                                                                <div class="font-medium text-gray-600 text-xs mb-1">Resumo Formatado</div>
-                                                                <div class="text-xs text-gray-700 font-mono break-words leading-relaxed">
-                                                                    {{ $intervention['resumo_formatado'] }}
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @else
-                                <div class="flex flex-col items-center justify-center text-center py-8">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    </svg>
-                                    <div class="text-gray-500 text-sm">Nenhuma intervenção</div>
-                                    <div class="text-gray-400 text-xs">neste turno</div>
-                                </div>
+                            @if($intervention['has_details'])
+                                <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5 transform transition-transform"
+                                     :class="selectedIntervention === {{ $index }} ? 'rotate-180' : ''"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
                             @endif
                         </div>
+                        {{-- Painel expandido --}}
+                        @if($intervention['has_details'])
+                            <div x-show="selectedIntervention === {{ $index }}"
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 -translate-y-1"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 class="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                @if($intervention['observacoes'])
+                                    <div class="bg-blue-50 p-2 rounded border border-blue-200">
+                                        <div class="font-medium text-blue-800 text-xs mb-1">Observações</div>
+                                        <div class="text-xs text-blue-700 break-words leading-relaxed">{{ $intervention['observacoes'] }}</div>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

@@ -2,10 +2,8 @@
 
 namespace App\Livewire;
 
-use App\Models\System\Chat\ChatMensagem;
-use App\Models\System\Chat\ChatSessao;
+use App\Models\System\Chat\ChatMessage;
 use App\Repositories\MySQL\Chat\ChatRepository;
-use App\Services\ChatAuditoriaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,61 +13,38 @@ class ChatComponent extends Component
 {
     public $patientId;
     public $bedUnit;
-    public $currentShift;
-    public $currentDate;
 
+    /** Array plano de itens: ['type'=>'separator',...] ou ['type'=>'message',...] */
     public $messages = [];
     public $newMessage = '';
-    public $viewingHistory = false;
-    public $availableSessions = [];
-    public $groupedSessions = [];
-    public $selectedSession = null;
-
-    // Paginação do histórico
-    public $currentHistoryPage = 0;
-    public $totalHistoryPages = 1;
-    public $sessionsPerPage = 10; // Dias por página (controla quantos dias aparecem por vez)
 
     public $loadingMessages = false;
-    public $sendingMessage = false;
-    public $loadingHistory = false;
+    public $sendingMessage  = false;
 
     public $currentUser;
-    public $isShiftClosed = false;
-
     public $initialized = false;
-    private $currentSessionId = null;
-    private $userCache = [];
+
+    private $userCache  = [];
     private $photoCache = [];
 
     protected $listeners = [
         'onChatMessageReceived' => 'handleNewMessage',
-        'onChatMessagePinned' => 'handleMessagePinned',
-        'initChat' => 'initialize',
-        'refreshChat' => 'refreshCurrentMessages',
+        'onChatMessagePinned'   => 'handleMessagePinned',
+        'initChat'              => 'initialize',
+        'refreshChat'           => 'refreshCurrentMessages',
     ];
-
-    // Propriedade computada para Alpine.js
-    public function getTotalHistoryPagesProperty()
-    {
-        return $this->totalHistoryPages;
-    }
 
     public function mount($patientId = null, $bedUnit = null)
     {
         $this->patientId = $patientId;
-        $this->bedUnit = $bedUnit;
+        $this->bedUnit   = $bedUnit;
 
         $user = Auth::user();
         $this->currentUser = [
-            'id' => $user->id,
-            'name' => $user->name,
+            'id'    => $user->id,
+            'name'  => $user->name,
             'photo' => $this->getUserPhotoBase64($user),
         ];
-
-        // setCurrentShift agora também define currentDate corretamente
-        $this->setCurrentShift();
-        $this->isShiftClosed = $this->checkIfShiftClosed();
     }
 
     public function initialize()
@@ -78,222 +53,178 @@ class ChatComponent extends Component
 
         try {
             $this->loadingMessages = true;
-
-            $this->openChatSession();
             $this->loadMessages();
-            $this->loadAvailableSessions(); // Carrega primeira página automaticamente
-
             $this->initialized = true;
 
             $this->dispatch('chat-initialized', [
-                'patientId' => $this->patientId,
-                'shift' => $this->currentShift,
+                'patientId'   => $this->patientId,
                 'componentId' => $this->getId(),
-                'totalHistoryPages' => $this->totalHistoryPages
             ]);
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro na inicialização:', [
                 'patient_id' => $this->patientId,
-                'error' => $e->getMessage()
+                'error'      => $e->getMessage(),
             ]);
         } finally {
             $this->loadingMessages = false;
         }
     }
 
-    // Método sendMessage simplificado e otimizado
     public function sendMessage($messageContent = null)
     {
-        if ($this->viewingHistory || $this->isShiftClosed) {
-            return ['success' => false, 'error' => 'Operação não permitida'];
-        }
-
         if ($this->sendingMessage) {
-            return ['success' => false, 'error' => 'Aguarde o envio anterior'];
+            return ['success' => false, 'error' => 'Operação não permitida'];
         }
 
         $this->sendingMessage = true;
 
         try {
-            $message = $messageContent ?? trim($this->newMessage);
+            $message = trim($messageContent ?? $this->newMessage);
             $this->newMessage = '';
 
             if (empty($message)) {
                 return ['success' => false, 'error' => 'Mensagem vazia'];
             }
 
-            // Garante que temos uma sessão
-            $sessaoId = $this->getCurrentSessionId();
-            if (!$sessaoId) {
-                $this->openChatSession();
-                $sessaoId = $this->getCurrentSessionId();
-            }
-
-            // Cria a mensagem via repositório
-            $repo = new ChatRepository();
+            $repo       = new ChatRepository();
             $newMessage = $repo->storeMessage([
-                'sessao_id' => $sessaoId,
                 'nr_atendimento' => $this->patientId,
-                'turno_id' => $this->currentShift,
-                'usuario_id' => $this->currentUser['id'],
-                'mensagem' => $message,
-                'dt_criacao' => now(),
-            ], $this->patientId, $this->currentShift);
+                'user_id'        => $this->currentUser['id'],
+                'content'        => $message,
+            ]);
 
             if (!$newMessage) {
                 throw new \Exception('Falha ao criar mensagem');
             }
 
-            // Adiciona localmente a mensagem (otimização de UI)
             $this->addMessageToLocal([
-                'id' => $newMessage->id,
-                'mensagem' => $message,
-                'usuario_id' => $this->currentUser['id'],
-                'dt_criacao' => now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
-                'is_fixed' => false,
+                'id'         => $newMessage->id,
+                'content'    => $message,
+                'user_id'    => $this->currentUser['id'],
+                'created_at' => now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                'updated_at' => null,
+                'is_pinned'  => false,
+                'reactions'  => [],
             ]);
 
             $this->dispatch('scroll-to-bottom');
 
-            return [
-                'success' => true,
-                'message_id' => $newMessage->id
-            ];
+            return ['success' => true, 'message_id' => $newMessage->id];
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao enviar mensagem', [
-                'error' => $e->getMessage(),
-                'patient_id' => $this->patientId
+                'error'      => $e->getMessage(),
+                'patient_id' => $this->patientId,
             ]);
-
             return ['success' => false, 'error' => 'Erro ao enviar mensagem'];
         } finally {
             $this->sendingMessage = false;
         }
     }
 
-    // Método toggleMessagePin simplificado e mais robusto
     public function toggleMessagePin($messageId)
     {
-        if ($this->viewingHistory || $this->isShiftClosed || !$this->patientId || !$messageId) {
+        if (!$this->patientId || !$messageId) {
             return ['success' => false, 'error' => 'Operação não permitida'];
         }
 
         try {
-            $repo = new ChatRepository();
-            $updatedMessage = $repo->pinMessage($messageId, $this->currentUser['id']);
+            $repo           = new ChatRepository();
+            $updatedMessage = $repo->pinMessage((int) $messageId, $this->currentUser['id']);
 
-            if (!$updatedMessage) {
-                return ['success' => false, 'error' => 'Mensagem não encontrada'];
-            }
+            $isPinned = $updatedMessage->is_pinned ?? false;
+            $this->updateLocalMessagePin($messageId, $isPinned);
 
-            // Atualiza localmente (otimização de UI)
-            $this->updateLocalMessagePin($messageId, $updatedMessage->is_fixed);
-
-            return ['success' => true, 'is_fixed' => $updatedMessage->is_fixed];
+            return ['success' => true, 'is_pinned' => $isPinned];
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao alterar pin', [
                 'message_id' => $messageId,
-                'error' => $e->getMessage()
+                'error'      => $e->getMessage(),
             ]);
-
             return ['success' => false, 'error' => 'Erro ao fixar mensagem'];
         }
     }
 
-    // Método loadSessionHistory otimizado
-    public function loadSessionHistory()
+    /** Edita uma mensagem — janela de 6h a partir do envio */
+    public function editMessage($messageId, $newContent)
     {
-        if (!$this->selectedSession || $this->loadingHistory || !$this->patientId) {
-            return ['success' => false, 'error' => 'Parâmetros inválidos'];
+        if (!$messageId) {
+            return ['success' => false, 'error' => 'ID inválido'];
         }
 
-        $this->loadingHistory = true;
+        $newContent = trim($newContent);
+        if (empty($newContent)) {
+            return ['success' => false, 'error' => 'Mensagem não pode ser vazia'];
+        }
 
         try {
-            $parts = explode('|', $this->selectedSession);
-            if (count($parts) !== 2) {
-                throw new \InvalidArgumentException('Formato de sessão inválido');
+            $message = ChatMessage::find($messageId);
+
+            if (!$message) {
+                return ['success' => false, 'error' => 'Mensagem não encontrada'];
             }
 
-            [$date, $shift] = $parts;
-
-            $this->viewingHistory = true;
-
-            $session = ChatSessao::where([
-                'nr_atendimento' => $this->patientId,
-                'data_sessao' => $date,
-                'turno_id' => $shift
-            ])->first();
-
-            if (!$session) {
-                throw new \Exception('Sessão não encontrada');
+            if ($message->user_id != $this->currentUser['id']) {
+                return ['success' => false, 'error' => 'Apenas o autor pode editar'];
             }
 
-            $messages = ChatMensagem::where('sessao_id', $session->id)
-                ->where('is_deleted', false)
-                ->orderBy('dt_criacao', 'asc')
-                ->limit(100)
-                ->get();
+            // Janela de 6 horas
+            if ($message->created_at && now()->diffInHours($message->created_at) >= 6) {
+                return ['success' => false, 'error' => 'Tempo de edição expirado (6h após envio)'];
+            }
 
-            $this->messages = $this->formatMessages($messages->toArray());
+            $repo = new ChatRepository();
+            $repo->updateMessage($messageId, $newContent);
 
-            // Registra auditoria
-            ChatAuditoriaService::registrarAcessoHistorico($this->patientId, $shift, $date);
+            // Atualiza localmente
+            foreach ($this->messages as &$msg) {
+                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) continue;
+                $msg['content']      = $this->formatMessageText($newContent);
+                $msg['content_text'] = $newContent;
+                $msg['is_edited']    = true;
+                break;
+            }
 
-            $this->dispatch('history-loaded', [
-                'date' => $date,
-                'shift' => $shift,
-                'messageCount' => count($this->messages)
-            ]);
-
-            return ['success' => true, 'messageCount' => count($this->messages)];
+            return ['success' => true];
 
         } catch (\Exception $e) {
-            $this->messages = [];
-            $this->viewingHistory = false;
-
-            $this->dispatch('history-error', [
-                'message' => 'Erro ao carregar histórico'
+            Log::error('[Chat] Erro ao editar mensagem', [
+                'message_id' => $messageId,
+                'error'      => $e->getMessage(),
             ]);
-
-            Log::error('[Chat] Erro ao carregar histórico', [
-                'patient_id' => $this->patientId,
-                'session' => $this->selectedSession,
-                'error' => $e->getMessage()
-            ]);
-
-            return ['success' => false, 'error' => 'Erro ao carregar histórico'];
-        } finally {
-            $this->loadingHistory = false;
+            return ['success' => false, 'error' => 'Erro ao editar mensagem'];
         }
     }
 
-    public function clearSessionSelection()
+    /** Toggles check reaction for the current user on a message */
+    public function toggleReaction($messageId)
     {
-        $this->selectedSession = null;
-        $this->returnToCurrentShift();
-    }
+        if (!$messageId) return ['success' => false];
 
-    public function returnToCurrentShift()
-    {
-        if (!$this->viewingHistory) return;
+        try {
+            $repo   = new ChatRepository();
+            $result = $repo->toggleReaction((int) $messageId, (int) $this->currentUser['id']);
 
-        $this->viewingHistory = false;
-        $this->selectedSession = null;
-        $this->refreshCurrentMessages();
+            foreach ($this->messages as &$msg) {
+                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) continue;
+                $msg['reactions']    = $this->formatReactions($result['reactions']);
+                $msg['user_reacted'] = $result['reacted'];
+                break;
+            }
 
-        $this->dispatch('returned-to-current', [
-            'shift' => $this->currentShift,
-            'date' => $this->currentDate
-        ]);
+            return ['success' => true, 'reacted' => $result['reacted']];
+
+        } catch (\Exception $e) {
+            Log::error('[Chat] Erro ao reagir', ['error' => $e->getMessage()]);
+            return ['success' => false];
+        }
     }
 
     public function refreshCurrentMessages()
     {
-        if ($this->loadingMessages || $this->viewingHistory) return;
+        if ($this->loadingMessages) return;
 
         $this->loadingMessages = true;
         try {
@@ -301,347 +232,298 @@ class ChatComponent extends Component
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao atualizar mensagens:', [
                 'patient_id' => $this->patientId,
-                'error' => $e->getMessage()
+                'error'      => $e->getMessage(),
             ]);
         } finally {
             $this->loadingMessages = false;
         }
     }
 
-    public function loadHistoryPage($page = 0)
-    {
-        if (!$this->patientId) return;
+    // ===================== WebSocket handlers =====================
 
-        $this->currentHistoryPage = max(0, $page);
-        $this->loadingHistory = true;
-
-        try {
-            $this->loadAvailableSessions();
-
-        } catch (\Exception $e) {
-            Log::error('[Chat] Erro ao carregar página do histórico', [
-                'patient_id' => $this->patientId,
-                'page' => $page,
-                'error' => $e->getMessage()
-            ]);
-        } finally {
-            $this->loadingHistory = false;
-        }
-    }
-
-    // Handler otimizado para mensagens WebSocket
     public function handleNewMessage($data)
     {
-        // Validações básicas
-        if (!$this->initialized || $this->viewingHistory || !$data || !isset($data['id'])) {
-            return;
-        }
+        if (!$this->initialized || !$data || !isset($data['id'])) return;
 
-        // Verifica se é para o contexto atual
-        if (($data['nr_atendimento'] ?? null) != $this->patientId ||
-            ($data['turno_id'] ?? null) != $this->currentShift) {
-            return;
-        }
+        if (($data['nr_atendimento'] ?? null) != $this->patientId) return;
 
-        // Verifica se a mensagem já existe
-        if ($this->messageExists($data['id'])) {
-            return;
-        }
+        if ($this->messageExists($data['id'])) return;
 
-        // Adiciona a mensagem
         $this->addMessageToLocal($data);
-
         $this->dispatch('scroll-to-bottom');
     }
 
-    // Handler otimizado para PINs WebSocket
     public function handleMessagePinned($data)
     {
-        // Validações básicas
-        if (!$this->initialized || !$data || !isset($data['id'])) {
-            return;
-        }
+        if (!$this->initialized || !$data || !isset($data['id'])) return;
 
-        // Verifica se é para o contexto atual
-        if (($data['nr_atendimento'] ?? null) != $this->patientId ||
-            ($data['turno_id'] ?? null) != $this->currentShift) {
-            return;
-        }
+        if (($data['nr_atendimento'] ?? null) != $this->patientId) return;
 
-        $messageId = $data['id'];
-        $isPinned = $data['is_fixed'] ?? false;
-
-        // Atualiza o estado local das mensagens
-        $this->updateLocalMessagePin($messageId, $isPinned);
-
+        $this->updateLocalMessagePin($data['id'], $data['is_pinned'] ?? false);
     }
 
-    // Método auxiliar para verificar se mensagem existe
-    private function messageExists($messageId)
-    {
-        return collect($this->messages)->contains('id', $messageId);
-    }
-
-    // Método auxiliar para adicionar mensagem localmente
-    private function addMessageToLocal($data)
-    {
-        $message = $this->formatSingleMessage([
-            'id' => $data['id'],
-            'mensagem' => $data['mensagem'] ?? '',
-            'usuario_id' => $data['usuario_id'] ?? null,
-            'dt_criacao' => $data['created_at'] ?? $data['dt_criacao'] ?? now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
-            'is_fixed' => $data['is_fixed'] ?? false,
-        ]);
-
-        $this->messages[] = $message;
-    }
-
-    private function parseDateTime($value): ?\Carbon\Carbon
-    {
-        if (!$value) {
-            return null;
-        }
-
-        // If it's already a DateTime/Carbon instance
-        if ($value instanceof \DateTimeInterface) {
-            return \Carbon\Carbon::instance($value)->setTimezone(config('app.timezone'));
-        }
-
-        // Try known formats (includes d/m/Y H:i:s used in broadcasts)
-        $formats = [
-            'd/m/Y H:i:s',
-            'd/m/Y H:i',
-            'Y-m-d H:i:s',
-            'Y-m-d\TH:i:sP',
-            'Y-m-d\TH:i:s',
-            'Y-m-d',
-            'd/m/Y',
-        ];
-
-        foreach ($formats as $format) {
-            try {
-                $dt = \Carbon\Carbon::createFromFormat($format, $value);
-                if ($dt !== false) {
-                    return $dt->setTimezone(config('app.timezone'));
-                }
-            } catch (\Exception $e) {
-                // ignore and continue
-            }
-        }
-
-        // Last resort: let Carbon try to parse flexibly (catch exceptions)
-        try {
-            $dt = \Carbon\Carbon::parse($value);
-            return $dt->setTimezone(config('app.timezone'));
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
+    // ===================== Private helpers =====================
 
     private function loadMessages()
     {
         if (!$this->patientId) return;
 
         try {
-            $session = ChatSessao::where([
-                'nr_atendimento' => $this->patientId,
-                'turno_id' => $this->currentShift,
-                'data_sessao' => $this->currentDate
-            ])->first();
+            $repo        = new ChatRepository();
+            $allMessages = $repo->getAllMessages($this->patientId, 300);
 
-            if (!$session) {
+            if ($allMessages->isEmpty()) {
                 $this->messages = [];
                 return;
             }
 
-            $messages = ChatMensagem::where('sessao_id', $session->id)
-                ->where('is_deleted', false)
-                ->orderBy('dt_criacao', 'asc')
-                ->limit(50)
-                ->get();
+            // Pré-carrega usuários
+            $userIds = $allMessages->pluck('user_id')->unique()->filter();
+            $users   = collect();
+            if ($userIds->isNotEmpty()) {
+                $users = \App\Models\System\User::whereIn('id', $userIds)
+                    ->select(['id', 'name'])
+                    ->get()
+                    ->keyBy('id');
+                foreach ($users as $user) {
+                    $this->photoCache[$user->id] = $this->getUserPhotoBase64($user);
+                }
+            }
 
-            $this->messages = $this->formatMessages($messages->toArray());
+            // Monta array plano com separadores por turno/data lógica
+            $result       = [];
+            $lastShiftKey = null;
+
+            foreach ($allMessages as $msg) {
+                $msgArray = (array) $msg;
+                $shiftKey = $this->getShiftKey($msg->created_at);
+
+                if ($shiftKey !== $lastShiftKey) {
+                    $lastShiftKey = $shiftKey;
+                    $result[]     = $this->buildSeparator($msg->created_at);
+                }
+
+                $formatted         = $this->formatSingleMessage($msgArray, $users);
+                $formatted['type'] = 'message';
+                $result[]          = $formatted;
+            }
+
+            $this->messages = $result;
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar mensagens:', [
                 'patient_id' => $this->patientId,
-                'error' => $e->getMessage()
+                'error'      => $e->getMessage(),
             ]);
             $this->messages = [];
         }
     }
 
-    private function loadAvailableSessions()
+    /**
+     * Returns a string key representing the shift+logical-date for a given timestamp.
+     * Used to detect shift boundaries when building separators.
+     */
+    private function getShiftKey($createdAt): string
     {
-        if (!$this->patientId) return;
+        $dt   = $this->parseDateTime($createdAt);
+        $hour = (int) $dt->format('H');
 
-        try {
-            // Busca todas as sessões (sem cache para paginação dinâmica)
-            $allSessions = ChatSessao::select([
-                'id',
-                'data_sessao',
-                'turno_id',
-                'total_mensagens',
-                'fim'
-            ])
-            ->where('nr_atendimento', $this->patientId)
-            ->where('total_mensagens', '>', 0)
-            ->where(function($query) {
-                $query->where('data_sessao', '!=', $this->currentDate)
-                    ->orWhere(function($q) {
-                        $q->where('data_sessao', $this->currentDate)
-                            ->where('turno_id', '!=', $this->currentShift);
-                    });
-            })
-            ->orderBy('data_sessao', 'desc')
-            ->orderByRaw("FIELD(turno_id, 'noite', 'tarde', 'manha')") // Ordena turnos do mais recente ao mais antigo do dia
-            ->get();
-
-            // Agrupa por data
-            $sessionsByDate = $allSessions->groupBy('data_sessao')->map(function($sessions, $date) {
-                // Ordena turnos: noite > tarde > manhã (ordem cronológica reversa)
-                $shiftOrder = ['noite' => 0, 'tarde' => 1, 'manha' => 2];
-                $sorted = $sessions->sortBy(function($s) use ($shiftOrder) {
-                    return $shiftOrder[$s->turno_id] ?? 3;
-                });
-
-                return $sorted->map(function($session) use ($date) {
-                    $carbonDate = \Carbon\Carbon::parse($session->data_sessao);
-                    $key = $session->data_sessao . '|' . $session->turno_id;
-
-                    $shiftLabel = match($session->turno_id) {
-                        'manha' => 'Manhã (07h-13h)',
-                        'tarde' => 'Tarde (13h-19h)',
-                        'noite' => 'Noite (19h-07h)',
-                        default => ucfirst($session->turno_id)
-                    };
-
-                    return [
-                        'key' => $key,
-                        'date' => $session->data_sessao,
-                        'turno' => $session->turno_id,
-                        'shift_label' => $shiftLabel,
-                        'messageCount' => $session->total_mensagens,
-                        'isCompleted' => $session->fim !== null,
-                    ];
-                })->values()->toArray();
-            });
-
-            // Calcula paginação (por datas)
-            $totalDates = $sessionsByDate->count();
-            $this->totalHistoryPages = max(1, ceil($totalDates / $this->sessionsPerPage));
-
-            // Garante que a página atual é válida
-            $this->currentHistoryPage = min($this->currentHistoryPage, $this->totalHistoryPages - 1);
-            $this->currentHistoryPage = max(0, $this->currentHistoryPage);
-
-            // Pega apenas as datas da página atual
-            $offset = $this->currentHistoryPage * $this->sessionsPerPage;
-            $pagedDates = $sessionsByDate->slice($offset, $this->sessionsPerPage);
-
-            // Formata para o frontend com labels corretos
-            $this->groupedSessions = [];
-            $pagedDates->each(function($sessions, $date) {
-                $carbonDate = \Carbon\Carbon::parse($date);
-                $dateLabel = $carbonDate->format('d/m/Y');
-
-                // Adiciona dia da semana se for recente
-                if ($carbonDate->isToday()) {
-                    $dateLabel .= ' (Hoje)';
-                } elseif ($carbonDate->isYesterday()) {
-                    $dateLabel .= ' (Ontem)';
-                } elseif ($carbonDate->diffInDays(now()) <= 7) {
-                    $dayName = $carbonDate->locale('pt_BR')->dayName;
-                    $dateLabel .= ' (' . ucfirst($dayName) . ')';
-                }
-
-                $this->groupedSessions[$dateLabel] = $sessions;
-            });
-
-            // Mantém compatibilidade com o código existente
-            $this->availableSessions = collect($this->groupedSessions)->flatten(1)->toArray();
-
-        } catch (\Exception $e) {
-            Log::error('[Chat] Erro ao carregar sessões:', [
-                'patient_id' => $this->patientId,
-                'error' => $e->getMessage()
-            ]);
-            $this->availableSessions = [];
-            $this->groupedSessions = [];
-            $this->totalHistoryPages = 1;
+        if ($hour >= 7 && $hour < 13) {
+            return $dt->format('Y-m-d') . '_morning';
         }
+        if ($hour >= 13 && $hour < 19) {
+            return $dt->format('Y-m-d') . '_afternoon';
+        }
+        // Night: 19h-06:59 — messages between 00:00-06:59 belong to the previous day's night shift
+        $logicalDate = ($hour < 7) ? $dt->copy()->subDay()->format('Y-m-d') : $dt->format('Y-m-d');
+        return $logicalDate . '_night';
     }
 
-    private function formatMessages($messages)
+    private function buildSeparator($createdAt): array
     {
-        if (empty($messages)) return [];
+        $dt   = $this->parseDateTime($createdAt);
+        $hour = (int) $dt->format('H');
 
-        $userIds = collect($messages)->pluck('usuario_id')->unique()->filter();
-
-        $users = collect();
-        if ($userIds->isNotEmpty()) {
-            try {
-                $users = \App\Models\System\User::whereIn('id', $userIds)
-                    ->select(['id', 'name'])
-                    ->get()
-                    ->keyBy('id');
-
-                foreach ($users as $user) {
-                    $this->photoCache[$user->id] = $this->getUserPhotoBase64($user);
-                }
-            } catch (\Exception $e) {
-                Log::error('[Chat] Erro ao carregar usuários:', ['error' => $e->getMessage()]);
-            }
+        if ($hour >= 7 && $hour < 13) {
+            $shift       = 'morning';
+            $logicalDate = $dt->copy()->startOfDay();
+        } elseif ($hour >= 13 && $hour < 19) {
+            $shift       = 'afternoon';
+            $logicalDate = $dt->copy()->startOfDay();
+        } else {
+            $shift       = 'night';
+            $logicalDate = ($hour < 7)
+                ? $dt->copy()->subDay()->startOfDay()
+                : $dt->copy()->startOfDay();
         }
 
-        return collect($messages)->map(function($msg) use ($users) {
-            return $this->formatSingleMessage($msg, $users);
-        })->toArray();
-    }
+        $shiftLabel = match ($shift) {
+            'morning'   => 'Manhã  07h–13h',
+            'afternoon' => 'Tarde  13h–19h',
+            'night'     => 'Noite  19h–07h',
+            default     => ucfirst($shift),
+        };
 
-    public function setMessages($messages)
-    {
-        $this->messages = $this->formatMessages($messages);
+        if ($logicalDate->isToday()) {
+            $dateLabel = 'Hoje';
+        } elseif ($logicalDate->isYesterday()) {
+            $dateLabel = 'Ontem';
+        } else {
+            $dateLabel = $logicalDate->locale('pt_BR')->isoFormat('D [de] MMMM [de] YYYY');
+        }
+
+        return [
+            'type'        => 'separator',
+            'shift'       => $shift,
+            'shift_label' => $shiftLabel,
+            'date_label'  => $dateLabel,
+            'label'       => $shiftLabel . ' · ' . $dateLabel,
+        ];
     }
 
     private function formatSingleMessage($msg, $users = null)
     {
-        $userId = $msg['usuario_id'] ?? null;
-        $user = null;
-        $photo = '';
+        $userId = $msg['user_id'] ?? null;
+        $user   = null;
+        $photo  = '';
 
         if ($users && $userId) {
-            $user = $users->get($userId);
+            $user  = $users->get($userId);
             $photo = $user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '';
         } elseif ($userId) {
-            $user = $this->getUserFromCache($userId);
+            $user  = $this->getUserFromCache($userId);
             $photo = $user ? $this->getUserPhotoBase64($user) : '';
         }
 
-        // Garante foto do usuário atual se for própria
         if ($userId == $this->currentUser['id'] && empty($photo)) {
             $photo = $this->currentUser['photo'] ?? '';
         }
 
-        // Robust date handling: try created_at first, then dt_criacao
-        $rawDate = $msg['created_at'] ?? $msg['dt_criacao'] ?? null;
-        $time = '';
+        $rawDate = $msg['created_at'] ?? null;
+        $time    = '';
+        $dtRaw   = null;
 
         if ($parsed = $this->parseDateTime($rawDate)) {
-            $time = $parsed->format('H:i');
+            $time  = $parsed->format('H:i');
+            $dtRaw = $parsed->toIso8601String();
         }
 
+        $rawReactions = $msg['reactions'] ?? [];
+
+        $content = $msg['content'] ?? '';
+
         return [
-            'id' => $msg['id'] ?? null,
-            'mensagem' => $this->formatMessageText($msg['mensagem'] ?? ''),
-            'usuario_id' => $userId,
-            'author' => $user ? $user->name : 'Usuário',
-            'photo' => $photo,
-            'time' => $time,
-            'is_pinned' => $msg['is_fixed'] ?? false,
-            'is_fixed' => $msg['is_fixed'] ?? false,
-            'is_own' => $userId == $this->currentUser['id'],
+            'type'          => 'message',
+            'id'            => $msg['id'] ?? null,
+            'content'       => $this->formatMessageText($content),
+            'content_text'  => $content,
+            'user_id'       => $userId,
+            'author'        => $user ? $user->name : 'Usuário',
+            'photo'         => $photo,
+            'time'          => $time,
+            'dt_criacao_raw' => $dtRaw,
+            'is_pinned'     => (bool) ($msg['is_pinned'] ?? false),
+            'is_edited'     => !empty($msg['updated_at']),
+            'is_own'        => $userId == $this->currentUser['id'],
+            'reactions'     => $this->formatReactions($rawReactions),
+            'user_reacted'  => $this->currentUserReacted($rawReactions),
         ];
+    }
+
+    private function formatReactions(array $rawReactions): array
+    {
+        return collect($rawReactions)->map(fn ($r) => [
+            'user_id' => is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null),
+            'name'    => is_array($r) ? ($r['name'] ?? 'Usuário') : ($r->name ?? 'Usuário'),
+            'initial' => strtoupper(substr(is_array($r) ? ($r['name'] ?? 'U') : ($r->name ?? 'U'), 0, 1)),
+        ])->values()->toArray();
+    }
+
+    private function currentUserReacted(array $rawReactions): bool
+    {
+        return collect($rawReactions)->contains(function ($r) {
+            $id = is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null);
+            return $id == $this->currentUser['id'];
+        });
+    }
+
+    private function messageExists($messageId): bool
+    {
+        return collect($this->messages)
+            ->filter(fn ($m) => ($m['type'] ?? '') === 'message')
+            ->contains('id', $messageId);
+    }
+
+    private function addMessageToLocal($data)
+    {
+        $message         = $this->formatSingleMessage([
+            'id'         => $data['id'],
+            'content'    => $data['content'] ?? '',
+            'user_id'    => $data['user_id'] ?? null,
+            'created_at' => $data['created_at'] ?? now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+            'updated_at' => null,
+            'is_pinned'  => $data['is_pinned'] ?? false,
+            'reactions'  => [],
+        ]);
+        $message['type'] = 'message';
+        $this->messages[] = $message;
+    }
+
+    private function updateLocalMessagePin($messageId, $isPinned)
+    {
+        foreach ($this->messages as &$message) {
+            if (($message['type'] ?? '') !== 'message') continue;
+
+            if ($message['id'] == $messageId) {
+                $message['is_pinned'] = $isPinned;
+            } elseif ($isPinned && ($message['is_pinned'] ?? false)) {
+                $message['is_pinned'] = false;
+            }
+        }
+    }
+
+    private function parseDateTime($value): ?\Carbon\Carbon
+    {
+        if (!$value) return null;
+
+        if ($value instanceof \DateTimeInterface) {
+            return \Carbon\Carbon::instance($value)->setTimezone(config('app.timezone'));
+        }
+
+        $formats = [
+            'd/m/Y H:i:s', 'd/m/Y H:i', 'Y-m-d H:i:s',
+            'Y-m-d\TH:i:sP', 'Y-m-d\TH:i:s', 'Y-m-d', 'd/m/Y',
+        ];
+
+        foreach ($formats as $format) {
+            try {
+                $dt = \Carbon\Carbon::createFromFormat($format, $value);
+                if ($dt !== false) return $dt->setTimezone(config('app.timezone'));
+            } catch (\Exception $e) {
+                // continua
+            }
+        }
+
+        try {
+            return \Carbon\Carbon::parse($value)->setTimezone(config('app.timezone'));
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function formatMessageText($text)
+    {
+        if (empty($text)) return '';
+
+        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+        $text = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $text);
+        $text = preg_replace('/__(.*?)__/', '<strong>$1</strong>', $text);
+        $text = preg_replace('/\*(.*?)\*/', '<em>$1</em>', $text);
+        $text = preg_replace('/_(.*?)_/', '<em>$1</em>', $text);
+        $text = nl2br($text);
+        $text = preg_replace('/^[\-\*]\s(.+)$/m', '• $1', $text);
+
+        return $text;
     }
 
     private function getUserPhotoBase64($user)
@@ -665,9 +547,7 @@ class ChatComponent extends Component
             }
 
             if (!$photo) {
-                $photoData = DB::table('users')
-                    ->where('id', $userId)
-                    ->value('photo');
+                $photoData = DB::table('users')->where('id', $userId)->value('photo');
 
                 if ($photoData) {
                     if (!str_starts_with($photoData, 'data:')) {
@@ -695,9 +575,7 @@ class ChatComponent extends Component
         }
 
         try {
-            $user = \App\Models\System\User::select(['id', 'name'])
-                ->find($userId);
-
+            $user = \App\Models\System\User::select(['id', 'name'])->find($userId);
             $this->userCache[$userId] = $user;
             return $user;
         } catch (\Exception $e) {
@@ -705,223 +583,13 @@ class ChatComponent extends Component
         }
     }
 
-    private function updateLocalMessagePin($messageId, $isPinned)
-    {
-        foreach ($this->messages as &$message) {
-            if ($message['id'] == $messageId) {
-                $message['is_pinned'] = $isPinned;
-                $message['is_fixed'] = $isPinned;
-            } elseif ($isPinned && ($message['is_pinned'] || $message['is_fixed'])) {
-                // Desfixar outras mensagens se esta foi fixada
-                $message['is_pinned'] = false;
-                $message['is_fixed'] = false;
-            }
-        }
-    }
-
-    private function formatMessageText($text)
-    {
-        if (empty($text)) return '';
-
-        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-
-        // Formatação markdown simples
-        $text = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $text);
-        $text = preg_replace('/__(.*?)__/', '<strong>$1</strong>', $text);
-        $text = preg_replace('/\*(.*?)\*/', '<em>$1</em>', $text);
-        $text = preg_replace('/_(.*?)_/', '<em>$1</em>', $text);
-        $text = nl2br($text);
-        $text = preg_replace('/^[\-\*]\s(.+)$/m', '• $1', $text);
-
-        return $text;
-    }
-
-    private function openChatSession()
-    {
-        if (!$this->patientId) return;
-
-        try {
-            // Garante que a data está correta para o turno (especialmente noite)
-            $shiftInfo = getShiftInfo();
-            if ($this->currentShift === $shiftInfo['shift']) {
-                $this->currentDate = $shiftInfo['date'];
-            }
-
-            $session = ChatSessao::firstOrCreate([
-                'nr_atendimento' => $this->patientId,
-                'turno_id' => $this->currentShift,
-                'data_sessao' => $this->currentDate,
-            ], [
-                'inicio' => now(),
-                'encerrada' => false,
-                'total_mensagens' => 0,
-            ]);
-
-            $this->currentSessionId = $session->id;
-
-        } catch (\Exception $e) {
-            Log::error('[Chat] Erro ao abrir sessão:', [
-                'patient_id' => $this->patientId,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    private function getCurrentSessionId()
-    {
-        if ($this->currentSessionId) {
-            return $this->currentSessionId;
-        }
-
-        if (!$this->patientId) return null;
-
-        $session = ChatSessao::where([
-            'nr_atendimento' => $this->patientId,
-            'turno_id' => $this->currentShift,
-            'data_sessao' => $this->currentDate,
-            'encerrada' => false,
-        ])->first();
-
-        $this->currentSessionId = $session?->id;
-        return $this->currentSessionId;
-    }
-
-    private function setCurrentShift()
-    {
-        // Usa a função helper que corrige a lógica do turno da noite
-        $shiftInfo = getShiftInfo();
-        $this->currentShift = $shiftInfo['shift'];
-        // A data da sessão também é ajustada para turno da noite
-        $this->currentDate = $shiftInfo['date'];
-    }
-
-    private function checkIfShiftClosed()
-    {
-        // O turno nunca é fechado para permitir anotações a qualquer momento
-        // Isso é importante para enfermeiros que precisam registrar informações
-        // mesmo durante transições de turno ou em situações emergenciais
-        return false;
-    }
-
-    /**
-     * Verifica se o turno atual é diferente do turno da sessão atual
-     * Útil para mostrar aviso visual ao usuário
-     */
-    public function isOutsideCurrentShift(): bool
-    {
-        $shiftInfo = getShiftInfo();
-        return $this->currentShift !== $shiftInfo['shift'] ||
-               $this->currentDate !== $shiftInfo['date'];
-    }
-
-    /**
-     * Edita uma mensagem existente
-     */
-    public function editMessage($messageId, $newContent)
-    {
-        if ($this->viewingHistory || !$messageId) {
-            return ['success' => false, 'error' => 'Operação não permitida'];
-        }
-
-        $newContent = trim($newContent);
-        if (empty($newContent)) {
-            return ['success' => false, 'error' => 'Mensagem não pode ser vazia'];
-        }
-
-        try {
-            $message = ChatMensagem::find($messageId);
-
-            if (!$message) {
-                return ['success' => false, 'error' => 'Mensagem não encontrada'];
-            }
-
-            // Apenas o autor pode editar
-            if ($message->usuario_id != $this->currentUser['id']) {
-                return ['success' => false, 'error' => 'Apenas o autor pode editar'];
-            }
-
-            $repo = new ChatRepository();
-            $repo->updateMessage($messageId, $newContent);
-
-            // Atualiza localmente
-            foreach ($this->messages as &$msg) {
-                if ($msg['id'] == $messageId) {
-                    $msg['mensagem'] = $this->formatMessageText($newContent);
-                    break;
-                }
-            }
-
-            return ['success' => true];
-
-        } catch (\Exception $e) {
-            Log::error('[Chat] Erro ao editar mensagem', [
-                'message_id' => $messageId,
-                'error' => $e->getMessage()
-            ]);
-            return ['success' => false, 'error' => 'Erro ao editar mensagem'];
-        }
-    }
-
-    /**
-     * Deleta (soft delete) uma mensagem
-     */
-    public function deleteMessage($messageId)
-    {
-        if ($this->viewingHistory || !$messageId) {
-            return ['success' => false, 'error' => 'Operação não permitida'];
-        }
-
-        try {
-            $message = ChatMensagem::find($messageId);
-
-            if (!$message) {
-                return ['success' => false, 'error' => 'Mensagem não encontrada'];
-            }
-
-            // Apenas o autor pode deletar
-            if ($message->usuario_id != $this->currentUser['id']) {
-                return ['success' => false, 'error' => 'Apenas o autor pode excluir'];
-            }
-
-            $repo = new ChatRepository();
-            $repo->deleteMessage($messageId);
-
-            // Remove localmente
-            $this->messages = array_values(array_filter($this->messages, function($msg) use ($messageId) {
-                return $msg['id'] != $messageId;
-            }));
-
-            // Decrementa contador da sessão
-            ChatSessao::where('id', $message->sessao_id)->decrement('total_mensagens');
-
-            return ['success' => true];
-
-        } catch (\Exception $e) {
-            Log::error('[Chat] Erro ao deletar mensagem', [
-                'message_id' => $messageId,
-                'error' => $e->getMessage()
-            ]);
-            return ['success' => false, 'error' => 'Erro ao excluir mensagem'];
-        }
-    }
-
-    /**
-     * Retorna estatísticas da sessão atual
-     */
     public function getSessionStats(): array
     {
+        $realMessages = collect($this->messages)->filter(fn ($m) => ($m['type'] ?? '') === 'message');
+
         return [
-            'total_messages' => count($this->messages),
-            'shift' => $this->currentShift,
-            'date' => $this->currentDate,
-            'shift_label' => match($this->currentShift) {
-                'manha' => 'Manhã',
-                'tarde' => 'Tarde',
-                'noite' => 'Noite',
-                default => ucfirst($this->currentShift)
-            },
-            'pinned_count' => collect($this->messages)->where('is_pinned', true)->count(),
-            'has_history' => count($this->availableSessions) > 0,
+            'total_messages' => $realMessages->count(),
+            'pinned_count'   => $realMessages->where('is_pinned', true)->count(),
         ];
     }
 

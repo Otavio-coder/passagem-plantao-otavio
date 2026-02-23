@@ -29,8 +29,11 @@
             <p class="mt-4 text-gray-600 text-sm font-medium">Carregando prescrições...</p>
         </div>
     @else
-        {{-- Botão para carregar CPOE (lazy loading) --}}
-        <div class="text-center py-12">
+        {{-- Botão para carregar CPOE via fetch (sem round-trip Livewire para a query) --}}
+        <div
+            class="text-center py-12"
+            x-data="{ loading: false, error: null }"
+        >
             <div class="mb-6">
                 <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -39,8 +42,20 @@
                 <p class="text-sm text-gray-500 mb-6">Clique no botão abaixo para carregar exames, medicamentos, nutrição e recomendações</p>
             </div>
 
+            <p x-show="error" x-text="error" class="mb-4 text-sm text-red-600"></p>
+
             <button
-                onclick="Livewire.dispatch('loadCpoeData')"
+                x-show="!loading"
+                @click="
+                    loading = true;
+                    error = null;
+                    fetch('{{ route('sbar.patient.cpoe', ['attendanceNumber' => $currentPatient['nr_atendimento'] ?? 0]) }}', {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                    })
+                    .then(r => r.ok ? r.json() : Promise.reject(r))
+                    .then(data => $wire.receiveCpoeData(data))
+                    .catch(() => { error = 'Erro ao carregar prescrições. Tente novamente.'; loading = false; })
+                "
                 class="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
             >
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +64,12 @@
                 Carregar Prescrições
             </button>
 
-            <p class="mt-4 text-xs text-gray-400">
+            <div x-show="loading" class="flex flex-col items-center">
+                <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p class="mt-3 text-sm text-gray-500">Carregando prescrições...</p>
+            </div>
+
+            <p class="mt-4 text-xs text-gray-400" x-show="!loading">
                 Os dados serão carregados sob demanda para melhor performance
             </p>
         </div>

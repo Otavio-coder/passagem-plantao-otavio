@@ -3,13 +3,14 @@
 namespace App\Models\EMR\Core;
 
 use App\Models\EMR\CPOE\Appointment;
-use App\Models\System\SystemConfiguration;
+use App\Models\System\UserSectorPreference;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class Sector extends Model
 {
@@ -31,16 +32,29 @@ class Sector extends Model
         return $this->hasMany(Bed::class, 'cd_setor_atendimento', 'cd_setor_atendimento');
     }
 
+    /**
+     * Scope para filtrar apenas setores permitidos para o usuário atual
+     * Baseado nas preferências do usuário em user_sector_preferences
+     */
     public function scopeAllowed($query)
     {
-        $codes = SystemConfiguration::allowedSectorCodes();
-        if (empty($codes)) {
+        $user = Auth::user();
+        
+        if (!$user) {
             return $query->whereRaw('1 = 0');
         }
 
-        $codes = array_values(array_filter(array_map('strval', $codes), fn($v) => $v !== ''));
+        // Obtém os códigos de setores preferidos do usuário
+        $preferredSectorCodes = $user->sectorPreferences()
+            ->pluck('sector_code')
+            ->map(fn($code) => (string) $code)
+            ->toArray();
 
-        return $query->whereIn($this->getTable() . '.cd_setor_atendimento', $codes);
+        if (empty($preferredSectorCodes)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn($this->getTable() . '.cd_setor_atendimento', $preferredSectorCodes);
     }
 
     public function appointments(): HasManyThrough

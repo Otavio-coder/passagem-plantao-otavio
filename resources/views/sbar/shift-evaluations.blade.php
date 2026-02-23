@@ -1,4 +1,4 @@
-{{-- resources/views/sbar/avaliacoes-turno.blade.php --}}
+{{-- resources/views/sbar/shift-evaluations.blade.php --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -9,7 +9,7 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        /* Paleta de cores Santa Casa */
+        /* Santa Casa Color Palette */
         :root {
             --santa-casa-primary: #004D9D;
             --santa-casa-secondary: #0071B9;
@@ -20,7 +20,7 @@
 <body class="bg-gray-50 min-h-screen">
 <div class="container mx-auto px-4 py-6 max-w-5xl" x-data="{ openBed: null }">
 
-    {{-- Header com Filtro de Busca --}}
+    {{-- Header with Search Filter --}}
     <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -34,8 +34,8 @@
             </div>
 
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                {{-- Filtro de Busca --}}
-                <form method="GET" action="{{ route('sbar.avaliacoes.turno') }}" class="flex items-center gap-2">
+                {{-- Search Filter --}}
+                <form method="GET" action="{{ route('sbar.evaluations.shift') }}" class="flex items-center gap-2">
                     <input type="hidden" name="sector_id" value="{{ $sectorId }}">
                     <div class="relative">
                         <input
@@ -53,15 +53,15 @@
                         <i class="fas fa-filter mr-1"></i>Filtrar
                     </button>
                     @if(!empty($search))
-                        <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId]) }}" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm">
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId]) }}" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm">
                             <i class="fas fa-times"></i>
                         </a>
                     @endif
                 </form>
 
-                {{-- Botão de Exportação --}}
+                {{-- Export Button --}}
                 @if(isset($beds) && count($beds) > 0)
-                    <a href="{{ route('sbar.avaliacoes.export', ['sector_id' => $sectorId]) }}"
+                    <a href="{{ route('sbar.evaluations.export', ['sector_id' => $sectorId]) }}"
                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-2"
                        title="Exportar para Excel">
                         <i class="fas fa-file-excel"></i>
@@ -76,29 +76,29 @@
         </div>
     </div>
 
-    {{-- Lista de Leitos --}}
+    {{-- Bed List --}}
     @if(isset($beds) && count($beds) > 0)
         <div class="space-y-3">
             @foreach($beds as $index => $bed)
                 <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-                    {{-- Header do Leito (Clicável) --}}
+                    {{-- Bed Header (Clickable) --}}
                     <button
                         @click="openBed = openBed === {{ $index }} ? null : {{ $index }}"
                         class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                     >
                         <div class="flex items-center gap-3 text-left min-w-0">
-                            {{-- Número do Leito - Paleta Santa Casa com suporte a leitos longos --}}
+                            {{-- Bed Number - Santa Casa Palette with support for long bed codes --}}
                             @php
-                                $leitoText = $bed['leito'];
-                                $leitoLength = strlen($leitoText);
-                                $fontSize = $leitoLength > 5 ? 'text-[10px]' : ($leitoLength > 4 ? 'text-xs' : 'text-sm');
-                                $boxSize = $leitoLength > 5 ? 'w-14 h-12' : 'w-12 h-12';
+                                $bedText = $bed['leito'];
+                                $bedLength = strlen($bedText);
+                                $fontSize = $bedLength > 5 ? 'text-[10px]' : ($bedLength > 4 ? 'text-xs' : 'text-sm');
+                                $boxSize = $bedLength > 5 ? 'w-14 h-12' : 'w-12 h-12';
                             @endphp
                             <div class="flex-shrink-0 {{ $boxSize }} bg-gradient-to-br from-[#004D9D] to-[#0071B9] text-white rounded-lg flex items-center justify-center font-bold {{ $fontSize }} shadow-md">
-                                {{ $leitoText }}
+                                {{ $bedText }}
                             </div>
 
-                            {{-- Informações do Paciente --}}
+                            {{-- Patient Information --}}
                             <div class="min-w-0">
                                 <div class="font-semibold text-gray-800 truncate">{{ $bed['nome_paciente'] }}</div>
                                 <div class="text-xs text-gray-500 mt-0.5">
@@ -113,7 +113,7 @@
                             </div>
                         </div>
 
-                        {{-- Badge de Mensagens + Ícone --}}
+                        {{-- Message Badge + Icon --}}
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <span class="bg-[#E8F4FD] text-[#004D9D] text-xs font-semibold px-2.5 py-1 rounded-full">
                                 {{ $bed['total_mensagens'] }} {{ $bed['total_mensagens'] == 1 ? 'msg' : 'msgs' }}
@@ -123,7 +123,7 @@
                         </div>
                     </button>
 
-                    {{-- Conteúdo Expansível (Mensagens) --}}
+                    {{-- Expandable Content (Messages) --}}
                     <div
                         x-show="openBed === {{ $index }}"
                         x-transition:enter="transition ease-out duration-200"
@@ -134,7 +134,7 @@
                         <div class="p-4 bg-gray-50 space-y-3 max-h-96 overflow-y-auto">
                             @foreach($bed['mensagens'] as $msg)
                                 <div class="bg-white rounded-lg p-3 shadow-sm {{ $msg['is_pinned'] ? 'border-l-4 border-[#0071B9]' : '' }}">
-                                    {{-- Header da Mensagem --}}
+                                    {{-- Message Header --}}
                                     <div class="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
                                         {{-- Avatar --}}
                                         @if($msg['user_photo'])
@@ -149,7 +149,7 @@
                                             </div>
                                         @endif
 
-                                        {{-- Nome e Timestamp --}}
+                                        {{-- Name and Timestamp --}}
                                         <div class="flex-1 min-w-0">
                                             <div class="font-medium text-sm text-gray-800">{{ $msg['user_name'] }}</div>
                                             <div class="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
@@ -164,7 +164,7 @@
                                         </div>
                                     </div>
 
-                                    {{-- Conteúdo da Mensagem --}}
+                                    {{-- Message Content --}}
                                     <div class="text-sm text-gray-700 leading-relaxed">
                                         {!! $msg['content'] !!}
                                     </div>
@@ -176,23 +176,23 @@
             @endforeach
         </div>
 
-        {{-- Paginação --}}
+        {{-- Pagination --}}
         @if($totalPages > 1)
             <div class="mt-6 flex justify-center">
                 <nav class="inline-flex items-center gap-1 bg-white rounded-lg shadow-sm px-2 py-2">
-                    {{-- Primeira página --}}
+                    {{-- First page --}}
                     @if($currentPage > 1)
-                        <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId, 'search' => $search, 'page' => 1]) }}"
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'page' => 1]) }}"
                            class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                             <i class="fas fa-angles-left"></i>
                         </a>
-                        <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId, 'search' => $search, 'page' => $currentPage - 1]) }}"
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'page' => $currentPage - 1]) }}"
                            class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                             <i class="fas fa-angle-left"></i>
                         </a>
                     @endif
 
-                    {{-- Páginas --}}
+                    {{-- Pages --}}
                     @php
                         $start = max(1, $currentPage - 2);
                         $end = min($totalPages, $currentPage + 2);
@@ -201,18 +201,18 @@
                         @if($i == $currentPage)
                             <span class="px-3 py-2 text-sm font-medium text-white bg-[#0071B9] rounded-md">{{ $i }}</span>
                         @else
-                            <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId, 'search' => $search, 'page' => $i]) }}"
+                            <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'page' => $i]) }}"
                                class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">{{ $i }}</a>
                         @endif
                     @endfor
 
-                    {{-- Última página --}}
+                    {{-- Last page --}}
                     @if($currentPage < $totalPages)
-                        <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId, 'search' => $search, 'page' => $currentPage + 1]) }}"
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'page' => $currentPage + 1]) }}"
                            class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                             <i class="fas fa-angle-right"></i>
                         </a>
-                        <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId, 'search' => $search, 'page' => $totalPages]) }}"
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'page' => $totalPages]) }}"
                            class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                             <i class="fas fa-angles-right"></i>
                         </a>
@@ -221,7 +221,7 @@
             </div>
         @endif
     @else
-        {{-- Estado Vazio --}}
+        {{-- Empty State --}}
         <div class="bg-white rounded-lg shadow-sm p-12 text-center">
             <i class="fas fa-inbox text-gray-400 text-4xl mb-4"></i>
             <h3 class="text-lg font-medium text-gray-900 mb-2">
@@ -233,13 +233,13 @@
             </h3>
             <p class="text-sm text-gray-500">
                 @if(!empty($search))
-                    Não foram encontrados leitos para "{{ $search }}". Tente outra busca.
+                    Nenhum leito encontrado para "{{ $search }}". Tente outra busca.
                 @else
                     Não há mensagens de avaliação para este turno no setor selecionado.
                 @endif
             </p>
             @if(!empty($search))
-                <a href="{{ route('sbar.avaliacoes.turno', ['sector_id' => $sectorId]) }}"
+                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId]) }}"
                    class="inline-flex items-center mt-4 px-4 py-2 bg-[#0071B9] text-white rounded-lg hover:bg-[#004D9D] transition-colors text-sm">
                     <i class="fas fa-times mr-2"></i>Limpar Busca
                 </a>

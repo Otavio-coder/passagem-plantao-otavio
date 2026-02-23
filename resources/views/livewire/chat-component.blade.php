@@ -442,9 +442,19 @@
                                                 @if(count($reactions) > 0)
                                                     <div class="flex items-center gap-0.5">
                                                         @foreach(array_slice($reactions, 0, 4) as $reaction)
-                                                            <div class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="{{ $reaction['name'] ?? '' }}">
-                                                                <span class="text-white font-bold leading-none" style="font-size:0.5rem">{{ $reaction['initial'] ?? '?' }}</span>
-                                                            </div>
+                                                            @if(!empty($reaction['photo']))
+                                                                {{-- User has photo --}}
+                                                                <div class="w-5 h-5 rounded-full overflow-hidden border border-green-400 flex-shrink-0" title="{{ $reaction['name'] ?? '' }}">
+                                                                    <img src="data:image/jpeg;base64,{{ $reaction['photo'] }}" 
+                                                                         alt="{{ $reaction['name'] ?? '' }}" 
+                                                                         class="w-full h-full object-cover">
+                                                                </div>
+                                                            @else
+                                                                {{-- Fallback to initials --}}
+                                                                <div class="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0" title="{{ $reaction['name'] ?? '' }}">
+                                                                    <span class="text-white font-bold leading-none" style="font-size:0.6rem">{{ $reaction['initial'] ?? '?' }}</span>
+                                                                </div>
+                                                            @endif
                                                         @endforeach
                                                         @if(count($reactions) > 4)
                                                             <span class="text-xs text-gray-400 ml-0.5">+{{ count($reactions) - 4 }}</span>

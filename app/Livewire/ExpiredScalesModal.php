@@ -11,7 +11,7 @@ class ExpiredScalesModal extends Component
 {
     public bool $isOpen = false;
     public array $patientsWithExpiredScales = [];
-    public int $sectorId = 0;
+    public ?int $sectorId = null;
     public bool $loading = false;
     public int $totalExpired = 0;
 
@@ -20,7 +20,7 @@ class ExpiredScalesModal extends Component
     public function open($sectorId = null)
     {
         if ($sectorId) {
-            $this->sectorId = $sectorId;
+            $this->sectorId = (int) $sectorId;
         }
 
         $this->isOpen = true;
@@ -35,6 +35,7 @@ class ExpiredScalesModal extends Component
     public function loadExpiredScales()
     {
         if (!$this->sectorId) {
+            $this->loading = false;
             return;
         }
 

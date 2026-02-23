@@ -771,8 +771,87 @@ class PatientClinicalRepository
         'nutricao'           => [42],
         'fisioterapia'       => [593, 609, 608],
         'psicologia'         => [41],
-        'acessos_vasculares' => [639],
+        // 639 = TIME DE ACESSOS VASCULARES (legado, 14 registros).
+        // As solicitações atuais usam as sequências específicas de PICC:
+        // 646=Inserção, 647=Obstrução, 648=Orientação Alta, 652=Retirada,
+        // 653=Selamento, 655=Troca de Curativo
+        'acessos_vasculares' => [639, 646, 647, 648, 652, 653, 655],
     ];
+
+    /**
+     * Busca detalhes completos das solicitações de parecer médico
+     *
+     * LONG columns (DS_MOTIVO_CONSULTA, DS_PARECER) são buscadas em queries separadas
+     * porque Oracle restringe: apenas 1 LONG por SELECT, e não pode estar em subquery.
+     */
+    public function getDetailedMultidisciplinaryRequests(int $attendanceNumber): array
+    {
+        try {
+            // Query principal SEM colunas LONG
+            $rows = DB::connection($this->connection)->select("
+                SELECT
+                    pr.nr_parecer,
+                    pr.dt_criacao          AS dt_registro,
+                    pr.dt_liberacao,
+                    pr.ie_situacao         AS ie_status,
+                    pf_req.nm_pessoa_fisica AS nm_requisitante,
+                    tp.ds_tipo_parecer     AS ds_equipe_destino,
+                    pm_resp.dt_registro    AS dt_resposta,
+                    pm_resp.nm_usuario     AS nm_responsavel_resposta
+                FROM tasy.PARECER_MEDICO_REQ pr
+                LEFT JOIN tasy.pessoa_fisica pf_req
+                    ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
+                LEFT JOIN tasy.TIPO_PARECER tp
+                    ON tp.nr_sequencia = pr.nr_seq_tipo_parecer
+                LEFT JOIN tasy.PARECER_MEDICO pm_resp
+                    ON pm_resp.nr_parecer = pr.nr_parecer
+                   AND pm_resp.nr_sequencia = (
+                       SELECT MAX(pm2.nr_sequencia)
+                       FROM tasy.PARECER_MEDICO pm2
+                       WHERE pm2.nr_parecer = pr.nr_parecer
+                   )
+                WHERE pr.nr_atendimento = :attendance
+                  AND pr.dt_liberacao IS NOT NULL
+                  AND pr.dt_inativacao IS NULL
+                ORDER BY pr.dt_criacao DESC
+            ", ['attendance' => $attendanceNumber]);
+
+            if (empty($rows)) return [];
+
+            $statusMap  = ['A' => 'Aberto', 'R' => 'Respondido', 'L' => 'Liberado', 'C' => 'Cancelado'];
+            $parecerIds = array_map(fn($r) => $r->nr_parecer, $rows);
+
+            // Busca LONG columns em queries separadas (restrição Oracle)
+            $motivoMap    = $this->fetchPareceMotivos($parecerIds);
+            $pareceresMap = $this->fetchPareceRespostas($parecerIds);
+
+            $requests = [];
+            foreach ($rows as $row) {
+                $requests[] = [
+                    'nr_parecer'              => $row->nr_parecer,
+                    'dt_registro'             => $row->dt_registro,
+                    'dt_liberacao'            => $row->dt_liberacao,
+                    'dt_resposta'             => $row->dt_resposta,
+                    'ds_motivo_consulta'      => $motivoMap[$row->nr_parecer] ?? null,
+                    'ds_parecer'              => $pareceresMap[$row->nr_parecer] ?? null,
+                    'ie_status'               => $row->ie_status,
+                    'ds_status'               => $statusMap[$row->ie_status] ?? $row->ie_status,
+                    'nm_requisitante'         => $row->nm_requisitante,
+                    'ds_equipe_destino'       => $row->ds_equipe_destino,
+                    'ds_tipo_parecer_destino' => null,
+                    'nm_responsavel_resposta' => $row->nm_responsavel_resposta,
+                ];
+            }
+
+            return $requests;
+        } catch (\Throwable $e) {
+            Log::warning('PatientClinicalRepository::getDetailedMultidisciplinaryRequests failed', [
+                'attendance' => $attendanceNumber,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
 
     /**
      * Single-attendance multidisciplinary detection using nr_seq_equipe_dest
@@ -902,6 +981,210 @@ class PatientClinicalRepository
         }
 
         return $result;
+    }
+
+    /**
+     * Busca solicitações de parecer detalhadas em BATCH para todos os atendimentos.
+     *
+     * LONG columns (DS_MOTIVO_CONSULTA, DS_PARECER) são buscadas em queries separadas
+     * porque Oracle restringe: apenas 1 LONG por SELECT, e não pode estar em subquery.
+     */
+    public function getMultidisciplinaryRequestsBatch(array $attendances): array
+    {
+        if (empty($attendances)) return [];
+
+        $result = [];
+        foreach ($attendances as $nr) {
+            $result[$nr] = [];
+        }
+
+        $statusMap = ['A' => 'Aberto', 'R' => 'Respondido', 'L' => 'Liberado', 'C' => 'Cancelado'];
+
+        // Passo 1: query principal SEM colunas LONG
+        $allRows = []; // nr_parecer => stdClass row
+
+        foreach (array_chunk($attendances, 50) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            try {
+                $rows = DB::connection($this->connection)->select("
+                    SELECT
+                        pr.nr_atendimento,
+                        pr.nr_parecer,
+                        pr.dt_criacao          AS dt_registro,
+                        pr.dt_liberacao,
+                        pr.ie_situacao         AS ie_status,
+                        pf_req.nm_pessoa_fisica AS nm_requisitante,
+                        tp.ds_tipo_parecer     AS ds_equipe_destino,
+                        pm_resp.dt_registro    AS dt_resposta,
+                        pm_resp.nm_usuario     AS nm_responsavel_resposta
+                    FROM tasy.PARECER_MEDICO_REQ pr
+                    LEFT JOIN tasy.pessoa_fisica pf_req
+                        ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
+                    LEFT JOIN tasy.TIPO_PARECER tp
+                        ON tp.nr_sequencia = pr.nr_seq_tipo_parecer
+                    LEFT JOIN tasy.PARECER_MEDICO pm_resp
+                        ON pm_resp.nr_parecer = pr.nr_parecer
+                       AND pm_resp.nr_sequencia = (
+                           SELECT MAX(pm2.nr_sequencia)
+                           FROM tasy.PARECER_MEDICO pm2
+                           WHERE pm2.nr_parecer = pr.nr_parecer
+                       )
+                    WHERE pr.nr_atendimento IN ($placeholders)
+                      AND pr.dt_liberacao IS NOT NULL
+                      AND pr.dt_inativacao IS NULL
+                    ORDER BY pr.nr_atendimento, pr.dt_criacao DESC
+                ", $chunk);
+
+                foreach ($rows as $row) {
+                    $allRows[$row->nr_parecer] = $row;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('PatientClinicalRepository::getMultidisciplinaryRequestsBatch chunk failed', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (empty($allRows)) {
+            return $result;
+        }
+
+        // Passo 2: busca LONG columns em queries separadas (restrição Oracle)
+        $parecerIds   = array_keys($allRows);
+        $motivoMap    = $this->fetchPareceMotivos($parecerIds);
+        $pareceresMap = $this->fetchPareceRespostas($parecerIds);
+
+        foreach ($allRows as $nrParecer => $row) {
+            $result[$row->nr_atendimento][] = [
+                'nr_parecer'              => $row->nr_parecer,
+                'dt_registro'             => $row->dt_registro,
+                'dt_liberacao'            => $row->dt_liberacao,
+                'dt_resposta'             => $row->dt_resposta,
+                'ds_motivo_consulta'      => $motivoMap[$nrParecer] ?? null,
+                'ds_parecer'              => $pareceresMap[$nrParecer] ?? null,
+                'ie_status'               => $row->ie_status,
+                'ds_status'               => $statusMap[$row->ie_status] ?? $row->ie_status,
+                'nm_requisitante'         => $row->nm_requisitante,
+                'ds_equipe_destino'       => $row->ds_equipe_destino,
+                'ds_tipo_parecer_destino' => null,
+                'nm_responsavel_resposta' => $row->nm_responsavel_resposta,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Busca DS_MOTIVO_CONSULTA (LONG) de PARECER_MEDICO_REQ por lote de nr_parecer.
+     * Query isolada porque Oracle só permite 1 LONG por SELECT.
+     */
+    private function fetchPareceMotivos(array $parecerIds): array
+    {
+        $result = [];
+        if (empty($parecerIds)) return $result;
+
+        foreach (array_chunk($parecerIds, 100) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            try {
+                $rows = DB::connection($this->connection)->select("
+                    SELECT nr_parecer, ds_motivo_consulta
+                    FROM tasy.PARECER_MEDICO_REQ
+                    WHERE nr_parecer IN ($placeholders)
+                      AND dt_inativacao IS NULL
+                ", $chunk);
+                foreach ($rows as $row) {
+                    $result[$row->nr_parecer] = $this->stripRtf($row->ds_motivo_consulta);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('PatientClinicalRepository::fetchPareceMotivos failed: ' . $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Busca DS_PARECER (LONG) da última resposta em PARECER_MEDICO por lote de nr_parecer.
+     * Query isolada porque Oracle só permite 1 LONG por SELECT.
+     */
+    private function fetchPareceRespostas(array $parecerIds): array
+    {
+        $result = [];
+        if (empty($parecerIds)) return $result;
+
+        foreach (array_chunk($parecerIds, 100) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            try {
+                $rows = DB::connection($this->connection)->select("
+                    SELECT pm.nr_parecer, pm.ds_parecer
+                    FROM tasy.PARECER_MEDICO pm
+                    WHERE pm.nr_parecer IN ($placeholders)
+                      AND pm.nr_sequencia = (
+                          SELECT MAX(pm2.nr_sequencia)
+                          FROM tasy.PARECER_MEDICO pm2
+                          WHERE pm2.nr_parecer = pm.nr_parecer
+                      )
+                ", $chunk);
+                foreach ($rows as $row) {
+                    $result[$row->nr_parecer] = $this->stripRtf($row->ds_parecer);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('PatientClinicalRepository::fetchPareceRespostas failed: ' . $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Remove formatação RTF ou HTML e retorna texto simples.
+     * Campos DS_MOTIVO_CONSULTA e DS_PARECER no Tasy podem conter RTF ou HTML.
+     */
+    private function stripRtf(?string $text): ?string
+    {
+        if (empty($text)) return $text;
+
+        $trimmed = ltrim($text);
+
+        // HTML (formato Tasy moderno: <html tasy="html5">...)
+        if (stripos($trimmed, '<html') === 0 || stripos($trimmed, '<body') === 0) {
+            // Converte <br>, <p>, <div> em quebras de linha antes de strip_tags
+            $text = preg_replace('/<br\s*\/?>/i', "\n", $text);
+            $text = preg_replace('/<\/p>/i', "\n", $text);
+            $text = preg_replace('/<\/div>/i', "\n", $text);
+            $text = strip_tags($text);
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $text = preg_replace('/[ \t]+/', ' ', $text);
+            $text = preg_replace('/(\r\n|\r|\n)+/', "\n", trim($text));
+            return $text ?: null;
+        }
+
+        // RTF (formato Tasy legado: {\rtf1...})
+        if (strpos($trimmed, '{\\rtf') === 0 || strpos($trimmed, '{\rtf') === 0) {
+            // Remove blocos de metadados RTF (fonttbl, colortbl) com grupos aninhados de 1 nível
+            $text = preg_replace('/\{\\\\fonttbl(?:\{[^}]*\}|[^}])*\}/', '', $text);
+            $text = preg_replace('/\{\\\\colortbl(?:\{[^}]*\}|[^}])*\}/', '', $text);
+
+            // Converte escapes hexadecimais Windows-1252 (\'XX) para UTF-8
+            $text = preg_replace_callback("/\\\\'([0-9a-fA-F]{2})/", function ($m) {
+                return mb_convert_encoding(chr(hexdec($m[1])), 'UTF-8', 'Windows-1252');
+            }, $text);
+
+            // Converte \par e \line em quebras de linha (word boundary evita combinar \pard)
+            $text = preg_replace('/\\\\par\\b[ ]?/', "\n", $text);
+            $text = preg_replace('/\\\\line\\b[ ]?/', "\n", $text);
+
+            // Remove palavras de controle RTF (\word ou \word-123)
+            $text = preg_replace('/\\\\[a-zA-Z]+\-?\d*[ ]?/', ' ', $text);
+            $text = str_replace('\\*', '', $text);
+            $text = str_replace(['{', '}'], '', $text);
+
+            $text = preg_replace('/[ \t]+/', ' ', $text);
+            $text = preg_replace('/(\r\n|\r|\n)+/', "\n", trim($text));
+            return $text ?: null;
+        }
+
+        return trim($text) ?: null;
     }
 
     /**

@@ -23,6 +23,16 @@
                         <i class="fa fa-home"></i> <span class="hidden sm:inline">Início</span>
                     </a>
 
+                    <a href="{{ route('sbar.report') }}" id="nav-sbar-desktop"
+                       class="transition duration-200 ease-in-out border-b-4 hover:border-blue-200 text-white hover:text-blue-200 px-2 xl:px-3 py-1.5 xl:py-2 text-xs xl:text-sm font-medium flex items-center gap-1.5 xl:gap-2 min-w-[90px]">
+                        <i class="fa fa-hospital"></i> <span class="hidden sm:inline">Passagem</span>
+                    </a>
+
+                    <a href="{{ route('user.preferences.index') }}" id="nav-preferences-desktop"
+                       class="transition duration-200 ease-in-out border-b-4 hover:border-blue-200 text-white hover:text-blue-200 px-2 xl:px-3 py-1.5 xl:py-2 text-xs xl:text-sm font-medium flex items-center gap-1.5 xl:gap-2 min-w-[90px]">
+                        <i class="fa fa-cog"></i> <span class="hidden sm:inline">Meus Setores</span>
+                    </a>
+
                     <a href="{{ route('feedback') }}" id="nav-feedback-desktop"
                        class="transition duration-200 ease-in-out border-b-4 hover:border-blue-200 text-white hover:text-blue-200 px-2 xl:px-3 py-1.5 xl:py-2 text-xs xl:text-sm font-medium flex items-center gap-1.5 xl:gap-2 min-w-[90px]">
                         <i class="fa fa-comment"></i> <span class="hidden sm:inline">Feedback</span>
@@ -55,12 +65,7 @@
                                     </a>
                                 @endcan
 
-                                @can('configurar sistema')
-                                    <a href="{{ route('system-configuration.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-2 text-sm rounded transition">
-                                        <x-iconoir-bed class="text-sky-600 h-4 w-4 flex-shrink-0" />
-                                        Config. Hospital-Setor-Leito
-                                    </a>
-                                @endcan
+
 
                                 @can('ver logs')
                                     <a href="{{ route('logs') }}" target="_blank" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-2 text-sm rounded transition">
@@ -131,6 +136,22 @@
                     </div>
                 </a>
 
+                <a href="{{ route('sbar.report') }}" id="nav-sbar-mobile" class="flex items-center gap-3 text-sm text-gray-700 py-3 px-4">
+                    <i class="fa fa-hospital text-sky-600"></i>
+                    <div class="flex flex-col">
+                        <span class="font-semibold">Passagem de Plantão</span>
+                        <span class="text-xs text-gray-500">SBAR - Sistema de Plantão</span>
+                    </div>
+                </a>
+
+                <a href="{{ route('user.preferences.index') }}" id="nav-preferences-mobile" class="flex items-center gap-3 text-sm text-gray-700 py-3 px-4">
+                    <i class="fa fa-cog text-sky-600"></i>
+                    <div class="flex flex-col">
+                        <span class="font-semibold">Meus Setores</span>
+                        <span class="text-xs text-gray-500">Configure seus setores de internação</span>
+                    </div>
+                </a>
+
                 <a href="{{ route('feedback') }}" id="nav-feedback-mobile" class="flex items-center gap-3 text-sm text-gray-700 py-3 px-4">
                     <i class="fa fa-comment text-sky-600"></i>
                     <div class="flex flex-col">
@@ -162,13 +183,6 @@
                                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
                                     </svg>
                                     Perfis
-                                </a>
-                            @endcan
-
-                            @can('configurar sistema')
-                                <a href="{{ route('system-configuration.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-2 text-sm rounded transition">
-                                    <x-iconoir-bed class="text-sky-600 h-4 w-4 flex-shrink-0" />
-                                    Config. Hospital-Setor-Leito
                                 </a>
                             @endcan
 

@@ -12,6 +12,7 @@ use Livewire\Component;
 class ChatComponent extends Component
 {
     public $patientId;
+    public $cdPessoaFisica;
     public $bedUnit;
 
     /** Array plano de itens: ['type'=>'separator',...] ou ['type'=>'message',...] */
@@ -34,9 +35,10 @@ class ChatComponent extends Component
         'refreshChat'           => 'refreshCurrentMessages',
     ];
 
-    public function mount($patientId = null, $bedUnit = null)
+    public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null)
     {
         $this->patientId = $patientId;
+        $this->cdPessoaFisica = $cdPessoaFisica;
         $this->bedUnit   = $bedUnit;
 
         $user = Auth::user();
@@ -89,9 +91,10 @@ class ChatComponent extends Component
 
             $repo       = new ChatRepository();
             $newMessage = $repo->storeMessage([
-                'nr_atendimento' => $this->patientId,
-                'user_id'        => $this->currentUser['id'],
-                'content'        => $message,
+                'nr_atendimento'   => $this->patientId,
+                'cd_pessoa_fisica' => $this->cdPessoaFisica,
+                'user_id'          => $this->currentUser['id'],
+                'content'          => $message,
             ]);
 
             if (!$newMessage) {
@@ -436,6 +439,7 @@ class ChatComponent extends Component
             'user_id' => is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null),
             'name'    => is_array($r) ? ($r['name'] ?? 'Usuário') : ($r->name ?? 'Usuário'),
             'initial' => strtoupper(substr(is_array($r) ? ($r['name'] ?? 'U') : ($r->name ?? 'U'), 0, 1)),
+            'photo'   => is_array($r) ? ($r['photo'] ?? '') : ($r->photo ?? ''),
         ])->values()->toArray();
     }
 

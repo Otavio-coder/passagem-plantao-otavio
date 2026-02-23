@@ -207,16 +207,29 @@ class TasyService
     {
         $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
         $scales = $this->fetchBatchScales($attendanceNumbers);
-        $pendingEvents = $this->fetchPendingEventsBySector($sectorId);
+
+        // Novo sistema de pendências em BATCH (performance otimizada)
+        $pendingEventsService = new \App\Services\PatientPendingEventsService();
+        $pendingRaw = $pendingEventsService->getPendingEventsForSector($sectorId);
+
+        // Separa events e discharge_info
+        $pendingEventsMap = [];
+        $dischargeInfoMap = [];
+        foreach ($pendingRaw as $nr => $data) {
+            $pendingEventsMap[$nr] = $data['events'] ?? [];
+            $dischargeInfoMap[$nr] = !empty($data['discharge']) ? $data['discharge'] : null;
+        }
 
         return [
-            'clinical_details' => $clinicalBatch['clinical_details'] ?? [],
-            'surgery' => $clinicalBatch['surgery'] ?? [],
-            'surgery_detailed' => $clinicalBatch['surgery_detailed'] ?? [],
-            'multidisciplinary' => $clinicalBatch['multidisciplinary'] ?? [],
-            'priority_exams' => $clinicalBatch['priority_exams'] ?? [],
-            'scales' => $scales,
-            'pending_events' => $pendingEvents,
+            'clinical_details'          => $clinicalBatch['clinical_details'] ?? [],
+            'surgery'                   => $clinicalBatch['surgery'] ?? [],
+            'surgery_detailed'          => $clinicalBatch['surgery_detailed'] ?? [],
+            'multidisciplinary'         => $clinicalBatch['multidisciplinary'] ?? [],
+            'multidisciplinary_requests'=> $clinicalBatch['multidisciplinary_requests'] ?? [],
+            'priority_exams'            => $clinicalBatch['priority_exams'] ?? [],
+            'scales'                    => $scales,
+            'pending_events'            => $pendingEventsMap,
+            'discharge_info'            => $dischargeInfoMap,
         ];
     }
 
@@ -236,6 +249,7 @@ class TasyService
         // getPriorityExamsForAttendances internamente — aproveitamos o resultado.
         $clinicalDetails = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
         $multidisciplinary = $this->clinical()->getMultidisciplinaryTeams($attendanceNumbers);
+        $multidisciplinaryRequests = $this->clinical()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
 
         $surgeryMap = [];
         $surgeryDetailedMap = [];
@@ -251,6 +265,7 @@ class TasyService
             'surgery' => $surgeryMap,
             'surgery_detailed' => $surgeryDetailedMap,
             'multidisciplinary' => $multidisciplinary,
+            'multidisciplinary_requests' => $multidisciplinaryRequests,
             'priority_exams' => $priorityExamsMap,
             'clinical_details' => $clinicalDetails,
         ];
@@ -305,8 +320,10 @@ class TasyService
         }
 
         $multidisciplinaryEval = null;
+        $multidisciplinaryRequests = [];
         try {
             $multidisciplinaryEval = $this->clinical()->getMultidisciplinaryTeamEvaluations($attendanceNumber);
+            $multidisciplinaryRequests = $this->clinical()->getDetailedMultidisciplinaryRequests($attendanceNumber);
         } catch (\Throwable $e) {
             Log::warning('Failed to fetch multidisciplinary evaluations', [
                 'attendance' => $attendanceNumber,
@@ -333,6 +350,7 @@ class TasyService
             'procedimentos_cirurgicos' => $details->procedimentos_cirurgicos ?? [],
             'alerts' => $alerts,
             'multidisciplinary' => $multidisciplinaryEval ?? $this->getDefaultMultidisciplinary(),
+            'multidisciplinary_requests' => $multidisciplinaryRequests,
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
         ];
@@ -890,6 +908,7 @@ class TasyService
             'has_surgery' => $batchData['surgery'][$attendanceNumber] ?? false,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'multidisciplinary' => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
+            'multidisciplinary_requests' => $batchData['multidisciplinary_requests'][$attendanceNumber] ?? [],
             'priority_exams' => $batchData['priority_exams'][$attendanceNumber] ?? null,
             'diagnosticos_comorbidades' => $clinicalDetails->diagnosticos_comorbidades ?? null,
             'medida_bloqueio' => $clinicalDetails->medida_bloqueio ?? 'Não',
@@ -906,6 +925,7 @@ class TasyService
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
             'pending_events' => $batchData['pending_events'][$attendanceNumber] ?? [],
+            'discharge_info'  => $batchData['discharge_info'][$attendanceNumber] ?? null,
         ];
 
         $rawScales = $batchData['scales'][$attendanceNumber] ?? null;

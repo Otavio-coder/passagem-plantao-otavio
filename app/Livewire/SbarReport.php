@@ -2,7 +2,6 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\{Sector, Hospital};
-use App\Models\System\SystemConfiguration;
 use App\Models\System\UserSectorPreference;
 use App\Services\TasyService;
 use Livewire\Component;
@@ -50,7 +49,6 @@ class SbarReport extends Component
 
     protected $listeners = [
         'refreshData'           => 'refreshData',
-        'autoRefresh'           => 'autoRefresh',
         'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
     ];
 
@@ -61,6 +59,16 @@ class SbarReport extends Component
 
     public function mount()
     {
+        $user = Auth::user();
+        
+        // Verifica se o usuário tem setores configurados
+        if (!$user->hasConfiguredSectors()) {
+            // Dispara evento para mostrar o modal
+            $this->dispatch('checkUserSectors');
+            $this->errorMessage = "Você precisa configurar seus setores de acesso antes de usar o SBAR.";
+            return;
+        }
+
         $this->loading = true;
         $this->loadingMessage = 'Inicializando sistema SBAR...';
 
@@ -87,14 +95,16 @@ class SbarReport extends Component
             return;
         }
 
-        $allowedHospitals = SystemConfiguration::allowedHospitalCodes();
-
-        if (empty($allowedHospitals)) {
+        // Load hospitals based on user's preferred sectors
+        $userSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
+        $userHospitalCodes = $user->sectorPreferences()->pluck('hospital_code')->unique()->toArray();
+        
+        if (empty($userHospitalCodes)) {
             $this->errorMessage = "Nenhum hospital configurado.";
             return;
         }
 
-        $this->loadHospitals($allowedHospitals);
+        $this->loadHospitals($userHospitalCodes);
 
         if (empty($this->hospitals)) {
             $this->errorMessage = "Nenhum hospital disponível.";
@@ -104,9 +114,7 @@ class SbarReport extends Component
         $this->selectedHospital    = $this->hospitals[0]['hospital_id'];
         $this->currentHospitalName = $this->hospitals[0]['hospital_name'];
 
-        // Use user's preferred sector codes instead of global whitelist
-        $userSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
-
+        // Load sectors for selected hospital
         $this->loadSectorsForHospital($this->selectedHospital, $userSectorCodes);
 
         if (!empty($this->sectors)) {
@@ -121,10 +129,11 @@ class SbarReport extends Component
     protected function loadAvailableSectors(): void
     {
         try {
-            $allowedCodes = SystemConfiguration::allowedSectorCodes();
-
-            $sectors = Sector::whereIn('cd_setor_atendimento', $allowedCodes)
-                ->allowed()
+            // Load all sectors from allowed hospitals based on controller config
+            $allowedHospitalIds = [1,2,3,4,5,6,7,8,10,18,25];
+            
+            $sectors = Sector::whereIn('nr_seq_agrupamento', $allowedHospitalIds)
+                ->where('ie_situacao', 'A')
                 ->select(['cd_setor_atendimento', 'ds_setor_atendimento', 'nr_seq_agrupamento'])
                 ->get();
 
@@ -201,10 +210,11 @@ class SbarReport extends Component
         $this->loadInitialData();
     }
 
-    protected function loadHospitals($allowedHospitals)
+    protected function loadHospitals($hospitalCodes)
     {
         try {
-            $hospitals = Hospital::whereIn('nr_sequencia', $allowedHospitals)
+            $hospitals = Hospital::whereIn('nr_sequencia', $hospitalCodes)
+                ->where('ie_situacao', 'A')
                 ->select(['nr_sequencia as hospital_id', 'ds_agrupamento as hospital_name'])
                 ->get();
 
@@ -369,7 +379,13 @@ class SbarReport extends Component
         $hospital = collect($this->hospitals)->firstWhere('hospital_id', $hospitalId);
         $this->currentHospitalName = $hospital['hospital_name'] ?? 'Hospital';
 
-        $userSectorCodes = Auth::user()->sectorPreferences()->pluck('sector_code')->toArray();
+        // Get user's preferred sectors for this hospital
+        $user = Auth::user();
+        $userSectorCodes = $user->sectorPreferences()
+            ->where('hospital_code', $hospitalId)
+            ->pluck('sector_code')
+            ->toArray();
+        
         $this->loadSectorsForHospital($hospitalId, $userSectorCodes);
 
         if (!empty($this->sectors)) {
@@ -488,14 +504,7 @@ class SbarReport extends Component
         $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
     }
 
-    public function autoRefresh(): void
-    {
-        if ($this->selectedSector) {
-            $this->tasyService->clearSectorCache($this->selectedSector);
-        }
-        $this->loadPatients();
-        $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
-    }
+
 
     public function placeholder()
     {

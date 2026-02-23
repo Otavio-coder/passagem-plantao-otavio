@@ -60,6 +60,7 @@
     </div>
 </main>
 @include('partials.footer')
+
 <!-- Scripts -->
 <script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>
 <script src="{{ asset('/js/common.js' . preventCache()) }}"></script>
@@ -113,6 +114,53 @@
         window.addEventListener('sbar:loading:hide', hideLoading);
         // Auto-hide on page load
         window.addEventListener('load', hideLoading);
+    });
+
+    // Notificações Toast
+    window.showToast = function(message, type = 'success') {
+        const theme = type === 'success' ? 'alert' : (type === 'error' ? 'error' : 'info');
+        const bgColor = type === 'success' ? '#28a745' : (type === 'error' ? '#dc3545' : '#004D9D');
+        
+        new Noty({
+            text: message,
+            type: theme,
+            theme: 'nest',
+            layout: 'topRight',
+            timeout: 3000,
+            progressBar: true,
+            closeWith: ['click', 'button'],
+            animation: {
+                open: 'noty_effects_open',
+                close: 'noty_effects_close'
+            },
+            callbacks: {
+                onTemplate: function() {
+                    this.barDom.style.backgroundColor = bgColor;
+                }
+            }
+        }).show();
+    };
+
+    // Notificações de sessão do Laravel
+    @if(session('success'))
+        showToast('{!! addslashes(session('success')) !!}', 'success');
+    @endif
+    @if(session('error'))
+        showToast('{!! addslashes(session('error')) !!}', 'error');
+    @endif
+    @if(session('warning'))
+        showToast('{!! addslashes(session('warning')) !!}', 'warning');
+    @endif
+    @if(session('info'))
+        showToast('{!! addslashes(session('info')) !!}', 'info');
+    @endif
+
+    // Notificações do Livewire
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('show-toast', (data) => {
+            const event = Array.isArray(data) ? data[0] : data;
+            showToast(event.message, event.type || 'success');
+        });
     });
     // Form submission prevention
     if (typeof $ !== 'undefined') {

@@ -189,6 +189,7 @@ class PatientModal extends Component
 
                 // Atualiza dados do paciente atual
                 $this->currentPatient = array_merge($this->currentPatient, [
+                    'cd_pessoa_fisica' => $this->patientDetails->cd_pessoa_fisica ?? null,
                     'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
                     'nr_prontuario' => $this->patientDetails->nr_prontuario ?? 'N/A',
                     'age_detailed' => $this->patientDetails->age_detailed ?? 'N/A',

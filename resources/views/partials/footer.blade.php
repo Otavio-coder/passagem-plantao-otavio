@@ -3,6 +3,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
             <div class="text-center md:text-left mb-4 md:mb-0">
                 <h3 class="text-lg font-bold">Centro de Inovação</h3>
+                <p class="text-xs text-center text-gray-300">Santa Casa de Porto Alegre</p>
             </div>
             <div class="flex flex-col md:flex-row gap-4 text-sm">
                 <a href="https://maps.app.goo.gl/RSGCvTuKxEYecHTc6" target="_blank" rel="noopener noreferrer"
@@ -64,7 +65,7 @@
         </div>
         <div
             class="border-t border-gray-600 pt-4 mt-2 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
-            <p>© {{ now()->format( 'Y' ) }} Centro de Inovação. Todos os direitos reservados.</p>
+            <p>© {{ now()->format( 'Y' ) }} Santa Casa de Porto Alegre. Todos os direitos reservados.</p>
             <a href="{{ env( 'DEVELOPED_BY_URL' ) }}" target="_blank" rel="noopener noreferrer"
                 class="flex items-center hover:text-blue-400 transition-colors mt-2 md:mt-0"><span>Desenvolvido por</span>
                 <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 448 512" class="mx-1"

@@ -11,9 +11,9 @@
             {{-- Empty Bed Card --}}
             <div class="h-full w-full flex flex-col min-h-0">
                 <div class="flex-1 flex items-center justify-center min-w-0">
-                    <div class="w-full h-full flex flex-col bg-gradient-to-br from-gray-200 to-gray-300 p-3 sm:p-4 rounded-xl overflow-hidden min-h-0">
+                    <div class="w-full h-full flex flex-col bg-gradient-to-br from-gray-200 to-gray-300 p-4 rounded-xl overflow-hidden min-h-0">
                         <div class="flex justify-between items-center mb-3 flex-shrink-0 min-w-0">
-                            <span class="bg-white/70 text-gray-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                            <span class="bg-white/70 text-gray-700 text-sm font-bold px-3 py-1 rounded-full">
                                 Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                             </span>
                         </div>
@@ -22,7 +22,7 @@
                                 <svg class="mx-auto h-12 w-12 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <p class="text-gray-500 text-sm font-medium">Leito Vago</p>
+                                <p class="text-gray-500 text-base font-medium">Leito Vago</p>
                             </div>
                         </div>
                     </div>
@@ -32,14 +32,16 @@
             {{-- Occupied Bed Card --}}
             <div class="flex flex-col h-full overflow-hidden">
                 {{-- Header Section --}}
-                <div class="flex-shrink-0 p-2 sm:p-2.5 lg:p-3 flex flex-col gap-1.5">
+                <div class="flex-shrink-0 p-3 flex flex-col gap-2">
                     {{-- Row 1: Bed + Alerts + MEWS --}}
                     <div class="flex justify-between items-center gap-2">
-                        <span class="bg-white/80 text-gray-800 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm flex-shrink-0">
+                        <span class="bg-white/80 text-gray-800 text-xs sm:text-sm font-bold px-2 py-1 rounded-full shadow-sm flex-shrink-0">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
-                        {{-- Clinical Alerts --}}
+                        {{-- Clinical Alerts (Alergia, Isolamento, Cirurgia, Alta) --}}
                         <div class="flex items-center justify-center gap-1.5 flex-1 min-w-0">
+
+                            {{-- ALERGIA --}}
                             @if($patient['has_allergy'] ?? false)
                                 @php
                                     $alergias_raw = $patient['alergias_detalhadas'] ?? '';
@@ -60,10 +62,10 @@
                                         }
                                     }
                                 @endphp
-                                <div x-data="{ showAllergyModal: false }">
+                                <div x-data="{ open: false }">
                                     <button
                                         type="button"
-                                        @click="showAllergyModal = true; document.body.style.overflow = 'hidden'"
+                                        @click="open = true; document.body.style.overflow = 'hidden'"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="Ver alergias"
                                     >
@@ -71,12 +73,11 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                     </button>
-
                                     {{-- Allergy Modal --}}
-                                    <div x-show="showAllergyModal"
+                                    <div x-show="open"
                                          x-cloak
-                                         @click.self="showAllergyModal = false; document.body.style.overflow = ''"
-                                         @keydown.escape.window="showAllergyModal = false; document.body.style.overflow = ''"
+                                         @click.self="open = false; document.body.style.overflow = ''"
+                                         @keydown.escape.window="open = false; document.body.style.overflow = ''"
                                          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
                                          style="margin: 0 !important;"
                                     >
@@ -85,8 +86,8 @@
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                 </svg>
-                                                <h3 class="text-sm font-bold text-white flex-1">Alergias Registradas</h3>
-                                                <button @click="showAllergyModal = false; document.body.style.overflow = ''" class="text-white/80 hover:text-white transition-colors flex-shrink-0">
+                                                <h3 class="text-base font-bold text-white flex-1">Alergias Registradas</h3>
+                                                <button @click="open = false; document.body.style.overflow = ''" class="text-white/80 hover:text-white transition-colors flex-shrink-0">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
@@ -94,7 +95,7 @@
                                             </div>
                                             <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                                                 @if(empty($alergias))
-                                                    <div class="text-white/80 text-xs p-2 bg-white/10 rounded-md">Nenhuma alergia registrada</div>
+                                                    <div class="text-white/80 text-sm p-2 bg-white/10 rounded-md">Nenhuma alergia registrada</div>
                                                 @else
                                                     @foreach($alergias as $a)
                                                         <div class="p-2 rounded-md bg-white/10 transition-colors duration-150 hover:bg-white/20">
@@ -109,11 +110,11 @@
                                                                     }
                                                                 @endphp
                                                                 <div class="flex justify-between gap-2 items-start">
-                                                                    <div class="font-medium text-white text-xs">{{ $a['med'] }}</div>
-                                                                    <div class="{{ $gravidadeClass }} text-[10px] flex-shrink-0">{{ $a['grav'] }}</div>
+                                                                    <div class="font-medium text-white text-sm">{{ $a['med'] }}</div>
+                                                                    <div class="{{ $gravidadeClass }} text-xs flex-shrink-0">{{ $a['grav'] }}</div>
                                                                 </div>
                                                             @else
-                                                                <div class="text-white text-xs">{{ $a['text'] }}</div>
+                                                                <div class="text-white text-sm">{{ $a['text'] }}</div>
                                                             @endif
                                                         </div>
                                                     @endforeach
@@ -123,6 +124,8 @@
                                     </div>
                                 </div>
                             @endif
+
+                            {{-- ISOLAMENTO --}}
                             @if($patient['has_isolation'] ?? false)
                                 @php
                                     $iso_raw = $patient['motivos_isolamento'] ?? '';
@@ -143,29 +146,28 @@
                                         }
                                     }
                                 @endphp
-                                <div x-data="{ showIsolationModal: false }">
+                                <div x-data="{ open: false }">
                                     <button
                                         type="button"
-                                        @click="showIsolationModal = true; document.body.style.overflow = 'hidden'"
+                                        @click="open = true; document.body.style.overflow = 'hidden'"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-yellow-400 text-black shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="Ver isolamento"
                                     >
                                         <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="w-5 h-5" alt="Isolamento" />
                                     </button>
-
                                     {{-- Isolation Modal --}}
-                                    <div x-show="showIsolationModal"
+                                    <div x-show="open"
                                          x-cloak
-                                         @click.self="showIsolationModal = false; document.body.style.overflow = ''"
-                                         @keydown.escape.window="showIsolationModal = false; document.body.style.overflow = ''"
+                                         @click.self="open = false; document.body.style.overflow = ''"
+                                         @keydown.escape.window="open = false; document.body.style.overflow = ''"
                                          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
                                          style="margin: 0 !important;"
                                     >
                                         <div class="bg-yellow-400 rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
                                             <div class="flex items-start gap-2 mb-3">
                                                 <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="h-5 w-5 flex-shrink-0 mt-0.5" alt="Isolamento" />
-                                                <h3 class="text-sm font-bold text-black flex-1">Precauções de Isolamento</h3>
-                                                <button @click="showIsolationModal = false; document.body.style.overflow = ''" class="text-black/70 hover:text-black transition-colors flex-shrink-0">
+                                                <h3 class="text-base font-bold text-black flex-1">Precauções de Isolamento</h3>
+                                                <button @click="open = false; document.body.style.overflow = ''" class="text-black/70 hover:text-black transition-colors flex-shrink-0">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
@@ -173,17 +175,17 @@
                                             </div>
                                             <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                                                 @if(empty($isolamentos))
-                                                    <div class="text-black/70 text-xs p-2 bg-black/5 rounded-md">Motivo não especificado</div>
+                                                    <div class="text-black/70 text-sm p-2 bg-black/5 rounded-md">Motivo não especificado</div>
                                                 @else
                                                     @foreach($isolamentos as $iso)
                                                         <div class="p-2 rounded-md bg-black/5 transition-colors duration-150 hover:bg-black/10">
                                                             @if(isset($iso['label']))
-                                                                <div class="text-xs font-medium text-black">
+                                                                <div class="text-sm font-medium text-black">
                                                                     {{ $iso['label'] }}:
-                                                                    <span class="text-xs text-black/80 font-normal"> {{ $iso['value'] }}</span>
+                                                                    <span class="text-sm text-black/80 font-normal"> {{ $iso['value'] }}</span>
                                                                 </div>
                                                             @else
-                                                                <div class="text-xs text-black">{{ $iso['text'] }}</div>
+                                                                <div class="text-sm text-black">{{ $iso['text'] }}</div>
                                                             @endif
                                                         </div>
                                                     @endforeach
@@ -193,30 +195,31 @@
                                     </div>
                                 </div>
                             @endif
+
+                            {{-- CIRURGIA --}}
                             @if($patient['has_surgery'] ?? false)
-                                <div x-data="{ showSurgeryModal: false }">
+                                <div x-data="{ open: false }">
                                     <button
                                         type="button"
-                                        @click="showSurgeryModal = true; document.body.style.overflow = 'hidden'"
+                                        @click="open = true; document.body.style.overflow = 'hidden'"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-purple-600 text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 hover:bg-purple-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="Ver cirurgia"
                                     >
                                         <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="w-6 h-6" />
                                     </button>
-
                                     {{-- Surgery Modal --}}
-                                    <div x-show="showSurgeryModal"
+                                    <div x-show="open"
                                          x-cloak
-                                         @click.self="showSurgeryModal = false; document.body.style.overflow = ''"
-                                         @keydown.escape.window="showSurgeryModal = false; document.body.style.overflow = ''"
+                                         @click.self="open = false; document.body.style.overflow = ''"
+                                         @keydown.escape.window="open = false; document.body.style.overflow = ''"
                                          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
                                          style="margin: 0 !important;"
                                     >
                                         <div class="bg-white rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
                                             <div class="flex items-start gap-2 mb-3">
                                                 <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                                <h3 class="text-sm font-bold text-purple-800 flex-1">Cirurgia Agendada</h3>
-                                                <button @click="showSurgeryModal = false; document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0">
+                                                <h3 class="text-base font-bold text-purple-800 flex-1">Cirurgia Agendada</h3>
+                                                <button @click="open = false; document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
@@ -226,30 +229,86 @@
                                                 @if(!empty($patient['procedimentos_cirurgicos']) && is_array($patient['procedimentos_cirurgicos']))
                                                     @foreach($patient['procedimentos_cirurgicos'] as $c)
                                                         <div class="p-2 rounded-md bg-purple-50 transition-colors duration-150 hover:bg-purple-100">
-                                                            <div class="text-xs font-medium text-purple-900">
+                                                            <div class="text-sm font-medium text-purple-900">
                                                                 {{ $c['data_agenda'] ?? 'N/A' }} @if(!empty($c['hora_agenda'])) às {{ $c['hora_agenda'] }}@endif
                                                             </div>
                                                             @if(!empty($c['local']))
-                                                                <div class="text-[10px] text-purple-700 mt-0.5">{{ $c['local'] }}</div>
+                                                                <div class="text-xs text-purple-700 mt-0.5">{{ $c['local'] }}</div>
                                                             @endif
-                                                            <div class="text-xs text-purple-800 mt-1">{{ $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento' }}</div>
+                                                            <div class="text-sm text-purple-800 mt-1">{{ $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento' }}</div>
                                                             @if(!empty($c['observacoes']))
-                                                                <div class="text-[10px] text-purple-600 italic mt-1">Obs: {{ $c['observacoes'] }}</div>
+                                                                <div class="text-xs text-purple-600 italic mt-1">Obs: {{ $c['observacoes'] }}</div>
                                                             @endif
                                                         </div>
                                                     @endforeach
                                                 @else
-                                                    <div class="text-xs text-purple-700 p-2 bg-purple-50 rounded-md">Verificar detalhes no modal</div>
+                                                    <div class="text-sm text-purple-700 p-2 bg-purple-50 rounded-md">Verificar detalhes no modal</div>
                                                 @endif
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             @endif
+
+                            {{-- ALTA / ALTA MÉDICA / PREVISÃO DE ALTA – tooltip --}}
+                            @php
+                                $dischargeInfo = $patient['discharge_info'] ?? null;
+                            @endphp
+                            @if(!empty($dischargeInfo))
+                                @php
+                                    $dType = $dischargeInfo['tipo'] ?? '';
+                                    $dischargeBg    = $dType === 'alta'          ? 'bg-emerald-600'
+                                        : ($dType === 'alta_medica'   ? 'bg-blue-600'
+                                        : 'bg-orange-400');
+                                    $dischargeLabel = $dType === 'alta'          ? 'Alta Efetivada'
+                                        : ($dType === 'alta_medica'   ? 'Alta Médica'
+                                        : 'Previsão de Alta');
+                                    $dischargeIcon  = $dType === 'previsao_alta' ? 'calendar-check.svg' : 'alta.svg';
+                                @endphp
+                                <div x-data="{ open: false }" class="relative">
+                                    <button
+                                        type="button"
+                                        @mouseenter="open = true"
+                                        @mouseleave="open = false"
+                                        @click="open = !open"
+                                        class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full {{ $dischargeBg }} text-white shadow-md transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+                                        aria-label="{{ $dischargeLabel }}"
+                                    >
+                                        <img src="{{ asset('images/icons/patient-card/' . $dischargeIcon) }}" class="w-5 h-5 brightness-0 invert" alt="{{ $dischargeLabel }}" />
+                                    </button>
+                                    {{-- Discharge tooltip panel --}}
+                                    <div
+                                        x-show="open"
+                                        x-cloak
+                                        @mouseenter="open = true"
+                                        @mouseleave="open = false"
+                                        @keydown.escape.window="open = false"
+                                        class="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-[70] w-56 rounded-xl shadow-2xl p-3 text-white text-xs animate-[modal-slide-in_0.15s_ease-out] {{ $dischargeBg }}"
+                                        style="pointer-events: auto;"
+                                        @click.stop
+                                    >
+                                        <div class="font-bold text-sm mb-1.5 border-b border-white/20 pb-1">{{ $dischargeLabel }}</div>
+                                        @if($dType === 'alta')
+                                            <div><span class="opacity-75">Data:</span> {{ $dischargeInfo['dt_alta_formatted'] ?? '-' }}</div>
+                                            @if(!empty($dischargeInfo['ds_motivo_alta']))
+                                                <div class="mt-1"><span class="opacity-75">Motivo:</span> {{ $dischargeInfo['ds_motivo_alta'] }}</div>
+                                            @endif
+                                        @elseif($dType === 'alta_medica')
+                                            <div><span class="opacity-75">Data Alta Médica:</span> {{ $dischargeInfo['dt_alta_medico_formatted'] ?? '-' }}</div>
+                                            @if(!empty($dischargeInfo['dt_previsto_alta_formatted']))
+                                                <div class="mt-1"><span class="opacity-75">Previsão:</span> {{ $dischargeInfo['dt_previsto_alta_formatted'] }}</div>
+                                            @endif
+                                        @elseif($dType === 'previsao_alta')
+                                            <div><span class="opacity-75">Data Prevista:</span> {{ $dischargeInfo['dt_previsto_alta_formatted'] ?? '-' }}</div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+
                         </div>
                         {{-- MEWS Badge --}}
                         <div class="flex-shrink-0">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold shadow-sm whitespace-nowrap relative border
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap relative border
                                 {{ $patient['mews_styling']['bg'] ?? 'bg-white/90' }}
                                 {{ $patient['mews_styling']['text'] ?? 'text-gray-700' }}
                                 {{ $patient['mews_styling']['border'] ?? 'border-gray-300' }}
@@ -274,33 +333,33 @@
                                 <x-iconoir-male class="text-blue-600 h-4 w-4 flex-shrink-0" />
                             @endif
                             <p class="text-gray-900 text-sm font-bold truncate flex-1 min-w-0">{{ $patient['nm_pessoa_fisica'] ?? 'N/A' }}</p>
-                            <span class="text-gray-700 text-xs font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
-                            <span class="text-gray-700 text-[11px] font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
+                            <span class="text-gray-700 text-xs sm:text-sm font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
+                            <span class="text-gray-700 text-xs font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
                         </div>
                     </div>
                     {{-- Row 3: Administrative Data --}}
-                    <div class="bg-white/70 rounded-lg px-2 py-1.5 shadow-sm">
-                        <div class="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[10px]">
-                            <div class="truncate text-center"><span class="text-gray-600 font-medium">At:</span> <span class="text-gray-900 font-semibold">{{ $patient['nr_atendimento'] ?? 'N/A' }}</span></div>
-                            <div class="truncate text-center"><span class="text-gray-600 font-medium">Pr:</span> <span class="text-gray-900 font-semibold">{{ $patient['nr_prontuario'] ?? 'N/A' }}</span></div>
+                    <div class="bg-white/70 rounded-lg px-2 py-1 shadow-sm">
+                        <div class="grid grid-cols-3 gap-x-1 gap-y-0 text-[10px]">
+                            <div class="truncate text-center"><span class="text-gray-600">At:</span> <span class="text-gray-900 font-medium">{{ $patient['nr_atendimento'] ?? 'N/A' }}</span></div>
+                            <div class="truncate text-center"><span class="text-gray-600">Pr:</span> <span class="text-gray-900 font-medium">{{ $patient['nr_prontuario'] ?? 'N/A' }}</span></div>
                             <div class="truncate text-center">
-                                <span class="text-gray-600 font-medium">Int:</span>
+                                <span class="text-gray-600">Int:</span>
                                 @if($patient['is_new_patient'] ?? false)
                                     <span class="text-green-700 font-bold">Hoje</span>
                                 @elseif(isset($patient['internment_days']) && $patient['internment_days'] !== null)
-                                    <span class="text-gray-900 font-semibold">{{ ceil($patient['internment_days']) }}d</span>
+                                    <span class="text-gray-900 font-medium">{{ ceil($patient['internment_days']) }}d</span>
                                 @else
                                     <span class="text-gray-400">-</span>
                                 @endif
                             </div>
                             <div class="text-center whitespace-nowrap overflow-hidden">
-                                <span class="text-gray-600 font-medium">Cv:</span>
-                                <span class="text-gray-900 font-semibold truncate">{{ explode(' ', $patient['convenio'] ?? 'N/A')[0] }}</span>
+                                <span class="text-gray-600">Cv:</span>
+                                <span class="text-gray-900 font-medium truncate">{{ explode(' ', $patient['convenio'] ?? 'N/A')[0] }}</span>
                             </div>
                             @if(!empty($patient['medico_responsavel'] ?? null))
                                 <div class="col-span-2 text-center whitespace-nowrap overflow-hidden">
-                                    <span class="text-gray-600 font-medium">Dr:</span>
-                                    <span class="text-gray-900 font-semibold truncate">{{ $patient['medico_responsavel'] }}</span>
+                                    <span class="text-gray-600">Dr:</span>
+                                    <span class="text-gray-900 font-medium truncate">{{ $patient['medico_responsavel'] }}</span>
                                 </div>
                             @else
                                 <div class="col-span-2 text-center"><span class="text-gray-400">-</span></div>
@@ -308,11 +367,11 @@
                         </div>
                     </div>
                     {{-- Row 4: Risk Scales --}}
-                    <div class="bg-white/70 rounded-lg px-2 py-1.5 shadow-sm">
-                        <div class="flex flex-wrap gap-0.5 justify-center items-center min-h-[18px]">
+                    <div class="bg-white/70 rounded-lg px-2 py-1 shadow-sm">
+                        <div class="flex flex-wrap gap-1 justify-center items-center min-h-[18px]">
                             @if($patient['has_patient'] ?? false)
                                 {{-- Braden --}}
-                                <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
                                     {{ $patient['braden_styling']['bg'] ?? 'bg-gray-50' }}
                                     {{ $patient['braden_styling']['text'] ?? 'text-gray-800' }}
                                     {{ $patient['braden_styling']['border'] ?? 'border-gray-300' }}
@@ -320,14 +379,14 @@
                                     <strong>Braden:</strong>
                                     <span class="ml-1">{{ $patient['braden_score'] ?? '-' }}</span>
                                     @if($patient['braden_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['braden_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['braden_shift'] }})</span>
                                     @endif
                                     @if(($patient['braden_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
                                 {{-- Morse --}}
-                                <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
                                     {{ $patient['morse_styling']['bg'] ?? 'bg-gray-50' }}
                                     {{ $patient['morse_styling']['text'] ?? 'text-gray-800' }}
                                     {{ $patient['morse_styling']['border'] ?? 'border-gray-300' }}
@@ -335,14 +394,14 @@
                                     <strong>Morse:</strong>
                                     <span class="ml-1">{{ $patient['morse_score'] ?? '-' }}</span>
                                     @if($patient['morse_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['morse_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['morse_shift'] }})</span>
                                     @endif
                                     @if(($patient['morse_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
                                 {{-- Pain --}}
-                                <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
                                     {{ $patient['pain_styling']['bg'] ?? 'bg-gray-50' }}
                                     {{ $patient['pain_styling']['text'] ?? 'text-gray-800' }}
                                     {{ $patient['pain_styling']['border'] ?? 'border-gray-300' }}
@@ -350,14 +409,14 @@
                                     <strong>Dor:</strong>
                                     <span class="ml-1">{{ $patient['pain_score'] ?? '-' }}</span>
                                     @if($patient['pain_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['pain_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['pain_shift'] }})</span>
                                     @endif
                                     @if(($patient['pain_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
                                 {{-- VTE --}}
-                                <span class="inline-flex items-center px-1 py-0.5 rounded text-[9px] border whitespace-nowrap relative
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
                                     {{ $patient['vte_styling']['bg'] ?? 'bg-gray-50' }}
                                     {{ $patient['vte_styling']['text'] ?? 'text-gray-800' }}
                                     {{ $patient['vte_styling']['border'] ?? 'border-gray-300' }}
@@ -365,44 +424,129 @@
                                     <strong>TEV:</strong>
                                     <span class="ml-1">{{ $patient['vte_score'] ?? '-' }}</span>
                                     @if($patient['vte_shift'] ?? null)
-                                        <span class="ml-0.5 text-[8px] font-normal">({{ $patient['vte_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['vte_shift'] }})</span>
                                     @endif
                                     @if(($patient['vte_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
                                     @endif
                                 </span>
                             @else
-                                <span class="text-[9px] text-gray-400 italic">Escalas aguardando avaliação</span>
+                                <span class="text-xs text-gray-400 italic">Escalas aguardando avaliação</span>
                             @endif
                         </div>
                     </div>
-                    {{-- Row 5: Priority Exams --}}
-                    @if(!empty($patient['priority_exams'] ?? null))
-                        <div class="bg-white/70 rounded-lg px-2 py-1.5 shadow-sm">
-                            <div class="text-[10px] text-gray-800 text-center">
-                                <span class="font-bold">Exames Prioritários:</span>
-                                <span>{{ $patient['priority_exams'] }}</span>
+
+                    {{-- Row 5: Equipe Multi (Clickable) --}}
+                    @php
+                        $md         = $patient['multidisciplinary'] ?? [];
+                        $mdRequests = $patient['multidisciplinary_requests'] ?? [];
+                        $hasRequests = !empty($mdRequests);
+                        $other      = $patient['multidisciplinary_other'] ?? null;
+                    @endphp
+                    @if(!empty($md) || !empty($other))
+                        {{-- x-data wraps BOTH the trigger AND the modal --}}
+                        <div x-data="{ showMdModal: false }">
+                            <div
+                                class="bg-white/70 rounded-lg px-2 py-1 shadow-sm {{ $hasRequests ? 'cursor-pointer hover:bg-blue-50 transition-colors' : '' }}"
+                                @if($hasRequests) @click="showMdModal = true; document.body.style.overflow = 'hidden'" @endif
+                                title="{{ $hasRequests ? 'Clique para ver detalhes das solicitações' : '' }}"
+                            >
+                                <div class="flex flex-wrap justify-center text-[10px] text-gray-700 gap-x-2 gap-y-0.5">
+                                    <span>Fisio<span class="{{ ($md['fisioterapia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['fisioterapia'] ?? false) ? '✓' : '–' }})</span></span>
+                                    <span>Psico<span class="{{ ($md['psicologia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['psicologia'] ?? false) ? '✓' : '–' }})</span></span>
+                                    <span>Nutri<span class="{{ ($md['nutricao'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['nutricao'] ?? false) ? '✓' : '–' }})</span></span>
+                                    <span>Fono<span class="{{ ($md['fonoaudiologia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['fonoaudiologia'] ?? false) ? '✓' : '–' }})</span></span>
+                                    <span>SS<span class="{{ ($md['servico_social'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['servico_social'] ?? false) ? '✓' : '–' }})</span></span>
+                                    <span>Time<span class="{{ ($md['acessos_vasculares'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['acessos_vasculares'] ?? false) ? '✓' : '–' }})</span></span>
+                                </div>
+                                @if(!empty($other))
+                                    <div class="text-[10px] text-gray-600 text-center mt-0.5">
+                                        Outro: <span class="text-gray-800 font-medium">{{ $other }}</span>
+                                    </div>
+                                @endif
+                                @if($hasRequests)
+                                    <div class="text-[9px] text-center text-blue-600 mt-0.5">
+                                        {{ count($mdRequests) }} solicitação(ões) · Clique para ver
+                                    </div>
+                                @endif
                             </div>
-                        </div>
-                    @endif
-                    {{-- Row 6: Multidisciplinary --}}
-                    @if(!empty($patient['multidisciplinary']) || !empty($patient['multidisciplinary_other']))
-                        @php
-                            $md = $patient['multidisciplinary'] ?? [];
-                            $other = $patient['multidisciplinary_other'] ?? null;
-                        @endphp
-                        <div class="bg-white/70 rounded-lg px-2 py-1.5 shadow-sm">
-                            <div class="flex flex-wrap justify-center text-[10px] text-gray-700 gap-x-1 gap-y-1">
-                                <span>Fisio <span class="{{ ($md['fisioterapia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['fisioterapia'] ?? false) ? '✓' : '–' }}) </span></span>
-                                <span>Psico <span class="{{ ($md['psicologia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['psicologia'] ?? false) ? '✓' : '–' }}) </span></span>
-                                <span>Nutri <span class="{{ ($md['nutricao'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['nutricao'] ?? false) ? '✓' : '–' }}) </span></span>
-                                <span>Fono <span class="{{ ($md['fonoaudiologia'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['fonoaudiologia'] ?? false) ? '✓' : '–' }}) </span></span>
-                                <span>S. Social <span class="{{ ($md['servico_social'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['servico_social'] ?? false) ? '✓' : '–' }}) </span></span>
-                                <span>Time <span class="{{ ($md['acessos_vasculares'] ?? false) ? 'text-green-700 font-bold' : 'text-gray-400' }}">({{ ($md['acessos_vasculares'] ?? false) ? '✓' : '–' }}) </span></span>
-                            </div>
-                            @if(!empty($other))
-                                <div class=" text-[10px] text-gray-600 text-center">
-                                    — Outro: <span class="text-gray-800 font-medium">{{ $other }}</span>
+
+                            {{-- Modal de Equipes Multi (DENTRO do mesmo x-data) --}}
+                            @if($hasRequests)
+                                <div x-show="showMdModal"
+                                     x-cloak
+                                     @click.self="showMdModal = false; document.body.style.overflow = ''"
+                                     @keydown.escape.window="showMdModal = false; document.body.style.overflow = ''"
+                                     class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 overflow-y-auto modal-overlay"
+                                     style="margin: 0 !important;"
+                                >
+                                    <div class="bg-white rounded-xl p-4 max-w-[95vw] w-[600px] max-h-[80vh] overflow-y-auto shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
+                                        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
+                                            <h3 class="text-base font-bold text-gray-800">
+                                                <i class="fas fa-users mr-2 text-[#004D9D]"></i>
+                                                Solicitações de Parecer
+                                            </h3>
+                                            <button @click="showMdModal = false; document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 transition-colors">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <div class="space-y-3">
+                                            @foreach($mdRequests as $request)
+                                                <div class="border rounded-lg p-3 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200' }}">
+                                                    {{-- Header --}}
+                                                    <div class="flex justify-between items-start mb-2">
+                                                        <div class="flex-1 min-w-0">
+                                                            <span class="text-xs font-semibold text-gray-700">{{ $request['ds_equipe_destino'] ?? 'Equipe não identificada' }}</span>
+                                                            @if(!empty($request['ds_tipo_parecer_destino']))
+                                                                <span class="text-xs text-gray-500 ml-1">({{ $request['ds_tipo_parecer_destino'] }})</span>
+                                                            @endif
+                                                        </div>
+                                                        <span class="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ml-2 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white' }}">
+                                                            {{ $request['ds_status'] ?? $request['ie_status'] ?? '-' }}
+                                                        </span>
+                                                    </div>
+
+                                                    {{-- Requisitante e datas --}}
+                                                    <div class="text-[11px] text-gray-600 mb-2 space-y-0.5">
+                                                        <div><strong>Profissional requisitante:</strong> {{ $request['nm_requisitante'] ?? 'Não informado' }}</div>
+                                                        <div><strong>Data do registro:</strong> {{ $request['dt_registro'] ? date('d/m/Y H:i', strtotime($request['dt_registro'])) : 'N/A' }}</div>
+                                                        <div><strong>Tipo de parecer:</strong> {{ $request['ds_tipo_parecer_destino'] ?? 'Não informado' }}</div>
+                                                        <div><strong>Equipe de destino:</strong> {{ $request['ds_equipe_destino'] ?? 'Não informada' }}</div>
+                                                        @if(!empty($request['dt_liberacao']))
+                                                            <div><strong>Data liberação:</strong> {{ date('d/m/Y H:i', strtotime($request['dt_liberacao'])) }}</div>
+                                                        @endif
+                                                    </div>
+
+                                                    {{-- Pedido / Motivo da Consulta --}}
+                                                    @if(!empty($request['ds_motivo_consulta']))
+                                                        <div class="bg-white rounded p-2 mb-2 border border-gray-200">
+                                                            <div class="text-[10px] font-semibold text-gray-500 uppercase mb-1">Pedido / Motivo da Consulta:</div>
+                                                            <div class="text-xs text-gray-800 whitespace-pre-line">{{ $request['ds_motivo_consulta'] }}</div>
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- Resposta / Parecer --}}
+                                                    @if(!empty($request['ds_parecer']))
+                                                        <div class="bg-green-50 rounded p-2 border border-green-200">
+                                                            <div class="text-[10px] font-semibold text-green-700 uppercase mb-1">Resposta / Parecer:</div>
+                                                            <div class="text-xs text-gray-800 whitespace-pre-line">{{ $request['ds_parecer'] }}</div>
+                                                            @if(!empty($request['nm_responsavel_resposta']))
+                                                                <div class="text-[10px] text-gray-600 mt-1">
+                                                                    <strong>Respondido por:</strong> {{ $request['nm_responsavel_resposta'] }}
+                                                                    @if(!empty($request['dt_resposta']))
+                                                                        em {{ date('d/m/Y H:i', strtotime($request['dt_resposta'])) }}
+                                                                    @endif
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 </div>
                             @endif
                         </div>
@@ -413,14 +557,23 @@
                 @php
                     $pendingEvents = $patient['pending_events'] ?? [];
                     $hasScroll = is_array($pendingEvents) && count($pendingEvents) >= 1;
+
+                    // Labels por tipo
+                    $tipoLabels = [
+                        'exame'        => 'Exame',
+                        'procedimento' => 'Procedimento',
+                        'hemoterapia'  => 'Hemoterapia',
+                        'antibiotico'  => 'Antibiótico',
+                        'aviso'        => 'Aviso',
+                    ];
                 @endphp
                 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col" x-data="{ showPendingModal: false }">
                     @if(!empty($pendingEvents) && is_array($pendingEvents))
                         <div class="bg-white/20 rounded-lg p-2">
                             <div class="flex items-center justify-between mb-1">
-                                <h4 class="text-xs font-semibold text-gray-800">Pendências</h4>
+                                <h4 class="text-[11px] font-semibold text-gray-800">Pendências</h4>
                                 <div class="flex items-center gap-1">
-                                    <span class="text-[10px] text-gray-600">próx. horas</span>
+                                    <span class="text-[10px] text-gray-600">{{ count($pendingEvents) }} item(ns)</span>
                                     @if($hasScroll)
                                         <button
                                             @click="showPendingModal = true; document.body.style.overflow = 'hidden'"
@@ -432,17 +585,36 @@
                                     @endif
                                 </div>
                             </div>
-                            <div class="h-[200px] max-h-[200px] overflow-y-auto overflow-x-hidden rounded-md p-1 my-1 custom-scrollbar-pending">
-                                <div class="flex flex-col gap-2">
+                            <div class="h-[160px] max-h-[160px] overflow-y-auto overflow-x-hidden rounded-md p-1 my-1 custom-scrollbar-pending">
+                                <div class="flex flex-col gap-1.5">
                                     @foreach($pendingEvents as $event)
                                         @php
-                                            $icon = $event['icon'] ?? 'alert-circle.svg';
-                                            $text = $event['text'] ?? '';
-                                            $type = $event['type'] ?? 'default';
+                                            $icon = $event['icone'] ?? 'alert-circle.svg';
+                                            $isUrgent = $event['urgente'] ?? false;
+                                            $corTitulo = $isUrgent ? 'text-red-700 font-bold' : 'text-gray-800 font-medium';
+                                            $bgItem = $isUrgent ? 'bg-red-50/80' : '';
                                         @endphp
-                                        <div class="flex items-start gap-2 p-1 transition-colors duration-150 rounded hover:bg-white/10">
-                                            <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-5 h-5 flex-shrink-0" alt="{{ $type }}">
-                                            <span class="text-[11px] text-gray-800 leading-snug break-words">{{ $text }}</span>
+                                        <div class="flex items-start gap-2 p-1.5 rounded transition-colors duration-150 hover:bg-white/20 {{ $bgItem }}">
+                                            <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" alt="">
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-[10px] {{ $corTitulo }} leading-tight truncate">
+                                                    {{ $event['descricao'] ?? 'Sem descrição' }}
+                                                </div>
+                                                @if(!empty($event['ds_subtipo']))
+                                                    <div class="text-[9px] text-gray-500">{{ $event['ds_subtipo'] }}</div>
+                                                @endif
+                                                @if(!empty($event['dt_evento_formatted']))
+                                                    <div class="text-[9px] text-gray-400">{{ $event['dt_evento_formatted'] }}</div>
+                                                @endif
+                                                @if(!empty($event['tempo_pendente']))
+                                                    <div class="text-[9px] {{ $isUrgent ? 'text-red-500 font-semibold' : 'text-gray-400' }}">
+                                                        {{ $event['tempo_pendente'] }}
+                                                    </div>
+                                                @endif
+                                                @if(!empty($event['ds_complemento']))
+                                                    <div class="text-[9px] text-gray-500">{{ $event['ds_complemento'] }}</div>
+                                                @endif
+                                            </div>
                                         </div>
                                     @endforeach
                                 </div>
@@ -456,25 +628,112 @@
                                  class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
                                  style="margin: 0 !important;"
                             >
-                                <div class="bg-white rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
-                                    <div class="flex justify-between items-center mb-3">
-                                        <h3 class="text-sm font-bold text-gray-800">Todas as Pendências</h3>
+                                <div class="bg-white rounded-xl p-4 max-w-[95vw] w-[600px] max-h-[80vh] overflow-y-auto shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
+                                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                                        <h3 class="text-base font-bold text-gray-800">
+                                            <i class="fas fa-clipboard-list mr-2 text-[#004D9D]"></i>
+                                            Todas as Pendências
+                                        </h3>
                                         <button @click="showPendingModal = false; document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 transition-colors">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                             </svg>
                                         </button>
                                     </div>
-                                    <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                                        @foreach($pendingEvents as $event)
+
+                                    {{-- Agrupa por tipo para melhor visualização --}}
+                                    @php
+                                        $grouped = [];
+                                        foreach ($pendingEvents as $ev) {
+                                            $grouped[$ev['tipo'] ?? 'outros'][] = $ev;
+                                        }
+                                        $groupOrder = ['aviso', 'exame', 'procedimento', 'hemoterapia', 'antibiotico', 'outros'];
+                                        uksort($grouped, fn($a,$b) =>
+                                            (array_search($a, $groupOrder) ?: 99) - (array_search($b, $groupOrder) ?: 99)
+                                        );
+                                    @endphp
+
+                                    <div class="space-y-4">
+                                        @foreach($grouped as $groupTipo => $groupEvents)
                                             @php
-                                                $icon = $event['icon'] ?? 'alert-circle.svg';
-                                                $text = $event['text'] ?? '';
-                                                $type = $event['type'] ?? 'default';
+                                                $groupLabel = match($groupTipo) {
+                                                    'exame'        => 'Exames',
+                                                    'procedimento' => 'Procedimentos',
+                                                    'hemoterapia'  => 'Hemoterapia',
+                                                    'antibiotico'  => 'Antibióticos',
+                                                    'aviso'        => 'Avisos',
+                                                    default        => ucfirst($groupTipo),
+                                                };
+                                                $groupColor = match($groupTipo) {
+                                                    'exame'        => 'text-blue-700 border-blue-200 bg-blue-50',
+                                                    'procedimento' => 'text-indigo-700 border-indigo-200 bg-indigo-50',
+                                                    'hemoterapia'  => 'text-red-700 border-red-200 bg-red-50',
+                                                    'antibiotico'  => 'text-teal-700 border-teal-200 bg-teal-50',
+                                                    'aviso'        => 'text-orange-700 border-orange-200 bg-orange-50',
+                                                    default        => 'text-gray-700 border-gray-200 bg-gray-50',
+                                                };
                                             @endphp
-                                            <div class="flex items-start gap-2 p-2 rounded-md bg-gray-50 transition-colors duration-150 hover:bg-gray-100">
-                                                <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-4 h-4 flex-shrink-0" alt="{{ $type }}">
-                                                <span class="text-xs text-gray-800">{{ $text }}</span>
+                                            <div>
+                                                <div class="text-[11px] font-bold {{ $groupColor }} px-2 py-0.5 rounded-t border-b mb-1 uppercase tracking-wide">
+                                                    {{ $groupLabel }} ({{ count($groupEvents) }})
+                                                </div>
+                                                <div class="space-y-2">
+                                                @foreach($groupEvents as $event)
+                                                    @php
+                                                        $icon    = $event['icone'] ?? 'alert-circle.svg';
+                                                        $isUrgent = $event['urgente'] ?? false;
+                                                        $corCard  = $isUrgent ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200';
+                                                        $corTit   = $isUrgent ? 'text-red-700' : 'text-gray-800';
+                                                    @endphp
+                                                    <div class="border rounded-lg p-3 {{ $corCard }}">
+                                                        <div class="flex items-start gap-2 mb-1.5">
+                                                            <img src="{{ asset('images/icons/patient-card/' . $icon) }}" class="w-5 h-5 flex-shrink-0 mt-0.5 opacity-80" alt="">
+                                                            <div class="flex-1 min-w-0">
+                                                                <div class="text-sm font-semibold {{ $corTit }} leading-tight">
+                                                                    {{ $event['descricao'] ?? 'Sem descrição' }}
+                                                                </div>
+                                                                @if(!empty($event['ds_subtipo']))
+                                                                    <div class="text-xs text-gray-500">{{ $event['ds_subtipo'] }}</div>
+                                                                @endif
+                                                            </div>
+                                                            @if(!empty($event['status_laudo']))
+                                                                <span class="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 {{ $isUrgent ? 'bg-red-500 text-white' : 'bg-blue-100 text-blue-700' }}">
+                                                                    {{ $event['status_laudo'] }}
+                                                                </span>
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Grid de datas --}}
+                                                        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-600">
+                                                            @if(!empty($event['dt_evento_formatted']))
+                                                                <div><strong>Data Evento:</strong> {{ $event['dt_evento_formatted'] }}</div>
+                                                            @endif
+                                                            @if(!empty($event['dt_solicitacao']))
+                                                                <div><strong>Solicitação:</strong> {{ $event['dt_solicitacao'] }}</div>
+                                                            @endif
+                                                            @if(!empty($event['dt_autorizacao']))
+                                                                <div><strong>Autorização:</strong> {{ $event['dt_autorizacao'] }}</div>
+                                                            @endif
+                                                            @if(!empty($event['tempo_pendente']))
+                                                                <div class="{{ $isUrgent ? 'text-red-600 font-semibold' : '' }}">
+                                                                    <strong>Tempo:</strong> {{ $event['tempo_pendente'] }}
+                                                                </div>
+                                                            @endif
+                                                        </div>
+
+                                                        @if(!empty($event['ds_complemento']))
+                                                            <div class="mt-1.5 text-[10px] bg-white rounded p-1.5 border border-gray-200">
+                                                                {{ $event['ds_complemento'] }}
+                                                            </div>
+                                                        @endif
+                                                        @if(!empty($event['ds_observacao']))
+                                                            <div class="mt-1 text-[10px] text-gray-500 italic">
+                                                                Obs: {{ $event['ds_observacao'] }}
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                                </div>
                                             </div>
                                         @endforeach
                                     </div>
@@ -484,9 +743,9 @@
                     @else
                         <div class="flex items-center justify-center h-full w-full">
                             <div class="text-center">
-                                <x-iconoir-walking class="text-gray-400 h-6 w-6 mx-auto" />
+                                <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
                                 <p class="text-xs text-gray-500 font-medium">Sem pendências</p>
-                                <p class="text-xs text-gray-400">próximas horas</p>
+                                <p class="text-[10px] text-gray-400">próximas horas</p>
                             </div>
                         </div>
                     @endif
@@ -499,7 +758,7 @@
                 >
                     <button
                         type="button"
-                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 disabled:bg-white/10 disabled:text-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 disabled:bg-white/10 disabled:text-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                         @click.prevent="isLoading = true; $dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient }); setTimeout(() => isLoading = false, 2000)"
                         :disabled="isLoading"
                     >

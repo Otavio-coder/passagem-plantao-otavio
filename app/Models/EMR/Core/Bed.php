@@ -2,10 +2,11 @@
 
 namespace App\Models\EMR\Core;
 
-use App\Models\System\SystemConfiguration;
+use App\Models\System\UserSectorPreference;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Auth;
 
 class Bed extends Model
 {
@@ -33,41 +34,29 @@ class Bed extends Model
         return $query->where($this->getTable() . '.ie_situacao', 'A');
     }
 
+    /**
+     * Scope para filtrar apenas leitos em setores permitidos para o usuário atual
+     * Baseado nas preferências do usuário em user_sector_preferences
+     */
     public function scopeAllowed($query)
     {
-        $allowed = SystemConfiguration::allowedBedCodes();
-        if (empty($allowed)) {
+        $user = Auth::user();
+        
+        if (!$user) {
             return $query->whereRaw('1 = 0');
         }
 
-        $bedCodes = [];
-        $sectorMap = [];
+        // Obtém os códigos de setores preferidos do usuário
+        $preferredSectorCodes = $user->sectorPreferences()
+            ->pluck('sector_code')
+            ->map(fn($code) => (string) $code)
+            ->toArray();
 
-        foreach ($allowed as $composite) {
-            if (!str_contains($composite, '|')) {
-                if ($composite !== '') $bedCodes[] = (string) $composite;
-                continue;
-            }
-            [$bed, $sector] = explode('|', $composite, 2);
-            if ($bed !== '') $bedCodes[] = (string) $bed;
-            if ($sector !== '') $sectorMap[(string) $sector] = true;
-        }
-
-        $bedCodes = array_values(array_filter($bedCodes, fn($v) => $v !== ''));
-        if (empty($bedCodes)) {
+        if (empty($preferredSectorCodes)) {
             return $query->whereRaw('1 = 0');
         }
 
-        $query->whereIn($this->getTable() . '.cd_unidade_basica', $bedCodes);
-
-        if (!empty($sectorMap)) {
-            $sectorCodes = array_values(array_filter(array_keys($sectorMap), fn($v) => $v !== ''));
-            if (!empty($sectorCodes)) {
-                $query->whereIn($this->getTable() . '.cd_setor_atendimento', $sectorCodes);
-            }
-        }
-
-        return $query;
+        return $query->whereIn($this->getTable() . '.cd_setor_atendimento', $preferredSectorCodes);
     }
 
     public function getSequenceAttribute()

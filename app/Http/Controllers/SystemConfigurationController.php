@@ -5,8 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\EMR\Core\Bed;
 use App\Models\EMR\Core\Hospital;
 use App\Models\EMR\Core\Sector;
-use App\Models\System\SystemConfiguration;
+use App\Models\System\UserSectorPreference;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -17,264 +18,149 @@ class SystemConfigurationController extends Controller
      */
     private const ALLOWED_HOSPITAL_IDS = [1,2,3,4,5,6,7,8,10,18,25];
 
+    /**
+     * Exibe página de preferências do usuário
+     */
     public function index()
     {
-        return $this->edit();
-    }
+        $user = Auth::user();
 
-    /**
-     * Mostrar a tela de edição (carrega dados estruturais via Eloquent)
-     */
-    public function edit()
-    {
-        $cacheKey = 'system_config_structural_data';
+        // Obtém setores disponíveis dos hospitais permitidos
+        $availableSectors = $this->getAvailableSectors();
 
-        $data = Cache::remember($cacheKey, 1800, function() {
-            return $this->getStructuralData();
-        });
-
-        $selectedHospitals = SystemConfiguration::allowedHospitalCodes();
-        $selectedSectors   = SystemConfiguration::allowedSectorCodes();
-        $selectedBeds      = SystemConfiguration::allowedBedCodes();
-
-        return view('system-configuration.index', array_merge($data, [
-            'selectedHospitals' => $selectedHospitals,
-            'selectedSectors'   => $selectedSectors,
-            'selectedBeds'      => $selectedBeds
-        ]));
-    }
-
-    /**
-     * Retorna hospitais, setores e leitos usando apenas Eloquent
-     */
-    private function getStructuralData(): array
-    {
-        // Hospitals
-        $hospitals = Hospital::whereIn('nr_sequencia', self::ALLOWED_HOSPITAL_IDS)
-            ->where('ie_situacao', 'A')
-            ->orderBy('ds_agrupamento')
+        // Obtém preferências atuais do usuário
+        $userPreferences = $user->sectorPreferences()
             ->get()
-            ->map(fn($h) => ['code' => (string)$h->nr_sequencia, 'name' => $h->ds_agrupamento])
-            ->values()
-            ->toArray();
+            ->mapWithKeys(function ($pref) {
+                return [$pref->sector_code => $pref];
+            });
 
-        // Sectors that belong to allowed hospitals and have active beds
-        $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
-            ->where('ie_situacao', 'A')
-            ->orderBy('ds_setor_atendimento')
-            ->get()
-            ->filter(fn($s) => Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)->where('ie_situacao','A')->exists())
-            ->map(fn($s) => ['code' => (string)$s->cd_setor_atendimento, 'name' => $s->ds_setor_atendimento, 'hospital_id' => (string)$s->nr_seq_agrupamento])
-            ->values()
-            ->toArray();
+        // Agrupa setores por hospital para exibição
+        $sectorsByHospital = collect($availableSectors)->groupBy('hospital_code');
 
-        // Beds for the sectors above
-        $sectorCodes = array_column($sectors, 'code');
-        $bedunits = [];
-        if (!empty($sectorCodes)) {
-            $beds = Bed::whereIn('cd_setor_atendimento', $sectorCodes)
-                ->where('ie_situacao', 'A')
-                ->orderBy('cd_setor_atendimento')
-                ->orderBy('cd_unidade_basica')
-                ->get();
+        // Códigos de setores selecionados pelo usuário
+        $selectedSectors = $userPreferences->keys()->toArray();
 
-            $bedunits = $beds->map(fn($b) => ['code' => (string)$b->cd_unidade_basica, 'name' => (string)$b->cd_unidade_basica, 'cd_setor_atendimento' => (string)$b->cd_setor_atendimento])
-                ->values()
-                ->toArray();
-        }
-
-        return [
-            'hospitals' => $hospitals,
-            'sectors' => $sectors,
-            'bedunits' => $bedunits,
-        ];
+        return view('system-configuration.index', [
+            'sectorsByHospital' => $sectorsByHospital,
+            'selectedSectors' => $selectedSectors,
+            'userPreferences' => $userPreferences,
+        ]);
     }
 
     /**
-     * Retorna setores por hospitais (Eloquent)
-     */
-    public function getSectorsByHospital(Request $request)
-    {
-        $hospitalIds = array_intersect(
-            array_map('strval', $request->input('hospital_ids', [])),
-            array_map('strval', self::ALLOWED_HOSPITAL_IDS)
-        );
-
-        if (empty($hospitalIds)) {
-            return response()->json([]);
-        }
-
-        $cacheKey = 'sectors_by_hospitals_' . implode('_', $hospitalIds);
-
-        $sectors = Cache::remember($cacheKey, 1200, function() use ($hospitalIds) {
-            return Sector::whereIn('nr_seq_agrupamento', $hospitalIds)
-                ->where('ie_situacao', 'A')
-                ->get()
-                ->filter(fn($s) => Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)->where('ie_situacao','A')->exists())
-                ->map(fn($s) => ['code' => (string)$s->cd_setor_atendimento, 'name' => $s->ds_setor_atendimento, 'hospital_id' => (string)$s->nr_seq_agrupamento])
-                ->values()
-                ->toArray();
-        });
-
-        return response()->json($sectors);
-    }
-
-    /**
-     * Retorna leitos por setor (valida setores contra hospitais permitidos inline)
-     */
-    public function getBedsBySector(Request $request)
-    {
-        $sectorIds = array_map('strval', $request->input('sector_ids', []));
-        if (empty($sectorIds)) {
-            return response()->json([]);
-        }
-
-        // Ensure sectors belong to allowed hospitals
-        $validSectors = Sector::whereIn('cd_setor_atendimento', $sectorIds)
-            ->whereIn('nr_seq_agrupamento', array_map('strval', self::ALLOWED_HOSPITAL_IDS))
-            ->where('ie_situacao', 'A')
-            ->pluck('cd_setor_atendimento')
-            ->map(fn($v) => (string)$v)
-            ->values()
-            ->toArray();
-
-        if (empty($validSectors)) {
-            return response()->json([]);
-        }
-
-        $cacheKey = 'beds_by_sectors_' . md5(implode(',', $validSectors));
-
-        $beds = Cache::remember($cacheKey, 600, function() use ($validSectors) {
-            return Bed::whereIn('cd_setor_atendimento', $validSectors)
-                ->where('ie_situacao', 'A')
-                ->orderBy('cd_setor_atendimento')
-                ->orderBy('cd_unidade_basica')
-                ->get()
-                ->map(fn($b) => ['code' => (string)$b->cd_unidade_basica, 'name' => (string)$b->cd_unidade_basica, 'cd_setor_atendimento' => (string)$b->cd_setor_atendimento])
-                ->values()
-                ->toArray();
-        });
-
-        return response()->json($beds);
-    }
-
-    /**
-     * Atualiza as configurações usando apenas Eloquent models (menor número de funções)
+     * Atualiza preferências de setores do usuário
      */
     public function update(Request $request)
     {
+        $user = Auth::user();
+
         try {
-            \DB::beginTransaction();
+            $selectedSectors = $request->input('sector_codes', []);
 
-            // remove todas as configurações atuais
-            SystemConfiguration::whereIn('configuration_type', ['hospital','sector','bed'])->delete();
+            if (empty($selectedSectors)) {
+                return redirect()
+                    ->route('user.preferences.index')
+                    ->with('error', 'Selecione pelo menos um setor.');
+            }
 
-            // hospitals selecionados (filtra contra a lista permitida)
-            $hospitalCodes = array_values(array_intersect($request->input('hospital_codes', []), self::ALLOWED_HOSPITAL_IDS));
+            // Valida que os setores selecionados estão na lista permitida
+            $availableSectors = $this->getAvailableSectors();
+            $availableSectorCodes = collect($availableSectors)->pluck('sector_code')->toArray();
+            $validSectors = array_intersect($selectedSectors, $availableSectorCodes);
 
-            foreach ($hospitalCodes as $code) {
-                $h = Hospital::where('nr_sequencia', (string)$code)->where('ie_situacao','A')->first();
-                if ($h) {
-                    SystemConfiguration::create([
-                        'hospital_code' => (string)$h->nr_sequencia,
-                        'hospital_name' => $h->ds_agrupamento ?? null,
-                        'configuration_type' => 'hospital',
-                        'is_active' => true,
-                        'configured_by' => auth()->user()->id ?? 0,
+            if (empty($validSectors)) {
+                return redirect()
+                    ->route('user.preferences.index')
+                    ->with('error', 'Seleção de setores inválida.');
+            }
+
+            // Remove preferências existentes
+            UserSectorPreference::where('user_id', $user->id)->delete();
+
+            // Cria novas preferências
+            $sectorsMap = collect($availableSectors)->keyBy('sector_code');
+
+            foreach ($validSectors as $sectorCode) {
+                $sector = $sectorsMap->get($sectorCode);
+                if ($sector) {
+                    UserSectorPreference::create([
+                        'user_id' => $user->id,
+                        'sector_code' => $sectorCode,
+                        'sector_name' => $sector['sector_name'],
+                        'hospital_code' => $sector['hospital_code'],
+                        'hospital_name' => $sector['hospital_name'],
                     ]);
                 }
             }
 
-            // setores selecionados: apenas registre setores que pertencem aos hospitais escolhidos
-            $sectorCodes = array_map('strval', $request->input('sector_codes', []));
-            if (!empty($sectorCodes) && !empty($hospitalCodes)) {
-                $validSectors = Sector::whereIn('cd_setor_atendimento', $sectorCodes)
-                    ->whereIn('nr_seq_agrupamento', array_map('strval', $hospitalCodes))
-                    ->where('ie_situacao','A')
-                    ->get();
+            // Limpa cache
+            Cache::forget('user_sectors_' . $user->id);
 
-                foreach ($validSectors as $s) {
-                    SystemConfiguration::create([
-                        'sector_code' => (string)$s->cd_setor_atendimento,
-                        'sector_name' => $s->ds_setor_atendimento ?? null,
-                        'configuration_type' => 'sector',
-                        'is_active' => true,
-                        'configured_by' => auth()->user()->id ?? 0,
-                    ]);
-                }
-            }
-
-            // leitos selecionados: espera-se array de strings 'bed|sector'
-            $bedCodes = $request->input('bed_codes', []);
-            if (!empty($bedCodes)) {
-                foreach ($bedCodes as $comp) {
-                    if (!str_contains($comp, '|')) continue;
-                    [$code, $sector] = explode('|', $comp, 2);
-                    // valida se o setor foi configurado ou pertence aos hospitais permitidos
-                    $sectorExists = Sector::where('cd_setor_atendimento', (string)$sector)
-                        ->whereIn('nr_seq_agrupamento', array_map('strval', self::ALLOWED_HOSPITAL_IDS))
-                        ->where('ie_situacao','A')
-                        ->exists();
-
-                    if (! $sectorExists) continue;
-
-                    $b = Bed::where('cd_unidade_basica', (string)$code)
-                        ->where('cd_setor_atendimento', (string)$sector)
-                        ->where('ie_situacao','A')
-                        ->first();
-
-                    if ($b) {
-                        SystemConfiguration::create([
-                            'bed_code' => (string)$b->cd_unidade_basica,
-                            'bed_name' => $b->cd_unidade_basica ?? null,
-                            'sector_code' => (string)$b->cd_setor_atendimento,
-                            'configuration_type' => 'bed',
-                            'is_active' => true,
-                            'configured_by' => auth()->user()->id ?? 0,
-                        ]);
-                    }
-                }
-            }
-
-            \DB::commit();
-
-            $this->clearRelatedCaches();
-
-            return redirect()->route('system-configuration.index')->with('success', 'Configuração atualizada com sucesso!');
+            return redirect()
+                ->route('user.preferences.index')
+                ->with('success', 'Preferências atualizadas com sucesso!');
 
         } catch (\Exception $e) {
-            \DB::rollBack();
-            Log::error('SystemConfiguration update error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('[UserPreferences] Erro ao atualizar preferências', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
 
-            return redirect()->route('system-configuration.index')->with('error', 'Erro ao atualizar configuração: ' . $e->getMessage());
+            return redirect()
+                ->route('user.preferences.index')
+                ->with('error', 'Erro ao atualizar preferências: ' . $e->getMessage());
         }
     }
 
     /**
-     * Limpa caches relacionados
+     * Obtém setores disponíveis dos hospitais permitidos
+     * Apenas setores com cd_classif_setor = 3 ou 4 (internação)
      */
-    private function clearRelatedCaches(): void
+    private function getAvailableSectors(): array
     {
-        $keys = [
-            'allowed_hospital_codes',
-            'allowed_sector_codes',
-            'allowed_bed_codes',
-            'sbar_config',
-        ];
+        $cacheKey = 'available_sectors_for_preferences_v4';
 
-        foreach ($keys as $k) Cache::forget($k);
+        return Cache::remember($cacheKey, 3600, function () {
+            // Obtém hospitais
+            $hospitals = Hospital::whereIn('nr_sequencia', self::ALLOWED_HOSPITAL_IDS)
+                ->where('ie_situacao', 'A')
+                ->get()
+                ->mapWithKeys(function ($h) {
+                    return [(string)$h->nr_sequencia => $h->ds_agrupamento];
+                });
+
+            // Obtém setores apenas cd_classif_setor = 3 ou 4 com leitos ativos
+            $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
+                ->whereIn('cd_classif_setor', [3, 4])
+                ->where('ie_situacao', 'A')
+                ->orderBy('ds_setor_atendimento')
+                ->get()
+                ->filter(function ($s) {
+                    return Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)
+                        ->where('ie_situacao', 'A')
+                        ->exists();
+                })
+                ->map(function ($s) use ($hospitals) {
+                    return [
+                        'sector_code' => (string)$s->cd_setor_atendimento,
+                        'sector_name' => $s->ds_setor_atendimento,
+                        'hospital_code' => (string)$s->nr_seq_agrupamento,
+                        'hospital_name' => $hospitals->get((string)$s->nr_seq_agrupamento, 'Hospital'),
+                    ];
+                })
+                ->values()
+                ->toArray();
+
+            return $sectors;
+        });
     }
 
-    public function getStats()
+    /**
+     * Obtém IDs de hospitais permitidos
+     */
+    public static function getAllowedHospitalIds(): array
     {
-        $stats = [
-            'hospitals_configured' => SystemConfiguration::where('configuration_type', 'hospital')->where('is_active', true)->count(),
-            'sectors_configured' => SystemConfiguration::where('configuration_type', 'sector')->where('is_active', true)->count(),
-            'beds_configured' => SystemConfiguration::where('configuration_type', 'bed')->where('is_active', true)->count(),
-            'last_update' => SystemConfiguration::latest('updated_at')->value('updated_at'),
-        ];
-
-        return response()->json($stats);
+        return self::ALLOWED_HOSPITAL_IDS;
     }
 }
-

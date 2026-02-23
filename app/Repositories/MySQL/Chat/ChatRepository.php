@@ -41,7 +41,7 @@ class ChatRepository
             $reactions = DB::table('chat_reactions as cr')
                 ->join('users as u', 'cr.user_id', '=', 'u.id')
                 ->whereIn('cr.message_id', $messages->pluck('id'))
-                ->select(['cr.message_id', 'cr.user_id', 'u.name'])
+                ->select(['cr.message_id', 'cr.user_id', 'u.name', 'u.photo'])
                 ->get()
                 ->groupBy('message_id');
 
@@ -170,7 +170,7 @@ class ChatRepository
         $reactions = DB::table('chat_reactions as cr')
             ->join('users as u', 'cr.user_id', '=', 'u.id')
             ->where('cr.message_id', $messageId)
-            ->select(['cr.user_id', 'u.name'])
+            ->select(['cr.user_id', 'u.name', 'u.photo'])
             ->get()
             ->toArray();
 

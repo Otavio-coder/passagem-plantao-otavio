@@ -72,11 +72,12 @@
                                                         <span class="hidden sm:inline">Escalas</span>
                                                     </button>
 
-                                                    <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $selectedSector ?? 0]) }}"
-                                                       class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium">
+                                                    <button
+                                                        @click="$dispatch('openEvaluationsModal', { sectorId: {{ $selectedSector ?? 0 }} })"
+                                                        class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium">
                                                         <x-iconoir-chat-lines class="text-white h-4 w-4 sm:mr-1.5" />
                                                         <span class="hidden sm:inline">Aval.</span>
-                                                    </a>
+                                                    </button>
 
                                                     <button wire:click="refreshData"
                                                             wire:loading.attr="disabled"
@@ -153,11 +154,12 @@
                                                 Escalas
                                             </button>
 
-                                            <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $selectedSector ?? 0]) }}"
-                                               class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-sm font-medium">
+                                            <button
+                                                @click="$dispatch('openEvaluationsModal', { sectorId: {{ $selectedSector ?? 0 }} })"
+                                                class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-sm font-medium">
                                                 <x-iconoir-chat-lines class="text-white h-4 w-4 mr-1.5" />
                                                 Avaliações
-                                            </a>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -208,9 +210,13 @@
                         </div>
                     </div>
 
+                    {{-- Legenda --}}
+                    @include('livewire.partials.sbar-legend')
+
                     {{-- Modais --}}
                     @livewire('patient-modal', [], key('patient-modal'))
                     @livewire('expired-scales-modal', ['sectorId' => $selectedSector ?? 0], key('expired-scales-modal'))
+                    @livewire('shift-evaluations-modal', [], key('shift-evaluations-modal'))
 
                 </div>
             @endif

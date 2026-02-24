@@ -75,6 +75,11 @@ class SystemConfigurationController extends Controller
                     ->with('error', 'Seleção de setores inválida.');
             }
 
+            // Captura setores anteriores para auditoria
+            $previousSectors = $user->sectorPreferences()
+                ->pluck('sector_name', 'sector_code')
+                ->toArray();
+
             // Remove preferências existentes
             UserSectorPreference::where('user_id', $user->id)->delete();
 
@@ -93,6 +98,19 @@ class SystemConfigurationController extends Controller
                     ]);
                 }
             }
+
+            // Auditoria
+            $newSectors = collect($validSectors)
+                ->mapWithKeys(fn ($code) => [$code => $sectorsMap->get($code)['sector_name'] ?? $code])
+                ->toArray();
+
+            Log::channel('audit')->info('preferences.updated', [
+                'user_id'          => $user->id,
+                'user'             => $user->name,
+                'previous_sectors' => $previousSectors,
+                'new_sectors'      => $newSectors,
+                'ip'               => $request->ip(),
+            ]);
 
             // Limpa cache
             Cache::forget('user_sectors_' . $user->id);

@@ -113,6 +113,15 @@ class ChatComponent extends Component
 
             $this->dispatch('scroll-to-bottom');
 
+            Log::channel('audit')->info('chat.message.sent', [
+                'user_id'    => $this->currentUser['id'],
+                'user'       => $this->currentUser['name'],
+                'message_id' => $newMessage->id,
+                'patient_id' => $this->patientId,
+                'bed'        => $this->bedUnit,
+                'ip'         => request()->ip(),
+            ]);
+
             return ['success' => true, 'message_id' => $newMessage->id];
 
         } catch (\Exception $e) {
@@ -138,6 +147,15 @@ class ChatComponent extends Component
 
             $isPinned = $updatedMessage->is_pinned ?? false;
             $this->updateLocalMessagePin($messageId, $isPinned);
+
+            Log::channel('audit')->info($isPinned ? 'chat.message.pinned' : 'chat.message.unpinned', [
+                'user_id'    => $this->currentUser['id'],
+                'user'       => $this->currentUser['name'],
+                'message_id' => $messageId,
+                'patient_id' => $this->patientId,
+                'bed'        => $this->bedUnit,
+                'ip'         => request()->ip(),
+            ]);
 
             return ['success' => true, 'is_pinned' => $isPinned];
 
@@ -180,6 +198,15 @@ class ChatComponent extends Component
 
             $repo = new ChatRepository();
             $repo->updateMessage($messageId, $newContent);
+
+            Log::channel('audit')->info('chat.message.edited', [
+                'user_id'    => $this->currentUser['id'],
+                'user'       => $this->currentUser['name'],
+                'message_id' => $messageId,
+                'patient_id' => $this->patientId,
+                'bed'        => $this->bedUnit,
+                'ip'         => request()->ip(),
+            ]);
 
             // Atualiza localmente
             foreach ($this->messages as &$msg) {
@@ -460,11 +487,31 @@ class ChatComponent extends Component
 
     private function addMessageToLocal($data)
     {
+        $createdAt = $data['created_at'] ?? now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+        $newShiftKey = $this->getShiftKey($createdAt);
+
+        // Detecta se o turno mudou em relação à última mensagem
+        $lastMsgShiftKey = null;
+        for ($i = count($this->messages) - 1; $i >= 0; $i--) {
+            if (($this->messages[$i]['type'] ?? '') === 'message') {
+                $rawDt = $this->messages[$i]['dt_criacao_raw'] ?? null;
+                if ($rawDt) {
+                    $lastMsgShiftKey = $this->getShiftKey($rawDt);
+                }
+                break;
+            }
+        }
+
+        // Insere separador se for a primeira mensagem ou se o turno mudou
+        if ($newShiftKey !== $lastMsgShiftKey) {
+            $this->messages[] = $this->buildSeparator($createdAt);
+        }
+
         $message         = $this->formatSingleMessage([
             'id'         => $data['id'],
             'content'    => $data['content'] ?? '',
             'user_id'    => $data['user_id'] ?? null,
-            'created_at' => $data['created_at'] ?? now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+            'created_at' => $createdAt,
             'updated_at' => null,
             'is_pinned'  => $data['is_pinned'] ?? false,
             'reactions'  => [],

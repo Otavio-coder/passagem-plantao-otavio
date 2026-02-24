@@ -53,7 +53,7 @@
                             @endforeach
                         </td>
                         <td>
-                            <div class="flex justify-center items-center gap-2">
+                            <div class="flex justify-center items-center gap-3">
                                 @can( 'acessar como' )
                                     @if( auth()->user()->id != $user->id )
                                         <a
@@ -68,18 +68,43 @@
                                         </a>
                                     @endif
                                 @endcan
-                                <a href="#"
-                                   data-id="{{ $user->id }}"
-                                   data-name="{{ $user->name }}"
-                                   data-username="{{ $user->username }}"
-                                   data-email="{{ $user->email }}"
-                                   data-status="{{ $user->status }}"
-                                   data-profile="{{ $user->getRoleNames() }}"
-                                   onclick="event.preventDefault(); openModal('modal-edit-user')"
-                                   class="inline-flex justify-center font-medium text-santacasa-200 edit-user"
-                                   title="Editar usuário">
-                                    <i class="fas fa-edit"></i>
-                                </a>
+
+                                @can( 'editar usuarios' )
+                                    <a href="#"
+                                       data-id="{{ $user->id }}"
+                                       data-name="{{ $user->name }}"
+                                       data-username="{{ $user->username }}"
+                                       data-email="{{ $user->email }}"
+                                       data-status="{{ $user->status }}"
+                                       data-profile="{{ $user->getRoleNames() }}"
+                                       onclick="event.preventDefault(); openModal('modal-edit-user')"
+                                       class="inline-flex justify-center font-medium text-santacasa-200 edit-user"
+                                       title="Editar usuário">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                @endcan
+
+                                @can( 'bloquear usuarios' )
+                                    @if( auth()->user()->id !== $user->id )
+                                        @if( !$user->hasRole('Administrador') || auth()->user()->hasRole('Administrador') )
+                                            <form method="POST" action="{{ route('users.block') }}"
+                                                  onsubmit="return confirm('{{ $user->status === 'A' ? 'Bloquear acesso de' : 'Desbloquear acesso de' }} {{ addslashes($user->name) }}?')"
+                                                  class="inline-flex">
+                                                @csrf
+                                                <input type="hidden" name="user_id" value="{{ $user->id }}">
+                                                <button type="submit"
+                                                        title="{{ $user->status === 'A' ? 'Bloquear usuário' : 'Desbloquear usuário' }}"
+                                                        class="{{ $user->status === 'A' ? 'text-red-400 hover:text-red-600' : 'text-green-500 hover:text-green-700' }} transition-colors">
+                                                    @if($user->status === 'A')
+                                                        <i class="fas fa-ban"></i>
+                                                    @else
+                                                        <i class="fas fa-check-circle"></i>
+                                                    @endif
+                                                </button>
+                                            </form>
+                                        @endif
+                                    @endif
+                                @endcan
                             </div>
                         </td>
                     </tr>

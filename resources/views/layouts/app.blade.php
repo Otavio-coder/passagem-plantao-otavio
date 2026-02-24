@@ -61,6 +61,52 @@
 </main>
 @include('partials.footer')
 
+<!-- PWA Install Button -->
+<div id="pwa-install-banner"
+     class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50
+            sm:left-auto sm:translate-x-0 sm:right-4
+            w-[calc(100%-2rem)] sm:w-auto sm:min-w-max"
+     role="complementary"
+     aria-label="Instalar aplicativo">
+    <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+        <div class="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
+            <div class="flex-shrink-0">
+                <img src="/images/icons/icon-72x72.png"
+                     alt="Passagem de Plantão"
+                     class="w-10 h-10 rounded-xl shadow-sm">
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 leading-tight whitespace-nowrap">Passagem de Plantão</p>
+                <p class="text-xs text-gray-500 leading-tight whitespace-nowrap">Instalar como app no dispositivo</p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button id="pwa-install-btn"
+                        type="button"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+                               bg-[#004D9D] hover:bg-[#003d7a] active:bg-[#002d5a]
+                               text-white text-xs font-semibold
+                               shadow-sm transition-colors duration-150
+                               focus:outline-none focus:ring-2 focus:ring-[#004D9D]/50">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span>Instalar</span>
+                </button>
+                <button id="pwa-dismiss-btn"
+                        type="button"
+                        aria-label="Dispensar"
+                        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100
+                               transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Scripts -->
 <script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>
 <script src="{{ asset('/js/common.js' . preventCache()) }}"></script>
@@ -162,6 +208,74 @@
             showToast(event.message, event.type || 'success');
         });
     });
+    // ─── PWA Install Prompt ───────────────────────────────────────────────────
+    (function() {
+        let deferredPrompt = null;
+        const banner    = document.getElementById('pwa-install-banner');
+        const installBtn= document.getElementById('pwa-install-btn');
+        const dismissBtn= document.getElementById('pwa-dismiss-btn');
+        const DISMISSED_KEY = 'pwa_install_dismissed_at';
+        const DISMISS_TTL   = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
+        function showBanner() {
+            const dismissed = localStorage.getItem(DISMISSED_KEY);
+            if (dismissed && Date.now() - parseInt(dismissed) < DISMISS_TTL) return;
+            if (banner) {
+                banner.classList.remove('hidden');
+                banner.classList.add('animate-[modal-slide-in_0.3s_ease-out]');
+            }
+        }
+
+        function hideBanner() {
+            if (banner) banner.classList.add('hidden');
+        }
+
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            deferredPrompt = e;
+            showBanner();
+        });
+
+        window.addEventListener('appinstalled', hideBanner);
+
+        if (installBtn) {
+            installBtn.addEventListener('click', function() {
+                if (!deferredPrompt) return;
+                hideBanner();
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(function(choice) {
+                    if (choice.outcome === 'accepted') {
+                        console.log('[PWA] Usuário aceitou a instalação');
+                    }
+                    deferredPrompt = null;
+                });
+            });
+        }
+
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function() {
+                localStorage.setItem(DISMISSED_KEY, Date.now().toString());
+                hideBanner();
+            });
+        }
+
+        // Service Worker: verificar atualização
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(function(reg) {
+                reg.addEventListener('updatefound', function() {
+                    const newWorker = reg.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', function() {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('[SW] Nova versão disponível');
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+            });
+        }
+    })();
+
     // Form submission prevention
     if (typeof $ !== 'undefined') {
         $(document).ready(function(){

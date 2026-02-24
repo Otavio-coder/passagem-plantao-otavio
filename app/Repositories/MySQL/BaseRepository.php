@@ -9,25 +9,11 @@ class BaseRepository
 {
 
     /**
-     * Classe relacionada ao repositorio
-     *
-     * @var $modelClass
-     */
-    protected $modelClass;
-
-    /**
      * Objeto da classe realcionada ao respositorio
      *
      * @var $model
      */
     public $model;
-
-    /**
-     * Objeto estático da classe realcionada ao respositorio
-     *
-     * @var mixed
-     */
-    public static $staticModel;
 
     /**
      * BaseRepository constructor.
@@ -36,7 +22,6 @@ class BaseRepository
     {
 
         $this->model = getNewModel( class_basename( $this ), "/System" );
-        self::$staticModel = $this->model;
     }
 
     /**
@@ -62,28 +47,6 @@ class BaseRepository
         }
 
         return $returnModel ? $model : true;
-    }
-
-    /**
-     * Cria diversos registros da model no banco de dados de uma só vez
-     *
-     * @param $data
-     * @return bool
-     */
-    public function storeMany( $data )
-    {
-
-        try {
-
-            $this->model->insert( $data );
-
-        } catch ( QueryException $exception ) {
-
-            return $this->logErrorAndReturn( $exception->getMessage() );
-
-        }
-
-        return true;
     }
 
     /**
@@ -145,18 +108,6 @@ class BaseRepository
     {
 
         return $this->model->with( $relationships )->get();
-    }
-
-    /**
-     * Retorna todos os itens da model
-     *
-     * @param array $relationships
-     * @return mixed
-     */
-    public function allDistinct( $relationships = [] )
-    {
-
-        return $this->model->with( $relationships )->distinct()->get();
     }
 
     /**
@@ -244,12 +195,6 @@ class BaseRepository
         Log::error( $message );
 
         return false;
-    }
-
-    public function findRelations( $relationships = [], $parameters = [] )
-    {
-
-        return $this->model->with( $relationships )->where($parameters)->get();
     }
 
 }

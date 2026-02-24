@@ -10,6 +10,7 @@ use App\Services\UsesRepositories;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\System\User as AppUser;
 use LdapRecord\Models\ActiveDirectory\User;
 use Spatie\Permission\Models\Role;
 
@@ -110,6 +111,53 @@ class UserController extends Controller
 
         return response()->json( $users );
 
+    }
+
+    public function blockUser(Request $request)
+    {
+        $request->validate(['user_id' => 'required|integer']);
+
+        $user = AppUser::find($request->user_id);
+
+        if (! $user) {
+            return redirect()->back()->with([
+                'status'  => 'danger',
+                'message' => 'Usuário não encontrado.',
+            ]);
+        }
+
+        if ($user->id === auth()->id()) {
+            return redirect()->back()->with([
+                'status'  => 'danger',
+                'message' => 'Você não pode bloquear a si mesmo.',
+            ]);
+        }
+
+        if ($user->hasRole('Administrador') && ! auth()->user()->hasRole('Administrador')) {
+            return redirect()->back()->with([
+                'status'  => 'danger',
+                'message' => 'Você não tem permissão para bloquear um administrador.',
+            ]);
+        }
+
+        $newStatus = $user->status === 'A' ? 'I' : 'A';
+        $user->update(['status' => $newStatus]);
+
+        $action = $newStatus === 'I' ? 'bloqueado' : 'desbloqueado';
+
+        Log::channel('audit')->info('user.block_toggle', [
+            'admin_id'    => auth()->id(),
+            'admin'       => auth()->user()->name,
+            'target_id'   => $user->id,
+            'target_user' => $user->username,
+            'new_status'  => $newStatus,
+            'ip'          => $request->ip(),
+        ]);
+
+        return redirect()->back()->with([
+            'status'  => 'success',
+            'message' => "Usuário {$user->name} {$action} com sucesso.",
+        ]);
     }
 
     public function accessAs( Request $request )

@@ -111,26 +111,28 @@
             $lightAccent = $shiftColors['lightAccent'];
             $darkAccent  = $shiftColors['darkAccent'];
 
+            $shiftBadge = match($currentShift) {
+                'morning'   => 'MANHÃ',
+                'afternoon' => 'TARDE',
+                'night'     => 'NOITE',
+                default     => strtoupper($currentShift),
+            };
             $shiftTheme = match($currentShift) {
                 'morning' => [
-                    'icon'      => 'heroicon-o-sun',
-                    'iconClass' => 'w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse',
-                    'gradient'  => 'from-amber-400 via-orange-400 to-red-400',
+                    'iconHtml' => '<i class="fas fa-sun text-white text-sm sm:text-base animate-pulse"></i>',
+                    'gradient' => 'from-amber-400 via-orange-400 to-red-400',
                 ],
                 'afternoon' => [
-                    'icon'      => 'heroicon-c-sun',
-                    'iconClass' => 'w-4 h-4 sm:w-5 sm:h-5 text-white',
-                    'gradient'  => 'from-sky-400 via-blue-400 to-cyan-400',
+                    'iconHtml' => '<i class="fas fa-cloud-sun text-white text-sm sm:text-base"></i>',
+                    'gradient' => 'from-sky-400 via-blue-400 to-cyan-400',
                 ],
                 'night' => [
-                    'icon'      => 'heroicon-o-moon',
-                    'iconClass' => 'w-4 h-4 sm:w-5 sm:h-5 text-white animate-pulse',
-                    'gradient'  => 'from-indigo-500 via-purple-500 to-violet-600',
+                    'iconHtml' => '<i class="fas fa-moon text-white text-sm sm:text-base animate-pulse"></i>',
+                    'gradient' => 'from-indigo-500 via-purple-500 to-violet-600',
                 ],
                 default => [
-                    'icon'      => 'heroicon-o-clock',
-                    'iconClass' => 'w-4 h-4 sm:w-5 sm:h-5 text-white',
-                    'gradient'  => 'from-gray-400 to-gray-500',
+                    'iconHtml' => '<i class="fas fa-clock text-white text-sm sm:text-base"></i>',
+                    'gradient' => 'from-gray-400 to-gray-500',
                 ],
             };
 
@@ -148,13 +150,13 @@
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center space-x-2 min-w-0 flex-1">
                         <div class="flex-shrink-0 p-1.5 sm:p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                            @svg($shiftTheme['icon'], ['class' => $shiftTheme['iconClass']])
+                            {!! $shiftTheme['iconHtml'] !!}
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center space-x-2">
                                 <h3 class="text-sm sm:text-base font-bold tracking-wide">PLANTÃO</h3>
                                 <span class="px-1.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium border border-white/30">
-                                    {{ strtoupper($currentShift) }}
+                                    {{ $shiftBadge }}
                                 </span>
                             </div>
                             <p class="text-xs text-white/90 font-medium">
@@ -208,9 +210,7 @@
                     @click="toggleFormatHelp()"
                     class="hidden lg:flex text-xs text-gray-500 hover:text-gray-700 transition-colors items-center space-x-1"
                 >
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
+                    <i class="fas fa-circle-question fa-xs"></i>
                     <span>Formatação</span>
                 </button>
             </div>
@@ -261,7 +261,7 @@
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center space-x-2 mb-1">
-                                            <span class="inline-flex items-center text-xs font-bold text-yellow-600">📌 Fixada</span>
+                                            <span class="inline-flex items-center gap-1 text-xs font-bold text-yellow-600"><i class="fas fa-thumbtack fa-xs"></i> Fixada</span>
                                             <span class="text-xs text-gray-500">{{ $pinnedMsg['time'] ?? '' }}</span>
                                         </div>
                                         <div class="pinned-content">
@@ -279,7 +279,7 @@
                                         </svg>
                                     </button>
                                     <button @click="togglePin({{ $pinnedMsg['id'] }})" class="p-1 hover:bg-yellow-100 rounded transition-colors" title="Desfixar" :disabled="isPinning({{ $pinnedMsg['id'] }})">
-                                        <span x-show="!isPinning({{ $pinnedMsg['id'] }})">@svg('heroicon-s-star', 'w-3 h-3 text-yellow-400')</span>
+                                        <span x-show="!isPinning({{ $pinnedMsg['id'] }})"><i class="fas fa-star fa-xs text-yellow-400"></i></span>
                                         <span x-show="isPinning({{ $pinnedMsg['id'] }})"><div class="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin"></div></span>
                                     </button>
                                 </div>
@@ -358,9 +358,9 @@
                                                     >
                                                         <span x-show="!isPinning({{ $msgId }})">
                                                             @if($isFixed)
-                                                                @svg('heroicon-s-star', 'w-3.5 h-3.5 text-yellow-400')
+                                                                <i class="fas fa-star fa-sm text-yellow-400"></i>
                                                             @else
-                                                                @svg('heroicon-o-star', 'w-3.5 h-3.5 text-gray-400')
+                                                                <i class="far fa-star fa-sm text-gray-400"></i>
                                                             @endif
                                                         </span>
                                                         <span x-show="isPinning({{ $msgId }})">
@@ -376,9 +376,7 @@
                                                             class="opacity-0 group-hover:opacity-100 focus:outline-none transition-opacity"
                                                             title="Editar mensagem (até 6h após envio)"
                                                         >
-                                                            <svg class="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                                            </svg>
+                                                            <i class="fas fa-pen fa-sm text-gray-400 hover:text-blue-500"></i>
                                                         </button>
                                                     @endif
                                                 @endif
@@ -518,7 +516,7 @@
                             <div class="btn-spinner"></div>
                             <div class="btn-text flex items-center space-x-1">
                                 <span class="hidden sm:inline">Enviar</span>
-                                @svg('iconoir-send', 'w-3.5 h-3.5 sm:w-4 sm:h-4 text-white')
+                                <i class="fas fa-paper-plane text-white fa-sm"></i>
                             </div>
                         </button>
                     </div>

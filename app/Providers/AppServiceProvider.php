@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use App\Repositories\EMR\{
     PatientClinicalRepository,
@@ -32,5 +33,8 @@ class AppServiceProvider extends ServiceProvider
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url')."/password-reset/$token?email={$notifiable->getEmailForPasswordReset()}";
         });
+
+        // Autoriza o LogViewer package para usuários com permissão 'ver logs'
+        Gate::define('viewLogViewer', fn ($user) => $user->can('ver logs'));
     }
 }

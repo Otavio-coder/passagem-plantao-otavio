@@ -9,25 +9,11 @@ class BaseRepository
 {
 
     /**
-     * Classe relacionada ao repositorio
-     *
-     * @var $modelClass
-     */
-    protected $modelClass;
-
-    /**
      * Objeto da classe realcionada ao respositorio
      *
      * @var $model
      */
     public $model;
-
-    /**
-     * Objeto estático da classe realcionada ao respositorio
-     *
-     * @var mixed
-     */
-    public static $staticModel;
 
 
     /**
@@ -37,7 +23,6 @@ class BaseRepository
     {
 
         $this->model = getNewModel( class_basename( $this ), "/EMR" );
-        self::$staticModel = $this->model;
     }
 
     /**
@@ -157,17 +142,6 @@ class BaseRepository
         Log::error( $message );
 
         return false;
-    }
-
-    /**
-     * Retorna o ID da model
-     *
-     * @param $id
-     * @return mixed
-     */
-    public static function id( $id )
-    {
-        return self::$staticModel->where( 'external_id', $id )->first()->id;
     }
 
 }

@@ -30,10 +30,17 @@ class UserRepository extends BaseRepository
 
     public function change( $request )
     {
+        // Só atualiza status se vier explicitamente no request (evita null corrupting a coluna)
+        $data = [];
+        if ($request->filled('status') && in_array($request->status, ['A', 'I'])) {
+            $data['status'] = $request->status;
+        }
 
-        $user = $this->update( $request->user_id, [
-            'status' => $request->status,
-        ], true );
+        if (! empty($data)) {
+            $user = $this->update($request->user_id, $data, true);
+        } else {
+            $user = $this->findByPk($request->user_id);
+        }
 
         if ( is_object($user) && method_exists($user, 'syncRoles') && $request->has('edit_profile_present') ) {
             $roles = $request->input('edit_profile', []);

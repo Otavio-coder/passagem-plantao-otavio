@@ -733,7 +733,7 @@ class PatientClinicalRepository
 
             return array_map(function($row) {
                 return [
-                    'procedimento' => $row->ds_agenda_contat ?? 'Cirurgia agendada',
+                    'procedimento' => $row->ds_agenda_contat ?? 'Agendas de Cirurgia Recente',
                     'data_agenda' => $row->dt_agenda ? \Carbon\Carbon::parse($row->dt_agenda)->format('d/m/Y') : 'Data não informada',
                     'hora_agenda' => $row->hr_inicio ? \Carbon\Carbon::parse($row->hr_inicio)->format('H:i') : '00:00',
                     'status' => 'AGENDADA',
@@ -797,7 +797,7 @@ class PatientClinicalRepository
                     pf_req.nm_pessoa_fisica AS nm_requisitante,
                     tp.ds_tipo_parecer     AS ds_equipe_destino,
                     pm_resp.dt_registro    AS dt_resposta,
-                    pm_resp.nm_usuario     AS nm_responsavel_resposta
+                    COALESCE(pf_resp.nm_pessoa_fisica, pm_resp.nm_usuario) AS nm_responsavel_resposta
                 FROM tasy.PARECER_MEDICO_REQ pr
                 LEFT JOIN tasy.pessoa_fisica pf_req
                     ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
@@ -810,6 +810,10 @@ class PatientClinicalRepository
                        FROM tasy.PARECER_MEDICO pm2
                        WHERE pm2.nr_parecer = pr.nr_parecer
                    )
+                LEFT JOIN tasy.usuario u_resp
+                    ON u_resp.nm_usuario = pm_resp.nm_usuario
+                LEFT JOIN tasy.pessoa_fisica pf_resp
+                    ON pf_resp.cd_pessoa_fisica = u_resp.cd_pessoa_fisica
                 WHERE pr.nr_atendimento = :attendance
                   AND pr.dt_liberacao IS NOT NULL
                   AND pr.dt_inativacao IS NULL
@@ -1016,7 +1020,7 @@ class PatientClinicalRepository
                         pf_req.nm_pessoa_fisica AS nm_requisitante,
                         tp.ds_tipo_parecer     AS ds_equipe_destino,
                         pm_resp.dt_registro    AS dt_resposta,
-                        pm_resp.nm_usuario     AS nm_responsavel_resposta
+                        COALESCE(pf_resp.nm_pessoa_fisica, pm_resp.nm_usuario) AS nm_responsavel_resposta
                     FROM tasy.PARECER_MEDICO_REQ pr
                     LEFT JOIN tasy.pessoa_fisica pf_req
                         ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
@@ -1029,6 +1033,10 @@ class PatientClinicalRepository
                            FROM tasy.PARECER_MEDICO pm2
                            WHERE pm2.nr_parecer = pr.nr_parecer
                        )
+                    LEFT JOIN tasy.usuario u_resp
+                        ON u_resp.nm_usuario = pm_resp.nm_usuario
+                    LEFT JOIN tasy.pessoa_fisica pf_resp
+                        ON pf_resp.cd_pessoa_fisica = u_resp.cd_pessoa_fisica
                     WHERE pr.nr_atendimento IN ($placeholders)
                       AND pr.dt_liberacao IS NOT NULL
                       AND pr.dt_inativacao IS NULL

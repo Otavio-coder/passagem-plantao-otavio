@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Repositories\MySQL\UserRepository;
 use App\Repositories\EMR\{
-    PatientCoreRepository,
     PatientClinicalRepository,
     PatientCPOERepository,
     PatientScalesRepository

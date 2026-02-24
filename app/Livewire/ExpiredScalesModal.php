@@ -60,48 +60,66 @@ class ExpiredScalesModal extends Component
                     if ($this->isScaleExpired($patient, 'mews')) {
                         $expiredScales[] = [
                             'name' => 'MEWS',
-                            'last_value' => $patient['mews_score'] ?? '-',
-                            'shift' => $patient['mews_shift'] ?? 'N/A',
+                            'label' => 'Modificado de Alerta Precoce',
+                            'freq' => 'Toda mudança de turno',
+                            'last_value' => $patient['mews_score'] ?? null,
+                            'last_shift' => $patient['mews_shift'] ?? null,
+                            'last_timestamp' => $patient['mews_timestamp'] ?? null,
                         ];
                     }
 
                     if ($this->isScaleExpired($patient, 'pews')) {
                         $expiredScales[] = [
                             'name' => 'PEWS',
-                            'last_value' => $patient['pews_score'] ?? '-',
-                            'shift' => $patient['pews_shift'] ?? 'N/A',
+                            'label' => 'Alerta Precoce Pediátrico',
+                            'freq' => 'Toda mudança de turno',
+                            'last_value' => $patient['pews_score'] ?? null,
+                            'last_shift' => $patient['pews_shift'] ?? null,
+                            'last_timestamp' => $patient['pews_timestamp'] ?? null,
                         ];
                     }
 
                     if ($this->isScaleExpired($patient, 'braden')) {
                         $expiredScales[] = [
                             'name' => 'Braden',
-                            'last_value' => $patient['braden_score'] ?? '-',
-                            'shift' => $patient['braden_shift'] ?? 'N/A',
+                            'label' => 'Risco de Lesão por Pressão',
+                            'freq' => 'Toda mudança de turno',
+                            'last_value' => $patient['braden_score'] ?? null,
+                            'last_shift' => $patient['braden_shift'] ?? null,
+                            'last_timestamp' => $patient['braden_timestamp'] ?? null,
                         ];
                     }
 
                     if ($this->isScaleExpired($patient, 'morse')) {
                         $expiredScales[] = [
                             'name' => 'Morse',
-                            'last_value' => $patient['morse_score'] ?? '-',
-                            'shift' => $patient['morse_shift'] ?? 'N/A',
+                            'label' => 'Risco de Queda',
+                            'freq' => 'Toda mudança de turno',
+                            'last_value' => $patient['morse_score'] ?? null,
+                            'last_shift' => $patient['morse_shift'] ?? null,
+                            'last_timestamp' => $patient['morse_timestamp'] ?? null,
                         ];
                     }
 
                     if ($this->isScaleExpired($patient, 'pain')) {
                         $expiredScales[] = [
                             'name' => 'Dor',
-                            'last_value' => $patient['pain_score'] ?? '-',
-                            'shift' => $patient['pain_shift'] ?? 'N/A',
+                            'label' => 'Avaliação da Dor',
+                            'freq' => 'Toda mudança de turno',
+                            'last_value' => $patient['pain_score'] ?? null,
+                            'last_shift' => $patient['pain_shift'] ?? null,
+                            'last_timestamp' => $patient['pain_timestamp'] ?? null,
                         ];
                     }
 
                     if ($this->isScaleExpired($patient, 'vte')) {
                         $expiredScales[] = [
                             'name' => 'TEV',
-                            'last_value' => $patient['vte_score'] ?? '-',
-                            'shift' => $patient['vte_shift'] ?? 'N/A',
+                            'label' => 'Risco de Tromboembolismo',
+                            'freq' => 'Admissão / mudança clínica',
+                            'last_value' => $patient['vte_score'] ?? null,
+                            'last_shift' => $patient['vte_shift'] ?? null,
+                            'last_timestamp' => $patient['vte_timestamp'] ?? null,
                         ];
                     }
 
@@ -114,6 +132,7 @@ class ExpiredScalesModal extends Component
                             'age'            => $patient['age'] ?? 'N/A',
                             'expired_scales' => $expiredScales,
                             'total_expired'  => count($expiredScales),
+                            'priority'       => count($expiredScales) >= 4 ? 'critical' : (count($expiredScales) >= 2 ? 'high' : 'medium'),
                         ];
                     }
                 }

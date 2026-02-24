@@ -26,9 +26,6 @@ class SbarReport extends Component
     public $sectors = [];
     public $patients = [];
 
-    public array $rawPatientsMap = [];
-    public array $rawPatientsHashes = [];
-
     public $selectedHospital = null;
     public $selectedSector = null;
     public $currentHospitalName = 'Carregando...';
@@ -120,6 +117,7 @@ class SbarReport extends Component
         if (!empty($this->sectors)) {
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
             $this->loadPatients();
+            $this->auditSectorView('mount');
         } else {
             $this->errorMessage = "Nenhum setor configurado para este hospital. Atualize suas preferências de setor.";
             $this->patients = [];
@@ -163,11 +161,15 @@ class SbarReport extends Component
         }
 
         try {
+            $sectorsMap = collect($this->availableSectors)->keyBy('sector_code');
+
+            // Captura setores anteriores para auditoria
+            $previousSectors = $user->sectorPreferences()
+                ->pluck('sector_name', 'sector_code')
+                ->toArray();
+
             // Remove existing preferences
             UserSectorPreference::where('user_id', $user->id)->delete();
-
-            // Build available sectors map for enrichment
-            $sectorsMap = collect($this->availableSectors)->keyBy('sector_code');
 
             foreach ($this->selectedSectors as $sectorCode) {
                 $meta = $sectorsMap->get($sectorCode, []);
@@ -179,6 +181,20 @@ class SbarReport extends Component
                     'hospital_name' => $meta['hospital_name'] ?? null,
                 ]);
             }
+
+            // Auditoria
+            $newSectors = collect($this->selectedSectors)
+                ->mapWithKeys(fn ($code) => [$code => $sectorsMap->get($code)['sector_name'] ?? $code])
+                ->toArray();
+
+            Log::channel('audit')->info('preferences.updated', [
+                'source'           => 'onboarding',
+                'user_id'          => $user->id,
+                'user'             => $user->name,
+                'previous_sectors' => $previousSectors,
+                'new_sectors'      => $newSectors,
+                'ip'               => request()->ip(),
+            ]);
 
             $this->showSectorOnboarding = false;
             $this->selectedSectors = [];
@@ -257,18 +273,11 @@ class SbarReport extends Component
         $this->errorMessage = null;
 
         try {
-            // Busca dados do service
+            // Busca dados do service (resultado já cacheado por 15 min)
             $patientsData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
 
-            // Monta mapa raw
-            $this->rawPatientsMap = collect($patientsData)
-                ->keyBy(fn($p) => $p['nr_atendimento'] ?? ('empty-' . uniqid()))
-                ->toArray();
-
-            $this->rawPatientsHashes = array_map(fn($p) => md5(serialize($p)), $this->rawPatientsMap);
-
             // Aplica filtros e paginação
-            $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+            $allFiltered = $this->applyFiltersAndSort($patientsData);
             $this->patients = array_slice($allFiltered, 0, $this->perPage);
             $this->hasMore = count($allFiltered) > $this->perPage;
 
@@ -288,8 +297,11 @@ class SbarReport extends Component
 
     public function loadMore()
     {
+        if (!$this->selectedSector) return;
+
         try {
-            $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+            $patientsData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
+            $allFiltered = $this->applyFiltersAndSort($patientsData);
 
             $currentCount = count($this->patients);
             $nextBatch = array_slice($allFiltered, $currentCount, $this->perPage);
@@ -373,9 +385,6 @@ class SbarReport extends Component
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
 
-        $this->rawPatientsMap = [];
-        $this->rawPatientsHashes = [];
-
         $hospital = collect($this->hospitals)->firstWhere('hospital_id', $hospitalId);
         $this->currentHospitalName = $hospital['hospital_name'] ?? 'Hospital';
 
@@ -391,6 +400,7 @@ class SbarReport extends Component
         if (!empty($this->sectors)) {
             $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
             $this->loadPatients();
+            $this->auditSectorView('hospital_change');
         } else {
             $this->patients = [];
             $this->loading = false;
@@ -400,9 +410,8 @@ class SbarReport extends Component
     public function changeSector($sectorId)
     {
         $this->selectedSector = $sectorId;
-        $this->rawPatientsMap = [];
-        $this->rawPatientsHashes = [];
         $this->loadPatients();
+        $this->auditSectorView('sector_change');
     }
 
     public function updatedMewsFilter($value)
@@ -437,14 +446,10 @@ class SbarReport extends Component
 
     protected function refilterFromRaw()
     {
-        if (empty($this->rawPatientsMap)) {
-            $this->loadPatients();
-            return;
-        }
-
-        $allFiltered = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
-        $this->patients = array_slice($allFiltered, 0, $this->perPage);
-        $this->hasMore = count($allFiltered) > $this->perPage;
+        // Re-lê do cache (hit rápido, sem nova query Oracle).
+        // Evita manter rawPatientsMap no estado do Livewire,
+        // o que reduziria drasticamente o tamanho do payload.
+        $this->loadPatients();
     }
 
     public function refreshData()
@@ -468,43 +473,33 @@ class SbarReport extends Component
         if (!$this->selectedSector) return;
 
         $newData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
-
-        $newMap = collect($newData)
-            ->keyBy(fn($p) => $p['nr_atendimento'] ?? ('empty-' . uniqid()))
-            ->toArray();
-
-        $newHashes = array_map(fn($p) => md5(serialize($p)), $newMap);
-
-        $changedIds = [];
-        foreach ($newHashes as $id => $hash) {
-            if (!isset($this->rawPatientsHashes[$id]) || $this->rawPatientsHashes[$id] !== $hash) {
-                $changedIds[] = $id;
-            }
-        }
-
-        $removedIds = array_diff(array_keys($this->rawPatientsMap), array_keys($newMap));
-
-        if (empty($changedIds) && empty($removedIds)) {
-            $this->lastRefresh = now()->format('H:i:s');
-            return;
-        }
-
-        foreach ($changedIds as $id) {
-            $this->rawPatientsMap[$id] = $newMap[$id];
-            $this->rawPatientsHashes[$id] = $newHashes[$id];
-        }
-
-        foreach ($removedIds as $id) {
-            unset($this->rawPatientsMap[$id], $this->rawPatientsHashes[$id]);
-        }
-
-        $this->patients = $this->applyFiltersAndSort(array_values($this->rawPatientsMap));
+        $allFiltered = $this->applyFiltersAndSort($newData);
+        $this->patients = array_slice($allFiltered, 0, $this->perPage);
+        $this->hasMore = count($allFiltered) > $this->perPage;
 
         $this->lastRefresh = now()->format('H:i:s');
         $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
     }
 
 
+
+    private function auditSectorView(string $action): void
+    {
+        if (!$this->selectedSector) return;
+
+        $sectorName = collect($this->sectors)
+            ->firstWhere('cd_setor_atendimento', $this->selectedSector)['ds_setor_atendimento'] ?? $this->selectedSector;
+
+        Log::channel('audit')->info('sbar.viewed', [
+            'action'      => $action,
+            'user_id'     => Auth::id(),
+            'user'        => Auth::user()->name ?? 'unknown',
+            'sector_id'   => $this->selectedSector,
+            'sector_name' => $sectorName,
+            'hospital'    => $this->currentHospitalName,
+            'ip'          => request()->ip(),
+        ]);
+    }
 
     public function placeholder()
     {

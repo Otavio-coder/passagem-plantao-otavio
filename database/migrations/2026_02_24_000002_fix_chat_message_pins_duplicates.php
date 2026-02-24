@@ -55,8 +55,21 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // MySQL uses uniq_message_pin to support the FK — must drop FK first,
+        // then the unique index, then restore the FK (which auto-creates a regular index).
+        Schema::table('chat_message_pins', function (Blueprint $table) {
+            $table->dropForeign(['message_id']);
+        });
+
         Schema::table('chat_message_pins', function (Blueprint $table) {
             $table->dropUnique('uniq_message_pin');
+        });
+
+        Schema::table('chat_message_pins', function (Blueprint $table) {
+            $table->foreign('message_id')
+                ->references('id')
+                ->on('chat_messages')
+                ->onDelete('cascade');
         });
     }
 };

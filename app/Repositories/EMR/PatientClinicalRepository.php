@@ -2,9 +2,6 @@
 
 namespace App\Repositories\EMR;
 
-use App\Models\EMR\Core\Patient;
-use App\Models\EMR\CPOE\Appointment;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,9 +11,9 @@ class PatientClinicalRepository
     protected $connection = 'tasy';
 
     /**
-     * Busca detalhes clínicos completos de um paciente
+     * Busca dados clínicos core de um paciente (isolamento, nursing, dispositivos, alergias)
      */
-    public function getPatientClinicalDetails($attendanceNumber, $sectorCode = null)
+    public function getPatientClinicalDetails(int $attendanceNumber, ?string $sectorCode = null): object
     {
         $result = DB::connection('tasy')->select("
             SELECT
@@ -138,25 +135,14 @@ class PatientClinicalRepository
         }
 
         $basicData = $result[0];
-
-        // Busca diagnósticos e comorbidades
         $basicData->diagnosticos_comorbidades = $this->getDiagnosticsAndComorbidities($attendanceNumber);
-
-        // Busca antimicrobianos
         $basicData->materiais = $this->getAntimicrobials($attendanceNumber) ?? 'Nenhum antimicrobiano';
-
-        // Busca exames prioritários
-        $basicData->prioridade_exames = $this->getPriorityExams($attendanceNumber) ?? 'Nenhum exame prioritário';
-
-        // Busca procedimentos cirúrgicos
-        $basicData->procedimentos_cirurgicos = $this->getSurgicalProcedures($attendanceNumber, $sectorCode) ?? [];
 
         return $basicData;
     }
 
     /**
-     * ✅ NOVO: Busca detalhes clínicos de múltiplos pacientes em batch
-     * Substitui loop de getPatientClinicalDetails individual
+     * Busca dados clínicos core de múltiplos pacientes em batch
      */
     public function getBatchClinicalDetails(array $attendanceNumbers): array
     {
@@ -164,14 +150,12 @@ class PatientClinicalRepository
             return [];
         }
 
-        // Dividir em chunks para evitar queries muito grandes
-        $chunks = array_chunk($attendanceNumbers, 100);
+        $chunks     = array_chunk($attendanceNumbers, 100);
         $allResults = [];
 
         foreach ($chunks as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
-            // ✅ Query unificada para dados básicos
             $results = DB::connection($this->connection)->select("
             SELECT
                 atp.nr_atendimento,
@@ -293,27 +277,15 @@ class PatientClinicalRepository
             }
         }
 
-        // ✅ Busca diagnósticos em batch
-        $diagnostics = $this->getBatchDiagnostics($attendanceNumbers);
-
-        // ✅ Busca antimicrobianos em batch
+        $diagnostics   = $this->getBatchDiagnostics($attendanceNumbers);
         $antimicrobials = $this->getBatchAntimicrobials($attendanceNumbers);
 
-        // ✅ Busca exames em batch (já existe)
-        $exams = $this->getPriorityExamsForAttendances($attendanceNumbers);
-
-        // ✅ Busca cirurgias em batch (já existe)
-        $surgeries = $this->getFutureSurgeriesForAttendances($attendanceNumbers);
-
-        // Monta resultado final
         $finalResults = [];
         foreach ($attendanceNumbers as $nr) {
             $basic = $allResults[$nr] ?? $this->getDefaultClinicalData();
 
             $basic->diagnosticos_comorbidades = $diagnostics[$nr] ?? 'Sem diagnósticos';
-            $basic->materiais = $antimicrobials[$nr] ?? 'Nenhum antimicrobiano';
-            $basic->prioridade_exames = $exams[$nr] ?? 'Nenhum exame prioritário';
-            $basic->procedimentos_cirurgicos = $surgeries['surgery_detailed'][$nr] ?? [];
+            $basic->materiais                 = $antimicrobials[$nr] ?? 'Nenhum antimicrobiano';
 
             $finalResults[$nr] = $basic;
         }
@@ -325,12 +297,9 @@ class PatientClinicalRepository
     {
         if (empty($attendanceNumbers)) return [];
 
-        $chunks = array_chunk($attendanceNumbers, 100);
         $results = [];
 
-        foreach ($chunks as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-
+        foreach (array_chunk($attendanceNumbers, 100) as $chunk) {
             $rows = DB::connection($this->connection)->select("
             SELECT
                 nr_atendimento,
@@ -353,10 +322,9 @@ class PatientClinicalRepository
     {
         if (empty($attendanceNumbers)) return [];
 
-        $chunks = array_chunk($attendanceNumbers, 50); // Menor por ser query pesada
         $results = [];
 
-        foreach ($chunks as $chunk) {
+        foreach (array_chunk($attendanceNumbers, 50) as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
             $rows = DB::connection($this->connection)->select("
@@ -397,179 +365,7 @@ class PatientClinicalRepository
         return $results;
     }
 
-    /**
-     * Retorna dados clínicos padrão quando não há dados
-     */
-    private function getDefaultClinicalData()
-    {
-        return (object)[
-            'medida_bloqueio' => 'Não',
-            'motivos_isolamento' => 'Nenhum motivo de isolamento',
-            'avaliacao_enf' => 'Não realizada',
-            'plano_educ' => 'Não realizado',
-            'pe_data' => 'Não realizado',
-            'ds_queda' => 'Não avaliado',
-            'diag' => 'Sem diagnósticos SAE',
-            'dispositivos' => 'Nenhum dispositivo',
-            'alergias_detalhadas' => 'Sem alergias registradas',
-            'diagnosticos_comorbidades' => 'Sem diagnósticos',
-            'materiais' => 'Nenhum antimicrobiano',
-            'prioridade_exames' => 'Nenhum exame prioritário',
-            'procedimentos_cirurgicos' => []
-        ];
-    }
-
-    /**
-     * Return two maps for the given attendance numbers:
-     *  - 'surgery' => [nr_atendimento => bool has_surgery]
-     *  - 'surgery_detailed' => [nr_atendimento => array of surgery detail arrays]
-     */
-    public function getFutureSurgeriesForAttendances(array $attendanceNumbers): array
-    {
-        if (empty($attendanceNumbers)) {
-            return ['surgery' => [], 'surgery_detailed' => []];
-        }
-
-        // map attendance -> person id
-        $attToPerson = Patient::whereIn('nr_atendimento', $attendanceNumbers)
-            ->pluck('cd_pessoa_fisica', 'nr_atendimento')
-            ->toArray();
-
-        $personIds = array_values(array_filter(array_unique(array_values($attToPerson))));
-
-        $hasMap = [];
-        $detailed = [];
-
-        // default values
-        foreach ($attendanceNumbers as $nr) {
-            $hasMap[$nr] = false;
-            $detailed[$nr] = [];
-        }
-
-        if (empty($personIds)) {
-            return ['surgery' => $hasMap, 'surgery_detailed' => $detailed];
-        }
-
-        // limit to 1 month ahead
-        $cutoff = Carbon::now()->addMonth();
-
-        $surgeriesByPerson = Appointment::surgeries()
-            ->whereIn('cd_pessoa_fisica', $personIds)
-            ->where('dt_agenda', '>=', Carbon::today())
-            ->where('dt_agenda', '<=', $cutoff)
-            ->whereNull('dt_executada')
-            ->orderBy('dt_agenda')
-            ->orderBy('hr_inicio')
-            ->get()
-            ->groupBy('cd_pessoa_fisica');
-
-        foreach ($attToPerson as $nr => $personId) {
-            $group = $surgeriesByPerson->get($personId, collect());
-            if ($group->isNotEmpty()) {
-                $hasMap[$nr] = true;
-                $detailed[$nr] = $group->map(function (Appointment $s) {
-                    $proc = $s->getProcedureDescriptionAttribute() ?? ($s->ds_cirurgia ?? 'Procedimento cirúrgico');
-                    return [
-                        'data_agenda' => $s->dt_agenda ? Carbon::parse($s->dt_agenda)->format('d/m/Y') : '',
-                        'hora_agenda' => $s->hr_inicio ? Carbon::parse($s->hr_inicio)->format('H:i') : '00:00',
-                        'procedimento' => $proc,
-                        'carater_cirurgia' => $s->getSurgeryCharacterAttribute() ?? ($s->ie_carater_cirurgia ?? ''),
-                        'observacoes' => $s->ds_observacao ?? '',
-                        // keep extra fields used by views if present
-                        'nr_sequencia' => $s->nr_sequencia,
-                        'cd_procedimento' => $s->cd_procedimento,
-                        'ie_origem_proced' => $s->ie_origem_proced,
-                    ];
-                })->values()->all();
-            }
-        }
-
-        return ['surgery' => $hasMap, 'surgery_detailed' => $detailed];
-    }
-
-    /**
-     * Busca alertas ativos de um paciente
-     * Usado pela Patient::fetchPatientClinicalDetails()
-     */
-    public function getPatientActiveAlerts($attendanceNumber, $personId)
-    {
-        $results = DB::connection('tasy')->select("
-            SELECT DISTINCT
-                alp.ds_alerta,
-                alp.nr_seq_tipo_alerta,
-                alp.dt_fim_alerta,
-                mi.ds_motivo AS motivo_isolamento,
-                apc.dt_inicio AS dt_inicio_precaucao,
-                apc.dt_termino AS dt_termino_precaucao,
-                CASE
-                    WHEN alp.ds_alerta IS NOT NULL THEN 1
-                    WHEN mi.ds_motivo IS NOT NULL THEN 2
-                    ELSE 3
-                END AS alert_priority
-            FROM tasy.atendimento_paciente atp
-            LEFT JOIN tasy.alerta_paciente alp
-                ON atp.cd_pessoa_fisica = alp.cd_pessoa_fisica
-                AND alp.ds_alerta IS NOT NULL
-                AND LENGTH(TRIM(alp.ds_alerta)) > 0
-                AND (alp.dt_fim_alerta IS NULL OR TRUNC(alp.dt_fim_alerta) > TRUNC(SYSDATE))
-            LEFT JOIN tasy.atendimento_precaucao apc
-                ON atp.nr_atendimento = apc.nr_atendimento
-                AND apc.dt_liberacao IS NOT NULL
-                AND apc.dt_inativacao IS NULL
-                AND (apc.dt_termino IS NULL OR TRUNC(apc.dt_termino) > TRUNC(SYSDATE))
-            LEFT JOIN tasy.motivo_isolamento mi
-                ON apc.nr_seq_motivo_isol = mi.nr_sequencia
-            WHERE atp.nr_atendimento = :attendance
-              AND atp.cd_pessoa_fisica = :person_id
-              AND atp.dt_alta IS NULL
-              AND (alp.ds_alerta IS NOT NULL OR mi.ds_motivo IS NOT NULL)
-            ORDER BY alert_priority
-        ", [
-            'attendance' => $attendanceNumber,
-            'person_id' => $personId
-        ]);
-
-        $alerts = [];
-        $processedAlerts = [];
-
-        foreach ($results as $result) {
-            // Alerta tipo ALERTA
-            if (!empty($result->ds_alerta)) {
-                $alertKey = 'alert_' . md5(trim($result->ds_alerta));
-                if (!isset($processedAlerts[$alertKey])) {
-                    $alerts[] = [
-                        'type' => 'ALERTA',
-                        'message' => trim($result->ds_alerta),
-                        'end_date' => $result->dt_fim_alerta,
-                        'severity' => 'warning'
-                    ];
-                    $processedAlerts[$alertKey] = true;
-                }
-            }
-
-            // Alerta tipo ISOLAMENTO
-            if (!empty($result->motivo_isolamento)) {
-                $isolationKey = 'isolation_' . md5(trim($result->motivo_isolamento));
-                if (!isset($processedAlerts[$isolationKey])) {
-                    $alerts[] = [
-                        'type' => 'ISOLAMENTO',
-                        'message' => trim($result->motivo_isolamento),
-                        'start_date' => $result->dt_inicio_precaucao,
-                        'end_date' => $result->dt_termino_precaucao,
-                        'severity' => 'danger'
-                    ];
-                    $processedAlerts[$isolationKey] = true;
-                }
-            }
-        }
-
-        return array_values($alerts);
-    }
-
-    /**
-     * Diagnósticos e comorbidades
-     */
-    private function getDiagnosticsAndComorbidities($attendanceNumber)
+    private function getDiagnosticsAndComorbidities(int $attendanceNumber): string
     {
         $result = DB::connection('tasy')->select("
             SELECT COALESCE(tasy.obter_diagnostico_atendimento(:nr_atendimento, 0), 'Sem diagnósticos') AS diagnosticos
@@ -579,10 +375,7 @@ class PatientClinicalRepository
         return $result ? $result[0]->diagnosticos : 'Sem diagnósticos';
     }
 
-    /**
-     * Antimicrobianos com valor padrão
-     */
-    private function getAntimicrobials($attendanceNumber)
+    private function getAntimicrobials(int $attendanceNumber): ?string
     {
         $result = DB::connection('tasy')->select("
             SELECT LISTAGG(INITCAP(ds_material) || ' ' || nr_dia_util || ' Dia(s)', CHR(13))
@@ -624,598 +417,20 @@ class PatientClinicalRepository
         return (!empty($result) && !empty($result[0]->materiais)) ? $result[0]->materiais : null;
     }
 
-    public function getPriorityExamsForAttendances(array $attendanceNumbers): array
+    private function getDefaultClinicalData(): object
     {
-        if (empty($attendanceNumbers)) {
-            return [];
-        }
-
-        $result = [];
-        // initialize defaults
-        foreach ($attendanceNumbers as $nr) {
-            $result[$nr] = null;
-        }
-
-        // call existing private getPriorityExams per attendance
-        foreach ($attendanceNumbers as $nr) {
-            try {
-                $result[$nr] = $this->getPriorityExams($nr);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('getPriorityExamsForAttendances failed for ' . $nr . ': ' . $e->getMessage());
-                $result[$nr] = null;
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Exames prioritários com valor padrão
-     */
-    private function getPriorityExams($attendanceNumber)
-    {
-        try {
-            $result = DB::connection('tasy')->select("
-                SELECT
-                    tasy.obter_select_concatenado_bv(
-                        'select obter_valor_dominio(95,proc.cd_tipo_procedimento) tipo
-                        from prescr_procedimento prescrp,
-                            prescr_medica prescrm,
-                            procedimento proc
-                        where prescrp.nr_prescricao = prescrm.nr_prescricao
-                        and prescrp.cd_procedimento = proc.cd_procedimento
-                        and prescrm.nr_atendimento = :nr_atend
-                        and prescrp.ie_status_execucao = ''10''
-                        and prescrp.dt_coleta is null
-                        and prescrm.dt_liberacao is not null
-                        and prescrp.ie_origem_proced <> 4
-                        group by obter_valor_dominio(95,proc.cd_tipo_procedimento)',
-                        'nr_atend=' || :nr_atendimento,
-                        CHR(13)
-                    ) AS prioridade_exames
-                FROM dual
-            ", ['nr_atendimento' => $attendanceNumber]);
-
-            if ($result && !empty($result[0]->prioridade_exames)) {
-                $exams = $result[0]->prioridade_exames;
-                $exams = str_replace(chr(13), chr(13) . '• ', $exams);
-                if (!empty(trim($exams))) {
-                    $exams = '• ' . $exams;
-                }
-                return $exams;
-            }
-
-            return null;
-
-        } catch (\Exception $e) {
-            Log::warning("Error fetching priority exams for attendance {$attendanceNumber}: " . $e->getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Procedimentos cirúrgicos - agora usa exatamente a mesma lógica do card
-     */
-    private function getSurgicalProcedures($attendanceNumber, $sectorCode = null)
-    {
-        try {
-            // USA EXATAMENTE A MESMA LÓGICA DO CARD
-            $query = "
-                SELECT
-                    SUBSTR(
-                        TASY.obter_desc_agenda(aaa.cd_agenda) ||
-                        ' / Data e hora: ' || TO_CHAR(aaa.dt_agenda, 'DD/MM/YYYY') ||
-                        CASE WHEN aaa.hr_inicio IS NOT NULL THEN ' ' || TO_CHAR(aaa.hr_inicio, 'HH24:MI') ELSE ' 00:00' END ||
-                        ' - Proced.: ' || TASY.obter_descricao_procedimento(aaa.cd_procedimento, aaa.ie_origem_proced),
-                        1, 200
-                    ) AS ds_agenda_contat,
-                    aaa.hr_inicio,
-                    aaa.dt_agenda,
-                    aaa.cd_procedimento,
-                    aaa.ie_origem_proced,
-                    aaa.ie_carater_cirurgia,
-                    aaa.ds_observacao
-                FROM tasy.atendimento_paciente atp
-                JOIN tasy.agenda_paciente aaa ON atp.cd_pessoa_fisica = aaa.cd_pessoa_fisica
-                WHERE atp.nr_atendimento = :nr_atendimento
-                AND aaa.IE_CARATER_CIRURGIA IS NOT NULL
-                AND aaa.IE_CARATER_CIRURGIA <> 'X'
-                AND aaa.dt_agenda > SYSDATE
-                ORDER BY aaa.dt_agenda, aaa.hr_inicio
-            ";
-
-            $params = ['nr_atendimento' => $attendanceNumber];
-            $rows = DB::connection('tasy')->select($query, $params);
-
-            if (empty($rows)) {
-                return [];
-            }
-
-            return array_map(function($row) {
-                return [
-                    'procedimento' => $row->ds_agenda_contat ?? 'Agendas de Cirurgia Recente',
-                    'data_agenda' => $row->dt_agenda ? \Carbon\Carbon::parse($row->dt_agenda)->format('d/m/Y') : 'Data não informada',
-                    'hora_agenda' => $row->hr_inicio ? \Carbon\Carbon::parse($row->hr_inicio)->format('H:i') : '00:00',
-                    'status' => 'AGENDADA',
-                    'tipo_agendamento' => 'Cirúrgico',
-                    'carater_cirurgia' => $this->getCaraterCirurgiaDescription($row->ie_carater_cirurgia ?? ''),
-                    'observacoes' => $this->filterSensitiveData($row->ds_observacao ?? ''),
-                    'duracao_formatada' => 'A definir',
-                    'cd_procedimento' => $row->cd_procedimento,
-                    'ie_origem_proced' => $row->ie_origem_proced
-                ];
-            }, $rows);
-
-        } catch (\Exception $e) {
-            Log::warning("Erro ao buscar procedimentos cirúrgicos: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Método auxiliar para obter descrição do caráter da cirurgia
-     */
-    private function getCaraterCirurgiaDescription($carater)
-    {
-        return match($carater) {
-            'E' => 'Eletiva',
-            'U' => 'Urgência',
-            'G' => 'Emergência',
-            default => 'Não informado'
-        };
-    }
-
-    private const TEAM_SEQ_MAP = [
-        'fonoaudiologia'     => [43],
-        'servico_social'     => [39],
-        'nutricao'           => [42],
-        'fisioterapia'       => [593, 609, 608],
-        'psicologia'         => [41],
-        // 639 = TIME DE ACESSOS VASCULARES (legado, 14 registros).
-        // As solicitações atuais usam as sequências específicas de PICC:
-        // 646=Inserção, 647=Obstrução, 648=Orientação Alta, 652=Retirada,
-        // 653=Selamento, 655=Troca de Curativo
-        'acessos_vasculares' => [639, 646, 647, 648, 652, 653, 655],
-    ];
-
-    /**
-     * Busca detalhes completos das solicitações de parecer médico
-     *
-     * LONG columns (DS_MOTIVO_CONSULTA, DS_PARECER) são buscadas em queries separadas
-     * porque Oracle restringe: apenas 1 LONG por SELECT, e não pode estar em subquery.
-     */
-    public function getDetailedMultidisciplinaryRequests(int $attendanceNumber): array
-    {
-        try {
-            // Query principal SEM colunas LONG
-            $rows = DB::connection($this->connection)->select("
-                SELECT
-                    pr.nr_parecer,
-                    pr.dt_criacao          AS dt_registro,
-                    pr.dt_liberacao,
-                    pr.ie_situacao         AS ie_status,
-                    pf_req.nm_pessoa_fisica AS nm_requisitante,
-                    tp.ds_tipo_parecer     AS ds_equipe_destino,
-                    pm_resp.dt_registro    AS dt_resposta,
-                    COALESCE(pf_resp.nm_pessoa_fisica, pm_resp.nm_usuario) AS nm_responsavel_resposta
-                FROM tasy.PARECER_MEDICO_REQ pr
-                LEFT JOIN tasy.pessoa_fisica pf_req
-                    ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
-                LEFT JOIN tasy.TIPO_PARECER tp
-                    ON tp.nr_sequencia = pr.nr_seq_tipo_parecer
-                LEFT JOIN tasy.PARECER_MEDICO pm_resp
-                    ON pm_resp.nr_parecer = pr.nr_parecer
-                   AND pm_resp.nr_sequencia = (
-                       SELECT MAX(pm2.nr_sequencia)
-                       FROM tasy.PARECER_MEDICO pm2
-                       WHERE pm2.nr_parecer = pr.nr_parecer
-                   )
-                LEFT JOIN tasy.usuario u_resp
-                    ON u_resp.nm_usuario = pm_resp.nm_usuario
-                LEFT JOIN tasy.pessoa_fisica pf_resp
-                    ON pf_resp.cd_pessoa_fisica = u_resp.cd_pessoa_fisica
-                WHERE pr.nr_atendimento = :attendance
-                  AND pr.dt_liberacao IS NOT NULL
-                  AND pr.dt_inativacao IS NULL
-                ORDER BY pr.dt_criacao DESC
-            ", ['attendance' => $attendanceNumber]);
-
-            if (empty($rows)) return [];
-
-            $statusMap  = ['A' => 'Aberto', 'R' => 'Respondido', 'L' => 'Liberado', 'C' => 'Cancelado'];
-            $parecerIds = array_map(fn($r) => $r->nr_parecer, $rows);
-
-            // Busca LONG columns em queries separadas (restrição Oracle)
-            $motivoMap    = $this->fetchPareceMotivos($parecerIds);
-            $pareceresMap = $this->fetchPareceRespostas($parecerIds);
-
-            $requests = [];
-            foreach ($rows as $row) {
-                $requests[] = [
-                    'nr_parecer'              => $row->nr_parecer,
-                    'dt_registro'             => $row->dt_registro,
-                    'dt_liberacao'            => $row->dt_liberacao,
-                    'dt_resposta'             => $row->dt_resposta,
-                    'ds_motivo_consulta'      => $motivoMap[$row->nr_parecer] ?? null,
-                    'ds_parecer'              => $pareceresMap[$row->nr_parecer] ?? null,
-                    'ie_status'               => $row->ie_status,
-                    'ds_status'               => $statusMap[$row->ie_status] ?? $row->ie_status,
-                    'nm_requisitante'         => $row->nm_requisitante,
-                    'ds_equipe_destino'       => $row->ds_equipe_destino,
-                    'ds_tipo_parecer_destino' => null,
-                    'nm_responsavel_resposta' => $row->nm_responsavel_resposta,
-                ];
-            }
-
-            return $requests;
-        } catch (\Throwable $e) {
-            Log::warning('PatientClinicalRepository::getDetailedMultidisciplinaryRequests failed', [
-                'attendance' => $attendanceNumber,
-                'error' => $e->getMessage()
-            ]);
-            return [];
-        }
-    }
-
-    /**
-     * Single-attendance multidisciplinary detection using nr_seq_equipe_dest
-     */
-    public function getMultidisciplinaryTeamEvaluations(int $attendanceNumber): array
-    {
-        $default = [
-            'fisioterapia' => false,
-            'psicologia' => false,
-            'nutricao' => false,
-            'fonoaudiologia' => false,
-            'servico_social' => false,
-            'acessos_vasculares' => false,
+        return (object)[
+            'medida_bloqueio'         => 'Não',
+            'motivos_isolamento'      => 'Nenhum motivo de isolamento',
+            'avaliacao_enf'           => 'Não realizada',
+            'plano_educ'              => 'Não realizado',
+            'pe_data'                 => 'Não realizado',
+            'ds_queda'                => 'Não avaliado',
+            'diag'                    => 'Sem diagnósticos SAE',
+            'dispositivos'            => 'Nenhum dispositivo',
+            'alergias_detalhadas'     => 'Sem alergias registradas',
+            'diagnosticos_comorbidades' => 'Sem diagnósticos',
+            'materiais'               => 'Nenhum antimicrobiano',
         ];
-
-        try {
-            $rows = DB::connection($this->connection)->select("
-                SELECT pr.nr_seq_equipe_dest
-                FROM tasy.PARECER_MEDICO_REQ pr
-                WHERE pr.nr_atendimento = :attendance
-                  AND pr.dt_liberacao IS NOT NULL
-                  AND pr.dt_inativacao IS NULL
-                  AND pr.nr_seq_equipe_dest IS NOT NULL
-            ", ['attendance' => $attendanceNumber]);
-
-            if (empty($rows)) return $default;
-
-            $teams = $default;
-
-            foreach ($rows as $r) {
-                $seq = (int)$r->nr_seq_equipe_dest;
-                foreach (self::TEAM_SEQ_MAP as $key => $validSeqs) {
-                    if (in_array($seq, $validSeqs, true)) {
-                        $teams[$key] = true;
-                    }
-                }
-            }
-
-            return $teams;
-        } catch (\Throwable $e) {
-            Log::warning('PatientClinicalRepository::getMultidisciplinaryTeamEvaluations failed', [
-                'attendance' => $attendanceNumber,
-                'error' => $e->getMessage()
-            ]);
-            return $default;
-        }
-    }
-
-    /**
-     * Retorna equipes multidisciplinares associadas aos atendimentos (BATCH)
-     * SIMPLIFICADO: Apenas verifica EXISTS para cada equipe
-     */
-    public function getMultidisciplinaryTeams(array $attendances): array
-    {
-        if (empty($attendances)) {
-            return [];
-        }
-
-        $chunks = array_chunk($attendances, 100);
-        $result = [];
-
-        foreach ($chunks as $chunk) {
-            try {
-                $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-
-                // Query SIMPLIFICADA: apenas pega nr_atendimento e nr_seq_equipe_dest
-                $sql = "
-                    SELECT
-                        nr_atendimento,
-                        nr_seq_equipe_dest
-                    FROM tasy.PARECER_MEDICO_REQ
-                    WHERE nr_atendimento IN ($placeholders)
-                      AND dt_liberacao IS NOT NULL
-                      AND dt_inativacao IS NULL
-                      AND nr_seq_equipe_dest IS NOT NULL
-                ";
-
-                $rows = DB::connection('tasy')->select($sql, $chunk);
-
-                // Inicializa todos os atendimentos com false
-                foreach ($chunk as $nr) {
-                    if (!isset($result[$nr])) {
-                        $result[$nr] = [
-                            'fisioterapia'        => false,
-                            'psicologia'          => false,
-                            'nutricao'            => false,
-                            'fonoaudiologia'      => false,
-                            'servico_social'      => false,
-                            'acessos_vasculares'  => false,
-                        ];
-                    }
-                }
-
-                // Processa as linhas
-                foreach ($rows as $row) {
-                    $nr = $row->nr_atendimento;
-                    $seq = (int)$row->nr_seq_equipe_dest;
-
-                    // Marca como true se encontrar uma equipe válida
-                    foreach (self::TEAM_SEQ_MAP as $key => $validSeqs) {
-                        if (in_array($seq, $validSeqs, true)) {
-                            $result[$nr][$key] = true;
-                        }
-                    }
-                }
-
-            } catch (\Throwable $e) {
-                Log::warning('PatientClinicalRepository::getMultidisciplinaryTeams chunk failed', [
-                    'error' => $e->getMessage(),
-                    'chunk_sample' => array_slice($chunk, 0, 5),
-                ]);
-
-                // Fallback padrão vazio se chunk falhar
-                foreach ($chunk as $nr) {
-                    if (!isset($result[$nr])) {
-                        $result[$nr] = [
-                            'fisioterapia'        => false,
-                            'psicologia'          => false,
-                            'nutricao'            => false,
-                            'fonoaudiologia'      => false,
-                            'servico_social'      => false,
-                            'acessos_vasculares'  => false,
-                        ];
-                    }
-                }
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Busca solicitações de parecer detalhadas em BATCH para todos os atendimentos.
-     *
-     * LONG columns (DS_MOTIVO_CONSULTA, DS_PARECER) são buscadas em queries separadas
-     * porque Oracle restringe: apenas 1 LONG por SELECT, e não pode estar em subquery.
-     */
-    public function getMultidisciplinaryRequestsBatch(array $attendances): array
-    {
-        if (empty($attendances)) return [];
-
-        $result = [];
-        foreach ($attendances as $nr) {
-            $result[$nr] = [];
-        }
-
-        $statusMap = ['A' => 'Aberto', 'R' => 'Respondido', 'L' => 'Liberado', 'C' => 'Cancelado'];
-
-        // Passo 1: query principal SEM colunas LONG
-        $allRows = []; // nr_parecer => stdClass row
-
-        foreach (array_chunk($attendances, 50) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-            try {
-                $rows = DB::connection($this->connection)->select("
-                    SELECT
-                        pr.nr_atendimento,
-                        pr.nr_parecer,
-                        pr.dt_criacao          AS dt_registro,
-                        pr.dt_liberacao,
-                        pr.ie_situacao         AS ie_status,
-                        pf_req.nm_pessoa_fisica AS nm_requisitante,
-                        tp.ds_tipo_parecer     AS ds_equipe_destino,
-                        pm_resp.dt_registro    AS dt_resposta,
-                        COALESCE(pf_resp.nm_pessoa_fisica, pm_resp.nm_usuario) AS nm_responsavel_resposta
-                    FROM tasy.PARECER_MEDICO_REQ pr
-                    LEFT JOIN tasy.pessoa_fisica pf_req
-                        ON pf_req.cd_pessoa_fisica = pr.cd_pessoa_fisica
-                    LEFT JOIN tasy.TIPO_PARECER tp
-                        ON tp.nr_sequencia = pr.nr_seq_tipo_parecer
-                    LEFT JOIN tasy.PARECER_MEDICO pm_resp
-                        ON pm_resp.nr_parecer = pr.nr_parecer
-                       AND pm_resp.nr_sequencia = (
-                           SELECT MAX(pm2.nr_sequencia)
-                           FROM tasy.PARECER_MEDICO pm2
-                           WHERE pm2.nr_parecer = pr.nr_parecer
-                       )
-                    LEFT JOIN tasy.usuario u_resp
-                        ON u_resp.nm_usuario = pm_resp.nm_usuario
-                    LEFT JOIN tasy.pessoa_fisica pf_resp
-                        ON pf_resp.cd_pessoa_fisica = u_resp.cd_pessoa_fisica
-                    WHERE pr.nr_atendimento IN ($placeholders)
-                      AND pr.dt_liberacao IS NOT NULL
-                      AND pr.dt_inativacao IS NULL
-                    ORDER BY pr.nr_atendimento, pr.dt_criacao DESC
-                ", $chunk);
-
-                foreach ($rows as $row) {
-                    $allRows[$row->nr_parecer] = $row;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('PatientClinicalRepository::getMultidisciplinaryRequestsBatch chunk failed', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        if (empty($allRows)) {
-            return $result;
-        }
-
-        // Passo 2: busca LONG columns em queries separadas (restrição Oracle)
-        $parecerIds   = array_keys($allRows);
-        $motivoMap    = $this->fetchPareceMotivos($parecerIds);
-        $pareceresMap = $this->fetchPareceRespostas($parecerIds);
-
-        foreach ($allRows as $nrParecer => $row) {
-            $result[$row->nr_atendimento][] = [
-                'nr_parecer'              => $row->nr_parecer,
-                'dt_registro'             => $row->dt_registro,
-                'dt_liberacao'            => $row->dt_liberacao,
-                'dt_resposta'             => $row->dt_resposta,
-                'ds_motivo_consulta'      => $motivoMap[$nrParecer] ?? null,
-                'ds_parecer'              => $pareceresMap[$nrParecer] ?? null,
-                'ie_status'               => $row->ie_status,
-                'ds_status'               => $statusMap[$row->ie_status] ?? $row->ie_status,
-                'nm_requisitante'         => $row->nm_requisitante,
-                'ds_equipe_destino'       => $row->ds_equipe_destino,
-                'ds_tipo_parecer_destino' => null,
-                'nm_responsavel_resposta' => $row->nm_responsavel_resposta,
-            ];
-        }
-
-        return $result;
-    }
-
-    /**
-     * Busca DS_MOTIVO_CONSULTA (LONG) de PARECER_MEDICO_REQ por lote de nr_parecer.
-     * Query isolada porque Oracle só permite 1 LONG por SELECT.
-     */
-    private function fetchPareceMotivos(array $parecerIds): array
-    {
-        $result = [];
-        if (empty($parecerIds)) return $result;
-
-        foreach (array_chunk($parecerIds, 100) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-            try {
-                $rows = DB::connection($this->connection)->select("
-                    SELECT nr_parecer, ds_motivo_consulta
-                    FROM tasy.PARECER_MEDICO_REQ
-                    WHERE nr_parecer IN ($placeholders)
-                      AND dt_inativacao IS NULL
-                ", $chunk);
-                foreach ($rows as $row) {
-                    $result[$row->nr_parecer] = $this->stripRtf($row->ds_motivo_consulta);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('PatientClinicalRepository::fetchPareceMotivos failed: ' . $e->getMessage());
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Busca DS_PARECER (LONG) da última resposta em PARECER_MEDICO por lote de nr_parecer.
-     * Query isolada porque Oracle só permite 1 LONG por SELECT.
-     */
-    private function fetchPareceRespostas(array $parecerIds): array
-    {
-        $result = [];
-        if (empty($parecerIds)) return $result;
-
-        foreach (array_chunk($parecerIds, 100) as $chunk) {
-            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-            try {
-                $rows = DB::connection($this->connection)->select("
-                    SELECT pm.nr_parecer, pm.ds_parecer
-                    FROM tasy.PARECER_MEDICO pm
-                    WHERE pm.nr_parecer IN ($placeholders)
-                      AND pm.nr_sequencia = (
-                          SELECT MAX(pm2.nr_sequencia)
-                          FROM tasy.PARECER_MEDICO pm2
-                          WHERE pm2.nr_parecer = pm.nr_parecer
-                      )
-                ", $chunk);
-                foreach ($rows as $row) {
-                    $result[$row->nr_parecer] = $this->stripRtf($row->ds_parecer);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('PatientClinicalRepository::fetchPareceRespostas failed: ' . $e->getMessage());
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Remove formatação RTF ou HTML e retorna texto simples.
-     * Campos DS_MOTIVO_CONSULTA e DS_PARECER no Tasy podem conter RTF ou HTML.
-     */
-    private function stripRtf(?string $text): ?string
-    {
-        if (empty($text)) return $text;
-
-        $trimmed = ltrim($text);
-
-        // HTML (formato Tasy moderno: <html tasy="html5">...)
-        if (stripos($trimmed, '<html') === 0 || stripos($trimmed, '<body') === 0) {
-            // Converte <br>, <p>, <div> em quebras de linha antes de strip_tags
-            $text = preg_replace('/<br\s*\/?>/i', "\n", $text);
-            $text = preg_replace('/<\/p>/i', "\n", $text);
-            $text = preg_replace('/<\/div>/i', "\n", $text);
-            $text = strip_tags($text);
-            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $text = preg_replace('/[ \t]+/', ' ', $text);
-            $text = preg_replace('/(\r\n|\r|\n)+/', "\n", trim($text));
-            return $text ?: null;
-        }
-
-        // RTF (formato Tasy legado: {\rtf1...})
-        if (strpos($trimmed, '{\\rtf') === 0 || strpos($trimmed, '{\rtf') === 0) {
-            // Remove blocos de metadados RTF (fonttbl, colortbl) com grupos aninhados de 1 nível
-            $text = preg_replace('/\{\\\\fonttbl(?:\{[^}]*\}|[^}])*\}/', '', $text);
-            $text = preg_replace('/\{\\\\colortbl(?:\{[^}]*\}|[^}])*\}/', '', $text);
-
-            // Converte escapes hexadecimais Windows-1252 (\'XX) para UTF-8
-            $text = preg_replace_callback("/\\\\'([0-9a-fA-F]{2})/", function ($m) {
-                return mb_convert_encoding(chr(hexdec($m[1])), 'UTF-8', 'Windows-1252');
-            }, $text);
-
-            // Converte \par e \line em quebras de linha (word boundary evita combinar \pard)
-            $text = preg_replace('/\\\\par\\b[ ]?/', "\n", $text);
-            $text = preg_replace('/\\\\line\\b[ ]?/', "\n", $text);
-
-            // Remove palavras de controle RTF (\word ou \word-123)
-            $text = preg_replace('/\\\\[a-zA-Z]+\-?\d*[ ]?/', ' ', $text);
-            $text = str_replace('\\*', '', $text);
-            $text = str_replace(['{', '}'], '', $text);
-
-            $text = preg_replace('/[ \t]+/', ' ', $text);
-            $text = preg_replace('/(\r\n|\r|\n)+/', "\n", trim($text));
-            return $text ?: null;
-        }
-
-        return trim($text) ?: null;
-    }
-
-    /**
-     * Remove informações sensíveis de cirurgias
-     */
-    private function filterSensitiveData($observacao)
-    {
-        if (empty($observacao)) {
-            return '';
-        }
-
-        // Remove valores monetários e informações sensíveis
-        $patterns = [
-            '/R\$\s*[\d.,]+/i',
-            '/valor.*[\d.,]+/i',
-            '/custo.*[\d.,]+/i',
-            '/autorizado.*coordenação/i'
-        ];
-
-        foreach ($patterns as $pattern) {
-            $observacao = preg_replace($pattern, '', $observacao);
-        }
-
-        return trim($observacao) ?: 'Informações disponíveis no prontuário';
     }
 }

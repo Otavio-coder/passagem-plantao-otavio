@@ -20,10 +20,7 @@ class Morse extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getMorseRiskStyling')) {
-            return getMorseRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::morseRisk(self::extractScore($score), false);
     }
 
 }

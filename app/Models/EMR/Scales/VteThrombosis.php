@@ -20,10 +20,7 @@ class VteThrombosis extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getTevRiskStyling')) {
-            return getTevRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::tevRisk(self::extractScore($score), false);
     }
 
 }

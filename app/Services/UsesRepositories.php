@@ -4,9 +4,13 @@ namespace App\Services;
 
 use App\Repositories\MySQL\UserRepository;
 use App\Repositories\EMR\{
+    PatientAlertsRepository,
     PatientClinicalRepository,
-    PatientCPOERepository,
-    PatientScalesRepository
+    PatientExamsRepository,
+    PatientMultidisciplinaryRepository,
+    PatientPrescricoesRepository,
+    PatientScalesRepository,
+    PatientSurgeryRepository
 };
 
 trait UsesRepositories
@@ -34,17 +38,13 @@ trait UsesRepositories
         return $this;
     }
 
-    /**
-     * Repository de usuários (MySQL)
-     */
+    /** Repository de usuários (MySQL) */
     public function users(): UserRepository
     {
         return $this->getRepo(UserRepository::class);
     }
 
-    /**
-     * EMR repositories accessors
-     */
+    /** EMR repositories accessors */
     public function scales(): PatientScalesRepository
     {
         return $this->getRepo(PatientScalesRepository::class);
@@ -55,9 +55,28 @@ trait UsesRepositories
         return $this->getRepo(PatientClinicalRepository::class);
     }
 
-    public function cpoe(): PatientCPOERepository
+    public function prescricoes(): PatientPrescricoesRepository
     {
-        return $this->getRepo(PatientCPOERepository::class);
+        return $this->getRepo(PatientPrescricoesRepository::class);
     }
 
+    public function alerts(): PatientAlertsRepository
+    {
+        return $this->getRepo(PatientAlertsRepository::class);
+    }
+
+    public function surgery(): PatientSurgeryRepository
+    {
+        return $this->getRepo(PatientSurgeryRepository::class);
+    }
+
+    public function multidisciplinary(): PatientMultidisciplinaryRepository
+    {
+        return $this->getRepo(PatientMultidisciplinaryRepository::class);
+    }
+
+    public function exams(): PatientExamsRepository
+    {
+        return $this->getRepo(PatientExamsRepository::class);
+    }
 }

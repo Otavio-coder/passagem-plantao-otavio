@@ -20,10 +20,7 @@ class Braden extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getBradenRiskStyling')) {
-            return getBradenRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::bradenRisk(self::extractScore($score), false);
     }
 
 }

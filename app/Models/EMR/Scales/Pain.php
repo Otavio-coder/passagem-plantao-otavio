@@ -21,10 +21,7 @@ class Pain extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getPainRiskStyling')) {
-            return getPainRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::painRisk(self::extractScore($score), false);
     }
 
 }

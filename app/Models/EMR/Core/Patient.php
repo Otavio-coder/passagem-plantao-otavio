@@ -67,7 +67,7 @@ class Patient extends Model
         return $this->belongsTo(MedicalDischargeReason::class, 'cd_motivo_alta_medica', 'cd_motivo_alta_medica');
     }
 
-    // CPOE relations
+    // Relações com ordens médicas (Prescrições, Hemoterapia)
     public function prescriptions(): HasMany
     {
         return $this->hasMany(\App\Models\EMR\CPOE\Prescription::class, 'nr_atendimento', 'nr_atendimento');
@@ -104,8 +104,8 @@ class Patient extends Model
     }
 
     /**
-     * ✅ Busca dados completos do paciente SEM CPOE
-     * Delega para TasyService
+     * Busca dados básicos do paciente para o modal.
+     * Delega para TasyService.
      */
     public function getFullPatientDataWithoutCPOE(int $attendanceNumber): ?object
     {
@@ -113,37 +113,32 @@ class Patient extends Model
             return null;
         }
 
-        // Usa o método do TasyService que já existe
         return $this->tasyService->getPatientBasicData($attendanceNumber);
     }
 
     /**
-     * ✅ Busca APENAS dados CPOE
-     * Delega para TasyService
+     * Busca dados de recomendações/prescrições do paciente.
+     * Delega para TasyService.
      */
-    public function getPatientCPOEOnly(int $attendanceNumber): ?object
+    public function getPatientRecomendacoes(int $attendanceNumber): ?object
     {
         if (!$attendanceNumber) {
             return null;
         }
 
-        // Usa o método do TasyService que já existe
-        return $this->tasyService->getPatientCPOEData($attendanceNumber);
+        return $this->tasyService->getPatientRecomendacoesData($attendanceNumber);
     }
 
     /**
-     * Limpa cache do paciente (incluindo CPOE)
+     * Limpa cache do paciente.
      */
     public function clearPatientCache(int $attendanceNumber): void
     {
-        // Delega para TasyService que já tem essa lógica
         $this->tasyService->clearPatientCache($attendanceNumber);
 
-        // Adiciona limpeza de cache específico do modal
         $additionalKeys = [
             "patient_basic_modal_{$attendanceNumber}",
-            "patient_cpoe_modal_{$attendanceNumber}",
-            "patient_full_data_without_cpoe_{$attendanceNumber}",
+            "patient_recomendacoes_{$attendanceNumber}",
         ];
 
         foreach ($additionalKeys as $key) {

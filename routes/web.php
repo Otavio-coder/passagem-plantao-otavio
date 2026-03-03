@@ -21,10 +21,10 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     // Rotas SBAR - Fora do grupo de administração
     Route::view('/passagem-de-plantao', 'sbar.report')->name('sbar.report');
 
-    // CPOE do Paciente - Usado dentro do SBAR
-    Route::get('/passagem-de-plantao/paciente/{attendanceNumber}/cpoe',
-        [App\Http\Controllers\PatientCpoeController::class, 'load'])
-        ->name('sbar.patient.cpoe');
+    // Recomendações do Paciente - Aba R no SBAR
+    Route::get('/passagem-de-plantao/paciente/{attendanceNumber}/recomendacoes',
+        [App\Http\Controllers\PatientRecomendacoesController::class, 'load'])
+        ->name('sbar.patient.recomendacoes');
 
     // Avaliações do Turno
     Route::get('/passagem-de-plantao/avaliacoes', [\App\Http\Controllers\ExportController::class, 'showShiftEvaluations'])

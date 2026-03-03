@@ -123,46 +123,69 @@
                                          x-cloak
                                          @click.self="closeModal()"
                                          @keydown.escape.window="closeModal()"
-                                         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
+                                         class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                                          style="margin: 0 !important;"
                                     >
-                                        <div class="bg-red-500 rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
-                                            <div class="flex items-start gap-2 mb-3">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                                <h3 class="text-base font-bold text-white flex-1">Alergias Registradas</h3>
-                                                <button @click="closeModal()" class="text-white/80 hover:text-white transition-colors flex-shrink-0">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                             @click.stop
+                                             x-show="showModal"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                                            {{-- Header --}}
+                                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 flex-shrink-0">
+                                                <div class="flex items-center gap-2.5">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                    </svg>
+                                                    <h3 class="text-base font-bold text-white">Alergias Registradas</h3>
+                                                </div>
+                                                <button @click="closeModal()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
                                                 </button>
                                             </div>
-                                            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {{-- Content --}}
+                                            <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
                                                 @if(empty($alergias))
-                                                    <div class="text-white/80 text-sm p-2 bg-white/10 rounded-md">Nenhuma alergia registrada</div>
+                                                    <div class="flex flex-col items-center justify-center py-8 text-gray-500">
+                                                        <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                        </svg>
+                                                        <p class="text-sm">Nenhuma alergia registrada</p>
+                                                    </div>
                                                 @else
-                                                    @foreach($alergias as $a)
-                                                        <div class="p-2 rounded-md bg-white/10 transition-colors duration-150 hover:bg-white/20">
-                                                            @if(isset($a['med']))
-                                                                @php
-                                                                    $grav = $a['grav'] ?? '';
-                                                                    $gravidadeClass = 'text-white/70';
-                                                                    if (stripos($grav, 'grave') !== false || stripos($grav, 'severa') !== false) {
-                                                                        $gravidadeClass = 'font-bold text-yellow-200';
-                                                                    } elseif (stripos($grav, 'moderada') !== false) {
-                                                                        $gravidadeClass = 'text-yellow-100';
-                                                                    }
-                                                                @endphp
-                                                                <div class="flex justify-between gap-2 items-start">
-                                                                    <div class="font-medium text-white text-sm">{{ $a['med'] }}</div>
-                                                                    <div class="{{ $gravidadeClass }} text-xs flex-shrink-0">{{ $a['grav'] }}</div>
-                                                                </div>
-                                                            @else
-                                                                <div class="text-white text-sm">{{ $a['text'] }}</div>
-                                                            @endif
-                                                        </div>
-                                                    @endforeach
+                                                    <div class="space-y-2">
+                                                        @foreach($alergias as $a)
+                                                            <div class="p-3 rounded-lg bg-white border border-gray-200 shadow-sm">
+                                                                @if(isset($a['med']))
+                                                                    @php
+                                                                        $grav = $a['grav'] ?? '';
+                                                                        $gravidadeClass = 'text-gray-500';
+                                                                        $bgClass = 'bg-gray-100';
+                                                                        if (stripos($grav, 'grave') !== false || stripos($grav, 'severa') !== false) {
+                                                                            $gravidadeClass = 'text-red-700 font-semibold';
+                                                                            $bgClass = 'bg-red-100';
+                                                                        } elseif (stripos($grav, 'moderada') !== false) {
+                                                                            $gravidadeClass = 'text-yellow-700';
+                                                                            $bgClass = 'bg-yellow-100';
+                                                                        }
+                                                                    @endphp
+                                                                    <div class="flex justify-between gap-2 items-start">
+                                                                        <div class="font-medium text-gray-900 text-sm">{{ $a['med'] }}</div>
+                                                                        <div class="{{ $gravidadeClass }} text-xs px-2 py-0.5 rounded-full {{ $bgClass }} flex-shrink-0">{{ $a['grav'] }}</div>
+                                                                    </div>
+                                                                @else
+                                                                    <div class="text-gray-800 text-sm">{{ $a['text'] }}</div>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
                                                 @endif
                                             </div>
                                         </div>
@@ -250,35 +273,55 @@
                                          x-cloak
                                          @click.self="closeModal()"
                                          @keydown.escape.window="closeModal()"
-                                         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
+                                         class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                                          style="margin: 0 !important;"
                                     >
-                                        <div class="bg-yellow-400 rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
-                                            <div class="flex items-start gap-2 mb-3">
-                                                <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="h-5 w-5 flex-shrink-0 mt-0.5" alt="Isolamento" />
-                                                <h3 class="text-base font-bold text-black flex-1">Precauções de Isolamento</h3>
-                                                <button @click="closeModal()" class="text-black/70 hover:text-black transition-colors flex-shrink-0">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                             @click.stop
+                                             x-show="showModal"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                                            {{-- Header --}}
+                                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 flex-shrink-0">
+                                                <div class="flex items-center gap-2.5">
+                                                    <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="h-5 w-5 flex-shrink-0" alt="Isolamento" />
+                                                    <h3 class="text-base font-bold text-white">Precauções de Isolamento</h3>
+                                                </div>
+                                                <button @click="closeModal()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
                                                 </button>
                                             </div>
-                                            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {{-- Content --}}
+                                            <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
                                                 @if(empty($isolamentos))
-                                                    <div class="text-black/70 text-sm p-2 bg-black/5 rounded-md">Motivo não especificado</div>
+                                                    <div class="flex flex-col items-center justify-center py-8 text-gray-500">
+                                                        <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                        </svg>
+                                                        <p class="text-sm">Motivo não especificado</p>
+                                                    </div>
                                                 @else
-                                                    @foreach($isolamentos as $iso)
-                                                        <div class="p-2 rounded-md bg-black/5 transition-colors duration-150 hover:bg-black/10">
-                                                            @if(isset($iso['label']))
-                                                                <div class="text-sm font-medium text-black">
-                                                                    {{ $iso['label'] }}:
-                                                                    <span class="text-sm text-black/80 font-normal"> {{ $iso['value'] }}</span>
-                                                                </div>
-                                                            @else
-                                                                <div class="text-sm text-black">{{ $iso['text'] }}</div>
-                                                            @endif
-                                                        </div>
-                                                    @endforeach
+                                                    <div class="space-y-2">
+                                                        @foreach($isolamentos as $iso)
+                                                            <div class="p-3 rounded-lg bg-white border border-gray-200 shadow-sm">
+                                                                @if(isset($iso['label']))
+                                                                    <div class="text-sm">
+                                                                        <span class="font-semibold text-gray-800">{{ $iso['label'] }}:</span>
+                                                                        <span class="text-gray-600">{{ $iso['value'] }}</span>
+                                                                    </div>
+                                                                @else
+                                                                    <div class="text-sm text-gray-800">{{ $iso['text'] }}</div>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
                                                 @endif
                                             </div>
                                         </div>
@@ -347,37 +390,57 @@
                                          x-cloak
                                          @click.self="closeModal()"
                                          @keydown.escape.window="closeModal()"
-                                         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay"
+                                         class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                                          style="margin: 0 !important;"
                                     >
-                                        <div class="bg-white rounded-xl p-4 max-w-[90vw] w-[400px] shadow-2xl" @click.stop>
-                                            <div class="flex items-start gap-2 mb-3">
-                                                <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                                <h3 class="text-sm font-bold text-purple-800 flex-1">Agendas de Cirurgia Recente</h3>
-                                                <button @click="closeModal()" class="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                             @click.stop
+                                             x-show="showModal"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                                            {{-- Header --}}
+                                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 flex-shrink-0">
+                                                <div class="flex items-center gap-2.5">
+                                                    <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="h-5 w-5 flex-shrink-0" />
+                                                    <h3 class="text-base font-bold text-white">Agendas de Cirurgia Recente</h3>
+                                                </div>
+                                                <button @click="closeModal()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
                                                 </button>
                                             </div>
-                                            <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {{-- Content --}}
+                                            <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
                                                 @if(!empty($patient['procedimentos_cirurgicos']) && is_array($patient['procedimentos_cirurgicos']))
-                                                    @foreach($patient['procedimentos_cirurgicos'] as $c)
-                                                        <div class="p-2 rounded-md bg-purple-50 transition-colors duration-150 hover:bg-purple-100">
-                                                            <div class="text-sm font-medium text-purple-900">
-                                                                {{ $c['data_agenda'] ?? 'N/A' }} @if(!empty($c['hora_agenda'])) às {{ $c['hora_agenda'] }}@endif
+                                                    <div class="space-y-2">
+                                                        @foreach($patient['procedimentos_cirurgicos'] as $c)
+                                                            <div class="p-3 rounded-lg bg-white border border-gray-200 shadow-sm">
+                                                                <div class="text-sm font-semibold text-gray-900">
+                                                                    {{ $c['data_agenda'] ?? 'N/A' }} @if(!empty($c['hora_agenda'])) às {{ $c['hora_agenda'] }}@endif
+                                                                </div>
+                                                                @if(!empty($c['local']))
+                                                                    <div class="text-xs text-gray-500 mt-0.5">{{ $c['local'] }}</div>
+                                                                @endif
+                                                                <div class="text-sm text-gray-700 mt-1">{{ $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento' }}</div>
+                                                                @if(!empty($c['observacoes']))
+                                                                    <div class="text-xs text-gray-500 italic mt-1">Obs: {{ $c['observacoes'] }}</div>
+                                                                @endif
                                                             </div>
-                                                            @if(!empty($c['local']))
-                                                                <div class="text-xs text-purple-700 mt-0.5">{{ $c['local'] }}</div>
-                                                            @endif
-                                                            <div class="text-sm text-purple-800 mt-1">{{ $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento' }}</div>
-                                                            @if(!empty($c['observacoes']))
-                                                                <div class="text-xs text-purple-600 italic mt-1">Obs: {{ $c['observacoes'] }}</div>
-                                                            @endif
-                                                        </div>
-                                                    @endforeach
+                                                        @endforeach
+                                                    </div>
                                                 @else
-                                                    <div class="text-sm text-purple-700 p-2 bg-purple-50 rounded-md">Verificar detalhes no modal</div>
+                                                    <div class="flex flex-col items-center justify-center py-8 text-gray-500">
+                                                        <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                        </svg>
+                                                        <p class="text-sm">Verificar detalhes no modal</p>
+                                                    </div>
                                                 @endif
                                             </div>
                                         </div>
@@ -453,45 +516,60 @@
                                         x-cloak
                                         @click.self="closeModal()"
                                         @keydown.escape.window="closeModal()"
-                                        class="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4 modal-overlay"
+                                        class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                                         style="margin: 0 !important;"
                                     >
-                                        <div class="bg-white rounded-xl p-5 max-w-[90vw] w-[340px] shadow-2xl border border-gray-200" @click.stop>
-                                            <div class="flex items-center gap-3 mb-4">
-                                                <span class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                                    <img src="{{ asset('images/icons/patient-card/' . $dischargeIcon) }}" class="w-5 h-5" alt="{{ $dischargeLabel }}" />
-                                                </span>
-                                                <h3 class="text-base font-bold text-gray-800 flex-1">{{ $dischargeLabel }}</h3>
-                                                <button @click="closeModal()" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 p-1">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[400px] flex flex-col"
+                                             @click.stop
+                                             x-show="showModal"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                                            {{-- Header --}}
+                                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-600 to-gray-700 flex-shrink-0">
+                                                <div class="flex items-center gap-2.5">
+                                                    <span class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                                        <img src="{{ asset('images/icons/patient-card/' . $dischargeIcon) }}" class="w-4 h-4" alt="{{ $dischargeLabel }}" />
+                                                    </span>
+                                                    <h3 class="text-base font-bold text-white">{{ $dischargeLabel }}</h3>
+                                                </div>
+                                                <button @click="closeModal()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                     </svg>
                                                 </button>
                                             </div>
-                                            <div class="text-gray-800 space-y-2 text-sm">
-                                                @if($dType === 'alta')
-                                                    <div class="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
-                                                        <span class="text-gray-500 text-xs">Data da Alta</span>
-                                                        <span class="font-semibold">{{ $dischargeInfo['dt_alta_formatted'] ?? '-' }}</span>
-                                                    </div>
-                                                    @if(!empty($dischargeInfo['ds_motivo_alta']))
-                                                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                                                            <span class="text-gray-500 text-xs block mb-0.5">Motivo</span>
-                                                            <span class="font-medium">{{ $dischargeInfo['ds_motivo_alta'] }}</span>
+                                            {{-- Content --}}
+                                            <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
+                                                <div class="space-y-2">
+                                                    @if($dType === 'alta')
+                                                        <div class="flex justify-between items-center bg-white rounded-lg px-4 py-3 border border-gray-200 shadow-sm">
+                                                            <span class="text-gray-500 text-sm">Data da Alta</span>
+                                                            <span class="font-semibold text-gray-900">{{ $dischargeInfo['dt_alta_formatted'] ?? '-' }}</span>
                                                         </div>
-                                                    @endif
-                                                @elseif($dType === 'alta_medica')
-                                                    <div class="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
-                                                        <span class="text-gray-500 text-xs">Alta Médica</span>
-                                                        <span class="font-semibold">{{ $dischargeInfo['dt_alta_medico_formatted'] ?? '-' }}</span>
-                                                    </div>
-                                                    @if(!empty($dischargeInfo['dt_previsto_alta_formatted']))
-                                                        <div class="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2">
-                                                            <span class="text-gray-500 text-xs">Previsão de Alta</span>
-                                                            <span class="font-semibold">{{ $dischargeInfo['dt_previsto_alta_formatted'] }}</span>
+                                                        @if(!empty($dischargeInfo['ds_motivo_alta']))
+                                                            <div class="bg-white rounded-lg px-4 py-3 border border-gray-200 shadow-sm">
+                                                                <span class="text-gray-500 text-sm block mb-1">Motivo</span>
+                                                                <span class="text-gray-800">{{ $dischargeInfo['ds_motivo_alta'] }}</span>
+                                                            </div>
+                                                        @endif
+                                                    @elseif($dType === 'alta_medica')
+                                                        <div class="flex justify-between items-center bg-white rounded-lg px-4 py-3 border border-gray-200 shadow-sm">
+                                                            <span class="text-gray-500 text-sm">Alta Médica</span>
+                                                            <span class="font-semibold text-gray-900">{{ $dischargeInfo['dt_alta_medico_formatted'] ?? '-' }}</span>
                                                         </div>
+                                                        @if(!empty($dischargeInfo['dt_previsto_alta_formatted']))
+                                                            <div class="flex justify-between items-center bg-white rounded-lg px-4 py-3 border border-gray-200 shadow-sm">
+                                                                <span class="text-gray-500 text-sm">Previsão de Alta</span>
+                                                                <span class="font-semibold text-gray-900">{{ $dischargeInfo['dt_previsto_alta_formatted'] }}</span>
+                                                            </div>
+                                                        @endif
                                                     @endif
-                                                @endif
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -717,85 +795,100 @@
                                      x-cloak
                                      @click.self="showMdModal = false; document.body.style.overflow = ''"
                                      @keydown.escape.window="showMdModal = false; document.body.style.overflow = ''"
-                                     class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 overflow-y-auto modal-overlay"
+                                     class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                                      style="margin: 0 !important;"
                                 >
-                                    <div class="bg-white rounded-xl p-4 max-w-[95vw] w-[600px] max-h-[80vh] overflow-y-auto shadow-2xl animate-[modal-slide-in_0.2s_ease-out]" @click.stop>
-                                        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200">
-                                            <h3 class="text-base font-bold text-gray-800">
-                                                <i class="fas fa-users mr-2 text-[#004D9D]"></i>
-                                                Solicitações de Parecer / Consultorias Médica
-                                            </h3>
-                                            <button @click="showMdModal = false; document.body.style.overflow = ''" class="text-gray-500 hover:text-gray-700 transition-colors">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showMdModal = false; document.body.style.overflow = ''"></div>
+                                    <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[650px] flex flex-col"
+                                         @click.stop
+                                         x-show="showMdModal"
+                                         x-transition:enter="transition ease-out duration-300"
+                                         x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                         x-transition:leave="transition ease-in duration-200"
+                                         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                         x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                                        {{-- Header --}}
+                                        <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#004D9D] to-[#0071B9] flex-shrink-0">
+                                            <div class="flex items-center gap-2.5 min-w-0">
+                                                <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                                </svg>
+                                                <h3 class="text-base font-bold text-white">Solicitações de Parecer / Consultorias</h3>
+                                            </div>
+                                            <button @click="showMdModal = false; document.body.style.overflow = ''" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                 </svg>
                                             </button>
                                         </div>
 
-                                        <div class="space-y-3">
-                                            @foreach($mdRequests as $request)
-                                                @php
-                                                    // Mapeia o nome da equipe para o ícone correspondente
-                                                    $equipeIcon = match(true) {
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'fisio') => 'fisioterapia.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'psico') => 'psicologia.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'nutri') => 'nutricao.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'fono') => 'fonoaudiologia.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'social') => 'servico-social.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'acesso') => 'catheter-svgrepo-com.svg',
-                                                        str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'picc') => 'catheter-svgrepo-com.svg',
-                                                        default => null,
-                                                    };
-                                                @endphp
-                                                <div class="border rounded-lg p-3 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200' }}">
-                                                    {{-- Header com ícone --}}
-                                                    <div class="flex justify-between items-start mb-2">
-                                                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                                                            @if($equipeIcon)
-                                                                <img src="{{ asset('images/icons/patient-card/' . $equipeIcon) }}" class="w-5 h-5 flex-shrink-0" alt="" />
-                                                            @endif
-                                                            <span class="text-xs font-semibold text-gray-700">{{ $request['ds_equipe_destino'] ?? 'Equipe não identificada' }}</span>
+                                        {{-- Content --}}
+                                        <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
+                                            <div class="space-y-3">
+                                                @foreach($mdRequests as $request)
+                                                    @php
+                                                        // Mapeia o nome da equipe para o ícone correspondente
+                                                        $equipeIcon = match(true) {
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'fisio') => 'fisioterapia.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'psico') => 'psicologia.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'nutri') => 'nutricao.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'fono') => 'fonoaudiologia.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'social') => 'servico-social.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'acesso') => 'catheter-svgrepo-com.svg',
+                                                            str_contains(strtolower($request['ds_equipe_destino'] ?? ''), 'picc') => 'catheter-svgrepo-com.svg',
+                                                            default => null,
+                                                        };
+                                                    @endphp
+                                                    <div class="border rounded-lg p-4 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200' }}">
+                                                        {{-- Header com ícone --}}
+                                                        <div class="flex justify-between items-start mb-3">
+                                                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                                                @if($equipeIcon)
+                                                                    <img src="{{ asset('images/icons/patient-card/' . $equipeIcon) }}" class="w-5 h-5 flex-shrink-0" alt="" />
+                                                                @endif
+                                                                <span class="text-sm font-semibold text-gray-800">{{ $request['ds_equipe_destino'] ?? 'Equipe não identificada' }}</span>
+                                                            </div>
+                                                            <span class="text-xs px-2.5 py-1 rounded-full flex-shrink-0 ml-2 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white' }}">
+                                                                {{ $request['ds_status'] ?? $request['ie_status'] ?? '-' }}
+                                                            </span>
                                                         </div>
-                                                        <span class="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ml-2 {{ ($request['ie_status'] ?? '') === 'R' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white' }}">
-                                                            {{ $request['ds_status'] ?? $request['ie_status'] ?? '-' }}
-                                                        </span>
-                                                    </div>
 
-                                                    {{-- Requisitante e datas --}}
-                                                    <div class="text-[11px] text-gray-600 mb-2 space-y-0.5">
-                                                        <div><strong>Profissional requisitante:</strong> {{ $request['nm_requisitante'] ?? 'Não informado' }}</div>
-                                                        <div><strong>Data do registro:</strong> {{ $request['dt_registro'] ? date('d/m/Y H:i', strtotime($request['dt_registro'])) : 'N/A' }}</div>
-                                                        @if(!empty($request['dt_liberacao']))
-                                                            <div><strong>Data liberação:</strong> {{ date('d/m/Y H:i', strtotime($request['dt_liberacao'])) }}</div>
+                                                        {{-- Requisitante e datas --}}
+                                                        <div class="text-xs text-gray-600 mb-3 space-y-1">
+                                                            <div><strong>Profissional requisitante:</strong> {{ $request['nm_requisitante'] ?? 'Não informado' }}</div>
+                                                            <div><strong>Data do registro:</strong> {{ $request['dt_registro'] ? date('d/m/Y H:i', strtotime($request['dt_registro'])) : 'N/A' }}</div>
+                                                            @if(!empty($request['dt_liberacao']))
+                                                                <div><strong>Data liberação:</strong> {{ date('d/m/Y H:i', strtotime($request['dt_liberacao'])) }}</div>
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Pedido / Motivo da Consulta --}}
+                                                        @if(!empty($request['ds_motivo_consulta']))
+                                                            <div class="bg-white rounded-lg p-3 mb-3 border border-gray-200 shadow-sm">
+                                                                <div class="text-[10px] font-semibold text-gray-500 uppercase mb-1">Pedido / Motivo da Consulta:</div>
+                                                                <div class="text-sm text-gray-800 whitespace-pre-line">{{ $request['ds_motivo_consulta'] }}</div>
+                                                            </div>
+                                                        @endif
+
+                                                        {{-- Resposta / Parecer --}}
+                                                        @if(!empty($request['ds_parecer']))
+                                                            <div class="bg-green-50 rounded-lg p-3 border border-green-200">
+                                                                <div class="text-[10px] font-semibold text-green-700 uppercase mb-1">Resposta / Parecer:</div>
+                                                                <div class="text-sm text-gray-800 whitespace-pre-line">{{ $request['ds_parecer'] }}</div>
+                                                                @if(!empty($request['nm_responsavel_resposta']))
+                                                                    <div class="text-xs text-gray-600 mt-2 pt-2 border-t border-green-200">
+                                                                        <strong>Respondido por:</strong> {{ $request['nm_responsavel_resposta'] }}
+                                                                        @if(!empty($request['dt_resposta']))
+                                                                            em {{ date('d/m/Y H:i', strtotime($request['dt_resposta'])) }}
+                                                                        @endif
+                                                                    </div>
+                                                                @endif
+                                                            </div>
                                                         @endif
                                                     </div>
-
-                                                    {{-- Pedido / Motivo da Consulta --}}
-                                                    @if(!empty($request['ds_motivo_consulta']))
-                                                        <div class="bg-white rounded p-2 mb-2 border border-gray-200">
-                                                            <div class="text-[10px] font-semibold text-gray-500 uppercase mb-1">Pedido / Motivo da Consulta:</div>
-                                                            <div class="text-xs text-gray-800 whitespace-pre-line">{{ $request['ds_motivo_consulta'] }}</div>
-                                                        </div>
-                                                    @endif
-
-                                                    {{-- Resposta / Parecer --}}
-                                                    @if(!empty($request['ds_parecer']))
-                                                        <div class="bg-green-50 rounded p-2 border border-green-200">
-                                                            <div class="text-[10px] font-semibold text-green-700 uppercase mb-1">Resposta / Parecer:</div>
-                                                            <div class="text-xs text-gray-800 whitespace-pre-line">{{ $request['ds_parecer'] }}</div>
-                                                            @if(!empty($request['nm_responsavel_resposta']))
-                                                                <div class="text-[10px] text-gray-600 mt-1">
-                                                                    <strong>Respondido por:</strong> {{ $request['nm_responsavel_resposta'] }}
-                                                                    @if(!empty($request['dt_resposta']))
-                                                                        em {{ date('d/m/Y H:i', strtotime($request['dt_resposta'])) }}
-                                                                    @endif
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            @endforeach
+                                                @endforeach
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -921,37 +1014,43 @@
                     {{-- ── MODAL: todas as pendências com paginação por grupo ── --}}
                     <div x-show="showPendingModal"
                          x-cloak
-                         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+                         class="fixed inset-0 z-[9998] flex items-center justify-center p-0 sm:p-4"
                          x-transition:enter="transition ease-out duration-200"
-                         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
                          x-transition:leave="transition ease-in duration-150"
-                         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                         x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
                          @keydown.escape.window="showPendingModal = false; document.body.style.overflow = ''"
                     >
-                        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm"
+                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
                              @click="showPendingModal = false; document.body.style.overflow = ''"></div>
 
-                        <div class="relative w-full sm:max-w-[640px] bg-white rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col"
-                             style="height: 88vh; max-height: 88vh; min-height: 200px;"
-                             @click.stop>
+                        <div class="relative w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-[700px] bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                             @click.stop
+                             x-show="showPendingModal"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
 
                             {{-- Header --}}
-                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#004D9D] to-[#0071B9] rounded-t-2xl sm:rounded-t-xl flex-shrink-0">
+                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#004D9D] to-[#0071B9] flex-shrink-0">
                                 <div class="flex items-center gap-2.5 min-w-0">
-                                    <svg class="w-4 h-4 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                                     </svg>
                                     <div class="min-w-0">
-                                        <h3 class="text-sm font-bold text-white leading-tight">Pendências do Paciente</h3>
-                                        <p class="text-white/65 text-xs leading-tight truncate">{{ $patient['nm_pessoa_fisica'] ?? '' }} · {{ $totalPending }} item(ns)</p>
+                                        <h3 class="text-base font-bold text-white leading-tight">Pendências do Paciente</h3>
+                                        <p class="text-white/70 text-xs leading-tight truncate">{{ $patient['nm_pessoa_fisica'] ?? '' }} · {{ $totalPending }} item(ns)</p>
                                     </div>
                                 </div>
                                 <button @click="showPendingModal = false; document.body.style.overflow = ''"
                                         title="Fechar"
-                                        class="p-1.5 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors flex-shrink-0">
+                                        class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors flex-shrink-0">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
@@ -977,19 +1076,19 @@
                                             'previsao_alta' => 'Previsão de Alta',
                                             default         => ucfirst($groupTipo),
                                         };
-                                        // Cor do grupo baseada na paleta Santa Casa / status clínico
+                                        // Cor do grupo - DEVE SER IGUAL ao card "Próxima Pendência" (linhas ~926-951)
                                         [$gBorderHdr, $gBgHdr, $gTxtHdr, $gBorderCard, $gBgCard] = match($groupTipo) {
-                                            'aviso'         => ['border-red-300',          'bg-red-50',         'text-red-800',        'border-red-200',    'bg-red-50/50'],
-                                            'exame'         => ['border-[#0071B9]/40',      'bg-[#0071B9]/8',    'text-[#004D9D]',      'border-[#0071B9]/25','bg-[#0071B9]/5'],
-                                            'procedimento'  => ['border-[#004D9D]/40',      'bg-[#004D9D]/8',    'text-[#062047]',      'border-[#004D9D]/25','bg-[#004D9D]/5'],
-                                            'cirurgia'      => ['border-purple-200',        'bg-purple-50/70',   'text-purple-800',     'border-purple-200', 'bg-purple-50/40'],
-                                            'hemoterapia'   => ['border-red-200',           'bg-red-50/70',      'text-red-800',        'border-red-200',    'bg-red-50/40'],
-                                            'quimioterapia' => ['border-pink-200',          'bg-pink-50/70',     'text-pink-800',       'border-pink-200',   'bg-pink-50/40'],
-                                            'antibiotico'   => ['border-emerald-200',       'bg-emerald-50/70',  'text-emerald-800',    'border-emerald-200','bg-emerald-50/40'],
-                                            'alta'          => ['border-emerald-300',       'bg-emerald-100',    'text-emerald-800',    'border-emerald-200','bg-emerald-50/60'],
-                                            'alta_medica'   => ['border-blue-300',          'bg-blue-100',       'text-blue-800',       'border-blue-200',   'bg-blue-50/60'],
-                                            'previsao_alta' => ['border-orange-300',        'bg-orange-100',     'text-orange-800',     'border-orange-200', 'bg-orange-50/60'],
-                                            default         => ['border-gray-200',          'bg-gray-50',        'text-gray-700',       'border-gray-200',   'bg-gray-50/50'],
+                                            'aviso'         => ['border-red-300',          'bg-red-50/90',      'text-red-700',        'border-red-300',    'bg-red-50/50'],
+                                            'alta'          => ['border-red-300',          'bg-red-50/90',      'text-red-700',        'border-red-300',    'bg-red-50/50'],
+                                            'exame'         => ['border-blue-200',         'bg-blue-50/60',     'text-blue-700',       'border-blue-200',   'bg-blue-50/40'],
+                                            'procedimento'  => ['border-[#004D9D]/25',     'bg-[#004D9D]/5',    'text-[#062047]',      'border-[#004D9D]/20','bg-[#004D9D]/5'],
+                                            'cirurgia'      => ['border-purple-200',       'bg-purple-50/60',   'text-purple-700',     'border-purple-200', 'bg-purple-50/40'],
+                                            'hemoterapia'   => ['border-red-200',          'bg-red-50/70',      'text-red-700',        'border-red-200',    'bg-red-50/40'],
+                                            'quimioterapia' => ['border-pink-200',         'bg-pink-50/70',     'text-pink-700',       'border-pink-200',   'bg-pink-50/40'],
+                                            'antibiotico'   => ['border-emerald-200',      'bg-emerald-50/70',  'text-emerald-700',    'border-emerald-200','bg-emerald-50/40'],
+                                            'alta_medica'   => ['border-blue-300',         'bg-blue-50/90',     'text-blue-700',       'border-blue-300',   'bg-blue-50/60'],
+                                            'previsao_alta' => ['border-orange-200',       'bg-orange-50/70',   'text-orange-700',     'border-orange-200', 'bg-orange-50/40'],
+                                            default         => ['border-gray-200',         'bg-white/30',       'text-[#062047]',      'border-gray-200',   'bg-gray-50/50'],
                                         };
                                     @endphp
                                     <div x-data="{ page: 1, perPage: {{ $perPage }}, total: {{ $groupCount }} }"

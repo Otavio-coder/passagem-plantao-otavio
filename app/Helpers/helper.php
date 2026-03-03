@@ -471,353 +471,42 @@ if ( !function_exists( 'attendanceSession' ) ) {
 
 }
 
-function extractScaleScore($scaleValue) {
-    // Se é null ou vazio, retorna null
-    if ($scaleValue === null || $scaleValue === '') {
-        return null;
-    }
-
-    // Se já é um número, retorna como inteiro
-    if (is_numeric($scaleValue)) {
-        return intval($scaleValue);
-    }
-
-    // Se é string, tenta extrair o número
-    if (is_string($scaleValue)) {
-        // Padrões de busca por score
-        $patterns = [
-            '/:\s*(\d+)/',           // "Braden: 15"
-            '/Score:\s*(\d+)/',      // "Score: 5"
-            '/Pontos:\s*(\d+)/',     // "Pontos: 3"
-            '/^(\d+)$/',             // "15" (número puro)
-            '/\b(\d+)\b/'            // qualquer número isolado
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $scaleValue, $matches)) {
-                return intval($matches[1]);
-            }
-        }
-    }
-
-    return null;
-}
-
-/**
- * MEWS Risk Styling
- * ≥5: Crítico (vermelho escuro)
- * 4: Alto (laranja)
- * 3: Alerta (amarelo)
- * 0-2: Normal (cinza claro)
- */
-function getMewsRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num >= 5) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num == 4) {
-        return ['bg'=>'bg-orange-100','border'=>'border-orange-300','text'=>$textColor];
-    } elseif ($num == 3) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-}
-
-/**
- * PEWS Risk Styling (Pediátrico)
- * ≥4: Alto (vermelho)
- * 2-3: Moderado (amarelo)
- * 0-1: Normal (cinza claro)
- */
-function getPewsRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num >= 4) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num >= 2) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-}
-
-/**
- * Braden Risk Styling
- * ≤12: Alto Risco (vermelho)
- * 13-14: Moderado (amarelo)
- * 15-18: Leve (cinza)
- * 19-23: Sem risco (verde claro)
- */
-function getBradenRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num <= 12) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num <= 14) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } elseif ($num <= 18) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-green-50','border'=>'border-green-300','text'=>$textColor];
-    }
-}
-
-/**
- * Morse Risk Styling
- * ≥45: Alto (vermelho)
- * 25-44: Moderado (amarelo)
- * <25: Baixo (cinza)
- */
-function getMorseRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num >= 45) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num >= 25) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-}
-
-/**
- * Pain Scale Styling
- * ≥7: Intensa (vermelho)
- * 4-6: Moderada (amarelo)
- * 1-3: Leve (cinza)
- * 0: Sem dor (verde claro)
- */
-function getPainRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num >= 7) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num >= 4) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } elseif ($num >= 1) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-green-50','border'=>'border-green-300','text'=>$textColor];
-    }
-}
-
-/**
- * TEV Risk Styling
- * ≥7: Alto (vermelho)
- * 3-6: Moderado (amarelo)
- * 0-2: Baixo (cinza)
- */
-function getTevRiskStyling($score, $forceNormalText = false) {
-    $num = extractScaleScore($score);
-    if ($num === null) {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>'text-gray-800'];
-    }
-
-    $textColor = $forceNormalText ? 'text-gray-800' : 'text-gray-800';
-
-    if ($num >= 7) {
-        return ['bg'=>'bg-red-100','border'=>'border-red-300','text'=>$textColor];
-    } elseif ($num >= 3) {
-        return ['bg'=>'bg-yellow-100','border'=>'border-yellow-300','text'=>$textColor];
-    } else {
-        return ['bg'=>'bg-gray-50','border'=>'border-gray-300','text'=>$textColor];
-    }
-}
-
-
-
 if (!function_exists('getCurrentShift')) {
-    /**
-     * Retorna o turno atual como 'M', 'T' ou 'N'
-     * Opcionalmente aceita uma $time string parseable pelo Carbon
-     */
+    /** Wrapper global — delega para ShiftService */
     function getCurrentShift($time = null)
     {
-        try {
-            $dt = $time ? \Carbon\Carbon::parse($time) : now();
-        } catch (\Exception $e) {
-            $dt = now();
-        }
-
-        $minutes = $dt->hour * 60 + $dt->minute;
-
-        // Manhã: 07:15 - 13:14 (435 - 794)
-        // Tarde: 13:15 - 19:14 (795 - 1154)
-        // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
-        if ($minutes >= 435 && $minutes <= 794) {
-            return 'M';
-        } elseif ($minutes >= 795 && $minutes <= 1154) {
-            return 'T';
-        } else {
-            return 'N';
-        }
+        return \App\Services\ShiftService::getCurrentShift($time);
     }
 }
 
 if (!function_exists('getShiftDateForSession')) {
-    /**
-     * Retorna a data correta para a sessão de chat baseada no turno.
-     * Para o turno da noite (19h-07h), se estiver entre 00:00 e 07:00,
-     * a data deve ser do dia anterior (quando o turno começou).
-     *
-     * @param \Carbon\Carbon|null $dateTime
-     * @return string Data no formato Y-m-d
-     */
+    /** Wrapper global — delega para ShiftService */
     function getShiftDateForSession($dateTime = null)
     {
-        $dt = $dateTime ? \Carbon\Carbon::parse($dateTime) : now();
-        $hour = $dt->hour;
-
-        // Se está entre 00:00 e 06:59, pertence ao turno da noite do dia anterior
-        if ($hour >= 0 && $hour < 7) {
-            return $dt->copy()->subDay()->toDateString();
-        }
-
-        return $dt->toDateString();
+        return \App\Services\ShiftService::getShiftDateForSession($dateTime);
     }
 }
 
 if (!function_exists('getShiftInfo')) {
-    /**
-     * Retorna informações completas do turno: shift_id, data_sessao
-     * Corrige a lógica do turno da noite que começa em um dia e termina no próximo.
-     *
-     * Turnos:
-     * - Manhã (manha): 07:00 - 13:00
-     * - Tarde (tarde): 13:00 - 19:00
-     * - Noite (noite): 19:00 - 07:00 (próximo dia)
-     *
-     * @param \Carbon\Carbon|null $dateTime
-     * @return array ['shift' => string, 'date' => string]
-     */
+    /** Wrapper global — delega para ShiftService */
     function getShiftInfo($dateTime = null)
     {
-        $dt = $dateTime ? \Carbon\Carbon::parse($dateTime) : now();
-        $hour = $dt->hour;
-
-        // Determina o turno
-        if ($hour >= 7 && $hour < 13) {
-            $shift = 'morning';
-            $date = $dt->toDateString();
-        } elseif ($hour >= 13 && $hour < 19) {
-            $shift = 'afternoon';
-            $date = $dt->toDateString();
-        } else {
-            // Night shift
-            $shift = 'night';
-            // Se entre 00:00 e 06:59, o turno começou ontem
-            if ($hour >= 0 && $hour < 7) {
-                $date = $dt->copy()->subDay()->toDateString();
-            } else {
-                // Se entre 19:00 e 23:59, o turno começou hoje
-                $date = $dt->toDateString();
-            }
-        }
-
-        return [
-            'shift' => $shift,
-            'date' => $date
-        ];
+        return \App\Services\ShiftService::getShiftInfo($dateTime);
     }
 }
 
-function getMewsCardGradient($score, $isNewPatient = false) {
-    $num = extractScaleScore($score);
-
-    // Paciente novo sempre verde
-    if ($isNewPatient) {
-        return [
-            'gradient' => 'from-green-50 to-green-100',
-            'border' => 'border-2 border-green-400',
-            'text' => 'text-green-800'
-        ];
+if (!function_exists('getMewsCardGradient')) {
+    /** Wrapper global — delega para ScaleStyleHelper */
+    function getMewsCardGradient($score, $isNewPatient = false)
+    {
+        return \App\Support\Scales\ScaleStyleHelper::mewsCardGradient($score, $isNewPatient);
     }
-
-    // Sem MEWS - azul claro padrão
-    if ($num === null) {
-        return [
-            'gradient' => 'from-blue-50 to-blue-100',
-            'border' => 'border border-gray-300',
-            'text' => 'text-gray-800'
-        ];
-    }
-
-    // MEWS ≥ 5: Vermelho intenso
-    if ($num >= 5) {
-        return [
-            'gradient' => 'from-red-100 to-red-200',
-            'border' => 'border-2 border-red-500',
-            'text' => 'text-red-900'
-        ];
-    }
-
-    // MEWS = 4: Laranja
-    if ($num == 4) {
-        return [
-            'gradient' => 'from-orange-100 to-orange-200',
-            'border' => 'border-2 border-orange-500',
-            'text' => 'text-orange-900'
-        ];
-    }
-
-    // MEWS = 3: Amarelo
-    if ($num == 3) {
-        return [
-            'gradient' => 'from-yellow-100 to-yellow-200',
-            'border' => 'border-2 border-yellow-500',
-            'text' => 'text-yellow-900'
-        ];
-    }
-
-    // MEWS 0-2: Azul claro (normal)
-    return [
-        'gradient' => 'from-blue-50 to-blue-100',
-        'border' => 'border border-blue-300',
-        'text' => 'text-gray-800'
-    ];
 }
 
 if (!function_exists('getShiftFromTimestamp')) {
-    /**
-     * Retorna o turno (M/T/N) a partir de um timestamp d/m/Y H:i
-     */
+    /** Wrapper global — delega para ShiftService */
     function getShiftFromTimestamp($timestamp)
     {
-        try {
-            $dt = \Carbon\Carbon::createFromFormat('d/m/Y H:i', $timestamp);
-        } catch (\Exception $e) {
-            return null;
-        }
-        $minutes = $dt->hour * 60 + $dt->minute;
-        if ($minutes >= 435 && $minutes <= 794) return 'M';
-        if ($minutes >= 795 && $minutes <= 1154) return 'T';
-        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) return 'N';
-        return null;
+        return \App\Services\ShiftService::getShiftFromTimestamp($timestamp);
     }
 }

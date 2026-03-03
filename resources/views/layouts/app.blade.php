@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
         <meta name="sbar-user-full-name" content="{{ auth()->user()->name }}">
     @endauth
@@ -71,7 +72,7 @@
     <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
             <div class="flex-shrink-0">
-                <img src="/images/icons/icon-72x72.png"
+                <img src="/images/logo-santacasa-app.png""
                      alt="Passagem de Plantão"
                      class="w-10 h-10 rounded-xl shadow-sm">
             </div>

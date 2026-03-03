@@ -66,7 +66,7 @@
                        shadow-2xl"
                 x-data="{
                     activeTab: 'tab-s',
-                    activeCpoeCategory: 'cpoe-exames',
+                    activeRecomendacaoTab: 'tab-proc',
                     currentTabIndex: 0,
                     tabs: ['tab-s', 'tab-b', 'tab-a', 'tab-r'],
                     isSwipeEnabled: window.innerWidth < 1024,

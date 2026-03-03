@@ -1,3 +1,5 @@
+@blaze(fold: true)
+
 <div class="bg-gray-100 px-4 sm:px-6 py-3 sm:py-4 flex justify-end border-t border-gray-200 flex-shrink-0 rounded-b-2xl">
     <button 
         @click="showModal = false; setTimeout(() => $wire.closeModal(), 150)"

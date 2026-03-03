@@ -58,8 +58,8 @@ return [
 
     'logging' => [
         'enabled' => env('LDAP_LOGGING', true),
-        'channel' => env('LOG_CHANNEL', 'stack'),
-        'level' => env('LOG_LEVEL', 'info'),
+        'channel' => env('LDAP_LOG_CHANNEL', env('LOG_CHANNEL', 'stack')),
+        'level' => env('LDAP_LOG_LEVEL', 'info'),
     ],
 
     /*

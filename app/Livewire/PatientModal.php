@@ -18,9 +18,9 @@ class PatientModal extends Component
     public $currentShift = 'morning';
     public $loadingPatient = false;
 
-    public $cpoeLoaded = false;
-    public $cpoeLoading = false;
-    public $cpoeExpanded = false;
+    public $prescLoaded = false;
+    public $prescLoading = false;
+    public $prescExpanded = false;
 
     // Model centralizada
     protected $patientModel;
@@ -153,25 +153,25 @@ class PatientModal extends Component
     }
 
     /**
-     * Recebe dados CPOE pré-buscados via fetch() no cliente.
+     * Recebe dados de recomendações pré-buscados via fetch() no cliente.
      * Evita que o Livewire faça a query pesada no Oracle — a query já foi
-     * feita pelo PatientCpoeController e o resultado JSON é passado aqui.
+     * feita pelo PatientRecomendacoesController e o resultado JSON é passado aqui.
      */
-    public function receiveCpoeData(array $cpoeData): void
+    public function receiveRecomendacoesData(array $data): void
     {
         if (!$this->patientDetails) {
             return;
         }
 
-        $this->patientDetails->cpoe_procedures      = $cpoeData['cpoe_procedures']      ?? null;
-        $this->patientDetails->cpoe_medications     = $cpoeData['cpoe_medications']     ?? null;
-        $this->patientDetails->cpoe_nutrition       = $cpoeData['cpoe_nutrition']       ?? null;
-        $this->patientDetails->cpoe_recommendations = $cpoeData['cpoe_recommendations'] ?? null;
-        $this->patientDetails->cpoe_interventions   = $cpoeData['cpoe_interventions']   ?? null;
+        $this->patientDetails->procedimentos = $data['procedimentos'] ?? null;
+        $this->patientDetails->medicamentos  = $data['medicamentos']  ?? null;
+        $this->patientDetails->nutricao      = $data['nutricao']      ?? null;
+        $this->patientDetails->recomendacoes = $data['recomendacoes'] ?? null;
+        $this->patientDetails->intervencoes  = $data['intervencoes']  ?? null;
 
-        $this->cpoeLoaded   = true;
-        $this->cpoeExpanded = true;
-        $this->cpoeLoading  = false;
+        $this->prescLoaded   = true;
+        $this->prescExpanded = true;
+        $this->prescLoading  = false;
     }
 
     private function loadPatientData($attendanceNumber)
@@ -180,7 +180,6 @@ class PatientModal extends Component
             // Limpa cache antes de buscar dados atualizados
             $this->patientModel->clearPatientCache($attendanceNumber);
 
-            // ✅ Busca dados completos do paciente SEM CPOE (mais rápido)
             $this->patientDetails = $this->patientModel->getFullPatientDataWithoutCPOE($attendanceNumber);
 
             if ($this->patientDetails) {
@@ -292,9 +291,9 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
 
-        $this->cpoeLoaded = false;
-        $this->cpoeLoading = false;
-        $this->cpoeExpanded = false;
+        $this->prescLoaded = false;
+        $this->prescLoading = false;
+        $this->prescExpanded = false;
     }
 
     public function refreshPatientData()
@@ -309,11 +308,9 @@ class PatientModal extends Component
         // Limpa cache antes de recarregar
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
 
-        // ✅ Se CPOE estava carregado, limpa também
-        if ($this->cpoeLoaded) {
-            $this->cpoeData = null;
-            $this->cpoeLoaded = false;
-            $this->cpoeExpanded = false;
+        if ($this->prescLoaded) {
+            $this->prescLoaded = false;
+            $this->prescExpanded = false;
         }
 
         $this->loadPatientData($this->currentPatient['nr_atendimento']);

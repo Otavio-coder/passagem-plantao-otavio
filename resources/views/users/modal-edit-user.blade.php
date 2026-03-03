@@ -1,87 +1,144 @@
-<div id="modal-edit-user" class="fixed z-50 inset-0 overflow-y-auto hidden">
+<div id="modal-edit-user" class="fixed inset-0 z-[9998] hidden" x-data="{ open: false }" x-init="
+    $el._show = () => { open = true; document.body.style.overflow = 'hidden'; };
+    $el._hide = () => { open = false; document.body.style.overflow = ''; };
+">
+    <div
+        x-show="open"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="absolute inset-0"
+    >
+        {{-- Backdrop --}}
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$el._hide()"></div>
 
-    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:px-4">
+        {{-- Container do Modal --}}
+        <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
+            <div
+                class="relative bg-white flex flex-col overflow-hidden
+                       w-full h-full
+                       sm:w-[95vw] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl
+                       lg:w-[600px]
+                       shadow-2xl"
+                @click.stop
+                x-show="open"
+                x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+            >
+                {{-- Header --}}
+                <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#004D9D] to-[#0071B9] flex-shrink-0">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        <h2 class="text-base font-bold text-white leading-tight">Editar Usuário</h2>
+                    </div>
+                    <button @click="$el._hide()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
 
-        <div style="z-index: -1;" class="fixed inset-0 transition-opacity">
-            <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
-        </div>
+                {{-- Content --}}
+                <form action="{{ route('users.update') }}" method="post" class="flex-1 overflow-y-auto min-h-0">
+                    @csrf
+                    <input type="hidden" name="user_id" id="user_id" />
+                    <input type="hidden" name="edit_profile_present" value="1" />
 
-        <!-- This element is to trick the browser into centering the modal contents. -->
-        <span class="hidden sm:inline-block align-middle sm:h-screen"></span>&#8203;
+                    <div class="p-4 space-y-4">
+                        {{-- Nome --}}
+                        <div>
+                            <label for="edit_name" class="block text-sm font-medium text-gray-700 mb-1">Nome <span class="text-red-500">*</span></label>
+                            <input
+                                type="text"
+                                name="name"
+                                id="edit_name"
+                                readonly
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 text-sm focus:outline-none"
+                            >
+                        </div>
 
-        <div class="inline-block align-middle bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 w-full lg:w-1/2" role="dialog" aria-modal="true" aria-labelledby="modal-headline">
-
-            <div id="modal-content" class="bg-white p-3">
-                <p class="sm:text-sm text-gray-600 font-medium uppercase">Editar usuário</p>
-            </div>
-
-            <form action="{{ route( 'users.update' ) }}" method="post">
-
-                @csrf
-
-                <input type="hidden" name="user_id" id="user_id" />
-                <!-- Hidden flag to indicate profile editing was submitted (allows removing all roles) -->
-                <input type="hidden" name="edit_profile_present" value="1" />
-
-                <div class="w-full text-gray-600">
-
-                    <div class="px-4 py-5 bg-white sm:px-6">
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-
-                            <div class="">
-                                <label for="edit_name" class="block text-sm font-medium text-gray-700">Nome *</label>
-                                <input readonly type="text" name="name" id="edit_name" class="mt-1 border bg-gray-100 border-gray-300 px-3 py-2 rounded shadow-sm sm:text-sm block w-full focus:outline-none focus:border-blue-500 hover:border-blue-500">
+                        {{-- Username e Email --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="edit_username" class="block text-sm font-medium text-gray-700 mb-1">Usuário <span class="text-red-500">*</span></label>
+                                <input
+                                    type="text"
+                                    name="email"
+                                    id="edit_username"
+                                    readonly
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 text-sm focus:outline-none"
+                                >
                             </div>
-
-                            <div class="">
-                                <label for="edit_username" class="block text-sm font-medium text-gray-700">Usuário *</label>
-                                <input readonly type="text" name="email" id="edit_username" class="mt-1 border bg-gray-100 border-gray-300 px-3 py-2 rounded shadow-sm sm:text-sm block w-full focus:outline-none focus:border-blue-500 hover:border-blue-500">
+                            <div>
+                                <label for="edit_email" class="block text-sm font-medium text-gray-700 mb-1">E-mail <span class="text-red-500">*</span></label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    id="edit_email"
+                                    readonly
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 text-sm focus:outline-none"
+                                >
                             </div>
+                        </div>
 
-                            <div class="">
-                                <label for="edit_email" class="block text-sm font-medium text-gray-700">E-mail *</label>
-                                <input readonly type="email" name="email" id="edit_email" class="mt-1 border bg-gray-100 border-gray-300 px-3 py-2 rounded shadow-sm sm:text-sm block w-full focus:outline-none focus:border-blue-500 hover:border-blue-500">
-                            </div>
+                        {{-- Status --}}
+                        <div>
+                            <label for="edit_status" class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
+                            <select
+                                name="status"
+                                id="edit_status"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#004D9D] focus:border-[#004D9D] bg-white"
+                            >
+                                <option value="A">Ativo</option>
+                                <option value="I">Inativo</option>
+                            </select>
+                        </div>
 
-                            <div class="">
-                                <label for="edit_status" class="block text-sm font-medium text-gray-700">Status *</label>
-                                <select class="mt-1 p-2 text-sm border border-solid border-gray-300 rounded shadow-sm hover:border-blue-500 w-full md:w-1/2 focus:outline-none" name="status" id="edit_status">
-                                    <option value="A">Ativo</option>
-                                    <option value="I">Inativo</option>
-                                </select>
-                            </div>
-
-                            <div class="">
-                                <label for="profile" class="block text-sm font-medium text-gray-700">Perfil *</label>
-                                <select multiple class="mt-1 p-2 text-sm border border-solid border-gray-300 rounded shadow-sm hover:border-blue-500 w-full md:w-1/2 focus:outline-none" name="edit_profile[]" id="edit_profile">
-                                    @foreach( $roles as $role )
-                                        <option value="{{ $role->name }}" id="edit-profile-{{ $role->name }}">{{ $role->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
+                        {{-- Perfil --}}
+                        <div>
+                            <label for="edit_profile" class="block text-sm font-medium text-gray-700 mb-1">Perfil <span class="text-red-500">*</span></label>
+                            <select
+                                multiple
+                                name="edit_profile[]"
+                                id="edit_profile"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#004D9D] focus:border-[#004D9D] bg-white min-h-[120px]"
+                            >
+                                @foreach($roles as $role)
+                                    <option value="{{ $role->name }}" id="edit-profile-{{ $role->name }}">{{ $role->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Segure Ctrl (ou Cmd) para selecionar múltiplos perfis</p>
                         </div>
                     </div>
+                </form>
 
+                {{-- Footer --}}
+                <div class="px-4 py-3 border-t border-gray-200 bg-gray-100 flex-shrink-0 flex justify-end gap-3">
+                    <button
+                        type="button"
+                        @click="$el._hide()"
+                        class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        form="modal-edit-user"
+                        class="px-5 py-2 text-sm font-semibold text-white bg-[#004D9D] hover:bg-[#003d7a] rounded-lg transition-colors shadow"
+                    >
+                        Salvar Alterações
+                    </button>
                 </div>
-
-                <div class="flex justify-center">
-                    <div class="flex px-3 pt-2 pb-2">
-                        <button type="submit" class="bg-santacasa-100 text-white px-4 py-1 mt-2 hover:bg-santacasa-200 rounded">
-                            Atualizar
-                        </button>
-                    </div>
-                    <div class="flex px-3 pt-2 pb-2">
-                        <a href="#" onclick="event.preventDefault();closeModal('modal-edit-user');" class="bg-gray-600 text-white px-4 py-1 mt-2 border border-gray-600 hover:bg-gray-800 rounded">
-                            Fechar
-                        </a>
-                    </div>
-                </div>
-
-            </form>
-
+            </div>
         </div>
-
     </div>
 </div>

@@ -20,10 +20,7 @@ class Mews extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getMewsRiskStyling')) {
-            return getMewsRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::mewsRisk(self::extractScore($score), false);
     }
 
 }

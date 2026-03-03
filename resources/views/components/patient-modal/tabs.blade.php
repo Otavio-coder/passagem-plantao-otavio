@@ -1,3 +1,5 @@
+@blaze(fold: true)
+
 <div class="bg-white">
     <nav class="flex overflow-x-auto scrollbar-hide">
         {{-- S - Situação --}}

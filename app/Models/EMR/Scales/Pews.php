@@ -20,10 +20,7 @@ class Pews extends BaseScale
 
     public static function stylingFromScore($score)
     {
-        if (function_exists('getPewsRiskStyling')) {
-            return getPewsRiskStyling(self::extractScore($score), false);
-        }
-        return self::stylingFallback();
+        return \App\Support\Scales\ScaleStyleHelper::pewsRisk(self::extractScore($score), false);
     }
 
 }

@@ -1,3 +1,5 @@
+@blaze(fold: true)
+
 @props([
     'bg' => 'bg-white',
     'text' => 'text-black',

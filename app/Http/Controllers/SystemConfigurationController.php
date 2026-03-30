@@ -41,7 +41,7 @@ class SystemConfigurationController extends Controller
         // Códigos de setores selecionados pelo usuário
         $selectedSectors = $userPreferences->keys()->toArray();
 
-        return view('system-configuration.index', [
+        return view('configuration.system.index', [
             'sectorsByHospital' => $sectorsByHospital,
             'selectedSectors' => $selectedSectors,
             'userPreferences' => $userPreferences,

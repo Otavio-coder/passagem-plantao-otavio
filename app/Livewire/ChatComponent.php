@@ -22,6 +22,9 @@ class ChatComponent extends Component
     public $loadingMessages = false;
     public $sendingMessage  = false;
 
+    public $hasOlderMessages  = false;
+    public $hasArchivedHistory = false;
+
     public $currentUser;
     public $initialized = false;
 
@@ -63,11 +66,14 @@ class ChatComponent extends Component
                 'componentId' => $this->getId(),
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('[Chat] Erro na inicialização:', [
                 'patient_id' => $this->patientId,
                 'error'      => $e->getMessage(),
             ]);
+            // Marca como inicializado mesmo em caso de erro para evitar spinner infinito.
+            // O array $messages fica vazio e o blade exibe estado vazio.
+            $this->initialized = true;
         } finally {
             $this->loadingMessages = false;
         }
@@ -112,6 +118,7 @@ class ChatComponent extends Component
             ]);
 
             $this->dispatch('scroll-to-bottom');
+            $this->dispatch('handover-updated', nr: $this->patientId);
 
             Log::channel('audit')->info('chat.message.sent', [
                 'user_id'    => $this->currentUser['id'],
@@ -301,6 +308,9 @@ class ChatComponent extends Component
         try {
             $repo        = new ChatRepository();
             $allMessages = $repo->getAllMessages($this->patientId, 300);
+
+            $this->hasOlderMessages   = $repo->hasOlderMessages($this->patientId);
+            $this->hasArchivedHistory = $repo->hasArchivedHistory($this->patientId);
 
             if ($allMessages->isEmpty()) {
                 $this->messages = [];
@@ -646,6 +656,6 @@ class ChatComponent extends Component
 
     public function render()
     {
-        return view('livewire.chat-component');
+        return view('chat.chat-component');
     }
 }

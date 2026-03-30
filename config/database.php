@@ -112,6 +112,19 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'mysql_prod' => [
+            'driver'    => 'mysql',
+            'host'      => env('DB_HOST2', '127.0.0.1'),
+            'port'      => env('DB_PORT2', '3306'),
+            'database'  => env('DB_DATABASE2', 'laravel'),
+            'username'  => env('DB_USERNAME2', 'root'),
+            'password'  => env('DB_PASSWORD2', ''),
+            'charset'   => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix'    => '',
+            'strict'    => false,
+        ],
+
         'tasy' => [
             'driver' => 'oracle',
             'host' => env( 'DB_TASY_HOST' ),

@@ -19,63 +19,75 @@ return new class extends Migration
 
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
 
-        // ── chat_messages ────────────────────────────────────────────────────
-        Schema::create('chat_messages', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('nr_atendimento', 50)->index();
-            $table->string('cd_pessoa_fisica', 50)->nullable()->index();
-            $table->unsignedBigInteger('user_id')->index();
-            $table->mediumText('content');
-            $table->timestamp('created_at')->useCurrent();
-            $table->timestamp('updated_at')->nullable()->useCurrentOnUpdate();
+        // As tabelas abaixo podem já existir se a migration de preparação
+        // (2026_03_13_..._create_new_chat_tables_without_dropping_old) rodou
+        // antes (fluxo de migração de produção com importação de dados).
 
-            $table->index(['nr_atendimento', 'created_at']);
-        });
+        // ── chat_messages ────────────────────────────────────────────────────
+        if (!Schema::hasTable('chat_messages')) {
+            Schema::create('chat_messages', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('nr_atendimento', 50)->index();
+                $table->string('cd_pessoa_fisica', 50)->nullable()->index();
+                $table->unsignedBigInteger('user_id')->index();
+                $table->mediumText('content');
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->nullable()->useCurrentOnUpdate();
+
+                $table->index(['nr_atendimento', 'created_at']);
+            });
+        }
 
         // ── chat_reactions ───────────────────────────────────────────────────
-        Schema::create('chat_reactions', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->foreignId('message_id')
-                ->constrained('chat_messages')
-                ->onDelete('cascade');
-            $table->unsignedBigInteger('user_id');
-            $table->string('type', 20)->default('check');
-            $table->timestamp('created_at')->useCurrent();
+        if (!Schema::hasTable('chat_reactions')) {
+            Schema::create('chat_reactions', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->foreignId('message_id')
+                    ->constrained('chat_messages')
+                    ->onDelete('cascade');
+                $table->unsignedBigInteger('user_id');
+                $table->string('type', 20)->default('check');
+                $table->timestamp('created_at')->useCurrent();
 
-            $table->unique(['message_id', 'user_id']);
-            $table->index('message_id');
-        });
+                $table->unique(['message_id', 'user_id']);
+                $table->index('message_id');
+            });
+        }
 
         // ── chat_message_pins ────────────────────────────────────────────────
-        Schema::create('chat_message_pins', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->foreignId('message_id')
-                ->constrained('chat_messages')
-                ->onDelete('cascade');
-            $table->string('nr_atendimento', 50)->index();
-            $table->unsignedBigInteger('pinned_by');
-            $table->timestamp('pinned_at')->useCurrent();
-            $table->timestamp('unpinned_at')->nullable();
-            $table->unsignedBigInteger('unpinned_by')->nullable();
+        if (!Schema::hasTable('chat_message_pins')) {
+            Schema::create('chat_message_pins', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->foreignId('message_id')
+                    ->constrained('chat_messages')
+                    ->onDelete('cascade');
+                $table->string('nr_atendimento', 50)->index();
+                $table->unsignedBigInteger('pinned_by');
+                $table->timestamp('pinned_at')->useCurrent();
+                $table->timestamp('unpinned_at')->nullable();
+                $table->unsignedBigInteger('unpinned_by')->nullable();
 
-            // Index for fast "active pin" query: WHERE unpinned_at IS NULL
-            $table->index(['nr_atendimento', 'unpinned_at']);
-        });
+                // Index for fast "active pin" query: WHERE unpinned_at IS NULL
+                $table->index(['nr_atendimento', 'unpinned_at']);
+            });
+        }
 
         // ── user_sector_preferences ──────────────────────────────────────────
-        Schema::create('user_sector_preferences', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->foreignId('user_id')
-                ->constrained('users')
-                ->onDelete('cascade');
-            $table->string('sector_code');
-            $table->string('sector_name')->nullable();
-            $table->string('hospital_code')->nullable();
-            $table->string('hospital_name')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+        if (!Schema::hasTable('user_sector_preferences')) {
+            Schema::create('user_sector_preferences', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->foreignId('user_id')
+                    ->constrained('users')
+                    ->onDelete('cascade');
+                $table->string('sector_code');
+                $table->string('sector_name')->nullable();
+                $table->string('hospital_code')->nullable();
+                $table->string('hospital_name')->nullable();
+                $table->timestamp('created_at')->useCurrent();
 
-            $table->unique(['user_id', 'sector_code']);
-        });
+                $table->unique(['user_id', 'sector_code']);
+            });
+        }
     }
 
     public function down(): void

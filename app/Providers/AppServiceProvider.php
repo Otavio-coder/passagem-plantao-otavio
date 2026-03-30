@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Blaze\Blaze;
@@ -13,7 +14,8 @@ use App\Repositories\EMR\{
     PatientMultidisciplinaryRepository,
     PatientPrescricoesRepository,
     PatientScalesRepository,
-    PatientSurgeryRepository
+    PatientSurgeryRepository,
+    PatientTherapeuticPlanRepository
 };
 
 class AppServiceProvider extends ServiceProvider
@@ -32,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PatientSurgeryRepository::class, PatientSurgeryRepository::class);
         $this->app->bind(PatientMultidisciplinaryRepository::class, PatientMultidisciplinaryRepository::class);
         $this->app->bind(PatientExamsRepository::class, PatientExamsRepository::class);
+        $this->app->bind(PatientTherapeuticPlanRepository::class, PatientTherapeuticPlanRepository::class);
     }
 
     /**
@@ -40,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Blaze::optimize()->in(resource_path('views/components'));
+
+        Blade::anonymousComponentNamespace('sbar.patient.modal', 'patient-modal');
+        Blade::anonymousComponentNamespace('sbar.patient.modal.tabs', 'sbar');
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url')."/password-reset/$token?email={$notifiable->getEmailForPasswordReset()}";

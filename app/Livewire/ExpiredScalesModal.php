@@ -6,7 +6,9 @@ use App\Services\TasyService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
+use Livewire\Attributes\Isolate;
 
+#[Isolate]
 class ExpiredScalesModal extends Component
 {
     public bool $isOpen = false;
@@ -179,6 +181,6 @@ class ExpiredScalesModal extends Component
 
     public function render()
     {
-        return view('livewire.expired-scales-modal');
+        return view('sbar.patient.expired-scales-modal');
     }
 }

@@ -5,6 +5,7 @@ use App\Models\EMR\Core\{Sector, Hospital};
 use App\Models\System\UserSectorPreference;
 use App\Services\TasyService;
 use Livewire\Component;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Lazy;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -12,34 +13,17 @@ use Illuminate\Support\Facades\Log;
 #[Lazy]
 class SbarReport extends Component
 {
-    public $loading = false;
-    public $loadingMessage = '';
+    // Primitive state — safe in wire:snapshot
     public $errorMessage = null;
-    public $lastRefresh = null;
+    public $lastRefresh  = null;
 
-    // Paginação lazy loading
-    public $perPage = 20;
-    public $hasMore = false;
-
-    // Dados principais
-    public $hospitals = [];
-    public $sectors = [];
-    public $patients = [];
-
+    // User selection state
     public $selectedHospital = null;
-    public $selectedSector = null;
-    public $currentHospitalName = 'Carregando...';
-
-    // Filtros
-    public $mewsFilter = 'all';
-    public $surgicalFilter = 'all';
-    public $orderBy = 'bed';
-    public $orderDirection = 'asc';
+    public $selectedSector   = null;
 
     // Sector onboarding
-    public bool $showSectorOnboarding = false;
-    public array $availableSectors    = [];
-    public array $selectedSectors     = [];
+    public bool  $showSectorOnboarding = false;
+    public array $selectedSectors      = [];
 
     // Services
     protected TasyService $tasyService;
@@ -47,6 +31,7 @@ class SbarReport extends Component
     protected $listeners = [
         'refreshData'           => 'refreshData',
         'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
+        'handover-updated'      => 'onHandoverUpdated',
     ];
 
     public function boot(TasyService $tasyService)
@@ -54,93 +39,124 @@ class SbarReport extends Component
         $this->tasyService = $tasyService;
     }
 
-    public function mount()
+    // ──────────────────────────────────────────────────────────────────────────
+    // Computed properties — NOT serialized into wire:snapshot
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * User's available hospitals. Persisted for the component lifecycle;
+     * cleared with unset($this->hospitals) when preferences change.
+     */
+    #[Computed(persist: true)]
+    public function hospitals(): array
     {
-        $user = Auth::user();
-        
-        // Verifica se o usuário tem setores configurados
-        if (!$user->hasConfiguredSectors()) {
-            // Dispara evento para mostrar o modal
-            $this->dispatch('checkUserSectors');
-            $this->errorMessage = "Você precisa configurar seus setores de acesso antes de usar o SBAR.";
-            return;
-        }
-
-        $this->loading = true;
-        $this->loadingMessage = 'Inicializando sistema SBAR...';
-
-        try {
-            $this->loadInitialData();
-        } catch (\Exception $e) {
-            Log::error('SBAR mount error: ' . $e->getMessage());
-            $this->errorMessage = "Erro durante inicialização: " . $e->getMessage();
-        } finally {
-            $this->loading = false;
-            $this->loadingMessage = '';
-        }
-    }
-
-    protected function loadInitialData()
-    {
-        $user = Auth::user();
-
-        // If user has no configured sectors, show onboarding
-        if (!$user->hasConfiguredSectors()) {
-            $this->showSectorOnboarding = true;
-            $this->loadAvailableSectors();
-            $this->loading = false;
-            return;
-        }
-
-        // Load hospitals based on user's preferred sectors
-        $userSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
+        $user             = Auth::user();
         $userHospitalCodes = $user->sectorPreferences()->pluck('hospital_code')->unique()->toArray();
-        
+
         if (empty($userHospitalCodes)) {
-            $this->errorMessage = "Nenhum hospital configurado.";
-            return;
+            return [];
         }
 
-        $this->loadHospitals($userHospitalCodes);
-
-        if (empty($this->hospitals)) {
-            $this->errorMessage = "Nenhum hospital disponível.";
-            return;
-        }
-
-        $this->selectedHospital    = $this->hospitals[0]['hospital_id'];
-        $this->currentHospitalName = $this->hospitals[0]['hospital_name'];
-
-        // Load sectors for selected hospital
-        $this->loadSectorsForHospital($this->selectedHospital, $userSectorCodes);
-
-        if (!empty($this->sectors)) {
-            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
-            $this->loadPatients();
-            $this->auditSectorView('mount');
-        } else {
-            $this->errorMessage = "Nenhum setor configurado para este hospital. Atualize suas preferências de setor.";
-            $this->patients = [];
+        try {
+            return Hospital::whereIn('nr_sequencia', $userHospitalCodes)
+                ->where('ie_situacao', 'A')
+                ->select(['nr_sequencia as hospital_id', 'ds_agrupamento as hospital_name'])
+                ->get()
+                ->map(fn ($h) => [
+                    'hospital_id'   => $h->hospital_id,
+                    'hospital_name' => $h->hospital_name,
+                ])
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('Error loading hospitals: ' . $e->getMessage());
+            return [];
         }
     }
 
-    protected function loadAvailableSectors(): void
+    /**
+     * Sectors for the currently selected hospital. Persisted; cleared on
+     * hospital change via unset($this->sectors).
+     */
+    #[Computed(persist: true)]
+    public function sectors(): array
     {
+        if (!$this->selectedHospital) {
+            return [];
+        }
+
+        $user            = Auth::user();
+        $userSectorCodes = $user->sectorPreferences()
+            ->where('hospital_code', $this->selectedHospital)
+            ->pluck('sector_code')
+            ->toArray();
+
         try {
-            // Load all sectors from allowed hospitals based on controller config
-            $allowedHospitalIds = [1,2,3,4,5,6,7,8,10,18,25];
-            
+            return Sector::where('nr_seq_agrupamento', $this->selectedHospital)
+                ->whereIn('cd_setor_atendimento', $userSectorCodes)
+                ->allowed()
+                ->get()
+                ->map(fn ($s) => [
+                    'cd_setor_atendimento' => $s->cd_setor_atendimento,
+                    'ds_setor_atendimento' => $s->ds_setor_atendimento,
+                ])
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error('Error loading sectors: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Patient list for the selected sector. Persisted; cleared on sector
+     * change, refresh, or handover update via unset($this->patients).
+     *
+     * TasyService already caches Oracle data for 15 min — this computed layer
+     * eliminates the cost of serializing 30+ patient objects into every
+     * Livewire wire:snapshot (~150 KB overhead).
+     */
+    #[Computed(persist: true)]
+    public function patients(): array
+    {
+        if (!$this->selectedSector) {
+            return [];
+        }
+
+        try {
+            $patients = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
+            return $this->injectHandoverStatus($patients);
+        } catch (\Exception $e) {
+            Log::error('Error loading patients: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $this->errorMessage = "Erro ao carregar pacientes: " . $e->getMessage();
+            return [];
+        }
+    }
+
+    /**
+     * All available sectors for the onboarding modal. Not persisted — only
+     * computed when the modal is open.
+     */
+    #[Computed]
+    public function availableSectors(): array
+    {
+        if (!$this->showSectorOnboarding) {
+            return [];
+        }
+
+        try {
+            $allowedHospitalIds = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
+
             $sectors = Sector::whereIn('nr_seq_agrupamento', $allowedHospitalIds)
                 ->where('ie_situacao', 'A')
                 ->select(['cd_setor_atendimento', 'ds_setor_atendimento', 'nr_seq_agrupamento'])
                 ->get();
 
-            // Build hospital name map to avoid N+1
-            $hospitalIds  = $sectors->pluck('nr_seq_agrupamento')->unique()->filter();
+            $hospitalIds   = $sectors->pluck('nr_seq_agrupamento')->unique()->filter();
             $hospitalNames = Hospital::whereIn('nr_sequencia', $hospitalIds)
                 ->pluck('ds_agrupamento', 'nr_sequencia');
 
-            $this->availableSectors = $sectors->map(fn ($s) => [
+            return $sectors->map(fn ($s) => [
                 'sector_code'   => $s->cd_setor_atendimento,
                 'sector_name'   => $s->ds_setor_atendimento,
                 'hospital_code' => $s->nr_seq_agrupamento,
@@ -148,8 +164,150 @@ class SbarReport extends Component
             ])->toArray();
         } catch (\Exception $e) {
             Log::error('Error loading available sectors for onboarding: ' . $e->getMessage());
-            $this->availableSectors = [];
+            return [];
         }
+    }
+
+    /**
+     * Display name of the currently selected hospital.
+     */
+    #[Computed]
+    public function currentHospitalName(): string
+    {
+        if (!$this->selectedHospital) {
+            return 'Carregando...';
+        }
+
+        $hospital = collect($this->hospitals)->firstWhere('hospital_id', (int) $this->selectedHospital);
+        return $hospital['hospital_name'] ?? 'Hospital';
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Lifecycle
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function mount()
+    {
+        $user = Auth::user();
+
+        if (!$user->hasConfiguredSectors()) {
+            $this->dispatch('checkUserSectors');
+            $this->errorMessage        = "Você precisa configurar seus setores de acesso antes de usar o SBAR.";
+            $this->showSectorOnboarding = true;
+            return;
+        }
+
+        try {
+            $hospitals = $this->hospitals;
+
+            if (empty($hospitals)) {
+                $this->errorMessage = "Nenhum hospital disponível.";
+                return;
+            }
+
+            if (!$this->selectedHospital) {
+                $this->selectedHospital = $hospitals[0]['hospital_id'];
+            }
+
+            $sectors = $this->sectors;
+
+            if (empty($sectors)) {
+                $this->errorMessage = "Nenhum setor configurado para este hospital. Atualize suas preferências de setor.";
+                return;
+            }
+
+            if (!$this->selectedSector) {
+                $this->selectedSector = $sectors[0]['cd_setor_atendimento'];
+            }
+
+            $this->lastRefresh = now()->format('H:i:s');
+            $this->auditSectorView('mount');
+        } catch (\Exception $e) {
+            Log::error('SBAR mount error: ' . $e->getMessage());
+            $this->errorMessage = "Erro durante inicialização: " . $e->getMessage();
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Actions
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function changeHospital($hospitalId)
+    {
+        $this->selectedHospital = $hospitalId;
+        $this->selectedSector   = null;
+
+        // Invalidate cached computed values for the new hospital
+        unset($this->sectors);
+        unset($this->patients);
+
+        $sectors = $this->sectors;
+
+        if (!empty($sectors)) {
+            $this->selectedSector = $sectors[0]['cd_setor_atendimento'];
+            $this->lastRefresh    = now()->format('H:i:s');
+            $this->auditSectorView('hospital_change');
+        } else {
+            $this->errorMessage = "Nenhum setor configurado para este hospital.";
+        }
+    }
+
+    public function changeSector($sectorId)
+    {
+        $user              = Auth::user();
+        $allowedSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
+
+        if (!in_array((string) $sectorId, array_map('strval', $allowedSectorCodes))) {
+            Log::warning('Tentativa de acesso a setor não autorizado', [
+                'user_id'   => $user->id,
+                'sector_id' => $sectorId,
+            ]);
+            $this->errorMessage = "Acesso negado: setor não autorizado.";
+            return;
+        }
+
+        $this->selectedSector = $sectorId;
+        unset($this->patients); // invalidate computed cache → fresh data on next render
+
+        $this->lastRefresh = now()->format('H:i:s');
+        $this->auditSectorView('sector_change');
+    }
+
+    public function refreshData()
+    {
+        try {
+            if ($this->selectedSector) {
+                $this->tasyService->clearSectorCache($this->selectedSector);
+            }
+
+            unset($this->patients); // force recompute after cache clear
+            $this->lastRefresh = now()->format('H:i:s');
+        } catch (\Exception $e) {
+            Log::error('Error in refreshData: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $this->errorMessage = "Erro ao atualizar: " . $e->getMessage();
+        }
+    }
+
+    public function updateSectorPatients()
+    {
+        unset($this->patients);
+        $this->lastRefresh = now()->format('H:i:s');
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Onboarding
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function openSectorOnboarding(): void
+    {
+        $this->selectedSectors = Auth::user()
+            ->sectorPreferences()
+            ->pluck('sector_code')
+            ->toArray();
+
+        $this->showSectorOnboarding = true;
     }
 
     public function saveSectorPreferences(): void
@@ -163,12 +321,10 @@ class SbarReport extends Component
         try {
             $sectorsMap = collect($this->availableSectors)->keyBy('sector_code');
 
-            // Captura setores anteriores para auditoria
             $previousSectors = $user->sectorPreferences()
                 ->pluck('sector_name', 'sector_code')
                 ->toArray();
 
-            // Remove existing preferences
             UserSectorPreference::where('user_id', $user->id)->delete();
 
             foreach ($this->selectedSectors as $sectorCode) {
@@ -182,7 +338,6 @@ class SbarReport extends Component
                 ]);
             }
 
-            // Auditoria
             $newSectors = collect($this->selectedSectors)
                 ->mapWithKeys(fn ($code) => [$code => $sectorsMap->get($code)['sector_name'] ?? $code])
                 ->toArray();
@@ -197,295 +352,78 @@ class SbarReport extends Component
             ]);
 
             $this->showSectorOnboarding = false;
-            $this->selectedSectors = [];
-            $this->loading = true;
-            $this->loadInitialData();
+            $this->selectedSectors      = [];
+            $this->selectedHospital     = null;
+            $this->selectedSector       = null;
 
+            // Invalidate all cached computed values
+            unset($this->hospitals);
+            unset($this->sectors);
+            unset($this->patients);
+
+            // Re-initialize with new preferences
+            $this->mount();
         } catch (\Exception $e) {
             Log::error('Error saving sector preferences: ' . $e->getMessage());
         }
     }
 
-    public function openSectorOnboarding(): void
-    {
-        $this->loadAvailableSectors();
-
-        // Pre-select current user sectors
-        $this->selectedSectors = Auth::user()
-            ->sectorPreferences()
-            ->pluck('sector_code')
-            ->toArray();
-
-        $this->showSectorOnboarding = true;
-    }
-
     public function onSectorOnboardingSaved(): void
     {
         $this->showSectorOnboarding = false;
-        $this->loading = true;
-        $this->loadInitialData();
+        $this->selectedHospital     = null;
+        $this->selectedSector       = null;
+
+        unset($this->hospitals);
+        unset($this->sectors);
+        unset($this->patients);
+
+        $this->mount();
     }
 
-    protected function loadHospitals($hospitalCodes)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Event handlers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function onHandoverUpdated(string $nr): void
     {
-        try {
-            $hospitals = Hospital::whereIn('nr_sequencia', $hospitalCodes)
-                ->where('ie_situacao', 'A')
-                ->select(['nr_sequencia as hospital_id', 'ds_agrupamento as hospital_name'])
-                ->get();
-
-            $this->hospitals = $hospitals->map(fn($h) => [
-                'hospital_id' => $h->hospital_id,
-                'hospital_name' => $h->hospital_name
-            ])->toArray();
-        } catch (\Exception $e) {
-            Log::error('Error loading hospitals: ' . $e->getMessage());
-            $this->hospitals = [];
-        }
+        // Invalidate computed cache — next render will re-fetch handover status
+        // from DB (batch query) while hitting TasyService's 15-min Oracle cache.
+        unset($this->patients);
     }
 
-    protected function loadSectorsForHospital($hospitalId, $allowedSectors)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Rendering
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function placeholder()
     {
-        try {
-            $sectors = Sector::where('nr_seq_agrupamento', $hospitalId)
-                ->whereIn('cd_setor_atendimento', $allowedSectors)
-                ->allowed()
-                ->get();
-
-            $this->sectors = $sectors->map(fn($s) => [
-                'cd_setor_atendimento' => $s->cd_setor_atendimento,
-                'ds_setor_atendimento' => $s->ds_setor_atendimento
-            ])->toArray();
-        } catch (\Exception $e) {
-            Log::error('Error loading sectors: ' . $e->getMessage());
-            $this->sectors = [];
-        }
+        return view('sbar.report.placeholder');
     }
 
-    public function loadPatients()
+    public function render()
     {
-        if (!$this->selectedSector) {
-            $this->patients = [];
-            return;
-        }
-
-        $this->loading = true;
-        $this->errorMessage = null;
-
-        try {
-            // Busca dados do service (resultado já cacheado por 15 min)
-            $patientsData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
-
-            // Aplica filtros e paginação
-            $allFiltered = $this->applyFiltersAndSort($patientsData);
-            $this->patients = array_slice($allFiltered, 0, $this->perPage);
-            $this->hasMore = count($allFiltered) > $this->perPage;
-
-            $this->lastRefresh = now()->format('H:i:s');
-            $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
-
-        } catch (\Exception $e) {
-            Log::error('Error loading patients: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            $this->errorMessage = "Erro ao carregar pacientes: " . $e->getMessage();
-            $this->patients = [];
-        } finally {
-            $this->loading = false;
-        }
+        return view('sbar.report.index', [
+            'hospitals'           => $this->hospitals,
+            'sectors'             => $this->sectors,
+            'patients'            => $this->patients,
+            'errorMessage'        => $this->errorMessage,
+            'selectedHospital'    => $this->selectedHospital,
+            'selectedSector'      => $this->selectedSector,
+            'currentHospitalName' => $this->currentHospitalName,
+            'lastRefresh'         => $this->lastRefresh,
+        ]);
     }
 
-    public function loadMore()
-    {
-        if (!$this->selectedSector) return;
-
-        try {
-            $patientsData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
-            $allFiltered = $this->applyFiltersAndSort($patientsData);
-
-            $currentCount = count($this->patients);
-            $nextBatch = array_slice($allFiltered, $currentCount, $this->perPage);
-
-            $this->patients = array_merge($this->patients, $nextBatch);
-            $this->hasMore = count($this->patients) < count($allFiltered);
-        } catch (\Exception $e) {
-            Log::error('Error loading more patients: ' . $e->getMessage());
-        }
-    }
-
-    protected function applyFiltersAndSort($data)
-    {
-        $filtered = collect($data);
-
-        // Filtro MEWS
-        if ($this->mewsFilter !== 'all') {
-            $filtered = $filtered->filter(function($patient) {
-                if (!($patient['has_patient'] ?? false)) return false;
-
-                $score = $patient['mews_score'] ?? $patient['pews_score'] ?? null;
-
-                return match($this->mewsFilter) {
-                    'critical' => $score !== null && $score >= 5,
-                    'warning' => $score !== null && $score >= 3 && $score <= 4,
-                    'normal' => $score === null || $score <= 2,
-                    default => true
-                };
-            });
-        }
-
-        // Filtro cirúrgico
-        if ($this->surgicalFilter === 'with_surgery') {
-            $filtered = $filtered->filter(fn($patient) =>
-                ($patient['has_patient'] ?? false) && ($patient['has_surgery'] ?? false)
-            );
-        } elseif ($this->surgicalFilter === 'without_surgery') {
-            $filtered = $filtered->filter(fn($patient) =>
-                ($patient['has_patient'] ?? false) && !($patient['has_surgery'] ?? false)
-            );
-        }
-
-        // Ordenação
-        $filtered = $this->sortPatients($filtered);
-
-        return $filtered->values()->toArray();
-    }
-
-    protected function sortPatients($collection)
-    {
-        $descending = $this->orderDirection === 'desc';
-
-        if ($this->orderBy === 'bed') {
-            return $collection->sortBy(function($p) {
-                return sprintf('%s-%03d',
-                    $p['cd_unidade_basica'] ?? '',
-                    $p['bed_sequence'] ?? 0
-                );
-            }, SORT_STRING, $descending);
-        }
-
-        return $collection->sortBy(function($p) {
-            if (!($p['has_patient'] ?? false)) {
-                return PHP_INT_MAX;
-            }
-
-            return match($this->orderBy) {
-                'mews' => $p['mews_score'] ?? $p['pews_score'] ?? -1,
-                'name' => strtolower($p['nm_pessoa_fisica'] ?? 'zzz'),
-                'prontuario' => $p['nr_prontuario'] ?? 'zzz',
-                'internment' => $p['internment_days'] ?? -1,
-                'age' => $p['age'] ?? 0,
-                default => sprintf('%s-%03d', $p['cd_unidade_basica'] ?? '', $p['bed_sequence'] ?? 0)
-            };
-        }, $this->orderBy === 'name' || $this->orderBy === 'prontuario' ? SORT_STRING : SORT_NUMERIC, $descending);
-    }
-
-    public function changeHospital($hospitalId)
-    {
-        $this->loading = true;
-        $this->selectedHospital = $hospitalId;
-        $this->selectedSector = null;
-
-        $hospital = collect($this->hospitals)->firstWhere('hospital_id', $hospitalId);
-        $this->currentHospitalName = $hospital['hospital_name'] ?? 'Hospital';
-
-        // Get user's preferred sectors for this hospital
-        $user = Auth::user();
-        $userSectorCodes = $user->sectorPreferences()
-            ->where('hospital_code', $hospitalId)
-            ->pluck('sector_code')
-            ->toArray();
-        
-        $this->loadSectorsForHospital($hospitalId, $userSectorCodes);
-
-        if (!empty($this->sectors)) {
-            $this->selectedSector = $this->sectors[0]['cd_setor_atendimento'];
-            $this->loadPatients();
-            $this->auditSectorView('hospital_change');
-        } else {
-            $this->patients = [];
-            $this->loading = false;
-        }
-    }
-
-    public function changeSector($sectorId)
-    {
-        $this->selectedSector = $sectorId;
-        $this->loadPatients();
-        $this->auditSectorView('sector_change');
-    }
-
-    public function updatedMewsFilter($value)
-    {
-        $this->refilterFromRaw();
-    }
-
-    public function updatedSurgicalFilter($value)
-    {
-        $this->refilterFromRaw();
-    }
-
-    public function updatedOrderBy($value)
-    {
-        $this->refilterFromRaw();
-    }
-
-    public function toggleOrderDirection()
-    {
-        $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
-        $this->refilterFromRaw();
-    }
-
-    public function resetFilters()
-    {
-        $this->mewsFilter = 'all';
-        $this->surgicalFilter = 'all';
-        $this->orderBy = 'bed';
-        $this->orderDirection = 'asc';
-        $this->refilterFromRaw();
-    }
-
-    protected function refilterFromRaw()
-    {
-        // Re-lê do cache (hit rápido, sem nova query Oracle).
-        // Evita manter rawPatientsMap no estado do Livewire,
-        // o que reduziria drasticamente o tamanho do payload.
-        $this->loadPatients();
-    }
-
-    public function refreshData()
-    {
-        try {
-            if ($this->selectedSector) {
-                $this->tasyService->clearSectorCache($this->selectedSector);
-            }
-            $this->loadPatients();
-        } catch (\Exception $e) {
-            Log::error('Error in refreshData: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            $this->errorMessage = "Erro ao atualizar: " . $e->getMessage();
-            $this->loading = false;
-        }
-    }
-
-    public function updateSectorPatients()
-    {
-        if (!$this->selectedSector) return;
-
-        $newData = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
-        $allFiltered = $this->applyFiltersAndSort($newData);
-        $this->patients = array_slice($allFiltered, 0, $this->perPage);
-        $this->hasMore = count($allFiltered) > $this->perPage;
-
-        $this->lastRefresh = now()->format('H:i:s');
-        $this->dispatch('sbar:patients-loaded', ['timestamp' => now()->timestamp]);
-    }
-
-
+    // ──────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ──────────────────────────────────────────────────────────────────────────
 
     private function auditSectorView(string $action): void
     {
-        if (!$this->selectedSector) return;
+        if (!$this->selectedSector) {
+            return;
+        }
 
         $sectorName = collect($this->sectors)
             ->firstWhere('cd_setor_atendimento', $this->selectedSector)['ds_setor_atendimento'] ?? $this->selectedSector;
@@ -501,29 +439,51 @@ class SbarReport extends Component
         ]);
     }
 
-    public function placeholder()
+    /**
+     * Injects handover_done / handover_last_time / handover_msg_count into
+     * each patient via a single batch MySQL query.
+     */
+    private function injectHandoverStatus(array $patients): array
     {
-        return view('livewire.sbar-report-placeholder');
-    }
+        $nrs = collect($patients)
+            ->filter(fn ($p) => !empty($p['nr_atendimento']) && ($p['has_patient'] ?? false))
+            ->pluck('nr_atendimento')
+            ->values()
+            ->toArray();
 
-    public function render()
-    {
-        return view('livewire.sbar-report', [
-            'hospitals' => $this->hospitals,
-            'sectors' => $this->sectors,
-            'patients' => $this->patients,
-            'errorMessage' => $this->errorMessage,
-            'loadingMessage' => $this->loadingMessage,
-            'mewsFilter' => $this->mewsFilter,
-            'surgicalFilter' => $this->surgicalFilter,
-            'orderBy' => $this->orderBy,
-            'orderDirection' => $this->orderDirection,
-            'selectedHospital' => $this->selectedHospital,
-            'selectedSector' => $this->selectedSector,
-            'currentHospitalName' => $this->currentHospitalName,
-            'loading' => $this->loading,
-            'lastRefresh' => $this->lastRefresh,
-            'hasMore' => $this->hasMore,
-        ]);
+        if (empty($nrs)) {
+            return $patients;
+        }
+
+        [$shiftStart, $shiftEnd] = \App\Services\ShiftService::getShiftWindow();
+
+        $rows = \Illuminate\Support\Facades\DB::table('chat_messages')
+            ->whereIn('nr_atendimento', $nrs)
+            ->whereBetween('created_at', [$shiftStart, $shiftEnd])
+            ->select([
+                'nr_atendimento',
+                \Illuminate\Support\Facades\DB::raw('COUNT(*) as msg_count'),
+                \Illuminate\Support\Facades\DB::raw('MAX(created_at) as last_msg'),
+            ])
+            ->groupBy('nr_atendimento')
+            ->get()
+            ->keyBy('nr_atendimento');
+
+        return array_map(function ($patient) use ($rows) {
+            if (!($patient['has_patient'] ?? false)) {
+                return $patient;
+            }
+
+            $nr  = $patient['nr_atendimento'] ?? null;
+            $row = $nr ? $rows->get($nr) : null;
+
+            $patient['handover_done']      = $row !== null;
+            $patient['handover_last_time'] = $row
+                ? \Carbon\Carbon::parse($row->last_msg)->format('H:i')
+                : null;
+            $patient['handover_msg_count'] = $row ? (int) $row->msg_count : 0;
+
+            return $patient;
+        }, $patients);
     }
 }

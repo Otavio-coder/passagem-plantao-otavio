@@ -15,7 +15,7 @@
             </a>
         </div>
 
-        @include( 'profiles.form-profile' )
+        @include( 'profiles.form' )
 
         <div class="shadow overflow-hidden sm:rounded-md mt-5 p-4 bg-white">
             <table id="table" class="display hover text-gray-500" style="width:100%">
@@ -59,7 +59,7 @@
             </table>
         </div>
 
-        @include( 'profiles.modal-edit-profile' )
+        @include( 'profiles.modals.edit-profile' )
 
     </div>
 

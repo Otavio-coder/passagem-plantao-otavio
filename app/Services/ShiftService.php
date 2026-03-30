@@ -87,6 +87,49 @@ class ShiftService
         return null;
     }
 
+    /**
+     * Retorna [Carbon $start, Carbon $end] da janela do turno atual.
+     * morning:   07:00 – 12:59:59
+     * afternoon: 13:00 – 18:59:59
+     * night:     19:00 – 06:59:59 (cruza meia-noite)
+     */
+    public static function getShiftWindow($now = null): array
+    {
+        $dt    = $now ? Carbon::parse($now) : now();
+        $hour  = $dt->hour;
+        $today = $dt->toDateString();
+
+        if ($hour >= 7 && $hour < 13) {
+            return [
+                Carbon::parse("{$today} 07:00:00"),
+                Carbon::parse("{$today} 12:59:59"),
+            ];
+        }
+
+        if ($hour >= 13 && $hour < 19) {
+            return [
+                Carbon::parse("{$today} 13:00:00"),
+                Carbon::parse("{$today} 18:59:59"),
+            ];
+        }
+
+        // Noite: 19h do dia lógico até 06:59 do dia seguinte
+        if ($hour >= 19) {
+            $tomorrow = $dt->copy()->addDay()->toDateString();
+            return [
+                Carbon::parse("{$today} 19:00:00"),
+                Carbon::parse("{$tomorrow} 06:59:59"),
+            ];
+        }
+
+        // 00:00–06:59 → noite que começou ontem
+        $yesterday = $dt->copy()->subDay()->toDateString();
+        return [
+            Carbon::parse("{$yesterday} 19:00:00"),
+            Carbon::parse("{$today} 06:59:59"),
+        ];
+    }
+
     public static function getShiftLabel(string $shift): string
     {
         return match($shift) {

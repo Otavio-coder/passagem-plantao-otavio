@@ -81,7 +81,7 @@
                     <div class="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
                         <div class="text-center mb-8">
                             <h2 class="text-2xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h2>
-                            <p class="text-gray-600">Acesse com suas credenciais LDAP/AD</p>
+                            <p class="text-gray-600">Acesse com suas credenciais da rede</p>
                         </div>
 
                         <form method="post" action="{{ route('login') }}" id="login-form">

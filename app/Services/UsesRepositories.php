@@ -10,7 +10,8 @@ use App\Repositories\EMR\{
     PatientMultidisciplinaryRepository,
     PatientPrescricoesRepository,
     PatientScalesRepository,
-    PatientSurgeryRepository
+    PatientSurgeryRepository,
+    PatientTherapeuticPlanRepository
 };
 
 trait UsesRepositories
@@ -78,5 +79,10 @@ trait UsesRepositories
     public function exams(): PatientExamsRepository
     {
         return $this->getRepo(PatientExamsRepository::class);
+    }
+
+    public function therapeuticPlan(): PatientTherapeuticPlanRepository
+    {
+        return $this->getRepo(PatientTherapeuticPlanRepository::class);
     }
 }

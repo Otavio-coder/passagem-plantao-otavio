@@ -35,6 +35,7 @@ class User extends Authenticatable implements LdapAuthenticatable
         'username',
         'email',
         'status',
+        'last_access_at',
         'password',
         'guid',
         'domain',
@@ -60,6 +61,7 @@ class User extends Authenticatable implements LdapAuthenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_access_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

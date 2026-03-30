@@ -37,6 +37,7 @@
         body.sbar-loading-active {
             overflow: hidden;
         }
+        [x-cloak] { display: none !important; }
     </style>
     <!-- Allow pages to push scripts/styles into head -->
     @stack('head')
@@ -48,62 +49,60 @@
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
 <!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
-    @include('partials.navbar')
+    @include('shared.navbar')
 </header>
 <!-- PRINCIPAL -->
 <main class="flex-grow bg-gray-50 pt-2">
-    <div class="relative py-2 flex justify-center">
-        <div class="w-full max-w-full relative px-1 lg:px-2">
+    <div class="relative py-2 md:py-4 flex justify-center">
+        <div class="w-full max-w-full relative px-2 md:px-4">
             <div class="items-center flex flex-wrap">
                 @yield('content')
             </div>
         </div>
     </div>
 </main>
-@include('partials.footer')
+@include('shared.footer')
 
 <!-- PWA Install Button -->
 <div id="pwa-install-banner"
-     class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50
-            sm:left-auto sm:translate-x-0 sm:right-4
-            w-[calc(100%-2rem)] sm:w-auto sm:min-w-max"
+     class="hidden fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-80"
      role="complementary"
      aria-label="Instalar aplicativo">
     <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-        <div class="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
+        <div class="flex items-center gap-3 px-3 py-3">
             <div class="flex-shrink-0">
-                <img src="/images/logo-santacasa-app.png""
+                <img src="/images/logo-santacasa-app.png"
                      alt="Passagem de Plantão"
                      class="w-10 h-10 rounded-xl shadow-sm">
             </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold text-gray-900 leading-tight whitespace-nowrap">Passagem de Plantão</p>
-                <p class="text-xs text-gray-500 leading-tight whitespace-nowrap">Instalar como app no dispositivo</p>
+            <div class="flex-1">
+                <p class="text-sm font-bold text-gray-900 leading-tight">Passagem de Plantão</p>
+                <p class="text-xs text-gray-500 leading-tight mt-0.5">Adicionar à tela inicial como app</p>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <button id="pwa-install-btn"
-                        type="button"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl
-                               bg-[#004D9D] hover:bg-[#003d7a] active:bg-[#002d5a]
-                               text-white text-xs font-semibold
-                               shadow-sm transition-colors duration-150
-                               focus:outline-none focus:ring-2 focus:ring-[#004D9D]/50">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    <span>Instalar</span>
-                </button>
-                <button id="pwa-dismiss-btn"
-                        type="button"
-                        aria-label="Dispensar"
-                        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100
-                               transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
+            <button id="pwa-dismiss-btn"
+                    type="button"
+                    aria-label="Dispensar"
+                    class="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100
+                           transition-colors duration-150 focus:outline-none">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-3 pb-3">
+            <button id="pwa-install-btn"
+                    type="button"
+                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                           bg-[#004D9D] hover:bg-[#003d7a] active:bg-[#002d5a]
+                           text-white text-sm font-semibold
+                           shadow-sm transition-colors duration-150
+                           focus:outline-none focus:ring-2 focus:ring-[#004D9D]/50">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Instalar Aplicativo
+            </button>
         </div>
     </div>
 </div>

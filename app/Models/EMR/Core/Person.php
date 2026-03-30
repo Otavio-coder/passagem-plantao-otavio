@@ -25,6 +25,12 @@ class Person extends Model
         return $this->nm_pessoa_fisica ?? $this->no_pessoa ?? $this->no_pessoa_fisica ?? null;
     }
 
+    /** Social name (NM_SOCIAL) – set for transgender patients, otherwise null. */
+    public function getSocialNameAttribute(): ?string
+    {
+        return !empty($this->nm_social) ? trim($this->nm_social) : null;
+    }
+
     public function getBirthDateAttribute()
     {
         return $this->dt_nascimento ?? null;

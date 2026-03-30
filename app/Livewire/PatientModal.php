@@ -2,11 +2,15 @@
 namespace App\Livewire;
 
 use Livewire\Component;
+use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
 use App\Models\EMR\Core\Patient;
 use App\Services\TasyService;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+#[Isolate]
 class PatientModal extends Component
 {
     public $showModal = false;
@@ -18,9 +22,15 @@ class PatientModal extends Component
     public $currentShift = 'morning';
     public $loadingPatient = false;
 
-    public $prescLoaded = false;
-    public $prescLoading = false;
-    public $prescExpanded = false;
+    /** @var array|null Therapeutic plan data (medications, nutrition, orders, interventions, procedures) */
+    public $therapeuticPlan = null;
+    public bool $planLoaded = false;
+    public bool $planError  = false;
+
+    /** Date shown in the medication schedule grid (Y-m-d). Navigable with shiftScheduleDay(). */
+    public string $scheduleDate = '';
+    /** @var array Per-medication hour slots: [ med_id => [ 'HH:MI' => 'administered'|'scheduled'|'missed' ] ] */
+    public array $medicationSchedule = [];
 
     // Model centralizada
     protected $patientModel;
@@ -35,6 +45,7 @@ class PatientModal extends Component
     public function mount()
     {
         $this->currentShift = $this->getCurrentShift();
+        $this->scheduleDate = now()->format('Y-m-d');
     }
 
     private function getCurrentShift()
@@ -124,6 +135,7 @@ class PatientModal extends Component
 
             $this->currentPatient = array_merge($this->currentPatient, [
                 'nm_pessoa_fisica' => $sbarData['nm_pessoa_fisica'] ?? 'Paciente',
+                'nm_social'        => $sbarData['nm_social'] ?? null,
                 'nr_prontuario'    => $sbarData['nr_prontuario'] ?? 'N/A',
                 'age_detailed'     => $sbarData['age_detailed'] ?? 'N/A',
                 'sexo'             => $sbarData['sexo'] ?? 'N/A',
@@ -143,6 +155,7 @@ class PatientModal extends Component
         }
 
         $this->loadingPatient = false;
+        $this->loadTherapeuticPlanData($attendanceNumber);
 
         $this->dispatch('patient-data-loaded', [
             'patientId'  => $attendanceNumber,
@@ -153,33 +166,82 @@ class PatientModal extends Component
     }
 
     /**
-     * Recebe dados de recomendações pré-buscados via fetch() no cliente.
-     * Evita que o Livewire faça a query pesada no Oracle — a query já foi
-     * feita pelo PatientRecomendacoesController e o resultado JSON é passado aqui.
+     * Retries loading the therapeutic plan after a failure.
+     * Clears the (possibly corrupt) cache entry first.
      */
-    public function receiveRecomendacoesData(array $data): void
+    public function reloadTherapeuticPlan(): void
     {
-        if (!$this->patientDetails) {
-            return;
+        if (!$this->currentPatient) return;
+
+        $nr = (int) ($this->currentPatient['nr_atendimento'] ?? 0);
+        if (!$nr) return;
+
+        Cache::forget("patient_therapeutic_plan_{$nr}");
+        Cache::forget("patient_therapeutic_plan_v2_{$nr}");
+
+        $this->planLoaded = false;
+        $this->planError  = false;
+        $this->loadTherapeuticPlanData($nr);
+    }
+
+    /**
+     * Advances or retreats the medication schedule grid by N days.
+     * Only the schedule grid re-fetches; the therapeutic plan stays cached.
+     */
+    public function shiftScheduleDay(int $delta): void
+    {
+        if (!$this->currentPatient) return;
+
+        // Day navigation is disabled in UI: medication schedule is always locked to today.
+        $this->scheduleDate = now()->format('Y-m-d');
+
+        $this->loadMedicationSchedule();
+    }
+
+    /**
+     * Loads the therapeutic plan from TasyService (Redis cache first, Oracle fallback).
+     * Called synchronously inside openModal so data is ready on first render.
+     */
+    private function loadTherapeuticPlanData(int $nr): void
+    {
+        if (!$nr) return;
+
+        try {
+            $this->therapeuticPlan = $this->tasyService->getTherapeuticPlan($nr);
+            $this->planLoaded      = true;
+            $this->planError       = false;
+            $this->loadMedicationSchedule();
+        } catch (\Throwable $e) {
+            Log::error('PatientModal: Failed to load therapeutic plan', [
+                'attendance' => $nr,
+                'error'      => $e->getMessage(),
+            ]);
+            $this->therapeuticPlan = null;
+            $this->planLoaded      = false;
+            $this->planError       = true;
         }
+    }
 
-        $this->patientDetails->procedimentos = $data['procedimentos'] ?? null;
-        $this->patientDetails->medicamentos  = $data['medicamentos']  ?? null;
-        $this->patientDetails->nutricao      = $data['nutricao']      ?? null;
-        $this->patientDetails->recomendacoes = $data['recomendacoes'] ?? null;
-        $this->patientDetails->intervencoes  = $data['intervencoes']  ?? null;
+    private function loadMedicationSchedule(): void
+    {
+        $nr = (int) ($this->currentPatient['nr_atendimento'] ?? 0);
+        if (!$nr || !$this->scheduleDate) return;
 
-        $this->prescLoaded   = true;
-        $this->prescExpanded = true;
-        $this->prescLoading  = false;
+        try {
+            $this->medicationSchedule = $this->tasyService->getMedicationSchedule($nr, $this->scheduleDate);
+        } catch (\Throwable $e) {
+            Log::warning('PatientModal: Failed to load medication schedule', [
+                'attendance' => $nr,
+                'date'       => $this->scheduleDate,
+                'error'      => $e->getMessage(),
+            ]);
+            $this->medicationSchedule = [];
+        }
     }
 
     private function loadPatientData($attendanceNumber)
     {
         try {
-            // Limpa cache antes de buscar dados atualizados
-            $this->patientModel->clearPatientCache($attendanceNumber);
-
             $this->patientDetails = $this->patientModel->getFullPatientDataWithoutCPOE($attendanceNumber);
 
             if ($this->patientDetails) {
@@ -190,6 +252,7 @@ class PatientModal extends Component
                 $this->currentPatient = array_merge($this->currentPatient, [
                     'cd_pessoa_fisica' => $this->patientDetails->cd_pessoa_fisica ?? null,
                     'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
+                    'nm_social'        => $this->patientDetails->nm_social ?? null,
                     'nr_prontuario' => $this->patientDetails->nr_prontuario ?? 'N/A',
                     'age_detailed' => $this->patientDetails->age_detailed ?? 'N/A',
                     'sexo' => $this->patientDetails->sexo ?? 'N/A',
@@ -218,6 +281,7 @@ class PatientModal extends Component
             }
 
             $this->loadingPatient = false;
+            $this->loadTherapeuticPlanData($attendanceNumber);
 
             $this->dispatch('patient-data-loaded', [
                 'patientId' => $attendanceNumber,
@@ -284,16 +348,18 @@ class PatientModal extends Component
 
     private function resetModalState()
     {
-        $this->currentPatient = null;
+        $this->currentPatient      = null;
         $this->currentHospitalName = '';
-        $this->patientDetails = null;
-        $this->patientAlerts = [];
-        $this->showAlertsModal = false;
-        $this->loadingPatient = false;
+        $this->patientDetails      = null;
+        $this->patientAlerts       = [];
+        $this->showAlertsModal     = false;
+        $this->loadingPatient      = false;
 
-        $this->prescLoaded = false;
-        $this->prescLoading = false;
-        $this->prescExpanded = false;
+        $this->therapeuticPlan     = null;
+        $this->planLoaded          = false;
+        $this->planError           = false;
+        $this->scheduleDate        = now()->format('Y-m-d');
+        $this->medicationSchedule  = [];
     }
 
     public function refreshPatientData()
@@ -305,13 +371,12 @@ class PatientModal extends Component
 
         $this->loadingPatient = true;
 
-        // Limpa cache antes de recarregar
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
 
-        if ($this->prescLoaded) {
-            $this->prescLoaded = false;
-            $this->prescExpanded = false;
-        }
+        $this->therapeuticPlan    = null;
+        $this->planLoaded         = false;
+        $this->planError          = false;
+        $this->medicationSchedule = [];
 
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
     }
@@ -461,7 +526,7 @@ class PatientModal extends Component
 
     public function render()
     {
-        return view('livewire.patient-modal', [
+        return view('sbar.patient.modal.index', [
             'activeAlerts' => $this->activeAlerts,
             'criticalAlertsCount' => $this->criticalAlertsCount,
             'hasPatientData' => $this->hasPatientData(),

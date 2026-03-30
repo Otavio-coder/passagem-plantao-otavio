@@ -26,15 +26,21 @@ waitForEcho(() => {
             const channelKey = `chat.${patientId}`;
 
             if (this.active.has(channelKey)) {
+                // Canal já existe — atualiza componentId para o novo componente ativo.
+                // Os listeners capturam `entry` por referência, então basta atualizar o objeto.
+                this.active.get(channelKey).componentId = componentId;
                 return;
             }
 
             try {
                 const channel = window.Echo.private(channelKey);
+                // entry é capturado por referência nos listeners para que futuras
+                // atualizações de componentId (reuso do canal) sejam refletidas imediatamente.
+                const entry = { channel, componentId };
 
                 // Listener para novas mensagens
                 channel.listen('.ChatMessageSent', (data) => {
-                    const component = window.Livewire.find(componentId);
+                    const component = window.Livewire.find(entry.componentId);
                     if (component) {
                         component.call('handleNewMessage', data);
                     }
@@ -42,13 +48,13 @@ waitForEcho(() => {
 
                 // Listener para pins
                 channel.listen('.ChatMessagePinned', (data) => {
-                    const component = window.Livewire.find(componentId);
+                    const component = window.Livewire.find(entry.componentId);
                     if (component) {
                         component.call('handleMessagePinned', data);
                     }
                 });
 
-                this.active.set(channelKey, { channel, componentId });
+                this.active.set(channelKey, entry);
 
             } catch (error) {
                 console.error('[Chat] Erro ao conectar canal:', error);

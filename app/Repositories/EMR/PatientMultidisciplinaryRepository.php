@@ -13,7 +13,7 @@ class PatientMultidisciplinaryRepository
         'nutricao'           => [42],
         'fisioterapia'       => [593, 609, 608],
         'psicologia'         => [41],
-        'acessos_vasculares' => [639, 646, 647, 648, 652, 653, 655],
+        'acessos_vasculares' => [639, 644, 646, 647, 648, 651, 652, 653, 655],
     ];
 
     private const DEFAULT_TEAMS = [

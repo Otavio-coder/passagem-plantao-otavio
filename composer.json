@@ -22,6 +22,7 @@
         "silviolleite/laravelpwa": "^2.0",
         "spatie/laravel-permission": "^6.10",
         "troccoli/blade-health-icons": "^5.0",
+        "yajra/laravel-datatables-oracle": "^11.1",
         "yajra/laravel-oci8": "^11.6"
     },
     "require-dev": {

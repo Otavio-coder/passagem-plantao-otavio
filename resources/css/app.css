@@ -9,3 +9,14 @@
         font-family: 'Montserrat', sans-serif;
     }
 }
+
+@layer components {
+    .nav-link {
+        @apply transition duration-200 ease-in-out border-b-4 hover:border-blue-200
+               text-white hover:opacity-90
+               px-3 py-2
+               text-base lg:text-sm font-medium
+               flex items-center gap-1.5
+               whitespace-nowrap;
+    }
+}

@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\System\User as AppUser;
+use App\Repositories\MySQL\UserRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
-use App\Repositories\MySQL\UserRepository;
 use Spatie\Permission\Models\Role;
 use LdapRecord\Models\ActiveDirectory\User as LdapUser;
 
@@ -30,20 +31,20 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
+        $now = now();
         $localUser = auth()->user();
         $username = $request->get('username');
+        $userRecord = AppUser::where('username', $username)->first();
         
         // Verifica se precisa provisionar o usuário localmente
         if ($localUser) {
-            $existingUser = \App\Models\System\User::where('username', $username)->first();
-            
-            if (!$existingUser) {
+            if (!$userRecord) {
                 try {
                     // Busca usuário no LDAP para obter informações completas
-                    $ldapUser = \LdapRecord\Models\ActiveDirectory\User::query()->findBy('samaccountname', $username);
+                    $ldapUser = LdapUser::query()->findBy('samaccountname', $username);
 
                     if ($ldapUser) {
-                        $repo = new \App\Repositories\MySQL\UserRepository();
+                        $repo = new UserRepository();
                         $userData = [
                             'name'     => $ldapUser->getFirstAttribute('displayname') ?? $username,
                             'username' => $username,
@@ -52,14 +53,19 @@ class AuthenticatedSessionController extends Controller
                             'guid'     => $ldapUser->getConvertedGuid(),
                             'domain'   => 'default',
                             'status'   => 'A',
+                            'last_access_at' => $now,
                         ];
                         
                         $newUser = $repo->store($userData, true);
 
-                        // Atribui perfil padrão "Visualizador"
-                        $role = \Spatie\Permission\Models\Role::where('name', 'Visualizador')->first();
+                        // Atribui perfil padrão "Usuário"
+                        $role = Role::where('name', 'Usuário')->first();
                         if ($newUser && $role) {
                             $newUser->syncRoles([$role->name]);
+                        }
+
+                        if ($newUser) {
+                            $userRecord = $newUser;
                         }
                     }
                 } catch (\Exception $e) {
@@ -67,6 +73,10 @@ class AuthenticatedSessionController extends Controller
                     // Continua o login mesmo se o provisionamento falhar
                 }
             }
+        }
+
+        if ($userRecord) {
+            $userRecord->forceFill(['last_access_at' => $now])->save();
         }
 
         return redirect()->intended(route('home', absolute: false));
@@ -86,4 +96,3 @@ class AuthenticatedSessionController extends Controller
         return redirect('/');
     }
 }
-

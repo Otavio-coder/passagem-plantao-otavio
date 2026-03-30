@@ -9,19 +9,22 @@ use Illuminate\Support\Facades\DB;
 class ChatRepository
 {
     /**
-     * Loads all messages for a patient ordered by created_at.
+     * Loads messages for a patient from the last 30 days, ordered by created_at.
      * Reactions are grouped and attached to each message.
      * Pin status comes from an active (unpinned_at IS NULL) record in chat_message_pins.
      */
     public function getAllMessages(string $nr_atendimento, int $limit = 300): \Illuminate\Support\Collection
     {
         try {
+            $cutoff = now()->subDays(30);
+
             $messages = DB::table('chat_messages as cm')
                 ->leftJoin('chat_message_pins as cmp', function ($join) {
                     $join->on('cmp.message_id', '=', 'cm.id')
                         ->whereNull('cmp.unpinned_at');
                 })
                 ->where('cm.nr_atendimento', $nr_atendimento)
+                ->where('cm.created_at', '>=', $cutoff)
                 ->select([
                     'cm.id',
                     'cm.content',
@@ -138,6 +141,27 @@ class ChatRepository
         $msg->content    = $newContent;
         $msg->updated_at = now();
         return $msg;
+    }
+
+    /**
+     * Returns true if the patient has messages in chat_messages older than 30 days.
+     */
+    public function hasOlderMessages(string $nr_atendimento): bool
+    {
+        return DB::table('chat_messages')
+            ->where('nr_atendimento', $nr_atendimento)
+            ->where('created_at', '<', now()->subDays(30))
+            ->exists();
+    }
+
+    /**
+     * Returns true if the patient has an archived history entry in chat_messages_archive.
+     */
+    public function hasArchivedHistory(string $nr_atendimento): bool
+    {
+        return DB::table('chat_messages_archive')
+            ->where('nr_atendimento', $nr_atendimento)
+            ->exists();
     }
 
     /**

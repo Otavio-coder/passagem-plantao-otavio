@@ -189,6 +189,6 @@ class SectorSelectorModal extends Component
 
     public function render()
     {
-        return view('livewire.sector-selector-modal');
+        return view('configuration.system.sector-selector-modal');
     }
 }

@@ -15,6 +15,7 @@ class TasyService
     // ==================== CONSTANTES ====================
     private const CACHE_TTL_SECTOR  = 900;  // 15 minutos
     private const CACHE_TTL_PATIENT = 600;  // 10 minutos
+    private const THERAPEUTIC_PLAN_CACHE_VERSION = 2;
 
     private SbarFormatter $formatter;
 
@@ -33,15 +34,37 @@ class TasyService
         $cacheKey = "sector_patients_sbar_{$sectorId}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECTOR, function () use ($sectorId) {
+            $t0 = microtime(true);
+
             $sectorContext    = $this->getSectorContext($sectorId);
+
+            $t1 = microtime(true);
             $rawBeds          = $this->fetchSectorBedsRaw($sectorId);
+            $t2 = microtime(true);
+
             $attendanceNumbers = $this->extractAttendanceNumbers($rawBeds);
 
+            $t3 = microtime(true);
             $batchData = $this->fetchBatchData($sectorId, $attendanceNumbers);
+            $t4 = microtime(true);
 
-            return $rawBeds->map(function ($bed) use ($sectorContext, $batchData) {
+            $result = $rawBeds->map(function ($bed) use ($sectorContext, $batchData) {
                 return $this->formatter->formatPatientForSbar($bed, $sectorContext, $batchData);
             })->values()->toArray();
+            $t5 = microtime(true);
+
+            try {
+                Log::info('[TasyService] getSectorPatientsForSbar timing', [
+                    'sector_id'     => $sectorId,
+                    'patient_count' => count($result),
+                    'beds_ms'       => round(($t2 - $t1) * 1000),
+                    'batch_ms'      => round(($t4 - $t3) * 1000),
+                    'format_ms'     => round(($t5 - $t4) * 1000),
+                    'total_ms'      => round(($t5 - $t0) * 1000),
+                ]);
+            } catch (\Throwable) {}
+
+            return $result;
         });
     }
 
@@ -68,7 +91,74 @@ class TasyService
     }
 
     /**
+     * Fetches the complete therapeutic plan for a patient (single UNION ALL query, cached).
+     * Replaces the 5-query approach from getPatientRecomendacoesData.
+     *
+      * Cache key: patient_therapeutic_plan_v{version}_{nr} — 10 min TTL
+     */
+    public function getTherapeuticPlan(int $attendanceNumber): array
+    {
+        if (!$attendanceNumber) return [];
+
+          $cacheKey = $this->therapeuticPlanCacheKey($attendanceNumber);
+
+        return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
+            return $this->therapeuticPlan()->getTherapeuticPlan($attendanceNumber);
+        });
+    }
+
+    /**
+     * Returns the 24-hour administration schedule for a patient's medications on a given date.
+     * Short TTL (3 min) since nurses check doses in real time.
+     *
+     * Cache key: patient_med_schedule_{nr}_{date}
+     */
+    public function getMedicationSchedule(int $attendanceNumber, string $date): array
+    {
+        if (!$attendanceNumber || !$date) return [];
+
+        $cacheKey = "patient_med_schedule_{$attendanceNumber}_{$date}";
+
+        return Cache::remember($cacheKey, 180, function () use ($attendanceNumber, $date) {
+            return $this->therapeuticPlan()->getDailyMedicationSchedule($attendanceNumber, $date);
+        });
+    }
+
+    /**
+     * Pre-warms the therapeutic plan cache for a batch of patients.
+     * Called by the SBAR page after the sector loads so modal opens are instant.
+     * Returns the number of patients whose cache was populated (skips already cached).
+     */
+    public function batchWarmTherapeuticPlans(array $attendanceNumbers): int
+    {
+        $warmed = 0;
+
+        foreach ($attendanceNumbers as $nr) {
+            $nr = (int) $nr;
+            if (!$nr) continue;
+
+            $cacheKey = $this->therapeuticPlanCacheKey($nr);
+            if (Cache::has($cacheKey)) continue;
+
+            try {
+                Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($nr) {
+                    return $this->therapeuticPlan()->getTherapeuticPlan($nr);
+                });
+                $warmed++;
+            } catch (\Throwable $e) {
+                Log::warning('TasyService: Failed to warm therapeutic plan', [
+                    'attendance' => $nr,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $warmed;
+    }
+
+    /**
      * Busca dados de recomendações/prescrições do paciente
+     * @deprecated Use getTherapeuticPlan() instead.
      */
     public function getPatientRecomendacoesData(int $attendanceNumber): ?object
     {
@@ -99,6 +189,27 @@ class TasyService
         });
     }
 
+    /**
+     * Pre-warms the sector patients cache in the background.
+     * Skips sectors whose cache is already populated.
+     */
+    public function warmSectorCache(int $sectorId): bool
+    {
+        $cacheKey = "sector_patients_sbar_{$sectorId}";
+        if (Cache::has($cacheKey)) return false;
+
+        try {
+            $this->getSectorPatientsForSbar($sectorId);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('TasyService: Failed to warm sector cache', [
+                'sector_id' => $sectorId,
+                'error'     => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
     // ==================== CACHE MANAGEMENT ====================
 
     public function clearSectorCache(int $sectorId): void
@@ -114,6 +225,8 @@ class TasyService
             "patient_full_data_{$attendanceNumber}",
             "patient_basic_modal_{$attendanceNumber}",
             "patient_recomendacoes_{$attendanceNumber}",
+            $this->therapeuticPlanCacheKey($attendanceNumber),
+            "patient_therapeutic_plan_{$attendanceNumber}", // backward compatibility (old key)
         ];
 
         foreach ($keys as $key) {
@@ -137,6 +250,11 @@ class TasyService
             ]);
             return [];
         }
+    }
+
+    private function therapeuticPlanCacheKey(int $attendanceNumber): string
+    {
+        return "patient_therapeutic_plan_v" . self::THERAPEUTIC_PLAN_CACHE_VERSION . "_{$attendanceNumber}";
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA FETCHING ====================
@@ -206,11 +324,26 @@ class TasyService
 
     private function fetchBatchData(int $sectorId, array $attendanceNumbers): array
     {
+        $ta = microtime(true);
         $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
-        $scales        = $this->fetchBatchScales($attendanceNumbers);
+        $tb = microtime(true);
+
+        $scales = $this->fetchBatchScales($attendanceNumbers);
+        $tc = microtime(true);
 
         $pendingEventsService = new \App\Services\PatientPendingEventsService();
         $pendingRaw = $pendingEventsService->getPendingEventsForSector($sectorId);
+        $td = microtime(true);
+
+        try {
+            Log::info('[TasyService] fetchBatchData breakdown', [
+                'sector_id'  => $sectorId,
+                'nr_count'   => count($attendanceNumbers),
+                'clinical_ms'=> round(($tb - $ta) * 1000),
+                'scales_ms'  => round(($tc - $tb) * 1000),
+                'pending_ms' => round(($td - $tc) * 1000),
+            ]);
+        } catch (\Throwable) {}
 
         $pendingEventsMap = [];
         $dischargeInfoMap = [];
@@ -245,11 +378,27 @@ class TasyService
             ];
         }
 
+        $t1 = microtime(true);
         $clinicalDetails        = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
+        $t2 = microtime(true);
         $surgeries              = $this->surgery()->getFutureSurgeriesForAttendances($attendanceNumbers);
+        $t3 = microtime(true);
         $multidisciplinary      = $this->multidisciplinary()->getMultidisciplinaryTeams($attendanceNumbers);
+        $t4 = microtime(true);
         $multidisciplinaryReqs  = $this->multidisciplinary()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
+        $t5 = microtime(true);
         $priorityExams          = $this->exams()->getPriorityExamsForAttendances($attendanceNumbers);
+        $t6 = microtime(true);
+
+        try {
+            Log::info('[TasyService] fetchBatchClinicalData breakdown', [
+                'clinical_details_ms' => round(($t2 - $t1) * 1000),
+                'surgeries_ms'        => round(($t3 - $t2) * 1000),
+                'multi_teams_ms'      => round(($t4 - $t3) * 1000),
+                'multi_requests_ms'   => round(($t5 - $t4) * 1000),
+                'priority_exams_ms'   => round(($t6 - $t5) * 1000),
+            ]);
+        } catch (\Throwable) {}
 
         return [
             'surgery'                    => $surgeries['surgery'] ?? [],
@@ -425,6 +574,7 @@ class TasyService
             'nr_atendimento'         => $patient->nr_atendimento,
             'cd_pessoa_fisica'       => $patient->cd_pessoa_fisica,
             'nm_pessoa_fisica'       => $patient->person?->nm_pessoa_fisica ?? 'Nome não informado',
+            'nm_social'              => $patient->person?->social_name ?? null,
             'nr_prontuario'          => $patient->person?->nr_prontuario ?? 'N/A',
             'birth_date'             => $birthDate ? Carbon::parse($birthDate)->format('d/m/Y') : null,
             'age'                    => $age,

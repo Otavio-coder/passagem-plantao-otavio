@@ -7,80 +7,99 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
+use Livewire\Attributes\Isolate;
 
+#[Isolate]
 class ShiftEvaluationsModal extends Component
 {
-    public bool $isOpen = false;
-    public ?int $sectorId = null;
-    public bool $loading = false;
-    public array $beds = [];
-    public string $search = '';
-    public string $shiftWindowLabel = '';
-    public string $sectorName = '';
-    public int $totalMessages = 0;
+    public bool    $isOpen    = false;
+    public ?int    $sectorId  = null;
+    public bool    $loading   = false;
+    public array   $beds      = [];
+    public array   $userPhotos = []; // map: user_name => base64 photo
+    public int     $totalMessages = 0;
+    public string  $sectorName   = '';
+    public string  $dateFrom  = '';
+    public string  $dateTo    = '';
 
     protected $listeners = ['openEvaluationsModal' => 'open'];
 
-    public function open($sectorId = null)
+    public function mount(): void
+    {
+        $this->dateFrom = Carbon::today()->format('Y-m-d');
+        $this->dateTo   = Carbon::today()->format('Y-m-d');
+    }
+
+    public function open($sectorId = null): void
     {
         if ($sectorId) {
             $this->sectorId = (int) $sectorId;
         }
-        $this->search = '';
+
+        if (empty($this->dateFrom)) {
+            $this->dateFrom = Carbon::today()->format('Y-m-d');
+            $this->dateTo   = Carbon::today()->format('Y-m-d');
+        }
+
         $this->isOpen = true;
         $this->loadEvaluations();
     }
 
-    public function close()
+    public function close(): void
     {
         $this->isOpen = false;
     }
 
-    public function updatedSearch()
+    public function updatedDateFrom(): void
     {
-        $this->filterBeds();
+        $this->loadEvaluations();
     }
 
-    public function loadEvaluations()
+    public function updatedDateTo(): void
+    {
+        $this->loadEvaluations();
+    }
+
+    public function loadEvaluations(): void
     {
         if (!$this->sectorId) {
             $this->loading = false;
             return;
         }
 
-        $this->loading = true;
+        $this->loading    = true;
+        $this->userPhotos = [];
 
         try {
-            $tasy = new TasyService();
+            $tasy     = new TasyService();
             $patients = $tasy->getSectorPatientsForSbar($this->sectorId);
 
             if (empty($patients)) {
-                $this->beds = [];
-                $this->sectorName = '';
+                $this->beds          = [];
+                $this->sectorName    = '';
                 $this->totalMessages = 0;
                 return;
             }
 
-            $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
-            $since = $this->computeShiftSince();
-            $this->shiftWindowLabel = $this->computeShiftWindowLabel($since);
+            $this->sectorName      = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
+            $attendanceNumbers     = array_filter(array_column($patients, 'nr_atendimento'));
 
-            $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
+            $fromDate = Carbon::parse($this->dateFrom)->startOfDay();
+            $toDate   = Carbon::parse($this->dateTo)->endOfDay();
 
             $rawMessages = DB::table('chat_messages as cm')
                 ->leftJoin('users as u', 'cm.user_id', '=', 'u.id')
                 ->leftJoin('chat_message_pins as cmp', function ($join) {
                     $join->on('cmp.message_id', '=', 'cm.id')
-                        ->whereNull('cmp.unpinned_at');
+                         ->whereNull('cmp.unpinned_at');
                 })
                 ->whereIn('cm.nr_atendimento', $attendanceNumbers)
-                ->where('cm.created_at', '>=', $since)
+                ->whereBetween('cm.created_at', [$fromDate, $toDate])
                 ->select([
                     'cm.id',
                     'cm.nr_atendimento',
                     'cm.content',
                     'cm.created_at',
-                    'cm.updated_at',
                     'u.name as user_name',
                     'u.photo as user_photo',
                     DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
@@ -88,10 +107,10 @@ class ShiftEvaluationsModal extends Component
                 ->orderBy('cm.created_at', 'desc')
                 ->get();
 
-            $patientsMap = collect($patients)->keyBy('nr_atendimento');
+            $patientsMap          = collect($patients)->keyBy('nr_atendimento');
             $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
 
-            $beds = [];
+            $beds          = [];
             $totalMessages = 0;
 
             foreach ($messagesByAttendance as $nrAtendimento => $messages) {
@@ -100,36 +119,52 @@ class ShiftEvaluationsModal extends Component
 
                 $formattedMessages = [];
                 foreach ($messages as $message) {
-                    $dt = Carbon::parse($message->created_at);
+                    $dt        = Carbon::parse($message->created_at);
                     $shiftInfo = getShiftInfo($dt);
+                    $userName  = $message->user_name ?? 'Desconhecido';
+
+                    // Popula o mapa de fotos (uma vez por usuário)
+                    if (!isset($this->userPhotos[$userName]) && !empty($message->user_photo)) {
+                        $raw     = $message->user_photo;
+                        $decoded = base64_decode($raw, true);
+                        if ($decoded !== false && strlen($decoded) > 50
+                            && strpos($decoded, '"error"') === false) {
+                            $this->userPhotos[$userName] = $raw;
+                        }
+                    }
 
                     $formattedMessages[] = [
                         'id'            => $message->id,
                         'content'       => nl2br(e($message->content)),
-                        'user_name'     => $message->user_name ?? 'Desconhecido',
-                        'user_initials' => $this->getInitials($message->user_name ?? 'U'),
+                        'user_name'     => $userName,
+                        'user_initials' => $this->getInitials($userName),
                         'timestamp'     => $this->formatTimestamp($dt),
                         'turno'         => $this->getShiftLabel($shiftInfo['shift']),
                         'is_pinned'     => (bool) $message->is_pinned,
                     ];
                 }
 
+                $dtEntrada     = $patient['dt_entrada'] ?? null;
+                $dischargeInfo = $patient['discharge_info'] ?? null;
+
                 $beds[] = [
-                    'leito'          => $patient['cd_unidade_basica'] ?? 'N/A',
-                    'nome_paciente'  => $patient['nm_pessoa_fisica'] ?? 'N/A',
-                    'prontuario'     => $patient['nr_prontuario'] ?? 'N/A',
-                    'atendimento'    => $nrAtendimento,
-                    'mensagens'      => $formattedMessages,
-                    'total_mensagens' => count($formattedMessages),
-                    'has_pinned'     => collect($formattedMessages)->contains('is_pinned', true),
+                    'leito'                => $patient['cd_unidade_basica'] ?? 'N/A',
+                    'nome_paciente'        => $patient['nm_pessoa_fisica'] ?? 'N/A',
+                    'prontuario'           => $patient['nr_prontuario'] ?? 'N/A',
+                    'atendimento'          => $nrAtendimento,
+                    'setor'                => $patient['ds_setor_atendimento'] ?? 'N/A',
+                    'dt_entrada_formatted' => $dtEntrada ? Carbon::parse($dtEntrada)->format('d/m/Y') : null,
+                    'dt_alta_formatted'    => $dischargeInfo['dt_alta_medico_formatted'] ?? null,
+                    'internment_days'      => $patient['internment_days'] !== null ? (int) $patient['internment_days'] : null,
+                    'mensagens'            => $formattedMessages,
+                    'total_mensagens'      => count($formattedMessages),
+                    'has_pinned'           => collect($formattedMessages)->contains('is_pinned', true),
                 ];
 
                 $totalMessages += count($formattedMessages);
             }
 
-            usort($beds, fn($a, $b) => strnatcmp($a['leito'], $b['leito']));
-
-            $this->beds = $beds;
+            $this->beds          = array_values($beds);
             $this->totalMessages = $totalMessages;
 
         } catch (\Exception $e) {
@@ -137,48 +172,10 @@ class ShiftEvaluationsModal extends Component
                 'sector_id' => $this->sectorId,
                 'error'     => $e->getMessage(),
             ]);
-            $this->beds = [];
+            $this->beds          = [];
             $this->totalMessages = 0;
         } finally {
             $this->loading = false;
-        }
-    }
-
-    public function filterBeds()
-    {
-        // Search is applied in the blade via Alpine.js on the loaded data
-        // Nothing to do server-side; Alpine handles the filtering
-    }
-
-    private function computeShiftSince(): Carbon
-    {
-        $now = Carbon::now();
-        $hour = (int) $now->format('H');
-
-        if ($hour >= 7 && $hour < 13) {
-            // Morning: show previous night (19h yesterday) + current morning
-            return $now->copy()->subDay()->setTime(19, 0, 0);
-        } elseif ($hour >= 13 && $hour < 19) {
-            // Afternoon: show morning (07h today) + current afternoon
-            return $now->copy()->setTime(7, 0, 0);
-        } else {
-            // Night: show afternoon (13h today or yesterday) + current night
-            return $hour >= 19
-                ? $now->copy()->setTime(13, 0, 0)
-                : $now->copy()->subDay()->setTime(13, 0, 0);
-        }
-    }
-
-    private function computeShiftWindowLabel(Carbon $since): string
-    {
-        $hour = (int) Carbon::now()->format('H');
-
-        if ($hour >= 7 && $hour < 13) {
-            return 'Noite anterior (19h–07h) + Manhã atual (07h–13h)';
-        } elseif ($hour >= 13 && $hour < 19) {
-            return 'Manhã (07h–13h) + Tarde atual (13h–19h)';
-        } else {
-            return 'Tarde (13h–19h) + Noite atual (19h–07h)';
         }
     }
 
@@ -194,12 +191,8 @@ class ShiftEvaluationsModal extends Component
 
     private function formatTimestamp(Carbon $dt): string
     {
-        if ($dt->isToday()) {
-            return $dt->format('H:i');
-        }
-        if ($dt->isYesterday()) {
-            return 'Ontem ' . $dt->format('H:i');
-        }
+        if ($dt->isToday())     return $dt->format('H:i');
+        if ($dt->isYesterday()) return 'Ontem ' . $dt->format('H:i');
         return $dt->format('d/m H:i');
     }
 
@@ -214,6 +207,6 @@ class ShiftEvaluationsModal extends Component
 
     public function render()
     {
-        return view('livewire.shift-evaluations-modal');
+        return view('sbar.report.filters.evaluations.modal');
     }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EMR\Core\Sector;
 use App\Services\TasyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -13,55 +12,70 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExportController extends Controller
 {
-    /**
-     * Display shift evaluations view
-     */
+    private const VALID_SORT_FIELDS = ['leito', 'nome_paciente', 'setor', 'dt_entrada', 'dt_alta', 'internment_days', 'total_mensagens'];
+    private const ALLOWED_PER_PAGE  = [10, 20, 50, 100];
+
     public function showShiftEvaluations(Request $request): View
     {
         $sectorId = $request->get('sector_id');
-        $search = $request->get('search', '');
-        $page = max(1, (int) $request->get('page', 1));
-        $perPage = 20;
-
         if (!$sectorId) {
-            abort(400, 'Sector not specified');
+            abort(400, 'Setor não especificado');
         }
 
+        $search   = $request->get('search', '');
+        $sortBy   = $request->get('sort_by', 'leito');
+        $sortDir  = $request->get('sort_dir', 'asc');
+        $perPage  = (int) $request->get('per_page', 20);
+        $page     = max(1, (int) $request->get('page', 1));
+        $dateFrom = $request->get('date_from', Carbon::today()->format('Y-m-d'));
+        $dateTo   = $request->get('date_to', Carbon::today()->format('Y-m-d'));
+
+        if (!in_array($sortBy, self::VALID_SORT_FIELDS)) $sortBy = 'leito';
+        if (!in_array($sortDir, ['asc', 'desc'])) $sortDir = 'asc';
+        if (!in_array($perPage, self::ALLOWED_PER_PAGE)) $perPage = 20;
+
         try {
-            $tasy = new TasyService();
+            $tasy     = new TasyService();
             $patients = $tasy->getSectorPatientsForSbar((int) $sectorId);
 
+            $basePayload = [
+                'sectorId'       => $sectorId,
+                'sectorName'     => 'Setor desconhecido',
+                'beds'           => [],
+                'totalBeds'      => 0,
+                'search'         => $search,
+                'sortBy'         => $sortBy,
+                'sortDir'        => $sortDir,
+                'perPage'        => $perPage,
+                'allowedPerPage' => self::ALLOWED_PER_PAGE,
+                'currentPage'    => 1,
+                'totalPages'     => 1,
+                'dateFrom'       => $dateFrom,
+                'dateTo'         => $dateTo,
+            ];
+
             if (empty($patients)) {
-                return view('sbar.shift-evaluations', [
-                    'sectorId' => $sectorId,
-                    'sectorName' => 'Unknown Sector',
-                    'beds' => [],
-                    'totalBeds' => 0,
-                    'search' => $search,
-                    'currentPage' => 1,
-                    'totalPages' => 1,
-                ]);
+                return view('sbar.report.filters.evaluations.page', $basePayload);
             }
 
-            $sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Sector';
+            $sectorName        = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
             $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
-            $since = Carbon::now()->subDays(2)->startOfDay();
+            $fromDate          = Carbon::parse($dateFrom)->startOfDay();
+            $toDate            = Carbon::parse($dateTo)->endOfDay();
 
-            // Load messages from the new chat_messages table
             $rawMessages = DB::table('chat_messages as cm')
                 ->leftJoin('users as u', 'cm.user_id', '=', 'u.id')
                 ->leftJoin('chat_message_pins as cmp', function ($join) {
                     $join->on('cmp.message_id', '=', 'cm.id')
-                        ->whereNull('cmp.unpinned_at');
+                         ->whereNull('cmp.unpinned_at');
                 })
                 ->whereIn('cm.nr_atendimento', $attendanceNumbers)
-                ->where('cm.created_at', '>=', $since)
+                ->whereBetween('cm.created_at', [$fromDate, $toDate])
                 ->select([
                     'cm.id',
                     'cm.nr_atendimento',
                     'cm.content',
                     'cm.created_at',
-                    'cm.updated_at',
                     'u.name as user_name',
                     'u.photo as user_photo',
                     DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
@@ -69,128 +83,128 @@ class ExportController extends Controller
                 ->orderBy('cm.created_at', 'desc')
                 ->get();
 
-            // Group messages by attendance number
             $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
-
-            // Build beds data structure
-            $patientsMap = collect($patients)->keyBy('nr_atendimento');
-            $beds = [];
+            $patientsMap          = collect($patients)->keyBy('nr_atendimento');
+            $beds                 = [];
 
             foreach ($messagesByAttendance as $nrAtendimento => $messages) {
                 $patient = $patientsMap->get($nrAtendimento);
                 if (!$patient) continue;
 
-                // Filter by search if provided
                 if ($search) {
-                    $searchLower = strtolower($search);
-                    $patientName = strtolower($patient['nm_pessoa_fisica'] ?? '');
-                    $bedCode = strtolower($patient['cd_unidade_basica'] ?? '');
-                    $medicalRecord = strtolower($patient['nr_prontuario'] ?? '');
-
-                    if (!str_contains($patientName, $searchLower) &&
-                        !str_contains($bedCode, $searchLower) &&
-                        !str_contains($medicalRecord, $searchLower)) {
+                    $sl = strtolower($search);
+                    if (!str_contains(strtolower($patient['nm_pessoa_fisica'] ?? ''), $sl) &&
+                        !str_contains(strtolower($patient['cd_unidade_basica'] ?? ''), $sl) &&
+                        !str_contains(strtolower($patient['nr_prontuario'] ?? ''), $sl) &&
+                        !str_contains(strtolower($patient['ds_setor_atendimento'] ?? ''), $sl)) {
                         continue;
                     }
                 }
 
                 $formattedMessages = [];
                 foreach ($messages as $message) {
-                    $dt = Carbon::parse($message->created_at);
+                    $dt        = Carbon::parse($message->created_at);
                     $shiftInfo = getShiftInfo($dt);
 
                     $formattedMessages[] = [
-                        'id' => $message->id,
-                        'content' => nl2br(e($message->content)),
-                        'user_name' => $message->user_name ?? 'Unknown',
-                        'user_photo' => $message->user_photo,
+                        'id'            => $message->id,
+                        'content'       => nl2br(e($message->content)),
+                        'user_name'     => $message->user_name ?? 'Desconhecido',
+                        'user_photo'    => $message->user_photo,
                         'user_initials' => $this->getInitials($message->user_name ?? 'U'),
-                        'timestamp' => $dt->format('d/m/Y H:i'),
-                        'turno' => $this->getShiftLabel($shiftInfo['shift']),
-                        'is_pinned' => (bool) $message->is_pinned,
+                        'timestamp'     => $dt->format('d/m/Y H:i'),
+                        'turno'         => $this->getShiftLabel($shiftInfo['shift']),
+                        'is_pinned'     => (bool) $message->is_pinned,
                     ];
                 }
 
+                $dtEntrada     = $patient['dt_entrada'] ?? null;
+                $dischargeInfo = $patient['discharge_info'] ?? null;
+
                 $beds[] = [
-                    'leito' => $patient['cd_unidade_basica'] ?? 'N/A',
-                    'nome_paciente' => $patient['nm_pessoa_fisica'] ?? 'Unknown',
-                    'prontuario' => $patient['nr_prontuario'] ?? 'N/A',
-                    'atendimento' => $nrAtendimento,
-                    'mensagens' => $formattedMessages,
-                    'total_mensagens' => count($formattedMessages),
+                    'leito'                => $patient['cd_unidade_basica'] ?? 'N/A',
+                    'nome_paciente'        => $patient['nm_pessoa_fisica'] ?? 'Desconhecido',
+                    'prontuario'           => $patient['nr_prontuario'] ?? 'N/A',
+                    'atendimento'          => $nrAtendimento,
+                    'setor'                => $patient['ds_setor_atendimento'] ?? 'N/A',
+                    'dt_entrada'           => $dtEntrada,
+                    'dt_entrada_formatted' => $dtEntrada ? Carbon::parse($dtEntrada)->format('d/m/Y') : null,
+                    'dt_alta'              => $dischargeInfo['dt_alta_medico'] ?? null,
+                    'dt_alta_formatted'    => $dischargeInfo['dt_alta_medico_formatted'] ?? null,
+                    'internment_days'      => $patient['internment_days'] ?? null,
+                    'mensagens'            => $formattedMessages,
+                    'total_mensagens'      => count($formattedMessages),
                 ];
             }
 
-            // Sort beds by bed code
-            usort($beds, function ($a, $b) {
-                return strnatcmp($a['leito'], $b['leito']);
+            usort($beds, function ($a, $b) use ($sortBy, $sortDir) {
+                if (in_array($sortBy, ['dt_entrada', 'dt_alta'])) {
+                    $cmp = ($a[$sortBy] ? strtotime($a[$sortBy]) : 0) <=> ($b[$sortBy] ? strtotime($b[$sortBy]) : 0);
+                } elseif (in_array($sortBy, ['internment_days', 'total_mensagens'])) {
+                    $cmp = ($a[$sortBy] ?? 0) <=> ($b[$sortBy] ?? 0);
+                } else {
+                    $cmp = strnatcasecmp($a[$sortBy] ?? '', $b[$sortBy] ?? '');
+                }
+                return $sortDir === 'desc' ? -$cmp : $cmp;
             });
 
-            $totalBeds = count($beds);
-            $totalPages = (int) ceil($totalBeds / $perPage);
-            $page = min($page, max(1, $totalPages));
+            $totalBeds  = count($beds);
+            $totalPages = max(1, (int) ceil($totalBeds / $perPage));
+            $page       = min($page, $totalPages);
+            $beds       = array_values(array_slice($beds, ($page - 1) * $perPage, $perPage));
 
-            // Paginate
-            $offset = ($page - 1) * $perPage;
-            $beds = array_slice($beds, $offset, $perPage);
-
-            return view('sbar.shift-evaluations', [
-                'sectorId' => $sectorId,
-                'sectorName' => $sectorName,
-                'beds' => $beds,
-                'totalBeds' => $totalBeds,
-                'search' => $search,
+            return view('sbar.report.filters.evaluations.page', array_merge($basePayload, [
+                'sectorName'  => $sectorName,
+                'beds'        => $beds,
+                'totalBeds'   => $totalBeds,
                 'currentPage' => $page,
-                'totalPages' => $totalPages,
-            ]);
+                'totalPages'  => $totalPages,
+            ]));
 
         } catch (\Exception $e) {
             Log::error('[ShiftEvaluations] Error loading evaluations', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
-            abort(500, 'Error loading shift evaluations');
+            abort(500, 'Erro ao carregar avaliações do turno');
         }
     }
 
-    /**
-     * Export shift evaluations to CSV
-     */
     public function exportShiftEvaluations(Request $request): StreamedResponse
     {
+        $sectorId = $request->get('sector_id');
+        if (!$sectorId) {
+            abort(400, 'Setor não especificado');
+        }
+
+        $dateFrom = $request->get('date_from', Carbon::today()->format('Y-m-d'));
+        $dateTo   = $request->get('date_to', Carbon::today()->format('Y-m-d'));
+
         try {
-            $sectorId = $request->get('sector_id');
-
-            if (!$sectorId) {
-                abort(400, 'Sector not specified');
-            }
-
-            $tasy = new TasyService();
+            $tasy     = new TasyService();
             $patients = $tasy->getSectorPatientsForSbar((int) $sectorId);
 
             if (empty($patients)) {
-                abort(404, 'No patients found');
+                abort(404, 'Nenhum paciente encontrado');
             }
 
-            $sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Sector';
+            $sectorName        = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
             $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
-            $since = Carbon::now()->subDays(2)->startOfDay();
+            $fromDate          = Carbon::parse($dateFrom)->startOfDay();
+            $toDate            = Carbon::parse($dateTo)->endOfDay();
 
-            // Load messages from the new chat_messages table
             $rawMessages = DB::table('chat_messages as cm')
                 ->leftJoin('users as u', 'cm.user_id', '=', 'u.id')
                 ->leftJoin('chat_message_pins as cmp', function ($join) {
                     $join->on('cmp.message_id', '=', 'cm.id')
-                        ->whereNull('cmp.unpinned_at');
+                         ->whereNull('cmp.unpinned_at');
                 })
                 ->whereIn('cm.nr_atendimento', $attendanceNumbers)
-                ->where('cm.created_at', '>=', $since)
+                ->whereBetween('cm.created_at', [$fromDate, $toDate])
                 ->select([
                     'cm.nr_atendimento',
                     'cm.content',
                     'cm.created_at',
-                    'cm.updated_at',
                     'u.name as user_name',
                     DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
                 ])
@@ -199,47 +213,43 @@ class ExportController extends Controller
                 ->groupBy('nr_atendimento');
 
             $patientsMap = collect($patients)->keyBy('nr_atendimento');
-            $exportData = [];
+            $exportData  = [];
 
             foreach ($rawMessages as $nrAtendimento => $messages) {
                 $patient = $patientsMap->get($nrAtendimento);
                 if (!$patient) continue;
 
                 foreach ($messages as $message) {
-                    $dt = Carbon::parse($message->created_at);
+                    $dt    = Carbon::parse($message->created_at);
                     $turno = $this->getShiftLabel(getShiftInfo($dt)['shift']);
 
                     $exportData[] = [
-                        'Leito' => $patient['cd_unidade_basica'] ?? 'N/A',
-                        'Paciente' => $patient['nm_pessoa_fisica'] ?? 'N/A',
+                        'Leito'      => $patient['cd_unidade_basica'] ?? 'N/A',
+                        'Paciente'   => $patient['nm_pessoa_fisica'] ?? 'N/A',
                         'Prontuário' => $patient['nr_prontuario'] ?? 'N/A',
-                        'Atendimento' => $nrAtendimento,
-                        'Data' => $dt->format('d/m/Y'),
-                        'Turno' => $turno,
-                        'Horário' => $dt->format('H:i'),
-                        'Autor' => $message->user_name ?? 'Unknown',
-                        'Mensagem' => strip_tags($message->content ?? ''),
-                        'Fixada' => $message->is_pinned ? 'Yes' : 'No',
-                        'Editada' => !empty($message->updated_at) ? 'Yes' : 'No',
+                        'Atendimento'=> $nrAtendimento,
+                        'Data'       => $dt->format('d/m/Y'),
+                        'Turno'      => $turno,
+                        'Horário'    => $dt->format('H:i'),
+                        'Autor'      => $message->user_name ?? 'Desconhecido',
+                        'Mensagem'   => strip_tags($message->content ?? ''),
+                        'Fixada'     => $message->is_pinned ? 'Sim' : 'Não',
                     ];
                 }
             }
 
-            // Natural sort by bed then by datetime
             usort($exportData, function ($a, $b) {
                 $cmp = strnatcmp($a['Leito'], $b['Leito']);
-                if ($cmp !== 0) return $cmp;
-                return strcmp($a['Data'] . $a['Horário'], $b['Data'] . $b['Horário']);
+                return $cmp !== 0 ? $cmp : strcmp($a['Data'] . $a['Horário'], $b['Data'] . $b['Horário']);
             });
 
-            $filename = 'shift_evaluations_' . preg_replace('/[^a-zA-Z0-9]/', '_', $sectorName)
-                . '_' . date('Y-m-d_His') . '.csv';
+            $safeSector = preg_replace('/[^a-zA-Z0-9]/', '_', $sectorName);
+            $filename   = "avaliacoes_{$safeSector}_{$dateFrom}_{$dateTo}_" . date('His') . '.csv';
 
             return new StreamedResponse(
                 function () use ($exportData) {
                     $handle = fopen('php://output', 'w');
-                    fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
-
+                    fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
                     if (!empty($exportData)) {
                         fputcsv($handle, array_keys($exportData[0]), ';');
                     }
@@ -250,11 +260,11 @@ class ExportController extends Controller
                 },
                 200,
                 [
-                    'Content-Type' => 'text/csv; charset=UTF-8',
-                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                    'Cache-Control' => 'no-cache, no-store, must-revalidate',
-                    'Pragma' => 'no-cache',
-                    'Expires' => '0',
+                    'Content-Type'        => 'text/csv; charset=UTF-8',
+                    'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+                    'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+                    'Pragma'              => 'no-cache',
+                    'Expires'             => '0',
                 ]
             );
 
@@ -263,13 +273,11 @@ class ExportController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            abort(500, 'Error exporting data');
+            abort(500, 'Erro ao exportar dados');
         }
     }
 
-    /**
-     * Legacy method alias for backward compatibility
-     */
+    /** @deprecated Use exportShiftEvaluations */
     public function exportAvaliacoesTurno(Request $request): StreamedResponse
     {
         return $this->exportShiftEvaluations($request);
@@ -278,24 +286,19 @@ class ExportController extends Controller
     private function getShiftLabel(string $turnoId): string
     {
         return match ($turnoId) {
-            'morning' => 'Manhã',
+            'morning'   => 'Manhã',
             'afternoon' => 'Tarde',
-            'night' => 'Noite',
-            default => ucfirst($turnoId),
+            'night'     => 'Noite',
+            default     => ucfirst($turnoId),
         };
     }
 
     private function getInitials(string $name): string
     {
         $parts = explode(' ', trim($name));
-        $initials = '';
-
         if (count($parts) >= 2) {
-            $initials = strtoupper(substr($parts[0], 0, 1) . substr($parts[count($parts) - 1], 0, 1));
-        } elseif (count($parts) === 1) {
-            $initials = strtoupper(substr($parts[0], 0, 2));
+            return strtoupper(substr($parts[0], 0, 1) . substr($parts[count($parts) - 1], 0, 1));
         }
-
-        return $initials ?: 'U';
+        return strtoupper(substr($parts[0] ?? 'U', 0, 2)) ?: 'U';
     }
 }

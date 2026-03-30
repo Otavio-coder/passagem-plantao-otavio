@@ -3,7 +3,6 @@
 window.chatComponent = function() {
     return {
         messageText: '',
-        showFormatHelp: false,
         echoReady: false,
         pinnedMinimized: false,
 
@@ -22,7 +21,10 @@ window.chatComponent = function() {
             if (!patientId) return;
 
             this.$wire.initialize().then(() => {
-                this.$nextTick(() => this.scrollToBottom());
+                this.$nextTick(() => {
+                    this.scrollToBottom();
+                    setTimeout(() => this.scrollToBottom(), 400);
+                });
             });
 
             // Connect to Echo channel
@@ -187,12 +189,8 @@ window.chatComponent = function() {
             const textarea = this.$refs.textarea;
             if (textarea) {
                 textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+                textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
             }
-        },
-
-        toggleFormatHelp() {
-            this.showFormatHelp = !this.showFormatHelp;
         },
 
         // ── Loading state helpers ─────────────────────────────────────────────

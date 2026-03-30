@@ -21,13 +21,13 @@ class UserController extends Controller
 
     public function index()
     {
+        $users = AppUser::with('sectorPreferences')->get();
 
-        $users = $this->users()->all();
+        $roles = auth()->user()->hasRole('Administrador')
+            ? Role::all()
+            : Role::where('name', '<>', 'Administrador')->get();
 
-        $roles = auth()->user()->hasRole('Administrador') ? Role::all() :
-            Role::where( 'name', '<>', 'Administrador' )->get();
-
-        return view( 'users.index', compact('users','roles') );
+        return view('users.index', compact('users', 'roles'));
     }
 
     public function createUser( StoreUserRequest $request )

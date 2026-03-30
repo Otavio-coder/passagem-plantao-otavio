@@ -42,7 +42,7 @@ class DatabaseSeeder extends Seeder
             //    criar usuarios     → cria um novo usuário a partir do AD
             //    editar usuarios    → altera perfis/roles de um usuário
             //    bloquear usuarios  → bloqueia/desbloqueia acesso de um usuário
-            //    acessar como       → impersonar outro usuário (admin only)
+            //    acessar como       → impersonar outro usuário
             //
             //  Gestão de perfis
             //    ver perfis         → acessa a listagem de perfis/roles
@@ -52,6 +52,8 @@ class DatabaseSeeder extends Seeder
             //  Sistema
             //    ver logs           → acessa o LogViewer
             //    configurar sistema → acessa configurações globais (setores whitelist)
+            //    ver historico chat → acessa o histórico de anotações
+            //    ver relatorio pendencias → acessa o relatório tabular de pendências
 
             $permissions = [
                 // usuários
@@ -67,6 +69,8 @@ class DatabaseSeeder extends Seeder
                 // sistema
                 'ver logs',
                 'configurar sistema',
+                'ver historico chat',
+                'ver relatorio pendencias',
             ];
 
             foreach ($permissions as $perm) {
@@ -75,43 +79,30 @@ class DatabaseSeeder extends Seeder
 
             // ─── PERFIS (ROLES) ────────────────────────────────────────────
             //
-            //  Administrador  – acesso total ao sistema
-            //  Gestor         – gerencia usuários e configurações; não impersona nem mexe em perfis
-            //  Coordenador    – acesso de leitura na gestão de usuários e logs; sem ação destrutiva
-            //  Usuário Padrão – acesso completo ao SBAR/chat; sem área administrativa
-            //  Visualizador   – atribuído automaticamente a novos usuários do AD no primeiro login
+            //  Administrador → acesso total ao sistema
+            //  Coordenador   → gerencia usuários e histórico; sem perfis/logs/configurações
+            //  Usuário       → acesso ao SBAR/chat; sem área administrativa
 
-            $roleAdmin  = Role::firstOrCreate(['name' => 'Administrador',  'guard_name' => 'web']);
-            $roleGestor = Role::firstOrCreate(['name' => 'Gestor',         'guard_name' => 'web']);
-            $roleCoord  = Role::firstOrCreate(['name' => 'Coordenador',    'guard_name' => 'web']);
-            $roleUser   = Role::firstOrCreate(['name' => 'Usuário Padrão', 'guard_name' => 'web']);
-            $roleView   = Role::firstOrCreate(['name' => 'Visualizador',   'guard_name' => 'web']);
+            $roleAdmin = Role::firstOrCreate(['name' => 'Administrador', 'guard_name' => 'web']);
+            $roleCoord = Role::firstOrCreate(['name' => 'Coordenador',   'guard_name' => 'web']);
+            $roleUser  = Role::firstOrCreate(['name' => 'Usuário',       'guard_name' => 'web']);
 
             // Administrador → tudo
             $roleAdmin->syncPermissions(Permission::all());
 
-            // Gestor → gerencia usuários (inclusive bloqueio) + configurações + logs; não impersona nem altera perfis
-            $roleGestor->syncPermissions([
+            // Coordenador → gerencia usuários + histórico; sem perfis, logs e configurações de sistema
+            $roleCoord->syncPermissions([
                 'ver usuarios',
                 'criar usuarios',
                 'editar usuarios',
                 'bloquear usuarios',
-                'ver perfis',
-                'ver logs',
-                'configurar sistema',
+                'acessar como',
+                'ver historico chat',
+                'ver relatorio pendencias',
             ]);
 
-            // Coordenador → leitura de usuários e logs; sem alterações
-            $roleCoord->syncPermissions([
-                'ver usuarios',
-                'ver logs',
-            ]);
-
-            // Usuário Padrão → sem permissões administrativas (SBAR/chat é aberto a todos autenticados)
+            // Usuário → sem permissões administrativas (SBAR/chat aberto a todos autenticados)
             $roleUser->syncPermissions([]);
-
-            // Visualizador → sem permissões administrativas (mesmo acesso ao SBAR que Usuário Padrão)
-            $roleView->syncPermissions([]);
 
             // ─── USUÁRIO INICIAL ───────────────────────────────────────────
 
@@ -133,11 +124,9 @@ class DatabaseSeeder extends Seeder
             $this->command->table(
                 ['Perfil', 'Permissões'],
                 [
-                    ['Administrador',  'Todas as permissões'],
-                    ['Gestor',         'ver/criar/editar/bloquear usuarios · ver perfis · ver logs · configurar sistema'],
-                    ['Coordenador',    'ver usuarios · ver logs'],
-                    ['Usuário Padrão', '(sem permissões administrativas — acesso ao SBAR)'],
-                    ['Visualizador',   '(sem permissões administrativas — atribuído a novos usuários do AD)'],
+                    ['Administrador', 'Todas as permissões'],
+                    ['Coordenador',   'ver/criar/editar/bloquear usuarios · acessar como · ver historico chat'],
+                    ['Usuário',       '(sem permissões administrativas — acesso ao SBAR)'],
                 ]
             );
 

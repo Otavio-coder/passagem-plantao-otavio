@@ -9,6 +9,13 @@
 /.netbeans
 .phpactor.json
 
+# Claude Code / AI assistant files
+/.claude
+/.junie
+/CLAUDE.md
+/AGENTS.md
+/.mcp.json
+
 # Dependency directories
 /node_modules
 /vendor
@@ -42,6 +49,7 @@ phpunit.xml
 # Storage
 /storage/*.key
 /storage/pail
+/storage/chat-imports/*.csv
 
 # Laravel homestead
 Homestead.json

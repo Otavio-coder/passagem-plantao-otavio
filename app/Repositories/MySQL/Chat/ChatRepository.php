@@ -2,8 +2,11 @@
 
 namespace App\Repositories\MySQL\Chat;
 
+use App\Events\ChatMessagePinned;
+use App\Events\ChatMessageSent;
 use App\Models\System\Chat\ChatMessage;
 use App\Models\System\Chat\ChatMessagePin;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ChatRepository
@@ -13,7 +16,7 @@ class ChatRepository
      * Reactions are grouped and attached to each message.
      * Pin status comes from an active (unpinned_at IS NULL) record in chat_message_pins.
      */
-    public function getAllMessages(string $nr_atendimento, int $limit = 300): \Illuminate\Support\Collection
+    public function getAllMessages(string $nr_atendimento, int $limit = 300): Collection
     {
         try {
             $cutoff = now()->subDays(30);
@@ -50,6 +53,7 @@ class ChatRepository
 
             return $messages->map(function ($msg) use ($reactions) {
                 $msg->reactions = $reactions->get($msg->id, collect())->values()->toArray();
+
                 return $msg;
             });
 
@@ -64,15 +68,22 @@ class ChatRepository
     public function storeMessage(array $data): ChatMessage
     {
         $msg = ChatMessage::create([
-            'nr_atendimento'  => $data['nr_atendimento'],
+            'nr_atendimento' => $data['nr_atendimento'],
             'cd_pessoa_fisica' => $data['cd_pessoa_fisica'] ?? null,
-            'user_id'         => $data['user_id'],
-            'content'         => $data['content'],
+            'user_id' => $data['user_id'],
+            'content' => $data['content'],
         ]);
 
         $msg->load('user');
 
-        event(new \App\Events\ChatMessageSent($msg));
+        try {
+            event(new ChatMessageSent($msg));
+        } catch (\Exception $e) {
+            Log::warning('[Chat] Broadcast falhou, mensagem salva', [
+                'message_id' => $msg->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return $msg;
     }
@@ -85,7 +96,7 @@ class ChatRepository
      */
     public function pinMessage(int $messageId, int $pinnedBy): ChatMessage
     {
-        $msg    = ChatMessage::findOrFail($messageId);
+        $msg = ChatMessage::findOrFail($messageId);
         $isPinned = false;
 
         DB::transaction(function () use ($msg, $messageId, $pinnedBy, &$isPinned) {
@@ -110,10 +121,10 @@ class ChatRepository
                     ]);
 
                 ChatMessagePin::create([
-                    'message_id'     => $messageId,
+                    'message_id' => $messageId,
                     'nr_atendimento' => $msg->nr_atendimento,
-                    'pinned_by'      => $pinnedBy,
-                    'pinned_at'      => now(),
+                    'pinned_by' => $pinnedBy,
+                    'pinned_at' => now(),
                 ]);
                 $isPinned = true;
             }
@@ -121,7 +132,14 @@ class ChatRepository
 
         $msg->is_pinned = $isPinned;
 
-        event(new \App\Events\ChatMessagePinned($msg, $isPinned));
+        try {
+            event(new ChatMessagePinned($msg, $isPinned));
+        } catch (\Exception $e) {
+            Log::warning('[Chat] Broadcast de pin falhou', [
+                'message_id' => $msg->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return $msg;
     }
@@ -135,11 +153,12 @@ class ChatRepository
         DB::table('chat_messages')
             ->where('id', $id)
             ->update([
-                'content'    => $newContent,
+                'content' => $newContent,
                 'updated_at' => now(),
             ]);
-        $msg->content    = $newContent;
+        $msg->content = $newContent;
         $msg->updated_at = now();
+
         return $msg;
     }
 
@@ -184,8 +203,8 @@ class ChatRepository
         } else {
             DB::table('chat_reactions')->insert([
                 'message_id' => $messageId,
-                'user_id'    => $userId,
-                'type'       => 'check',
+                'user_id' => $userId,
+                'type' => 'check',
                 'created_at' => now(),
             ]);
             $reacted = true;

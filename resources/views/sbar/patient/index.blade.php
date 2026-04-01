@@ -131,12 +131,23 @@
                                         showModal: false,
                                         tipStyle: '',
                                         openTip(btn) {
-                                            if (!window.matchMedia('(pointer: fine)').matches) return;
                                             const r = btn.getBoundingClientRect();
-                                            this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            } else {
+                                                const top = Math.min(r.bottom + 8, window.innerHeight - 220);
+                                                this.tipStyle = 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:min(220px,calc(100vw - 32px))';
+                                            }
                                             this.showTip = true;
                                         },
                                         closeTip() { this.showTip = false; },
+                                        handleClick(btn) {
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.openModal();
+                                            } else {
+                                                this.showTip ? this.closeTip() : this.openTip(btn);
+                                            }
+                                        },
                                         openModal() { this.showModal = true; document.body.style.overflow = 'hidden'; },
                                         closeModal() { this.showModal = false; document.body.style.overflow = ''; }
                                     }">
@@ -144,7 +155,7 @@
                                         type="button"
                                         @mouseenter="openTip($el)"
                                         @mouseleave="closeTip()"
-                                        @click="openModal()"
+                                        @click="handleClick($el)"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="Ver alergias"
                                     >
@@ -160,7 +171,8 @@
                                         :style="tipStyle"
                                         @mouseenter="showTip = true"
                                         @mouseleave="closeTip()"
-                                        class="fixed z-[9999] w-52 rounded-lg shadow-xl p-2 bg-red-500 text-white text-xs"
+                                        @click.outside="closeTip()"
+                                        class="fixed z-[9999] w-52 rounded-2xl shadow-xl p-3 bg-red-500 text-white text-xs"
                                         @click.stop
                                     >
                                         <div class="font-semibold text-xs mb-1 border-b border-white/20 pb-0.5">Alergias Registradas</div>
@@ -284,12 +296,23 @@
                                         showModal: false,
                                         tipStyle: '',
                                         openTip(btn) {
-                                            if (!window.matchMedia('(pointer: fine)').matches) return;
                                             const r = btn.getBoundingClientRect();
-                                            this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            } else {
+                                                const top = Math.min(r.bottom + 8, window.innerHeight - 220);
+                                                this.tipStyle = 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:min(220px,calc(100vw - 32px))';
+                                            }
                                             this.showTip = true;
                                         },
                                         closeTip() { this.showTip = false; },
+                                        handleClick(btn) {
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.openModal();
+                                            } else {
+                                                this.showTip ? this.closeTip() : this.openTip(btn);
+                                            }
+                                        },
                                         openModal() { this.showModal = true; document.body.style.overflow = 'hidden'; },
                                         closeModal() { this.showModal = false; document.body.style.overflow = ''; }
                                     }">
@@ -297,7 +320,7 @@
                                         type="button"
                                         @mouseenter="openTip($el)"
                                         @mouseleave="closeTip()"
-                                        @click="openModal()"
+                                        @click="handleClick($el)"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-yellow-400 text-black shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="Ver isolamento"
                                     >
@@ -311,7 +334,8 @@
                                         :style="tipStyle"
                                         @mouseenter="showTip = true"
                                         @mouseleave="closeTip()"
-                                        class="fixed z-[9999] w-52 rounded-lg shadow-xl p-2 bg-yellow-400 text-black text-xs"
+                                        @click.outside="closeTip()"
+                                        class="fixed z-[9999] w-52 rounded-2xl shadow-xl p-3 bg-yellow-400 text-black text-xs"
                                         @click.stop
                                     >
                                         <div class="font-semibold text-xs mb-1 border-b border-black/10 pb-0.5">Precauções de Isolamento</div>
@@ -405,12 +429,23 @@
                                         showModal: false,
                                         tipStyle: '',
                                         openTip(btn) {
-                                            if (!window.matchMedia('(pointer: fine)').matches) return;
                                             const r = btn.getBoundingClientRect();
-                                            this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            } else {
+                                                const top = Math.min(r.bottom + 8, window.innerHeight - 220);
+                                                this.tipStyle = 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:min(220px,calc(100vw - 32px))';
+                                            }
                                             this.showTip = true;
                                         },
                                         closeTip() { this.showTip = false; },
+                                        handleClick(btn) {
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.openModal();
+                                            } else {
+                                                this.showTip ? this.closeTip() : this.openTip(btn);
+                                            }
+                                        },
                                         openModal() { this.showModal = true; document.body.style.overflow = 'hidden'; },
                                         closeModal() { this.showModal = false; document.body.style.overflow = ''; }
                                     }">
@@ -418,7 +453,7 @@
                                         type="button"
                                         @mouseenter="openTip($el)"
                                         @mouseleave="closeTip()"
-                                        @click="openModal()"
+                                        @click="handleClick($el)"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-[#7712C7] text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 hover:bg-[#7712C7]/70 focus:outline-none focus:ring-2 focus:ring-[#7712C7]/50 focus:ring-offset-2"
                                         aria-label="Ver cirurgia"
                                     >
@@ -432,7 +467,8 @@
                                         :style="tipStyle"
                                         @mouseenter="showTip = true"
                                         @mouseleave="closeTip()"
-                                        class="fixed z-[9999] w-52 rounded-lg shadow-xl p-2 bg-[#7712C7] text-white text-xs"
+                                        @click.outside="closeTip()"
+                                        class="fixed z-[9999] w-52 rounded-2xl shadow-xl p-3 bg-[#7712C7] text-white text-xs"
                                         @click.stop
                                     >
                                         <div class="font-semibold text-xs mb-1 border-b border-white/20 pb-0.5">Agenda de Cirurgia</div>
@@ -524,7 +560,6 @@
                                 </div>
                             @endif
 
-                            {{-- ALTA / ALTA MÉDICA – tooltip desktop, modal mobile (previsão de alta vai no Row 3) --}}
                             @php
                                 $dischargeInfo = $patient['discharge_info'] ?? null;
                                 $dType = $dischargeInfo['tipo'] ?? '';
@@ -541,12 +576,23 @@
                                         showModal: false,
                                         tipStyle: '',
                                         openTip(btn) {
-                                            if (!window.matchMedia('(pointer: fine)').matches) return;
                                             const r = btn.getBoundingClientRect();
-                                            this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
+                                            } else {
+                                                const top = Math.min(r.bottom + 8, window.innerHeight - 220);
+                                                this.tipStyle = 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:min(220px,calc(100vw - 32px))';
+                                            }
                                             this.showTip = true;
                                         },
                                         closeTip() { this.showTip = false; },
+                                        handleClick(btn) {
+                                            if (window.matchMedia('(pointer: fine)').matches) {
+                                                this.openModal();
+                                            } else {
+                                                this.showTip ? this.closeTip() : this.openTip(btn);
+                                            }
+                                        },
                                         openModal() { this.showModal = true; document.body.style.overflow = 'hidden'; },
                                         closeModal() { this.showModal = false; document.body.style.overflow = ''; }
                                     }"
@@ -556,7 +602,7 @@
                                         type="button"
                                         @mouseenter="openTip($el)"
                                         @mouseleave="closeTip()"
-                                        @click="openModal()"
+                                        @click="handleClick($el)"
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full {{ $dischargeBg }} shadow-md transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
                                         aria-label="{{ $dischargeLabel }}"
                                     >
@@ -570,7 +616,8 @@
                                         :style="tipStyle"
                                         @mouseenter="showTip = true"
                                         @mouseleave="closeTip()"
-                                        class="fixed z-[9999] w-48 rounded-lg shadow-xl p-2 text-gray-800 text-xs bg-white border border-gray-200"
+                                        @click.outside="closeTip()"
+                                        class="fixed z-[9999] w-48 rounded-2xl shadow-xl p-3 text-gray-800 text-xs bg-white border border-gray-200"
                                         @click.stop
                                     >
                                         <div class="font-semibold text-xs mb-1 border-b border-gray-200 pb-0.5">{{ $dischargeLabel }}</div>
@@ -1344,25 +1391,14 @@
                 {{-- Details Button --}}
                 <div
                     class="flex-shrink-0 p-1.5 border-t border-white/10 z-10"
-                    x-data='{ isLoading: false, sbarPatient: @json($patient), hospitalName: @json($currentHospitalName ?? "") }'
+                    x-data='{ sbarPatient: @json($patient), hospitalName: @json($currentHospitalName ?? "") }'
                 >
                     <button
                         type="button"
-                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 disabled:bg-white/10 disabled:text-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
-                        @click.prevent="isLoading = true; $dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient }); setTimeout(() => isLoading = false, 2000)"
-                        :disabled="isLoading"
+                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+                        @click.prevent="$dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient })"
                     >
-                        <span x-show="isLoading" class="flex items-center gap-2">
-                            <span class="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent inline-block"></span>
-                            <span>Carregando...</span>
-                        </span>
-                        <span x-show="!isLoading" class="flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            <span>Detalhes</span>
-                        </span>
+                        <span>Detalhes</span>
                     </button>
                 </div>
             </div>

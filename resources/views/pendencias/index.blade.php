@@ -27,41 +27,82 @@
         </div>
     @endif
 
-    {{-- Filtros de hospital/setor --}}
+    {{-- Loading overlay — visível por padrão, escondido após renderização --}}
+    <div id="pending-loading"
+         class="fixed inset-0 z-50 flex items-center justify-center"
+         style="background: rgba(0,20,70,0.55); backdrop-filter: blur(3px);">
+        <div class="flex flex-col items-center gap-3">
+            <div class="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+            <span class="text-white text-sm font-medium tracking-wide">Carregando pendências...</span>
+        </div>
+    </div>
+
+    {{-- Filtros --}}
     <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
-        <form method="GET" action="{{ route('pending.report') }}" class="flex flex-wrap gap-2 items-end">
-            <div class="flex flex-col gap-1 min-w-48">
+        <div class="flex flex-wrap gap-2 items-end">
+            <div class="flex flex-col gap-1 min-w-44">
                 <label class="text-xs text-gray-500 font-medium">Hospital</label>
+                <form method="GET" action="{{ route('pending.report') }}" id="pending-filter-form">
                 <select name="hospital_id"
                     class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100"
-                    onchange="this.form.submit()">
+                    onchange="showPendingLoader(); this.form.submit()">
                     @foreach($hospitals as $hospital)
                         <option value="{{ $hospital['hospital_id'] }}" {{ (int)$selectedHospital === (int)$hospital['hospital_id'] ? 'selected' : '' }}>
                             {{ $hospital['hospital_name'] }}
                         </option>
                     @endforeach
                 </select>
+                </form>
             </div>
 
-            <div class="flex flex-col gap-1 min-w-56">
+            <div class="flex flex-col gap-1 min-w-52">
                 <label class="text-xs text-gray-500 font-medium">Setor</label>
-                <select name="sector_id"
-                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100"
-                    onchange="this.form.submit()">
-                    @foreach($sectors as $sector)
-                        <option value="{{ $sector['sector_code'] }}" {{ (int)$selectedSector === (int)$sector['sector_code'] ? 'selected' : '' }}>
-                            {{ $sector['sector_name'] }}
-                        </option>
-                    @endforeach
+                <form method="GET" action="{{ route('pending.report') }}" id="pending-filter-form-sector">
+                    @if($selectedHospital)
+                        <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
+                    @endif
+                    <select name="sector_id"
+                        class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100"
+                        onchange="showPendingLoader(); this.form.submit()">
+                        @foreach($sectors as $sector)
+                            <option value="{{ $sector['sector_code'] }}" {{ (int)$selectedSector === (int)$sector['sector_code'] ? 'selected' : '' }}>
+                                {{ $sector['sector_name'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                </form>
+            </div>
+
+            @if($rows->count() > 0)
+            <div class="hidden md:block self-stretch w-px bg-gray-200 mx-1"></div>
+
+            <div class="flex flex-col gap-1 w-44">
+                <label class="text-xs text-gray-500 font-medium">Tipo</label>
+                <select id="filter-tipo"
+                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
+                    <option value="">Todos os tipos</option>
                 </select>
             </div>
-        </form>
 
-        @if($sectorName)
-            <p class="mt-1.5 text-xs text-gray-400">
-                <i class="fas fa-hospital mr-1"></i>{{ $sectorName }}
-            </p>
-        @endif
+            <div class="flex flex-col gap-1 w-44">
+                <label class="text-xs text-gray-500 font-medium">Tempo pendente</label>
+                <select id="filter-tempo"
+                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
+                    <option value="">Qualquer período</option>
+                    <option value="0-6">Até 6h</option>
+                    <option value="6-24">6h a 24h</option>
+                    <option value="24-72">1 a 3 dias</option>
+                    <option value="72-168">3 a 7 dias</option>
+                    <option value="168-">Mais de 7 dias</option>
+                </select>
+            </div>
+
+            <button type="button" id="filter-limpar"
+                class="self-end px-3 py-1.5 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition hidden">
+                <i class="fas fa-times mr-1"></i>Limpar
+            </button>
+            @endif
+        </div>
     </div>
 
     @if($rows->count() > 0)
@@ -119,10 +160,22 @@
 
 @push('scripts')
 <script>
+function showPendingLoader() {
+    document.getElementById('pending-loading').style.display = 'flex';
+}
+function hidePendingLoader() {
+    document.getElementById('pending-loading').style.display = 'none';
+}
+@if($totalRows === 0)
+// Sem tabela para inicializar — esconde o loader assim que o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', hidePendingLoader);
+@endif
+</script>
+<script>
 $(document).ready(function () {
-    $('#pendencias-table').DataTable({
-        pageLength: 5,
-        lengthMenu: [5,15,50, 100, 200],
+    var table = $('#pendencias-table').DataTable({
+        pageLength: 15,
+        lengthMenu: [15, 50, 100, 200],
         order: [],
         language: {
             url: '',
@@ -144,14 +197,75 @@ $(document).ready(function () {
                 previous: 'Anterior'
             }
         },
-        columnDefs: [
-            { targets: [4, 9], orderable: true }
-        ],
         dom: '<"flex flex-wrap items-center justify-between gap-2 mb-3"lf>rt<"flex flex-wrap items-center justify-between gap-2 mt-3"ip>',
         initComplete: function () {
+            var api = this.api();
+
             $('#pendencias-table_filter input').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100');
             $('#pendencias-table_length select').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs');
+
+            // Popula o filtro de Tipo com os prefixos únicos (parte antes do primeiro " - ")
+            var tiposSet = {};
+            api.column(4).data().each(function (val) {
+                var prefix = val.split(' - ')[0].trim();
+                if (prefix) tiposSet[prefix] = true;
+            });
+            Object.keys(tiposSet).sort().forEach(function (tipo) {
+                $('#filter-tipo').append('<option value="' + tipo + '">' + tipo + '</option>');
+            });
+
+            hidePendingLoader();
         }
+    });
+
+    // Converte dd/mm/yyyy HH:mm → horas decorridas desde agora (positivo = no passado)
+    function cellDateToHoursAgo(val) {
+        if (!val || val === '-') { return null; }
+        var m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}))?/);
+        if (!m) { return null; }
+        var ts = new Date(m[3], m[2] - 1, m[1], m[4] || 0, m[5] || 0).getTime();
+        return (Date.now() - ts) / 3600000;
+    }
+
+    // Filtro customizado por tempo pendente (col 5 = data de solicitação)
+    $.fn.dataTable.ext.search.push(function (settings, data) {
+        if (settings.nTable.id !== 'pendencias-table') { return true; }
+        var range = $('#filter-tempo').val();
+        if (!range) { return true; }
+        var hours = cellDateToHoursAgo(data[5]);
+        if (hours === null) { return true; }
+        var parts = range.split('-');
+        var min = parseFloat(parts[0]);
+        var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
+        return hours >= min && hours < max;
+    });
+
+    function updateLimparBtn() {
+        var hasFilter = $('#filter-tipo').val() !== '' || $('#filter-tempo').val() !== '';
+        $('#filter-limpar').toggleClass('hidden', !hasFilter);
+    }
+
+    // Filtro por Tipo (prefixo da coluna Descrição)
+    $('#filter-tipo').on('change', function () {
+        table.column(4).search(
+            this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '',
+            true, false
+        ).draw();
+        updateLimparBtn();
+    });
+
+    // Filtro por tempo pendente
+    $('#filter-tempo').on('change', function () {
+        table.draw();
+        updateLimparBtn();
+    });
+
+    // Limpar todos os filtros da tabela
+    $('#filter-limpar').on('click', function () {
+        $('#filter-tipo').val('');
+        $('#filter-tempo').val('');
+        table.column(4).search('', false, false).draw();
+        updateLimparBtn();
     });
 });
 </script>

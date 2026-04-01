@@ -68,7 +68,7 @@
                                                     <button
                                                         @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector ?? 0 }} })"
                                                         class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 shadow-md text-xs sm:text-sm font-medium">
-                                                        <i class="fas fa-exclamation-triangle h-4 w-4 sm:mr-1.5"></i>
+                                                        <i class="fas fa-exclamation-triangle leading-none sm:mr-1.5"></i>
                                                         <span class="hidden sm:inline">Escalas</span>
                                                     </button>
 
@@ -87,7 +87,7 @@
                                                 </div>
 
                                                 {{-- Expandable mobile filter panel --}}
-                                                <div x-show="filtersOpen" x-collapse
+                                                <div x-show="filtersOpen" x-cloak
                                                      class="mt-2 bg-white/10 rounded-lg p-3 space-y-2">
                                                     <div class="grid grid-cols-2 gap-2">
                                                         <div>

@@ -20,22 +20,25 @@
         .font-montserrat {
             font-family: 'Montserrat', sans-serif;
         }
-        /* Loading Overlay Styles */
-        .sbar-loading-overlay {
+        /* Top progress bar */
+        #page-progress {
             position: fixed;
-            inset: 0;
+            top: 0; left: 0;
+            height: 3px;
+            width: 0;
+            background: #60a5fa;
             z-index: 99999;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(0, 77, 157, 0.3);
-            backdrop-filter: blur(4px);
+            transition: width 0.2s ease, opacity 0.3s ease;
+            opacity: 0;
         }
-        .sbar-loading-overlay.active {
-            display: flex;
+        #page-progress.active {
+            opacity: 1;
+            animation: progress-indeterminate 1.4s ease infinite;
         }
-        body.sbar-loading-active {
-            overflow: hidden;
+        @keyframes progress-indeterminate {
+            0%   { width: 0;    margin-left: 0; }
+            50%  { width: 60%;  margin-left: 20%; }
+            100% { width: 0;    margin-left: 100%; }
         }
         [x-cloak] { display: none !important; }
     </style>
@@ -47,6 +50,7 @@
     @laravelPWA
 </head>
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
+<div id="page-progress"></div>
 <!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
     @include('shared.navbar')
@@ -123,43 +127,40 @@
                 welcomeElement.__x.$data.showWelcome = false;
             }
         }
-        // Global Loading Overlay Controller
-        const overlay = document.getElementById('sbar-loading-overlay');
-        let loadingCount = 0;
-        function showLoading() {
-            loadingCount++;
-            if (overlay) {
-                overlay.classList.add('active');
-                document.body.classList.add('sbar-loading-active');
-            }
+        // ── Progress bar controller ──
+        const bar = document.getElementById('page-progress');
+        function showProgress() { if (bar) bar.classList.add('active'); }
+        function hideProgress() {
+            if (!bar) return;
+            bar.classList.remove('active');
         }
-        function hideLoading() {
-            loadingCount = Math.max(0, loadingCount - 1);
-            if (loadingCount === 0 && overlay) {
-                overlay.classList.remove('active');
-                document.body.classList.remove('sbar-loading-active');
-            }
-        }
-        // Livewire hooks (Livewire 3)
-        document.addEventListener('livewire:navigating', showLoading);
-        document.addEventListener('livewire:navigated', hideLoading);
-        // Livewire wire:loading events
+
+        // Livewire commits (SBAR e outros componentes)
         document.addEventListener('livewire:init', () => {
-            Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
-                showLoading();
-                succeed(() => {
-                    hideLoading();
-                });
-                fail(() => {
-                    hideLoading();
-                });
+            Livewire.hook('commit', ({ succeed, fail }) => {
+                showProgress();
+                succeed(() => hideProgress());
+                fail(() => hideProgress());
             });
         });
-        // Fallback: Manual event listeners
-        window.addEventListener('sbar:loading:show', showLoading);
-        window.addEventListener('sbar:loading:hide', hideLoading);
-        // Auto-hide on page load
-        window.addEventListener('load', hideLoading);
+
+        // Navegação normal (links e formulários)
+        document.addEventListener('click', function (e) {
+            const a = e.target.closest('a[href]');
+            if (!a) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript') || a.target === '_blank') return;
+            if (a.hostname && a.hostname !== location.hostname) return;
+            showProgress();
+        });
+        document.addEventListener('submit', function (e) {
+            if (e.target.tagName === 'FORM') showProgress();
+        });
+
+        // Compatibilidade com eventos manuais existentes
+        window.addEventListener('sbar:loading:show', showProgress);
+        window.addEventListener('sbar:loading:hide', hideProgress);
+        window.addEventListener('load', hideProgress);
     });
 
     // Notificações Toast

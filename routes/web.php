@@ -1,6 +1,14 @@
 <?php
 
+use App\Http\Controllers\ChatArchiveController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\PatientRecomendacoesController;
+use App\Http\Controllers\PatientTherapeuticPlanController;
+use App\Http\Controllers\PendingEventsReportController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SectorWarmController;
 use App\Http\Controllers\SystemConfigurationController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Rota pública para documentação do sistema
@@ -25,30 +33,25 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
 
     // Therapeutic Plan – batch cache warm (called by SBAR page after sector loads)
     Route::post('/patient-care/therapeutic-plan/warm',
-        [App\Http\Controllers\PatientTherapeuticPlanController::class, 'warmCache'])
+        [PatientTherapeuticPlanController::class, 'warmCache'])
         ->name('patient.therapeutic-plan.warm');
 
     // Sector cache warm – pre-warms other user sectors in the background
     Route::post('/sectors/warm',
-        [App\Http\Controllers\SectorWarmController::class, 'warm'])
+        [SectorWarmController::class, 'warm'])
         ->name('sectors.warm');
 
     // Legacy endpoint kept for backward compatibility
     Route::get('/sbar/paciente/{attendanceNumber}/recomendacoes',
-        [App\Http\Controllers\PatientRecomendacoesController::class, 'load'])
+        [PatientRecomendacoesController::class, 'load'])
         ->name('sbar.patient.recomendacoes');
 
     // Avaliações do Turno
-    Route::get('/sbar/avaliacoes', [\App\Http\Controllers\ExportController::class, 'showShiftEvaluations'])
+    Route::get('/sbar/avaliacoes', [ExportController::class, 'showShiftEvaluations'])
         ->name('sbar.evaluations.shift');
 
-    // Relatório de Pendências
-    Route::get('/pendencias', [\App\Http\Controllers\PendingEventsReportController::class, 'index'])
-        ->middleware('can:ver relatorio pendencias')
-        ->name('pending.report');
-
     // Exportação
-    Route::get('/sbar/avaliacoes/exportar', [\App\Http\Controllers\ExportController::class, 'exportShiftEvaluations'])
+    Route::get('/sbar/avaliacoes/exportar', [ExportController::class, 'exportShiftEvaluations'])
         ->name('sbar.evaluations.export');
 
     // Preferências do Usuário - Configurar hospitais/setores/leitos
@@ -61,27 +64,32 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
 
     Route::prefix('administracao')->group(function () {
 
+        // Relatório de Pendências
+        Route::get('/pendencias', [PendingEventsReportController::class, 'index'])
+            ->middleware('can:ver relatorio pendencias')
+            ->name('pending.report');
+
         // Histórico de anotações arquivadas
         Route::middleware('can:ver historico chat')->prefix('historico')->group(function () {
-            Route::get('/', [\App\Http\Controllers\ChatArchiveController::class, 'index'])->name('chat.archive.index');
-            Route::get('/dt', [\App\Http\Controllers\ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
-            Route::get('/data', [\App\Http\Controllers\ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
-            Route::get('/{nr}', [\App\Http\Controllers\ChatArchiveController::class, 'show'])->name('chat.archive.show');
+            Route::get('/', [ChatArchiveController::class, 'index'])->name('chat.archive.index');
+            Route::get('/dt', [ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
+            Route::get('/data', [ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
+            Route::get('/{nr}', [ChatArchiveController::class, 'show'])->name('chat.archive.show');
         });
 
         Route::middleware('can:ver usuarios')->prefix('usuarios')->group(function () {
-            Route::get('/', [\App\Http\Controllers\UserController::class, 'index'])->name('users.index');
-            Route::get('search-user', [\App\Http\Controllers\UserController::class, 'searchUserAD']);
-            Route::post('create-user', [\App\Http\Controllers\UserController::class, 'createUser'])->middleware('can:criar usuarios')->name('users.create');
-            Route::post('update-user', [\App\Http\Controllers\UserController::class, 'updateUser'])->middleware('can:editar usuarios')->name('users.update');
-            Route::post('block-user', [\App\Http\Controllers\UserController::class, 'blockUser'])->middleware('can:bloquear usuarios')->name('users.block');
-            Route::post('access-user', [\App\Http\Controllers\UserController::class, 'accessAs'])->middleware('can:acessar como')->name('users.access.as');
+            Route::get('/', [UserController::class, 'index'])->name('users.index');
+            Route::get('search-user', [UserController::class, 'searchUserAD']);
+            Route::post('create-user', [UserController::class, 'createUser'])->middleware('can:criar usuarios')->name('users.create');
+            Route::post('update-user', [UserController::class, 'updateUser'])->middleware('can:editar usuarios')->name('users.update');
+            Route::post('block-user', [UserController::class, 'blockUser'])->middleware('can:bloquear usuarios')->name('users.block');
+            Route::post('access-user', [UserController::class, 'accessAs'])->middleware('can:acessar como')->name('users.access.as');
         });
 
         Route::middleware('can:ver perfis')->prefix('perfis')->group(function () {
-            Route::get('/', [\App\Http\Controllers\ProfileController::class, 'index'])->name('profiles.index');
-            Route::post('create', [\App\Http\Controllers\ProfileController::class, 'create'])->middleware('can:criar perfis')->name('profiles.create');
-            Route::post('update', [\App\Http\Controllers\ProfileController::class, 'edit'])->middleware('can:editar perfis')->name('profiles.edit');
+            Route::get('/', [ProfileController::class, 'index'])->name('profiles.index');
+            Route::post('create', [ProfileController::class, 'create'])->middleware('can:criar perfis')->name('profiles.create');
+            Route::post('update', [ProfileController::class, 'edit'])->middleware('can:editar perfis')->name('profiles.edit');
         });
 
     });

@@ -11,6 +11,7 @@
         "directorytree/ldaprecord-laravel": "^3.3",
         "laravel/framework": "^11.9",
         "laravel/horizon": "^5.33",
+        "laravel/reverb": "^1.9",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "laravel/ui": "^4.5",
@@ -29,6 +30,7 @@
         "fakerphp/faker": "^1.23",
         "icanhazstring/composer-unused": "^0.9.3",
         "kitloong/laravel-migrations-generator": "^7.2",
+        "laravel/boost": "^2.4",
         "laravel/breeze": "^2.2",
         "laravel/pail": "^1.1",
         "laravel/pint": "^1.13",
@@ -70,7 +72,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#86efac\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" \"php artisan reverb:start\" --names=server,queue,logs,vite,reverb"
         ]
     },
     "extra": {

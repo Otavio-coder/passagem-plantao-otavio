@@ -3,16 +3,14 @@
 namespace App\Services;
 
 use App\Services\PendingEvents\AbstractPendingHandler;
-use App\Services\PendingEvents\Handlers\{
-    PrescriptionPendingHandler,
-    HemotherapyPendingHandler,
-    AntibioticPendingHandler,
-    ChemotherapyPendingHandler,
-    AgendaPendingHandler
-};
+use App\Services\PendingEvents\Handlers\AgendaPendingHandler;
+use App\Services\PendingEvents\Handlers\AntibioticPendingHandler;
+use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
+use App\Services\PendingEvents\Handlers\HemotherapyPendingHandler;
+use App\Services\PendingEvents\Handlers\PrescriptionPendingHandler;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Coordenador de eventos pendentes por setor.
@@ -32,11 +30,11 @@ class PatientPendingEventsService
     public function __construct()
     {
         $this->handlers = [
-            new PrescriptionPendingHandler(),
-            new HemotherapyPendingHandler(),
-            new AntibioticPendingHandler(),
-            new ChemotherapyPendingHandler(),
-            new AgendaPendingHandler(),
+            new PrescriptionPendingHandler,
+            new HemotherapyPendingHandler,
+            new AntibioticPendingHandler,
+            new ChemotherapyPendingHandler,
+            new AgendaPendingHandler,
         ];
     }
 
@@ -48,11 +46,23 @@ class PatientPendingEventsService
     {
         $cacheKey = "sector_pending_fast_{$sectorId}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($sectorId) {
-            $start = microtime(true);
+        return Cache::remember($cacheKey, self::CACHE_TTL, fn () => $this->fetchEventsForSector($sectorId));
+    }
 
-            // Query principal otimizada: traz dados básicos + previsão de alta recente (10 dias)
-            $rows = DB::connection('tasy')->select("
+    /**
+     * Busca pendências sem cache — usar em relatórios que exigem dados sempre frescos.
+     */
+    public function getFreshEventsForSector(int $sectorId): array
+    {
+        return $this->fetchEventsForSector($sectorId);
+    }
+
+    private function fetchEventsForSector(int $sectorId): array
+    {
+        $start = microtime(true);
+
+        // Query principal otimizada: traz dados básicos + previsão de alta recente (10 dias)
+        $rows = DB::connection('tasy')->select("
                 SELECT
                     ua.nr_atendimento,
                     ap.cd_pessoa_fisica,
@@ -75,121 +85,154 @@ class PatientPendingEventsService
                     AND ap.dt_alta IS NULL
             ", ['sector_id' => $sectorId]);
 
-            try { Log::info("[PendingEvents] Query principal: " . round((microtime(true) - $start) * 1000, 2) . "ms - " . count($rows) . " pacientes"); } catch (\Throwable) {}
+        try {
+            Log::info('[PendingEvents] Query principal: '.round((microtime(true) - $start) * 1000, 2).'ms - '.count($rows).' pacientes');
+        } catch (\Throwable) {
+        }
 
-            $results = [];
-            $allNrs  = [];
+        $results = [];
+        $allNrs = [];
 
-            foreach ($rows as $row) {
-                $nr     = $row->nr_atendimento;
-                $events = [];
+        foreach ($rows as $row) {
+            $nr = $row->nr_atendimento;
+            $events = [];
 
-                // ÓBITO
-                if (!empty($row->dt_obito)) {
-                    $events[] = [
-                        'tipo'               => 'aviso',
-                        'subtipo'            => 'obito',
-                        'icone'              => 'alert.svg',
-                        'descricao'          => 'Óbito registrado',
-                        'urgente'            => true,
-                        'dt_evento'          => $row->dt_obito,
-                        'dt_evento_formatted'=> date('d/m/Y H:i', strtotime($row->dt_obito)),
-                    ];
+            // ÓBITO
+            if (! empty($row->dt_obito)) {
+                $events[] = [
+                    'tipo' => 'aviso',
+                    'subtipo' => 'obito',
+                    'icone' => 'alert.svg',
+                    'descricao' => 'Óbito registrado',
+                    'urgente' => true,
+                    'dt_evento' => $row->dt_obito,
+                    'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_obito)),
+                ];
+            }
+
+            $discharge = $this->buildDischarge($row, $events);
+            $allNrs[] = $nr;
+            $results[$nr] = ['events' => $events, 'discharge' => $discharge];
+        }
+
+        // Executa handlers especializados — todos recebem $allNrs;
+        // cada handler filtra internamente quais atendimentos têm dados.
+        foreach ($this->handlers as $handler) {
+            $handler->handle($results, $allNrs);
+        }
+
+        // Ordena eventos: urgentes primeiro, depois por proximidade ao momento atual
+        $now = time();
+        foreach ($results as &$data) {
+            usort($data['events'], function ($a, $b) use ($now) {
+                $urgA = $a['urgente'] ?? false;
+                $urgB = $b['urgente'] ?? false;
+                if ($urgA !== $urgB) {
+                    return $urgA ? -1 : 1;
                 }
 
-                $discharge    = $this->buildDischarge($row, $events);
-                $allNrs[]     = $nr;
-                $results[$nr] = ['events' => $events, 'discharge' => $discharge];
-            }
+                $da = $a['dt_evento'] ?? null;
+                $db = $b['dt_evento'] ?? null;
+                if ($da === null && $db === null) {
+                    return 0;
+                }
+                if ($da === null) {
+                    return 1;
+                }
+                if ($db === null) {
+                    return -1;
+                }
 
-            // Executa handlers especializados — todos recebem $allNrs;
-            // cada handler filtra internamente quais atendimentos têm dados.
-            foreach ($this->handlers as $handler) {
-                $handler->handle($results, $allNrs);
-            }
+                return abs(strtotime($da) - $now) - abs(strtotime($db) - $now);
+            });
+        }
+        unset($data);
 
-            // Ordena eventos: urgentes primeiro, depois por proximidade ao momento atual
-            $now = time();
-            foreach ($results as &$data) {
-                usort($data['events'], function ($a, $b) use ($now) {
-                    $urgA = $a['urgente'] ?? false;
-                    $urgB = $b['urgente'] ?? false;
-                    if ($urgA !== $urgB) return $urgA ? -1 : 1;
+        try {
+            Log::info('[PendingEvents] Total: '.round((microtime(true) - $start) * 1000, 2).'ms');
+        } catch (\Throwable) {
+        }
 
-                    $da = $a['dt_evento'] ?? null;
-                    $db = $b['dt_evento'] ?? null;
-                    if ($da === null && $db === null) return 0;
-                    if ($da === null) return 1;
-                    if ($db === null) return -1;
+        return $this->sanitizeUtf8($results);
+    }
 
-                    return abs(strtotime($da) - $now) - abs(strtotime($db) - $now);
-                });
-            }
-            unset($data);
+    /**
+     * Recursively scrub invalid UTF-8 sequences from Oracle strings.
+     * MySQL utf8mb4 rejects invalid byte sequences that some Oracle charsets produce.
+     */
+    private function sanitizeUtf8(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return mb_scrub($value, 'UTF-8');
+        }
 
-            try { Log::info("[PendingEvents] Total: " . round((microtime(true) - $start) * 1000, 2) . "ms"); } catch (\Throwable) {}
+        if (is_array($value)) {
+            return array_map(fn ($v) => $this->sanitizeUtf8($v), $value);
+        }
 
-            return $results;
-        });
+        return $value;
     }
 
     private function buildDischarge(object $row, array &$events): ?array
     {
-        if (!empty($row->dt_alta)) {
+        if (! empty($row->dt_alta)) {
             $events[] = [
-                'tipo'               => 'alta',
-                'icone'              => 'alta.svg',
-                'descricao'          => 'Alta Efetivada' . (!empty($row->ds_motivo_alta) ? ' - ' . $row->ds_motivo_alta : ''),
-                'ds_subtipo'         => 'Alta',
-                'dt_evento'          => $row->dt_alta,
-                'dt_evento_formatted'=> date('d/m/Y H:i', strtotime($row->dt_alta)),
-                'urgente'            => true,
+                'tipo' => 'alta',
+                'icone' => 'alta.svg',
+                'descricao' => 'Alta Efetivada'.(! empty($row->ds_motivo_alta) ? ' - '.$row->ds_motivo_alta : ''),
+                'ds_subtipo' => 'Alta',
+                'dt_evento' => $row->dt_alta,
+                'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta)),
+                'urgente' => true,
             ];
+
             return [
-                'tipo'               => 'alta',
-                'dt_alta'            => $row->dt_alta,
-                'dt_alta_formatted'  => date('d/m/Y H:i', strtotime($row->dt_alta)),
-                'ds_motivo_alta'     => $row->ds_motivo_alta ?? null,
+                'tipo' => 'alta',
+                'dt_alta' => $row->dt_alta,
+                'dt_alta_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta)),
+                'ds_motivo_alta' => $row->ds_motivo_alta ?? null,
             ];
         }
 
-        if (!empty($row->dt_alta_medico)) {
+        if (! empty($row->dt_alta_medico)) {
             $descAltaMedica = 'Alta Médica';
-            if (!empty($row->apa_dt_previsto_alta)) {
-                $descAltaMedica .= ' | Prev. Alta: ' . date('d/m/Y', strtotime($row->apa_dt_previsto_alta));
+            if (! empty($row->apa_dt_previsto_alta)) {
+                $descAltaMedica .= ' | Prev. Alta: '.date('d/m/Y', strtotime($row->apa_dt_previsto_alta));
             }
             $events[] = [
-                'tipo'               => 'alta_medica',
-                'icone'              => 'alta.svg',
-                'descricao'          => $descAltaMedica,
-                'ds_subtipo'         => 'Alta Médica',
-                'dt_evento'          => $row->dt_alta_medico,
-                'dt_evento_formatted'=> date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
-                'urgente'            => true,
+                'tipo' => 'alta_medica',
+                'icone' => 'alta.svg',
+                'descricao' => $descAltaMedica,
+                'ds_subtipo' => 'Alta Médica',
+                'dt_evento' => $row->dt_alta_medico,
+                'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
+                'urgente' => true,
             ];
+
             return [
-                'tipo'                       => 'alta_medica',
-                'dt_alta_medico'             => $row->dt_alta_medico,
-                'dt_alta_medico_formatted'   => date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
-                'dt_previsto_alta'           => $row->apa_dt_previsto_alta ?? null,
-                'dt_previsto_alta_formatted' => !empty($row->apa_dt_previsto_alta)
+                'tipo' => 'alta_medica',
+                'dt_alta_medico' => $row->dt_alta_medico,
+                'dt_alta_medico_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
+                'dt_previsto_alta' => $row->apa_dt_previsto_alta ?? null,
+                'dt_previsto_alta_formatted' => ! empty($row->apa_dt_previsto_alta)
                     ? date('d/m/Y H:i', strtotime($row->apa_dt_previsto_alta)) : null,
             ];
         }
 
-        if (!empty($row->apa_dt_previsto_alta)) {
+        if (! empty($row->apa_dt_previsto_alta)) {
             $events[] = [
-                'tipo'               => 'previsao_alta',
-                'icone'              => 'alta.svg',
-                'descricao'          => 'Previsão de Alta: ' . date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
-                'ds_subtipo'         => 'Previsão',
-                'dt_evento'          => $row->apa_dt_previsto_alta,
-                'dt_evento_formatted'=> date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
-                'urgente'            => false,
+                'tipo' => 'previsao_alta',
+                'icone' => 'alta.svg',
+                'descricao' => 'Previsão de Alta: '.date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
+                'ds_subtipo' => 'Previsão',
+                'dt_evento' => $row->apa_dt_previsto_alta,
+                'dt_evento_formatted' => date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
+                'urgente' => false,
             ];
+
             return [
-                'tipo'                       => 'previsao_alta',
-                'dt_previsto_alta'           => $row->apa_dt_previsto_alta,
+                'tipo' => 'previsao_alta',
+                'dt_previsto_alta' => $row->apa_dt_previsto_alta,
                 'dt_previsto_alta_formatted' => date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
             ];
         }

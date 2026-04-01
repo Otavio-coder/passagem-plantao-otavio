@@ -3,7 +3,6 @@
 window.chatComponent = function() {
     return {
         messageText: '',
-        echoReady: false,
         pinnedMinimized: false,
 
         // Edit state
@@ -26,22 +25,6 @@ window.chatComponent = function() {
                     setTimeout(() => this.scrollToBottom(), 400);
                 });
             });
-
-            // Connect to Echo channel
-            const connectToEcho = () => {
-                const componentId = this.$wire.__instance.id;
-
-                if (window.connectChatChannel) {
-                    window.connectChatChannel(patientId, componentId);
-                    this.echoReady = true;
-                }
-            };
-
-            if (window.ChatChannels) {
-                connectToEcho();
-            } else {
-                window.addEventListener('chat-echo-ready', connectToEcho, { once: true });
-            }
 
             this.$nextTick(() => this.scrollToBottom());
         },

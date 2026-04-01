@@ -3,58 +3,69 @@
 namespace App\Livewire;
 
 use App\Models\System\Chat\ChatMessage;
+use App\Models\System\User;
 use App\Repositories\MySQL\Chat\ChatRepository;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class ChatComponent extends Component
 {
     public $patientId;
+
     public $cdPessoaFisica;
+
     public $bedUnit;
 
     /** Array plano de itens: ['type'=>'separator',...] ou ['type'=>'message',...] */
     public $messages = [];
+
     public $newMessage = '';
 
     public $loadingMessages = false;
-    public $sendingMessage  = false;
 
-    public $hasOlderMessages  = false;
+    public $sendingMessage = false;
+
+    public $hasOlderMessages = false;
+
     public $hasArchivedHistory = false;
 
     public $currentUser;
+
     public $initialized = false;
 
-    private $userCache  = [];
+    private $userCache = [];
+
     private $photoCache = [];
 
     protected $listeners = [
-        'onChatMessageReceived' => 'handleNewMessage',
-        'onChatMessagePinned'   => 'handleMessagePinned',
-        'initChat'              => 'initialize',
-        'refreshChat'           => 'refreshCurrentMessages',
+        'initChat' => 'initialize',
+        'refreshChat' => 'refreshCurrentMessages',
     ];
 
     public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null)
     {
         $this->patientId = $patientId;
         $this->cdPessoaFisica = $cdPessoaFisica;
-        $this->bedUnit   = $bedUnit;
+        $this->bedUnit = $bedUnit;
 
         $user = Auth::user();
         $this->currentUser = [
-            'id'    => $user->id,
-            'name'  => $user->name,
+            'id' => $user->id,
+            'name' => $user->name,
             'photo' => $this->getUserPhotoBase64($user),
         ];
     }
 
     public function initialize()
     {
-        if ($this->initialized || !$this->patientId) return;
+        if ($this->initialized || ! $this->patientId) {
+            return;
+        }
 
         try {
             $this->loadingMessages = true;
@@ -62,14 +73,14 @@ class ChatComponent extends Component
             $this->initialized = true;
 
             $this->dispatch('chat-initialized', [
-                'patientId'   => $this->patientId,
+                'patientId' => $this->patientId,
                 'componentId' => $this->getId(),
             ]);
 
         } catch (\Throwable $e) {
             Log::error('[Chat] Erro na inicialização:', [
                 'patient_id' => $this->patientId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
             // Marca como inicializado mesmo em caso de erro para evitar spinner infinito.
             // O array $messages fica vazio e o blade exibe estado vazio.
@@ -88,6 +99,12 @@ class ChatComponent extends Component
         $this->sendingMessage = true;
 
         try {
+            $rateLimitKey = 'chat-send:'.$this->currentUser['id'];
+            if (RateLimiter::tooManyAttempts($rateLimitKey, 20)) {
+                return ['success' => false, 'error' => 'Muitas mensagens enviadas. Aguarde um momento.'];
+            }
+            RateLimiter::hit($rateLimitKey, 60);
+
             $message = trim($messageContent ?? $this->newMessage);
             $this->newMessage = '';
 
@@ -95,47 +112,48 @@ class ChatComponent extends Component
                 return ['success' => false, 'error' => 'Mensagem vazia'];
             }
 
-            $repo       = new ChatRepository();
+            $repo = new ChatRepository;
             $newMessage = $repo->storeMessage([
-                'nr_atendimento'   => $this->patientId,
+                'nr_atendimento' => $this->patientId,
                 'cd_pessoa_fisica' => $this->cdPessoaFisica,
-                'user_id'          => $this->currentUser['id'],
-                'content'          => $message,
+                'user_id' => $this->currentUser['id'],
+                'content' => $message,
             ]);
 
-            if (!$newMessage) {
+            if (! $newMessage) {
                 throw new \Exception('Falha ao criar mensagem');
             }
 
             $this->addMessageToLocal([
-                'id'         => $newMessage->id,
-                'content'    => $message,
-                'user_id'    => $this->currentUser['id'],
+                'id' => $newMessage->id,
+                'content' => $message,
+                'user_id' => $this->currentUser['id'],
                 'created_at' => now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'),
                 'updated_at' => null,
-                'is_pinned'  => false,
-                'reactions'  => [],
+                'is_pinned' => false,
+                'reactions' => [],
             ]);
 
             $this->dispatch('scroll-to-bottom');
             $this->dispatch('handover-updated', nr: $this->patientId);
 
             Log::channel('audit')->info('chat.message.sent', [
-                'user_id'    => $this->currentUser['id'],
-                'user'       => $this->currentUser['name'],
+                'user_id' => $this->currentUser['id'],
+                'user' => $this->currentUser['name'],
                 'message_id' => $newMessage->id,
                 'patient_id' => $this->patientId,
-                'bed'        => $this->bedUnit,
-                'ip'         => request()->ip(),
+                'bed' => $this->bedUnit,
+                'ip' => request()->ip(),
             ]);
 
             return ['success' => true, 'message_id' => $newMessage->id];
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao enviar mensagem', [
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'patient_id' => $this->patientId,
             ]);
+
             return ['success' => false, 'error' => 'Erro ao enviar mensagem'];
         } finally {
             $this->sendingMessage = false;
@@ -144,24 +162,24 @@ class ChatComponent extends Component
 
     public function toggleMessagePin($messageId)
     {
-        if (!$this->patientId || !$messageId) {
+        if (! $this->patientId || ! $messageId) {
             return ['success' => false, 'error' => 'Operação não permitida'];
         }
 
         try {
-            $repo           = new ChatRepository();
+            $repo = new ChatRepository;
             $updatedMessage = $repo->pinMessage((int) $messageId, $this->currentUser['id']);
 
             $isPinned = $updatedMessage->is_pinned ?? false;
             $this->updateLocalMessagePin($messageId, $isPinned);
 
             Log::channel('audit')->info($isPinned ? 'chat.message.pinned' : 'chat.message.unpinned', [
-                'user_id'    => $this->currentUser['id'],
-                'user'       => $this->currentUser['name'],
+                'user_id' => $this->currentUser['id'],
+                'user' => $this->currentUser['name'],
                 'message_id' => $messageId,
                 'patient_id' => $this->patientId,
-                'bed'        => $this->bedUnit,
-                'ip'         => request()->ip(),
+                'bed' => $this->bedUnit,
+                'ip' => request()->ip(),
             ]);
 
             return ['success' => true, 'is_pinned' => $isPinned];
@@ -169,8 +187,9 @@ class ChatComponent extends Component
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao alterar pin', [
                 'message_id' => $messageId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return ['success' => false, 'error' => 'Erro ao fixar mensagem'];
         }
     }
@@ -178,7 +197,7 @@ class ChatComponent extends Component
     /** Edita uma mensagem — janela de 6h a partir do envio */
     public function editMessage($messageId, $newContent)
     {
-        if (!$messageId) {
+        if (! $messageId) {
             return ['success' => false, 'error' => 'ID inválido'];
         }
 
@@ -190,7 +209,7 @@ class ChatComponent extends Component
         try {
             $message = ChatMessage::find($messageId);
 
-            if (!$message) {
+            if (! $message) {
                 return ['success' => false, 'error' => 'Mensagem não encontrada'];
             }
 
@@ -203,24 +222,26 @@ class ChatComponent extends Component
                 return ['success' => false, 'error' => 'Tempo de edição expirado (6h após envio)'];
             }
 
-            $repo = new ChatRepository();
+            $repo = new ChatRepository;
             $repo->updateMessage($messageId, $newContent);
 
             Log::channel('audit')->info('chat.message.edited', [
-                'user_id'    => $this->currentUser['id'],
-                'user'       => $this->currentUser['name'],
+                'user_id' => $this->currentUser['id'],
+                'user' => $this->currentUser['name'],
                 'message_id' => $messageId,
                 'patient_id' => $this->patientId,
-                'bed'        => $this->bedUnit,
-                'ip'         => request()->ip(),
+                'bed' => $this->bedUnit,
+                'ip' => request()->ip(),
             ]);
 
             // Atualiza localmente
             foreach ($this->messages as &$msg) {
-                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) continue;
-                $msg['content']      = $this->formatMessageText($newContent);
+                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) {
+                    continue;
+                }
+                $msg['content'] = $this->formatMessageText($newContent);
                 $msg['content_text'] = $newContent;
-                $msg['is_edited']    = true;
+                $msg['is_edited'] = true;
                 break;
             }
 
@@ -229,8 +250,9 @@ class ChatComponent extends Component
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao editar mensagem', [
                 'message_id' => $messageId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return ['success' => false, 'error' => 'Erro ao editar mensagem'];
         }
     }
@@ -238,15 +260,19 @@ class ChatComponent extends Component
     /** Toggles check reaction for the current user on a message */
     public function toggleReaction($messageId)
     {
-        if (!$messageId) return ['success' => false];
+        if (! $messageId) {
+            return ['success' => false];
+        }
 
         try {
-            $repo   = new ChatRepository();
+            $repo = new ChatRepository;
             $result = $repo->toggleReaction((int) $messageId, (int) $this->currentUser['id']);
 
             foreach ($this->messages as &$msg) {
-                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) continue;
-                $msg['reactions']    = $this->formatReactions($result['reactions']);
+                if (($msg['type'] ?? '') !== 'message' || $msg['id'] != $messageId) {
+                    continue;
+                }
+                $msg['reactions'] = $this->formatReactions($result['reactions']);
                 $msg['user_reacted'] = $result['reacted'];
                 break;
             }
@@ -255,13 +281,16 @@ class ChatComponent extends Component
 
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao reagir', ['error' => $e->getMessage()]);
+
             return ['success' => false];
         }
     }
 
     public function refreshCurrentMessages()
     {
-        if ($this->loadingMessages) return;
+        if ($this->loadingMessages) {
+            return;
+        }
 
         $this->loadingMessages = true;
         try {
@@ -269,7 +298,7 @@ class ChatComponent extends Component
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao atualizar mensagens:', [
                 'patient_id' => $this->patientId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         } finally {
             $this->loadingMessages = false;
@@ -278,23 +307,27 @@ class ChatComponent extends Component
 
     // ===================== WebSocket handlers =====================
 
+    #[On('echo-private:chat.{patientId},.ChatMessageSent')]
     public function handleNewMessage($data)
     {
-        if (!$this->initialized || !$data || !isset($data['id'])) return;
+        if (! $this->initialized || ! $data || ! isset($data['id'])) {
+            return;
+        }
 
-        if (($data['nr_atendimento'] ?? null) != $this->patientId) return;
-
-        if ($this->messageExists($data['id'])) return;
+        if ($this->messageExists($data['id'])) {
+            return;
+        }
 
         $this->addMessageToLocal($data);
         $this->dispatch('scroll-to-bottom');
     }
 
+    #[On('echo-private:chat.{patientId},.ChatMessagePinned')]
     public function handleMessagePinned($data)
     {
-        if (!$this->initialized || !$data || !isset($data['id'])) return;
-
-        if (($data['nr_atendimento'] ?? null) != $this->patientId) return;
+        if (! $this->initialized || ! $data || ! isset($data['id'])) {
+            return;
+        }
 
         $this->updateLocalMessagePin($data['id'], $data['is_pinned'] ?? false);
     }
@@ -303,25 +336,28 @@ class ChatComponent extends Component
 
     private function loadMessages()
     {
-        if (!$this->patientId) return;
+        if (! $this->patientId) {
+            return;
+        }
 
         try {
-            $repo        = new ChatRepository();
+            $repo = new ChatRepository;
             $allMessages = $repo->getAllMessages($this->patientId, 300);
 
-            $this->hasOlderMessages   = $repo->hasOlderMessages($this->patientId);
+            $this->hasOlderMessages = $repo->hasOlderMessages($this->patientId);
             $this->hasArchivedHistory = $repo->hasArchivedHistory($this->patientId);
 
             if ($allMessages->isEmpty()) {
                 $this->messages = [];
+
                 return;
             }
 
             // Pré-carrega usuários
             $userIds = $allMessages->pluck('user_id')->unique()->filter();
-            $users   = collect();
+            $users = collect();
             if ($userIds->isNotEmpty()) {
-                $users = \App\Models\System\User::whereIn('id', $userIds)
+                $users = User::whereIn('id', $userIds)
                     ->select(['id', 'name'])
                     ->get()
                     ->keyBy('id');
@@ -331,7 +367,7 @@ class ChatComponent extends Component
             }
 
             // Monta array plano com separadores por turno/data lógica
-            $result       = [];
+            $result = [];
             $lastShiftKey = null;
 
             foreach ($allMessages as $msg) {
@@ -340,12 +376,12 @@ class ChatComponent extends Component
 
                 if ($shiftKey !== $lastShiftKey) {
                     $lastShiftKey = $shiftKey;
-                    $result[]     = $this->buildSeparator($msg->created_at);
+                    $result[] = $this->buildSeparator($msg->created_at);
                 }
 
-                $formatted         = $this->formatSingleMessage($msgArray, $users);
+                $formatted = $this->formatSingleMessage($msgArray, $users);
                 $formatted['type'] = 'message';
-                $result[]          = $formatted;
+                $result[] = $formatted;
             }
 
             $this->messages = $result;
@@ -353,7 +389,7 @@ class ChatComponent extends Component
         } catch (\Exception $e) {
             Log::error('[Chat] Erro ao carregar mensagens:', [
                 'patient_id' => $this->patientId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
             $this->messages = [];
         }
@@ -365,43 +401,44 @@ class ChatComponent extends Component
      */
     private function getShiftKey($createdAt): string
     {
-        $dt   = $this->parseDateTime($createdAt);
+        $dt = $this->parseDateTime($createdAt);
         $hour = (int) $dt->format('H');
 
         if ($hour >= 7 && $hour < 13) {
-            return $dt->format('Y-m-d') . '_morning';
+            return $dt->format('Y-m-d').'_morning';
         }
         if ($hour >= 13 && $hour < 19) {
-            return $dt->format('Y-m-d') . '_afternoon';
+            return $dt->format('Y-m-d').'_afternoon';
         }
         // Night: 19h-06:59 — messages between 00:00-06:59 belong to the previous day's night shift
         $logicalDate = ($hour < 7) ? $dt->copy()->subDay()->format('Y-m-d') : $dt->format('Y-m-d');
-        return $logicalDate . '_night';
+
+        return $logicalDate.'_night';
     }
 
     private function buildSeparator($createdAt): array
     {
-        $dt   = $this->parseDateTime($createdAt);
+        $dt = $this->parseDateTime($createdAt);
         $hour = (int) $dt->format('H');
 
         if ($hour >= 7 && $hour < 13) {
-            $shift       = 'morning';
+            $shift = 'morning';
             $logicalDate = $dt->copy()->startOfDay();
         } elseif ($hour >= 13 && $hour < 19) {
-            $shift       = 'afternoon';
+            $shift = 'afternoon';
             $logicalDate = $dt->copy()->startOfDay();
         } else {
-            $shift       = 'night';
+            $shift = 'night';
             $logicalDate = ($hour < 7)
                 ? $dt->copy()->subDay()->startOfDay()
                 : $dt->copy()->startOfDay();
         }
 
         $shiftLabel = match ($shift) {
-            'morning'   => 'Manhã  07h–13h',
+            'morning' => 'Manhã  07h–13h',
             'afternoon' => 'Tarde  13h–19h',
-            'night'     => 'Noite  19h–07h',
-            default     => ucfirst($shift),
+            'night' => 'Noite  19h–07h',
+            default => ucfirst($shift),
         };
 
         if ($logicalDate->isToday()) {
@@ -413,25 +450,25 @@ class ChatComponent extends Component
         }
 
         return [
-            'type'        => 'separator',
-            'shift'       => $shift,
+            'type' => 'separator',
+            'shift' => $shift,
             'shift_label' => $shiftLabel,
-            'date_label'  => $dateLabel,
-            'label'       => $shiftLabel . ' · ' . $dateLabel,
+            'date_label' => $dateLabel,
+            'label' => $shiftLabel.' · '.$dateLabel,
         ];
     }
 
     private function formatSingleMessage($msg, $users = null)
     {
         $userId = $msg['user_id'] ?? null;
-        $user   = null;
-        $photo  = '';
+        $user = null;
+        $photo = '';
 
         if ($users && $userId) {
-            $user  = $users->get($userId);
+            $user = $users->get($userId);
             $photo = $user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '';
         } elseif ($userId) {
-            $user  = $this->getUserFromCache($userId);
+            $user = $this->getUserFromCache($userId);
             $photo = $user ? $this->getUserPhotoBase64($user) : '';
         }
 
@@ -440,11 +477,11 @@ class ChatComponent extends Component
         }
 
         $rawDate = $msg['created_at'] ?? null;
-        $time    = '';
-        $dtRaw   = null;
+        $time = '';
+        $dtRaw = null;
 
         if ($parsed = $this->parseDateTime($rawDate)) {
-            $time  = $parsed->format('H:i');
+            $time = $parsed->format('H:i');
             $dtRaw = $parsed->toIso8601String();
         }
 
@@ -453,20 +490,20 @@ class ChatComponent extends Component
         $content = $msg['content'] ?? '';
 
         return [
-            'type'          => 'message',
-            'id'            => $msg['id'] ?? null,
-            'content'       => $this->formatMessageText($content),
-            'content_text'  => $content,
-            'user_id'       => $userId,
-            'author'        => $user ? $user->name : 'Usuário',
-            'photo'         => $photo,
-            'time'          => $time,
+            'type' => 'message',
+            'id' => $msg['id'] ?? null,
+            'content' => $this->formatMessageText($content),
+            'content_text' => $content,
+            'user_id' => $userId,
+            'author' => $user ? $user->name : 'Usuário',
+            'photo' => $photo,
+            'time' => $time,
             'dt_criacao_raw' => $dtRaw,
-            'is_pinned'     => (bool) ($msg['is_pinned'] ?? false),
-            'is_edited'     => !empty($msg['updated_at']),
-            'is_own'        => $userId == $this->currentUser['id'],
-            'reactions'     => $this->formatReactions($rawReactions),
-            'user_reacted'  => $this->currentUserReacted($rawReactions),
+            'is_pinned' => (bool) ($msg['is_pinned'] ?? false),
+            'is_edited' => ! empty($msg['updated_at']),
+            'is_own' => $userId == $this->currentUser['id'],
+            'reactions' => $this->formatReactions($rawReactions),
+            'user_reacted' => $this->currentUserReacted($rawReactions),
         ];
     }
 
@@ -474,9 +511,9 @@ class ChatComponent extends Component
     {
         return collect($rawReactions)->map(fn ($r) => [
             'user_id' => is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null),
-            'name'    => is_array($r) ? ($r['name'] ?? 'Usuário') : ($r->name ?? 'Usuário'),
+            'name' => is_array($r) ? ($r['name'] ?? 'Usuário') : ($r->name ?? 'Usuário'),
             'initial' => strtoupper(substr(is_array($r) ? ($r['name'] ?? 'U') : ($r->name ?? 'U'), 0, 1)),
-            'photo'   => is_array($r) ? ($r['photo'] ?? '') : ($r->photo ?? ''),
+            'photo' => is_array($r) ? ($r['photo'] ?? '') : ($r->photo ?? ''),
         ])->values()->toArray();
     }
 
@@ -484,6 +521,7 @@ class ChatComponent extends Component
     {
         return collect($rawReactions)->contains(function ($r) {
             $id = is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null);
+
             return $id == $this->currentUser['id'];
         });
     }
@@ -517,14 +555,14 @@ class ChatComponent extends Component
             $this->messages[] = $this->buildSeparator($createdAt);
         }
 
-        $message         = $this->formatSingleMessage([
-            'id'         => $data['id'],
-            'content'    => $data['content'] ?? '',
-            'user_id'    => $data['user_id'] ?? null,
+        $message = $this->formatSingleMessage([
+            'id' => $data['id'],
+            'content' => $data['content'] ?? '',
+            'user_id' => $data['user_id'] ?? null,
             'created_at' => $createdAt,
             'updated_at' => null,
-            'is_pinned'  => $data['is_pinned'] ?? false,
-            'reactions'  => [],
+            'is_pinned' => $data['is_pinned'] ?? false,
+            'reactions' => [],
         ]);
         $message['type'] = 'message';
         $this->messages[] = $message;
@@ -533,7 +571,9 @@ class ChatComponent extends Component
     private function updateLocalMessagePin($messageId, $isPinned)
     {
         foreach ($this->messages as &$message) {
-            if (($message['type'] ?? '') !== 'message') continue;
+            if (($message['type'] ?? '') !== 'message') {
+                continue;
+            }
 
             if ($message['id'] == $messageId) {
                 $message['is_pinned'] = $isPinned;
@@ -543,12 +583,14 @@ class ChatComponent extends Component
         }
     }
 
-    private function parseDateTime($value): ?\Carbon\Carbon
+    private function parseDateTime($value): ?Carbon
     {
-        if (!$value) return null;
+        if (! $value) {
+            return null;
+        }
 
         if ($value instanceof \DateTimeInterface) {
-            return \Carbon\Carbon::instance($value)->setTimezone(config('app.timezone'));
+            return Carbon::instance($value)->setTimezone(config('app.timezone'));
         }
 
         $formats = [
@@ -558,15 +600,17 @@ class ChatComponent extends Component
 
         foreach ($formats as $format) {
             try {
-                $dt = \Carbon\Carbon::createFromFormat($format, $value);
-                if ($dt !== false) return $dt->setTimezone(config('app.timezone'));
+                $dt = Carbon::createFromFormat($format, $value);
+                if ($dt !== false) {
+                    return $dt->setTimezone(config('app.timezone'));
+                }
             } catch (\Exception $e) {
                 // continua
             }
         }
 
         try {
-            return \Carbon\Carbon::parse($value)->setTimezone(config('app.timezone'));
+            return Carbon::parse($value)->setTimezone(config('app.timezone'));
         } catch (\Throwable $e) {
             return null;
         }
@@ -574,7 +618,9 @@ class ChatComponent extends Component
 
     private function formatMessageText($text)
     {
-        if (empty($text)) return '';
+        if (empty($text)) {
+            return '';
+        }
 
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
         $text = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $text);
@@ -589,10 +635,14 @@ class ChatComponent extends Component
 
     private function getUserPhotoBase64($user)
     {
-        if (!$user) return '';
+        if (! $user) {
+            return '';
+        }
 
         $userId = $user->id ?? null;
-        if (!$userId) return '';
+        if (! $userId) {
+            return '';
+        }
 
         if (isset($this->photoCache[$userId])) {
             return $this->photoCache[$userId];
@@ -607,11 +657,11 @@ class ChatComponent extends Component
                 $photo = $user->photo;
             }
 
-            if (!$photo) {
+            if (! $photo) {
                 $photoData = DB::table('users')->where('id', $userId)->value('photo');
 
                 if ($photoData) {
-                    if (!str_starts_with($photoData, 'data:')) {
+                    if (! str_starts_with($photoData, 'data:')) {
                         $photo = $photoData;
                     } elseif (preg_match('/^data:image\/(\w+);base64,(.+)$/', $photoData, $matches)) {
                         $photo = $matches[2];
@@ -620,6 +670,7 @@ class ChatComponent extends Component
             }
 
             $this->photoCache[$userId] = $photo;
+
             return $photo;
 
         } catch (\Exception $e) {
@@ -629,15 +680,18 @@ class ChatComponent extends Component
 
     private function getUserFromCache($userId)
     {
-        if (!$userId) return null;
+        if (! $userId) {
+            return null;
+        }
 
         if (isset($this->userCache[$userId])) {
             return $this->userCache[$userId];
         }
 
         try {
-            $user = \App\Models\System\User::select(['id', 'name'])->find($userId);
+            $user = User::select(['id', 'name'])->find($userId);
             $this->userCache[$userId] = $user;
+
             return $user;
         } catch (\Exception $e) {
             return null;
@@ -650,7 +704,7 @@ class ChatComponent extends Component
 
         return [
             'total_messages' => $realMessages->count(),
-            'pinned_count'   => $realMessages->where('is_pinned', true)->count(),
+            'pinned_count' => $realMessages->where('is_pinned', true)->count(),
         ];
     }
 

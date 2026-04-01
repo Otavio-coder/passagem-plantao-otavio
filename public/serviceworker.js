@@ -5,7 +5,7 @@
  * Versão: atualizar APP_CACHE_VERSION a cada deploy para invalidar caches
  */
 
-const APP_CACHE_VERSION = '2.1.0';
+const APP_CACHE_VERSION = '2.2.0';
 const CACHE_STATIC  = `plantao-static-${APP_CACHE_VERSION}`;
 const CACHE_PAGES   = `plantao-pages-${APP_CACHE_VERSION}`;
 const CACHE_FONTS   = `plantao-fonts-${APP_CACHE_VERSION}`;
@@ -31,6 +31,9 @@ const STATIC_PATTERNS = [
 
 /** Padrões de URL que NUNCA devem ser cacheados */
 const NEVER_CACHE_PATTERNS = [
+    /\.mp4$/i,
+    /\.webm$/i,
+    /\.mov$/i,
     /\/livewire\//,
     /\/api\//,
     /\?livewire/,
@@ -75,7 +78,10 @@ self.addEventListener('fetch', event => {
     // Só intercepta GET
     if (req.method !== 'GET') return;
 
-    // Nunca cacheia chamadas Livewire/API/auth
+    // Safari/iOS: não interceptar range requests (vídeo, áudio)
+    if (req.headers.get('Range')) return;
+
+    // Nunca cacheia chamadas Livewire/API/auth/vídeos
     if (NEVER_CACHE_PATTERNS.some(p => p.test(url.pathname) || p.test(url.search))) return;
 
     // Fontes do Google: cache-first com cache dedicado
@@ -102,6 +108,16 @@ self.addEventListener('fetch', event => {
 
 // ─── ESTRATÉGIAS ──────────────────────────────────────────────────────────────
 
+/** Verifica se é seguro cachear a resposta */
+function isCacheable(response) {
+    return (
+        response &&
+        response.ok &&
+        response.status !== 206 &&   // sem respostas parciais (range requests - Safari/iOS)
+        response.type !== 'opaque'   // sem respostas cross-origin sem CORS
+    );
+}
+
 /** Cache-first: serve do cache; atualiza em background se veio do cache */
 async function cacheFirst(request, cacheName) {
     const cache = await caches.open(cacheName);
@@ -109,13 +125,13 @@ async function cacheFirst(request, cacheName) {
     if (cached) {
         // Revalida silenciosamente em background
         fetch(request).then(res => {
-            if (res && res.ok) cache.put(request, res.clone());
+            if (isCacheable(res)) cache.put(request, res.clone());
         }).catch(() => {});
         return cached;
     }
     try {
         const response = await fetch(request);
-        if (response && response.ok) cache.put(request, response.clone());
+        if (isCacheable(response)) cache.put(request, response.clone());
         return response;
     } catch {
         return cached || Response.error();
@@ -128,7 +144,7 @@ async function staleWhileRevalidate(request, cacheName) {
     const cached = await cache.match(request);
 
     const networkFetch = fetch(request).then(response => {
-        if (response && response.ok) cache.put(request, response.clone());
+        if (isCacheable(response)) cache.put(request, response.clone());
         return response;
     }).catch(() => null);
 
@@ -139,7 +155,7 @@ async function staleWhileRevalidate(request, cacheName) {
 async function networkFirstWithOfflineFallback(request) {
     try {
         const response = await fetch(request);
-        if (response && response.ok) {
+        if (isCacheable(response)) {
             const cache = await caches.open(CACHE_PAGES);
             cache.put(request, response.clone());
         }

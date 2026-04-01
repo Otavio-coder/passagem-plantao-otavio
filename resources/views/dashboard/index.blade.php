@@ -1,155 +1,177 @@
 @extends('layouts.app')
 
+@push('head')
+<style>
+    #dashboard-page {
+        position: fixed;
+        top: 4rem; /* navbar h-16 */
+        left: 0; right: 0; bottom: 0;
+        z-index: 30;
+        overflow-y: auto;
+        background: #f9fafb; /* bg-gray-50 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+@endpush
+
 @section('content')
 
-<div class="w-full px-3 my-6 text-blue-700">
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div id="dashboard-page" class="px-3 text-blue-700">
+    <div class="w-full py-4 sm:py-6">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div class="text-center">
-                <p class="mt-2 text-4xl sm:text-2xl leading-tight sm:leading-8 font-bold tracking-tight text-santacasa-100 sm:tracking-tight">
+                <p class="text-xl sm:text-3xl md:text-4xl font-bold tracking-tight text-santacasa-100 leading-tight">
                     Bem-vindo ao {{ env('APP_NAME') }}
                 </p>
-                
-                <p class="mt-4 max-w-2xl text-base sm:text-xl text-gray-500 mx-auto text-center">
+                <p class="hidden sm:block mt-2 md:mt-4 max-w-2xl text-sm md:text-base text-gray-500 mx-auto">
                     Facilitando uma passagem de plantão, segura, clara e padronizada para garantir a continuidade do cuidado.
                 </p>
             </div>
 
-            <div class="mt-16">
-                <h2 class="text-lg text-santacasa-100 font-semibold text-center mb-10">
-                    Acesso rápido às funções do sistema
+            <div class="mt-4 sm:mt-8 md:mt-12">
+                <h2 class="text-xs sm:text-base md:text-lg text-santacasa-100 font-semibold text-center mb-3 sm:mb-5 md:mb-8 tracking-wide">
+                    Acesso rápido
                 </h2>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+
+                    @php
+                        /**
+                         * Cards são renderizados com layout duplo:
+                         *  - mobile  : ícone centralizado + label abaixo (flex-col)
+                         *  - sm+     : ícone à esquerda + texto à direita (flex-row)
+                         */
+                    @endphp
 
                     {{-- Passagem de Plantão — todos --}}
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('sbar.report') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-hospital text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Passagem de Plantão</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Painel de leitos com SBAR estruturada para enfermeiros</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('sbar.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-hospital text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Passagem de Plantão</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Painel de leitos com SBAR estruturada para enfermeiros</p>
+                            </div>
                         </a>
                     </div>
 
                     {{-- Meus Setores — todos --}}
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('user.preferences.index') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-cog text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Meus Setores</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Configure quais setores você quer visualizar no sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('user.preferences.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-cog text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Meus Setores</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Configure quais setores você quer visualizar no sistema</p>
+                            </div>
                         </a>
                     </div>
 
                     {{-- Feedback — todos --}}
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('feedback') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-comment text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Feedback</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Envie suas sugestões de melhoria ou reporte problemas no sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('feedback') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-comment text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Feedback</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Envie suas sugestões de melhoria ou reporte problemas no sistema</p>
+                            </div>
                         </a>
                     </div>
 
                     {{-- Manual do Sistema — todos --}}
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('manual.index') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-book text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Manual do Sistema</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Documentação e ajuda do sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('manual.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-book text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Manual do Sistema</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Documentação e ajuda do sistema</p>
+                            </div>
                         </a>
                     </div>
 
                     {{-- Histórico de Avaliações — Coordenador + Administrador --}}
                     @can('ver historico chat')
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('chat.archive.index') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-clock-rotate-left text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Histórico de Avaliações</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Consulte as anotações de plantão por paciente e período</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('chat.archive.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-clock-rotate-left text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Histórico de Avaliações</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Consulte as anotações de plantão por paciente e período</p>
+                            </div>
                         </a>
                     </div>
                     @endcan
 
                     {{-- Relatório de Pendências — Coordenador + Administrador --}}
                     @can('ver relatorio pendencias')
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('pending.report') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-list-check text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Relatório de Pendências</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Consulte pendências clínicas por hospital e setor em formato tabular</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('pending.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-list-check text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Relatório de Pendências</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Consulte pendências clínicas por hospital e setor em formato tabular</p>
+                            </div>
                         </a>
                     </div>
                     @endcan
 
                     {{-- Usuários — Coordenador + Administrador --}}
                     @can('ver usuarios')
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('users.index') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                                    </svg>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Usuários</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Gerencie o cadastro de usuários que acessam o sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('users.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 sm:w-6 sm:h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                                </svg>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Usuários</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Gerencie o cadastro de usuários que acessam o sistema</p>
+                            </div>
                         </a>
                     </div>
                     @endcan
 
                     {{-- Perfis — Administrador --}}
                     @can('ver perfis')
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('profiles.index') }}" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
-                                    </svg>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Perfis</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Gerencie perfis e permissões de acesso ao sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('profiles.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <svg class="w-5 h-5 sm:w-6 sm:h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
+                                </svg>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Perfis</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Gerencie perfis e permissões de acesso ao sistema</p>
+                            </div>
                         </a>
                     </div>
                     @endcan
 
                     {{-- Logs — Administrador --}}
                     @can('ver logs')
-                    <div class="border shadow-md p-4 rounded-lg cursor-pointer hover:shadow-2xl bg-white min-h-28 lg:min-h-36 flex items-center">
-                        <a href="{{ route('log-viewer.index') }}" target="_blank" class="relative quick-card">
-                            <dt>
-                                <div class="absolute flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                    <i class="fa fa-file-lines text-xl"></i>
-                                </div>
-                                <p class="ml-16 text-lg leading-6 font-medium text-sky-600">Logs do Sistema</p>
-                            </dt>
-                            <dd class="mt-2 ml-16 text-base text-gray-500">Visualize registros de erros e eventos do sistema</dd>
+                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
+                        <a href="{{ route('log-viewer.index') }}" target="_blank" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
+                                <i class="fa fa-file-lines text-sm sm:text-lg"></i>
+                            </div>
+                            <div class="text-center sm:text-left">
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Logs do Sistema</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Visualize registros de erros e eventos do sistema</p>
+                            </div>
                         </a>
                     </div>
                     @endcan
@@ -158,6 +180,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 
 @auth
@@ -178,15 +201,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const href = cardLink.getAttribute('href');
             const target = cardLink.getAttribute('target');
 
-            const redirect = function () {
-                if (target === '_blank') {
-                    window.open(href, '_blank');
-                } else {
-                    window.location.href = href;
-                }
-            };
+            if (target === '_blank') {
+                window.open(href, '_blank');
+                return;
+            }
 
-            setTimeout(redirect, 120);
+            window.dispatchEvent(new Event('sbar:loading:show'));
+            window.location.href = href;
         });
     });
 });

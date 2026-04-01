@@ -3,15 +3,16 @@
 namespace App\Events;
 
 use App\Models\System\Chat\ChatMessage;
+use App\Models\System\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ChatMessageSent implements ShouldBroadcastNow
+class ChatMessageSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -29,11 +30,11 @@ class ChatMessageSent implements ShouldBroadcastNow
 
     public function broadcastWith()
     {
-        $photo  = '';
+        $photo = '';
         $author = 'Usuário';
 
         try {
-            if (!$this->message->relationLoaded('user')) {
+            if (! $this->message->relationLoaded('user')) {
                 $this->message->load('user');
             }
 
@@ -43,7 +44,7 @@ class ChatMessageSent implements ShouldBroadcastNow
                     $photo = $this->message->user->getUserPhoto();
                 }
             } elseif ($this->message->user_id) {
-                $authorDb = \App\Models\System\User::find($this->message->user_id);
+                $authorDb = User::find($this->message->user_id);
                 if ($authorDb) {
                     $author = $authorDb->name;
                     if (method_exists($authorDb, 'getUserPhoto')) {
@@ -52,13 +53,13 @@ class ChatMessageSent implements ShouldBroadcastNow
                 }
             }
 
-            if (!$photo && $this->message->user_id) {
+            if (! $photo && $this->message->user_id) {
                 $photoData = DB::table('users')
                     ->where('id', $this->message->user_id)
                     ->value('photo');
 
                 if ($photoData) {
-                    if (!str_starts_with($photoData, 'data:')) {
+                    if (! str_starts_with($photoData, 'data:')) {
                         $photo = $photoData;
                     } elseif (preg_match('/^data:image\/(\w+);base64,(.+)$/', $photoData, $matches)) {
                         $photo = $matches[2];
@@ -66,7 +67,7 @@ class ChatMessageSent implements ShouldBroadcastNow
                 }
             }
         } catch (\Exception $e) {
-            Log::warning('[Chat] Erro ao obter dados do autor: ' . $e->getMessage());
+            Log::warning('[Chat] Erro ao obter dados do autor: '.$e->getMessage());
         }
 
         $createdAt = null;
@@ -79,13 +80,13 @@ class ChatMessageSent implements ShouldBroadcastNow
         }
 
         return [
-            'id'             => $this->message->id,
-            'content'        => $this->message->content,
-            'user_id'        => $this->message->user_id,
-            'author'         => $author,
-            'photo'          => $photo,
-            'created_at'     => $createdAt,
-            'is_pinned'      => false,
+            'id' => $this->message->id,
+            'content' => $this->message->content,
+            'user_id' => $this->message->user_id,
+            'author' => $author,
+            'photo' => $photo,
+            'created_at' => $createdAt,
+            'is_pinned' => false,
             'nr_atendimento' => $this->message->nr_atendimento,
         ];
     }
@@ -97,6 +98,6 @@ class ChatMessageSent implements ShouldBroadcastNow
 
     public function broadcastWhen()
     {
-        return !empty($this->message->nr_atendimento);
+        return ! empty($this->message->nr_atendimento);
     }
 }

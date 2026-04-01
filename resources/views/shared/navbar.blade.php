@@ -29,32 +29,22 @@
 
                         <a href="{{ route('home') }}"
                            title="Início"
-                           class="nav-link {{ request()->routeIs('home') ? 'border-white' : 'border-transparent' }}">
+                           class="nav-link {{ request()->routeIs('home') ? 'border-blue-200' : 'border-transparent' }}">
                             <i class="fa fa-home"></i>
                             <span class="hidden lg:inline">Início</span>
                         </a>
 
                         <a href="{{ route('sbar.report') }}"
                            title="Passagem de Plantão"
-                           class="nav-link {{ request()->routeIs('sbar.*') ? 'border-white' : 'border-transparent' }}">
+                           class="nav-link {{ request()->routeIs('sbar.*') ? 'border-blue-200' : 'border-transparent' }}">
                             <i class="fa fa-hospital"></i>
                             <span class="hidden xl:inline">Passagem de Plantão</span>
                             <span class="hidden lg:inline xl:hidden">Plantão</span>
                         </a>
 
-                        @can('ver relatorio pendencias')
-                            <a href="{{ route('pending.report') }}"
-                               title="Relatório de Pendências"
-                               class="nav-link {{ request()->routeIs('pending.report') ? 'border-white' : 'border-transparent' }}">
-                                <i class="fa fa-list-check"></i>
-                                <span class="hidden xl:inline">Relatório de Pendências</span>
-                                <span class="hidden lg:inline xl:hidden">Pendências</span>
-                            </a>
-                        @endcan
-
                         <a href="{{ route('user.preferences.index') }}"
                            title="Meus Setores"
-                           class="nav-link {{ request()->routeIs('user.preferences.*') ? 'border-white' : 'border-transparent' }}">
+                           class="nav-link {{ request()->routeIs('user.preferences.*') ? 'border-blue-200' : 'border-transparent' }}">
                             <i class="fa fa-cog"></i>
                             <span class="hidden xl:inline">Meus Setores</span>
                             <span class="hidden lg:inline xl:hidden">Setores</span>
@@ -62,17 +52,17 @@
 
                         <a href="{{ route('feedback') }}"
                            title="Feedback"
-                           class="nav-link {{ request()->routeIs('feedback') ? 'border-white' : 'border-transparent' }}">
+                           class="nav-link {{ request()->routeIs('feedback') ? 'border-blue-200' : 'border-transparent' }}">
                             <i class="fa fa-comment"></i>
                             <span class="hidden lg:inline">Feedback</span>
                         </a>
 
-                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
+                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
                             <div class="relative">
                                 <button type="button"
                                         id="admin-dropdown-btn"
                                         title="Administração"
-                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('chat.archive.*') ? 'border-white' : 'border-transparent' }}"
+                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('chat.archive.*') || request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}"
                                         aria-haspopup="true"
                                         onclick="toggleNavbar('admin-dropdown')">
                                     <i class="fa fa-gear"></i>
@@ -82,7 +72,7 @@
                                 </button>
 
                                 <div id="admin-dropdown"
-                                     class="hidden origin-top-left absolute left-0 mt-2 w-52 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-[1000]"
+                                     class="hidden origin-top-left absolute left-0 mt-2 w-64 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-[1000]"
                                      role="menu">
                                     @can('ver usuarios')
                                         <a href="{{ route('users.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded" role="menuitem">
@@ -114,13 +104,19 @@
                                             <span class="ml-2">Histórico de Avaliações</span>
                                         </a>
                                     @endcan
+                                    @can('ver relatorio pendencias')
+                                        <a href="{{ route('pending.report') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('pending.report') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
+                                            <i class="fas fa-list-check w-4 text-sky-600 text-sm flex-shrink-0"></i>
+                                            <span class="ml-2">Relatório de Pendências</span>
+                                        </a>
+                                    @endcan
                                 </div>
                             </div>
                         @endcanany
 
                         <a href="{{ route('manual.index') }}"
                            title="Manual do Sistema"
-                           class="nav-link {{ request()->routeIs('manual.index') ? 'border-white' : 'border-transparent' }}">
+                           class="nav-link {{ request()->routeIs('manual.index') ? 'border-blue-200' : 'border-transparent' }}">
                             <i class="fa fa-book"></i>
                             <span class="hidden xl:inline">Manual do Sistema</span>
                             <span class="hidden lg:inline xl:hidden">Manual</span>
@@ -204,16 +200,6 @@
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
 
-            @can('ver relatorio pendencias')
-                <a href="{{ route('pending.report') }}" class="flex justify-between items-center text-sm text-gray-700">
-                    <div class="px-2 pt-2 pb-3 flex flex-col">
-                        <span class="font-semibold">Relatório de Pendências</span>
-                        <span class="text-xs text-gray-400">Pendências por hospital e setor</span>
-                    </div>
-                    <i class="fas fa-chevron-right text-sm text-gray-400"></i>
-                </a>
-            @endcan
-
             <a href="{{ route('user.preferences.index') }}" class="flex justify-between items-center text-sm text-gray-700">
                 <div class="px-2 pt-2 pb-3 flex flex-col">
                     <span class="font-semibold">Meus Setores</span>
@@ -230,7 +216,7 @@
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
 
-            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
+            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
                 <div class="flex flex-col">
                     <button type="button" class="flex justify-between items-center text-sm text-gray-700 w-full" onclick="toggleNavbar('mobile-admin-menu')">
                         <div class="px-2 pt-2 pb-3 flex flex-col text-left">
@@ -261,7 +247,13 @@
                         @can('ver historico chat')
                             <a href="{{ route('chat.archive.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
                                 <i class="fas fa-clock-rotate-left text-sky-600 w-5"></i>
-                                <span>Histórico de Anotações</span>
+                                <span>Histórico de Avaliações</span>
+                            </a>
+                        @endcan
+                        @can('ver relatorio pendencias')
+                            <a href="{{ route('pending.report') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
+                                <i class="fas fa-list-check text-sky-600 w-5"></i>
+                                <span>Relatório de Pendências</span>
                             </a>
                         @endcan
                     </div>

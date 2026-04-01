@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PatientPendingEventsService;
 use App\Services\TasyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -20,20 +21,20 @@ class PendingEventsReportController extends Controller
 
         if ($preferences->isEmpty()) {
             return view('pendencias.index', [
-                'hospitals'       => collect(),
-                'sectors'         => collect(),
-                'rows'            => collect(),
-                'selectedHospital'=> null,
-                'selectedSector'  => null,
-                'sectorName'      => null,
-                'totalRows'       => 0,
-                'errorMessage'    => 'Nenhum setor configurado para o seu usuário. Configure em Minhas Preferências.',
+                'hospitals' => collect(),
+                'sectors' => collect(),
+                'rows' => collect(),
+                'selectedHospital' => null,
+                'selectedSector' => null,
+                'sectorName' => null,
+                'totalRows' => 0,
+                'errorMessage' => 'Nenhum setor configurado para o seu usuário. Configure em Minhas Preferências.',
             ]);
         }
 
         $hospitals = $preferences
             ->map(fn ($p) => [
-                'hospital_id'   => (int) $p->hospital_code,
+                'hospital_id' => (int) $p->hospital_code,
                 'hospital_name' => $p->hospital_name,
             ])
             ->unique('hospital_id')
@@ -41,7 +42,7 @@ class PendingEventsReportController extends Controller
             ->values();
 
         $selectedHospital = (int) $request->integer('hospital_id', (int) ($hospitals->first()['hospital_id'] ?? 0));
-        if (!$hospitals->pluck('hospital_id')->contains($selectedHospital)) {
+        if (! $hospitals->pluck('hospital_id')->contains($selectedHospital)) {
             $selectedHospital = (int) ($hospitals->first()['hospital_id'] ?? 0);
         }
 
@@ -57,7 +58,7 @@ class PendingEventsReportController extends Controller
             ->values();
 
         $selectedSector = (int) $request->integer('sector_id', (int) ($sectors->first()['sector_code'] ?? 0));
-        if (!$sectors->pluck('sector_code')->contains($selectedSector)) {
+        if (! $sectors->pluck('sector_code')->contains($selectedSector)) {
             $selectedSector = (int) ($sectors->first()['sector_code'] ?? 0);
         }
 
@@ -65,8 +66,16 @@ class PendingEventsReportController extends Controller
         $sectorName = null;
 
         if ($selectedSector > 0) {
-            $tasy = new TasyService();
+            $tasy = new TasyService;
             $patients = $tasy->getSectorPatientsForSbar($selectedSector);
+
+            // Substitui pending_events com dados frescos (sem cache) para o relatório
+            $freshPending = (new PatientPendingEventsService)->getFreshEventsForSector($selectedSector);
+            $patients = array_map(function (array $patient) use ($freshPending) {
+                $patient['pending_events'] = $freshPending[$patient['nr_atendimento']]['events'] ?? [];
+
+                return $patient;
+            }, $patients);
 
             $sectorName = $patients[0]['ds_setor_atendimento'] ?? ($sectors->firstWhere('sector_code', $selectedSector)['sector_name'] ?? null);
 
@@ -74,14 +83,14 @@ class PendingEventsReportController extends Controller
         }
 
         return view('pendencias.index', [
-            'hospitals'        => $hospitals,
-            'sectors'          => $sectors,
-            'rows'             => $rows,
+            'hospitals' => $hospitals,
+            'sectors' => $sectors,
+            'rows' => $rows,
             'selectedHospital' => $selectedHospital,
-            'selectedSector'   => $selectedSector,
-            'sectorName'       => $sectorName,
-            'totalRows'        => $rows->count(),
-            'errorMessage'     => null,
+            'selectedSector' => $selectedSector,
+            'sectorName' => $sectorName,
+            'totalRows' => $rows->count(),
+            'errorMessage' => null,
         ]);
     }
 
@@ -90,14 +99,14 @@ class PendingEventsReportController extends Controller
         $rows = collect();
 
         foreach ($patients as $patient) {
-            if (!($patient['has_patient'] ?? false)) {
+            if (! ($patient['has_patient'] ?? false)) {
                 continue;
             }
 
             $base = [
                 'atendimento' => $patient['nr_atendimento'] ?? '-',
-                'paciente'    => $patient['nm_pessoa_fisica'] ?? '-',
-                'ugb'         => $patient['cd_unidade_basica'] ?? '-',
+                'paciente' => $patient['nm_pessoa_fisica'] ?? '-',
+                'ugb' => $patient['cd_unidade_basica'] ?? '-',
             ];
 
             foreach (($patient['pending_events'] ?? []) as $event) {
@@ -123,17 +132,17 @@ class PendingEventsReportController extends Controller
                     ?? 0;
 
                 $rows->push(array_merge($base, [
-                    'item'             => $this->normalizeItemLabel($event),
-                    'classificacao'    => $event['ds_grupo_lab'] ?? null,
+                    'item' => $this->normalizeItemLabel($event),
+                    'classificacao' => $event['ds_grupo_lab'] ?? null,
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
                     'data_agendamento' => $event['dt_evento_formatted'] ?? '-',
-                    'tempo_pendente'   => $this->resolveTempoPendente(
+                    'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
-                    'status'           => $status,
-                    'laudo'            => $statusLaudoExame !== '' ? $statusLaudoExame : ($event['ds_complemento'] ?? '-'),
-                    'sort_ts'          => $sortTs,
+                    'status' => $status,
+                    'laudo' => $statusLaudoExame !== '' ? $statusLaudoExame : ($event['ds_complemento'] ?? '-'),
+                    'sort_ts' => $sortTs,
                 ]));
             }
 
@@ -148,14 +157,14 @@ class PendingEventsReportController extends Controller
                     ?? 0;
 
                 $rows->push(array_merge($base, [
-                    'item'             => 'Consultoria - ' . ($req['ds_equipe_destino'] ?? 'Equipe não informada'),
-                    'classificacao'    => null,
-                    'data_solicitacao' => !empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
+                    'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
+                    'classificacao' => null,
+                    'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
                     'data_agendamento' => '-',
-                    'tempo_pendente'   => $this->formatTempoPendente($req['dt_registro'] ?? null),
-                    'status'           => $status,
-                    'laudo'            => !empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',
-                    'sort_ts'          => $sortTs,
+                    'tempo_pendente' => $this->formatTempoPendente($req['dt_registro'] ?? null),
+                    'status' => $status,
+                    'laudo' => ! empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',
+                    'sort_ts' => $sortTs,
                 ]));
             }
         }
@@ -165,17 +174,17 @@ class PendingEventsReportController extends Controller
 
     private function normalizeItemLabel(array $event): string
     {
-        $tipo     = (string) ($event['tipo'] ?? '');
-        $subtipo  = trim((string) ($event['ds_subtipo'] ?? ''));
+        $tipo = (string) ($event['tipo'] ?? '');
+        $subtipo = trim((string) ($event['ds_subtipo'] ?? ''));
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
 
         $prefix = match ($tipo) {
             'proc_exame', 'exame' => 'Exame/Laboratório',
-            'cirurgia'            => 'Procedimento/Cirurgia',
-            'quimioterapia'       => 'Quimioterapia',
-            'hemoterapia'         => 'Hemoterapia',
-            'antibiotico'         => 'Antimicrobiano',
-            default               => 'Pendência',
+            'cirurgia' => 'Procedimento/Cirurgia',
+            'quimioterapia' => 'Quimioterapia',
+            'hemoterapia' => 'Hemoterapia',
+            'antibiotico' => 'Antimicrobiano',
+            default => 'Pendência',
         };
 
         // Evita repetições consecutivas (ex: Quimioterapia - Quimioterapia - Quimioterapia - ...)
@@ -191,12 +200,15 @@ class PendingEventsReportController extends Controller
         ) {
             $parts[] = $this->truncate($descricao, 120);
         }
+
         return implode(' - ', $parts);
     }
 
     private function parseDateToTs(?string $date): ?int
     {
-        if (empty($date)) return null;
+        if (empty($date)) {
+            return null;
+        }
         try {
             return Carbon::parse($date)->timestamp;
         } catch (\Throwable) {
@@ -206,30 +218,34 @@ class PendingEventsReportController extends Controller
 
     private function formatTempoPendente(?string $date): string
     {
-        if (empty($date)) return '-';
+        if (empty($date)) {
+            return '-';
+        }
         try {
             $start = Carbon::parse($date);
-            $now   = now();
+            $now = now();
 
             if ($start->greaterThan($now)) {
                 $diffMinutes = (int) $now->diffInMinutes($start);
 
                 if ($diffMinutes < 60) {
-                    return 'em ' . $diffMinutes . 'min';
+                    return 'em '.$diffMinutes.'min';
                 }
 
                 $diffHours = intdiv($diffMinutes, 60);
-                return $diffHours < 24 ? 'em ' . $diffHours . 'h' : 'em ' . intdiv($diffHours, 24) . 'd';
+
+                return $diffHours < 24 ? 'em '.$diffHours.'h' : 'em '.intdiv($diffHours, 24).'d';
             }
 
             $diffMinutes = (int) $start->diffInMinutes($now);
 
             if ($diffMinutes < 60) {
-                return $diffMinutes . 'min em aberto';
+                return $diffMinutes.'min em aberto';
             }
 
             $diffHours = intdiv($diffMinutes, 60);
-            return $diffHours < 24 ? $diffHours . 'h em aberto' : intdiv($diffHours, 24) . 'd em aberto';
+
+            return $diffHours < 24 ? $diffHours.'h em aberto' : intdiv($diffHours, 24).'d em aberto';
         } catch (\Throwable) {
             return '-';
         }
@@ -252,6 +268,6 @@ class PendingEventsReportController extends Controller
 
     private function truncate(string $value, int $max): string
     {
-        return mb_strlen($value) <= $max ? $value : mb_substr($value, 0, $max - 1) . '…';
+        return mb_strlen($value) <= $max ? $value : mb_substr($value, 0, $max - 1).'…';
     }
 }

@@ -26,7 +26,10 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
         '30' => 'Em análise',
     ];
 
-    protected function handlerName(): string { return 'Prescrições'; }
+    protected function handlerName(): string
+    {
+        return 'Prescrições';
+    }
 
     protected function processChunk(array &$results, array $chunk): void
     {
@@ -94,7 +97,9 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
         $now = time();
 
         foreach ($rows as $row) {
-            if (!isset($results[$row->nr_atendimento])) continue;
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
 
             $descricaoUp = strtoupper($row->descricao ?? '');
             if (str_contains($descricaoUp, 'VISITA HOSPITALAR')
@@ -103,43 +108,49 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 continue;
             }
 
-            $isInternal = !empty($row->nr_seq_proc_interno);
+            $isInternal = ! empty($row->nr_seq_proc_interno);
 
             $tempo = '';
             if ($row->dt_evento) {
                 $diff = strtotime($row->dt_evento) - $now;
                 if ($diff > 0) {
-                    $tempo = $diff < 86400
-                        ? 'em ' . round($diff / 3600) . 'h'
-                        : 'em ' . floor($diff / 86400) . 'd';
+                    $tempo = $diff < 3600
+                        ? 'em '.(int) round($diff / 60).'min'
+                        : ($diff < 86400
+                            ? 'em '.(int) round($diff / 3600).'h'
+                            : 'em '.(int) floor($diff / 86400).'d');
                 } else {
-                    $diff  = abs($diff);
-                    $tempo = $diff < 86400
-                        ? round($diff / 3600) . 'h em aberto'
-                        : floor($diff / 86400) . 'd em aberto';
+                    $diff = abs($diff);
+                    $tempo = $diff < 3600
+                        ? (int) round($diff / 60).'min em aberto'
+                        : ($diff < 86400
+                            ? (int) round($diff / 3600).'h em aberto'
+                            : (int) floor($diff / 86400).'d em aberto');
                 }
             } elseif ($row->dt_autorizacao) {
-                $diff  = $now - strtotime($row->dt_autorizacao);
-                $tempo = $diff < 86400
-                    ? round($diff / 3600) . 'h em aberto'
-                    : floor($diff / 86400) . 'd em aberto';
+                $diff = $now - strtotime($row->dt_autorizacao);
+                $tempo = $diff < 3600
+                    ? (int) round($diff / 60).'min em aberto'
+                    : ($diff < 86400
+                        ? (int) round($diff / 3600).'h em aberto'
+                        : (int) floor($diff / 86400).'d em aberto');
             }
 
             $results[$row->nr_atendimento]['events'][] = [
-                'tipo'                => 'proc_exame',
-                'icone'               => $isInternal ? 'outpatient-department.svg' : 'tac.svg',
-                'descricao'           => substr($row->descricao ?? '', 0, 80),
-                'ds_subtipo'          => $row->ds_subtipo ?? null,
-                'ds_grupo_lab'        => $row->ds_grupo_lab ?? null,
-                'nm_prescritor'       => $row->nm_prescritor ?? null,
-                'dt_evento'           => $row->dt_evento,
+                'tipo' => 'proc_exame',
+                'icone' => $isInternal ? 'outpatient-department.svg' : 'tac.svg',
+                'descricao' => substr($row->descricao ?? '', 0, 80),
+                'ds_subtipo' => $row->ds_subtipo ?? null,
+                'ds_grupo_lab' => $row->ds_grupo_lab ?? null,
+                'nm_prescritor' => $row->nm_prescritor ?? null,
+                'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
-                'dt_solicitacao'      => $row->dt_solicitacao ? date('d/m/Y H:i', strtotime($row->dt_solicitacao)) : null,
-                'dt_autorizacao'      => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
-                'tempo_pendente'      => $tempo,
-                'status_laudo'        => self::STATUS_MAP[$row->ie_status_execucao] ?? 'Pendente',
-                'ds_status_laudo'     => $row->ds_status_laudo ?? null,
-                'urgente'             => false,
+                'dt_solicitacao' => $row->dt_solicitacao ? date('d/m/Y H:i', strtotime($row->dt_solicitacao)) : null,
+                'dt_autorizacao' => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
+                'tempo_pendente' => $tempo,
+                'status_laudo' => self::STATUS_MAP[$row->ie_status_execucao] ?? 'Pendente',
+                'ds_status_laudo' => $row->ds_status_laudo ?? null,
+                'urgente' => false,
             ];
         }
     }

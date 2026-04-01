@@ -20,6 +20,7 @@
 - [Tecnologias](#-tecnologias)
 - [Funcionalidades](#-funcionalidades)
 - [Instalação](#-orientações-para-instalação)
+- [WebSocket (Reverb)](#-websocket-laravel-reverb)
 - [Contatos](#-contatos)
 
 ## 🏥 Sobre o Projeto
@@ -43,6 +44,9 @@ O sistema implementa digitalmente o modelo SBAR (Situação, Background, Avalia�
 - [MySQL 8.0+](https://dev.mysql.com/doc/)
 - [Vite 4.0.0+](https://vitejs.dev/guide/)
 - [TailwindCSS 3.4.15](https://tailwindcss.com/)
+
+### WebSocket
+- [laravel/reverb ^1.9](https://reverb.laravel.com/) - Servidor WebSocket nativo para broadcasting em tempo real
 
 ### Pacotes adicionais
 - [directorytree/ldaprecord-laravel ^3.3.5](https://ldaprecord.com/docs/laravel/v3) - Integração com Active Directory
@@ -162,6 +166,130 @@ Para instalar e configurar o sistema, siga as etapas abaixo:
 
 10. **Acesse a aplicação**
     - Agora você pode acessar o sistema com suas credenciais do AD
+
+## 🔌 WebSocket (Laravel Reverb)
+
+O sistema utiliza [Laravel Reverb](https://reverb.laravel.com/) para comunicação em tempo real (chat de plantão). O servidor Reverb roda na própria máquina da aplicação e o Apache faz proxy das conexões WebSocket.
+
+### Como funciona
+
+```
+Navegador (wss://hmartinica04:443/app/...)
+    ↓  Apache SSL (proxy_wstunnel)
+Reverb (ws://127.0.0.1:8080/app/...)
+    ↓  Broadcasting event
+Queue Worker → chat_messages → Livewire #[On] → UI atualizada
+```
+
+### Configuração em produção
+
+#### 1. Variáveis de ambiente (`.env`)
+
+```env
+BROADCAST_CONNECTION=reverb
+
+REVERB_APP_ID=<gerar-id-unico>
+REVERB_APP_KEY=<gerar-key-unica>
+REVERB_APP_SECRET=<gerar-secret-unico>
+REVERB_HOST=0.0.0.0
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+VITE_REVERB_APP_KEY=<mesmo-valor-de-REVERB_APP_KEY>
+VITE_REVERB_HOST=<dominio-publico-do-servidor>
+VITE_REVERB_PORT=443
+VITE_REVERB_SCHEME=https
+```
+
+> Gere valores únicos para ID/KEY/SECRET:
+> ```bash
+> php artisan tinker --execute 'echo Str::random(20);'
+> ```
+
+#### 2. Apache — habilitar módulos
+
+```bash
+sudo a2enmod proxy proxy_http proxy_wstunnel headers rewrite
+sudo systemctl restart apache2
+```
+
+#### 3. Apache — VirtualHost (adicionar dentro do bloco `<VirtualHost :443>`)
+
+```apache
+# WebSocket proxy para Laravel Reverb
+RewriteEngine On
+RewriteCond %{HTTP:Upgrade} websocket [NC]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^/app/(.*) ws://127.0.0.1:8080/app/$1 [P,L]
+
+ProxyPass /app/ ws://127.0.0.1:8080/app/
+ProxyPassReverse /app/ ws://127.0.0.1:8080/app/
+ProxyPass /apps/ http://127.0.0.1:8080/apps/
+ProxyPassReverse /apps/ http://127.0.0.1:8080/apps/
+
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-Port "443"
+```
+
+#### 4. Compilar assets
+
+```bash
+npm run build
+php artisan config:clear
+```
+
+#### 5. Rodar o servidor Reverb
+
+**Manualmente (temporário):**
+```bash
+php artisan reverb:start --host=0.0.0.0 --port=8080
+```
+
+**Com Supervisor (recomendado para produção):**
+
+Criar arquivo `/etc/supervisor/conf.d/reverb.conf`:
+
+```ini
+[program:reverb]
+command=php /var/www/passagem-plantao/artisan reverb:start --host=0.0.0.0 --port=8080
+directory=/var/www/passagem-plantao
+autostart=true
+autorestart=true
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/log/supervisor/reverb.log
+```
+
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start reverb
+```
+
+#### 6. Verificar
+
+```bash
+# Reverb respondendo
+curl http://localhost:8080/apps/<REVERB_APP_ID>
+
+# WebSocket acessível via Apache
+curl -i https://<dominio>/apps/<REVERB_APP_ID>
+
+# Status do supervisor
+sudo supervisorctl status reverb
+```
+
+### Desenvolvimento local
+
+O servidor Reverb já está incluído no script `composer dev`:
+
+```bash
+composer dev
+```
+
+Isso inicia simultaneamente: artisan serve, queue worker, pail (logs), Vite e Reverb.
+
+---
 
 ## 📞 Contatos
 

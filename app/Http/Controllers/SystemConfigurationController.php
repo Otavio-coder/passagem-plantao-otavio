@@ -16,7 +16,7 @@ class SystemConfigurationController extends Controller
     /**
      * IDs de hospitais permitidos (configuração base)
      */
-    private const ALLOWED_HOSPITAL_IDS = [1,2,3,4,5,6,7,8,10,18,25];
+    private const ALLOWED_HOSPITAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
 
     /**
      * Exibe página de preferências do usuário
@@ -105,15 +105,15 @@ class SystemConfigurationController extends Controller
                 ->toArray();
 
             Log::channel('audit')->info('preferences.updated', [
-                'user_id'          => $user->id,
-                'user'             => $user->name,
+                'user_id' => $user->id,
+                'user' => $user->name,
                 'previous_sectors' => $previousSectors,
-                'new_sectors'      => $newSectors,
-                'ip'               => $request->ip(),
+                'new_sectors' => $newSectors,
+                'ip' => $request->ip(),
             ]);
 
             // Limpa cache
-            Cache::forget('user_sectors_' . $user->id);
+            Cache::forget('user_sectors_'.$user->id);
 
             return redirect()
                 ->route('user.preferences.index')
@@ -127,7 +127,7 @@ class SystemConfigurationController extends Controller
 
             return redirect()
                 ->route('user.preferences.index')
-                ->with('error', 'Erro ao atualizar preferências: ' . $e->getMessage());
+                ->with('error', 'Erro ao atualizar preferências: '.$e->getMessage());
         }
     }
 
@@ -145,12 +145,12 @@ class SystemConfigurationController extends Controller
                 ->where('ie_situacao', 'A')
                 ->get()
                 ->mapWithKeys(function ($h) {
-                    return [(string)$h->nr_sequencia => $h->ds_agrupamento];
+                    return [(string) $h->nr_sequencia => $h->ds_agrupamento];
                 });
 
-            // Obtém setores apenas cd_classif_setor = 3 ou 4 com leitos ativos
+            // Obtém setores apenas cd_classif_setor = 1 (emergência), 3 ou 4 (internação) com leitos ativos
             $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
-                ->whereIn('cd_classif_setor', [3, 4])
+                ->whereIn('cd_classif_setor', [1, 3, 4])
                 ->where('ie_situacao', 'A')
                 ->orderBy('ds_setor_atendimento')
                 ->get()
@@ -161,10 +161,10 @@ class SystemConfigurationController extends Controller
                 })
                 ->map(function ($s) use ($hospitals) {
                     return [
-                        'sector_code' => (string)$s->cd_setor_atendimento,
+                        'sector_code' => (string) $s->cd_setor_atendimento,
                         'sector_name' => $s->ds_setor_atendimento,
-                        'hospital_code' => (string)$s->nr_seq_agrupamento,
-                        'hospital_name' => $hospitals->get((string)$s->nr_seq_agrupamento, 'Hospital'),
+                        'hospital_code' => (string) $s->nr_seq_agrupamento,
+                        'hospital_name' => $hospitals->get((string) $s->nr_seq_agrupamento, 'Hospital'),
                     ];
                 })
                 ->values()

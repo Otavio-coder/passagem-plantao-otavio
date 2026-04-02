@@ -490,6 +490,9 @@
                                             @if(!empty($firstSurgery['status']))
                                                 <div class="text-white/80 text-[10px] mt-0.5">{{ $firstSurgery['status'] }}</div>
                                             @endif
+                                            @if(!empty($firstSurgery['setor_execucao']))
+                                                <div class="text-white/80 text-[10px] mt-0.5">{{ $firstSurgery['setor_execucao'] }}</div>
+                                            @endif
                                             @if(!empty($firstSurgery['observacoes']))
                                                 <div class="text-white/80 text-[10px] mt-0.5">Obs: {{ $firstSurgery['observacoes'] }}</div>
                                             @endif
@@ -554,6 +557,12 @@
                                                                 @if(!empty($c['status']))
                                                                     <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded mt-1">
                                                                         <span>{{ $c['status'] }}</span>
+                                                                    </div>
+                                                                @endif
+                                                                @if(!empty($c['setor_execucao']))
+                                                                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded mt-1">
+                                                                        <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
+                                                                        <span>{{ $c['setor_execucao'] }}</span>
                                                                     </div>
                                                                 @endif
                                                                 @if(!empty($c['observacoes']))

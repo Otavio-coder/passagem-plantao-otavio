@@ -101,7 +101,7 @@
                             </div>
                             <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <button type="button" class="surgery-icon w-7 h-7 bg-purple-700 rounded-full flex items-center justify-center shadow-lg animate-pulse" aria-label="Ver procedimentos cirúrgicos">
-                                    <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="h-4 w-4 flex-shrink-0" alt="Cirurgia" />
+                                    <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="h-4 w-4 flex-shrink-0" alt="Cirurgia" />
                                 </button>
                                 <div>
                                     <span class="text-sm font-medium text-gray-800">Procedimentos Cirúrgicos</span>

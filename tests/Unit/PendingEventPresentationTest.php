@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Support\PendingEventPresentation;
+use App\Support\PendingEventTypeClassifier;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -56,5 +57,51 @@ class PendingEventPresentationTest extends TestCase
             'Hemoterapia - Concentrado de Hemácias - 500 mL - IV - cirurgia às 15h do dia 13/11/25',
             $description
         );
+    }
+
+    #[Test]
+    public function builds_a_richer_surgery_description(): void
+    {
+        $description = PendingEventPresentation::surgeryDescription([
+            'descricao' => 'Dissecção de veia para colocação de cateter',
+            'local' => 'Centro Cirúrgico',
+            'sala' => '3',
+        ]);
+
+        $this->assertSame(
+            'Dissecção de veia para colocação de cateter - Centro Cirúrgico - Sala: 3',
+            $description
+        );
+    }
+
+    #[Test]
+    public function returns_surgery_type_as_classification_for_surgery_events(): void
+    {
+        $classification = PendingEventPresentation::classificationLabel([
+            'tipo_cirurgia_codigo' => 7,
+            'ds_grupo_lab' => 'Grupo não usado',
+        ], PendingEventTypeClassifier::SURGERY);
+
+        $this->assertSame('Tipo 7', $classification);
+    }
+
+    #[Test]
+    public function returns_default_surgery_classification_when_type_is_missing(): void
+    {
+        $classification = PendingEventPresentation::classificationLabel([
+            'descricao' => 'Cirurgia sem tipo retornado',
+        ], PendingEventTypeClassifier::SURGERY);
+
+        $this->assertSame('Tipo não informado', $classification);
+    }
+
+    #[Test]
+    public function returns_lab_group_as_classification_for_non_surgery_events(): void
+    {
+        $classification = PendingEventPresentation::classificationLabel([
+            'ds_grupo_lab' => 'Hematologia',
+        ], PendingEventTypeClassifier::EXAM);
+
+        $this->assertSame('Hematologia', $classification);
     }
 }

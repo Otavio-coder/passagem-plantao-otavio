@@ -42,7 +42,6 @@ class PatientTherapeuticPlanRepository
         $hemoRows = DB::connection('tasy')->select($this->hemotherapyQuery(), [':nr' => $nr]);
         $surgRows = DB::connection('tasy')->select($this->surgeryQuery(), [
             ':nr' => $nr,
-            ':nr_setor' => $nr,
         ]);
         $chemoRows = DB::connection('tasy')->select($this->chemotherapyQuery(), [':nr' => $nr]);
         $gasRows = DB::connection('tasy')->select($this->gasotherapyQuery(), [':nr' => $nr]);
@@ -172,10 +171,13 @@ class PatientTherapeuticPlanRepository
     private function nutritionQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('cd.NM_USUARIO');
+        $nutritionistName = $this->nameFromCpoeUser('pf.CD_PESSOA_FISICA');
 
         return "
             SELECT
                 cd.NR_SEQUENCIA                            AS id,
+                cd.CD_DIETA                                AS diet_code,
+                cd.CD_MATERIAL                             AS material_code,
                 NVL(d.DS_DIETA, SUBSTR(mat.ds_material, 1, 255)) AS name,
                 cd.CD_INTERVALO                            AS interval_code,
                                 NVL(
@@ -211,6 +213,16 @@ class PatientTherapeuticPlanRepository
                 cd.DS_ALERGIAS_ALIMENTARES                 AS note_text,
                 cd.DS_ORIENTACAO                           AS guidance,
                 cd.DS_JUSTIFICATIVA                        AS justification,
+                TO_CHAR(cd.QT_KCAL_TOTAL)                  AS total_kcal,
+                cd.IE_VIA_APLICACAO                        AS route_code,
+                cd.CD_PESSOA_FISICA                        AS nutritionist_id,
+                SUBSTR(pf.nm_pessoa_fisica, 1, 120)        AS nutritionist_name,
+                cd.NR_SEQ_OBJETIVO                         AS fasting_goal_id,
+                obj.DS_OBJETIVO                            AS fasting_goal,
+                cd.NR_SEQ_TIPO                             AS fasting_type_id,
+                tj.DS_TIPO                                 AS fasting_type,
+                TO_CHAR(cd.DT_INICIO_JEJUM, 'DD/MM/YYYY HH24:MI')  AS fasting_start,
+                TO_CHAR(cd.DT_FIM_JEJUM, 'DD/MM/YYYY HH24:MI')     AS fasting_end,
                 {$prescriberName}                          AS professional_name,
                 TO_CHAR(cd.QT_VOLUME)                      AS qty,
                 TO_CHAR(cd.QT_VOLUME_TOTAL)                AS total_volume,
@@ -232,6 +244,12 @@ class PatientTherapeuticPlanRepository
                    ON cd.CD_DIETA         = d.CD_DIETA
             LEFT JOIN tasy.material mat
                    ON cd.CD_MATERIAL      = mat.cd_material
+                 LEFT JOIN tasy.REP_OBJETIVO_JEJUM obj
+                     ON cd.NR_SEQ_OBJETIVO = obj.NR_SEQUENCIA
+                 LEFT JOIN tasy.REP_TIPO_JEJUM tj
+                     ON cd.NR_SEQ_TIPO = tj.NR_SEQUENCIA
+                 LEFT JOIN tasy.pessoa_fisica pf
+                     ON cd.CD_PESSOA_FISICA = pf.CD_PESSOA_FISICA
             LEFT JOIN tasy.via_aplicacao va
                    ON cd.IE_VIA_APLICACAO = va.IE_VIA_APLICACAO
                   AND va.IE_SITUACAO      = 'A'
@@ -262,6 +280,7 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 cr.NR_SEQUENCIA                            AS id,
+                cr.CD_RECOMENDACAO                         AS code,
                 NVL(cr.DS_RECOMENDACAO, tr.DS_TIPO_RECOMENDACAO) AS name,
                 tr.DS_TIPO_RECOMENDACAO                    AS secondary_info,
                 cr.DS_HORARIOS                             AS schedule,
@@ -300,6 +319,8 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 ci.NR_SEQUENCIA                            AS id,
+                ci.NR_SEQ_PROC                              AS procedure_code,
+                ci.CD_PRESCRITOR                            AS prescriber_id,
                 (SELECT MAX(pr.DS_PROCEDIMENTO)
                  FROM tasy.PE_PROCEDIMENTO pr
                  WHERE pr.NR_SEQUENCIA = ci.NR_SEQ_PROC)  AS name,
@@ -312,8 +333,13 @@ class PatientTherapeuticPlanRepository
                 ci.IE_ACM                                  AS flag3,
                 ci.IE_LADO                                 AS flag4,
                 ci.DS_OBSERVACAO                           AS observation,
+                                ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
+                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_INTERVENCAO ci
+                        JOIN tasy.UNIDADE_ATENDIMENTO ua
+                            ON ua.NR_ATENDIMENTO = ci.NR_ATENDIMENTO
+                         AND ua.IE_SITUACAO = 'A'
             WHERE ci.NR_ATENDIMENTO = :nr
               AND ci.DT_LIBERACAO   IS NOT NULL
               AND ci.DT_SUSPENSAO   IS NULL
@@ -448,8 +474,30 @@ class PatientTherapeuticPlanRepository
                 CAST(NULL AS DATE)                          AS collected_at_raw,
                 CAST(NULL AS VARCHAR2(255))                 AS ds_grupo_lab,
                 CAST(NULL AS VARCHAR2(255))                 AS ds_status_laudo,
-                NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) AS setor_raw,
-                tasy.OBTER_DS_SETOR_ATENDIMENTO(NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)) AS setor_desc_raw,
+                NVL(
+                    TASY.OBTER_SETOR_CIRURGIA(
+                        ap.NR_ATENDIMENTO,
+                        (
+                            SELECT MAX(apu.DT_ENTRADA_UNIDADE)
+                            FROM tasy.ATEND_PACIENTE_UNIDADE apu
+                            WHERE apu.NR_ATENDIMENTO = ap.NR_ATENDIMENTO
+                        )
+                    ),
+                    NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                )                                                  AS setor_raw,
+                tasy.OBTER_DS_SETOR_ATENDIMENTO(
+                    NVL(
+                        TASY.OBTER_SETOR_CIRURGIA(
+                            ap.NR_ATENDIMENTO,
+                            (
+                                SELECT MAX(apu.DT_ENTRADA_UNIDADE)
+                                FROM tasy.ATEND_PACIENTE_UNIDADE apu
+                                WHERE apu.NR_ATENDIMENTO = ap.NR_ATENDIMENTO
+                            )
+                        ),
+                        NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                    )
+                )                                                  AS setor_desc_raw,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE - 1) THEN 1 ELSE 0 END AS is_yesterday,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow,
@@ -476,6 +524,7 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 ch.NR_SEQUENCIA                            AS id,
+                ch.CD_PESSOA_FISICA                        AS prescriber_id,
                 CASE ch.IE_TIPO_HEMOTERAP
                     WHEN '1' THEN 'Concentrado de Hemácias'
                     WHEN '2' THEN 'Concentrado de Plaquetas'
@@ -521,6 +570,7 @@ class PatientTherapeuticPlanRepository
             SELECT
                 ap.NR_SEQUENCIA                                    AS id,
                 COALESCE(
+                    TASY.OBTER_CIRURGIA_PACIENTE(ap.NR_ATENDIMENTO, 'AA'),
                     (SELECT MAX(pi.DS_PROC_EXAME)
                      FROM tasy.proc_interno pi
                      WHERE pi.NR_SEQUENCIA = ap.NR_SEQ_PROC_INTERNO),
@@ -529,8 +579,16 @@ class PatientTherapeuticPlanRepository
                 )                                                  AS name,
                 ap.IE_CARATER_CIRURGIA                             AS flag1,
                 ap.IE_STATUS_AGENDA                                AS status_raw,
-                NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) AS setor_raw,
-                tasy.OBTER_DS_SETOR_ATENDIMENTO(NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)) AS setor_desc_raw,
+                NVL(
+                    TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
+                    NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                )                                                  AS setor_raw,
+                tasy.OBTER_DS_SETOR_ATENDIMENTO(
+                    NVL(
+                        TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
+                        NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                    )
+                )                                                  AS setor_desc_raw,
                 TO_CHAR(ap.DT_AGENDA, 'DD/MM/YY')
                     || CASE WHEN ap.HR_INICIO IS NOT NULL
                        THEN ' ' || SUBSTR(TO_CHAR(ap.HR_INICIO,'HH24:MI'), 1, 5)
@@ -538,20 +596,26 @@ class PatientTherapeuticPlanRepository
                 ap.DT_AGENDA                                       AS dt_start,
                 ap.DS_OBSERVACAO                                   AS observation,
                 TO_CHAR(ap.NR_SEQ_SALA)                            AS extra1,
-                ap.DS_CIRURGIA                                     AS extra2
+                ap.DS_CIRURGIA                                     AS extra2,
+                COALESCE(
+                    TASY.OBTER_TIPO_CIRUR_PROC(ap.NR_SEQ_PROC_INTERNO),
+                    (
+                        SELECT MAX(p.CD_TIPO_PROCEDIMENTO)
+                        FROM tasy.PROCEDIMENTO p
+                        WHERE p.CD_PROCEDIMENTO = ap.CD_PROCEDIMENTO
+                          AND p.IE_ORIGEM_PROCED = ap.IE_ORIGEM_PROCED
+                    )
+                )                                                  AS extra3,
+                ap.DS_CIRURGIA                                     AS extra4
             FROM tasy.AGENDA_PACIENTE ap
-            WHERE ap.NR_ATENDIMENTO        = :nr
+                        JOIN tasy.ATENDIMENTO_PACIENTE atp
+                            ON atp.CD_PESSOA_FISICA = ap.CD_PESSOA_FISICA
+                        WHERE atp.NR_ATENDIMENTO       = :nr
               AND ap.DT_AGENDA             >= TRUNC(SYSDATE)
               AND ap.IE_CARATER_CIRURGIA   IS NOT NULL
               AND ap.IE_CARATER_CIRURGIA   <> 'X'
               AND ap.IE_STATUS_AGENDA      NOT IN ('C', 'S')
-              AND ap.DT_EXECUTADA          IS NULL
-              AND NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) = (
-                  SELECT MAX(ua2.CD_SETOR_ATENDIMENTO)
-                  FROM tasy.UNIDADE_ATENDIMENTO ua2
-                  WHERE ua2.NR_ATENDIMENTO = :nr_setor
-                    AND ua2.IE_SITUACAO = 'A'
-              )
+                            AND ap.DT_EXECUTADA          IS NULL
         ";
     }
 
@@ -560,6 +624,7 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 ROWNUM                                             AS id,
+                aq.CD_PESSOA_FISICA                                AS patient_person_id,
                 COALESCE(
                     'Quimioterapia' || CASE WHEN aq.DS_PROTOCOLO_MEDIC IS NOT NULL
                         THEN ' – ' || aq.DS_PROTOCOLO_MEDIC ELSE '' END,
@@ -595,6 +660,8 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 cg.NR_SEQUENCIA                            AS id,
+                cg.NR_SEQ_GAS                              AS gas_code,
+                cg.CD_PESSOA_FISICA                        AS prescriber_id,
                 (SELECT MAX(g.DS_GAS)
                  FROM tasy.GAS g
                  WHERE g.NR_SEQUENCIA = cg.NR_SEQ_GAS)     AS tipo_gas,
@@ -626,8 +693,13 @@ class PatientTherapeuticPlanRepository
                 cg.IE_ACM                                  AS a_criterio_medico,
                 cg.DS_OBSERVACAO                           AS observacao,
                 cg.DS_JUSTIFICATIVA                        AS justificativa,
+                                ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
+                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_GASOTERAPIA cg
+                        JOIN tasy.UNIDADE_ATENDIMENTO ua
+                            ON ua.NR_ATENDIMENTO = cg.NR_ATENDIMENTO
+                         AND ua.IE_SITUACAO = 'A'
             WHERE cg.NR_ATENDIMENTO = :nr
               AND cg.DT_LIBERACAO   IS NOT NULL
               AND cg.DT_SUSPENSAO   IS NULL
@@ -643,6 +715,7 @@ class PatientTherapeuticPlanRepository
         return "
             SELECT
                 cd.NR_SEQUENCIA                            AS id,
+                cd.CD_PESSOA_FISICA                        AS prescriber_id,
                 cd.IE_HEMODIALISE                          AS ie_hemodialise,
                 cd.QT_SESSAO_SEM                           AS sessoes_por_semana,
                 cd.QT_HORA_MIN_SESSAO                      AS duracao_sessao,
@@ -661,8 +734,13 @@ class PatientTherapeuticPlanRepository
                 cd.DT_FIM                                  AS dt_fim,
                 cd.DS_OBSERVACAO                           AS observacao,
                 cd.DS_JUSTIFICATIVA                        AS justificativa,
+                                ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
+                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_DIALISE cd
+                        JOIN tasy.UNIDADE_ATENDIMENTO ua
+                            ON ua.NR_ATENDIMENTO = cd.NR_ATENDIMENTO
+                         AND ua.IE_SITUACAO = 'A'
             WHERE cd.NR_ATENDIMENTO = :nr
               AND cd.DT_LIBERACAO   IS NOT NULL
               AND cd.DT_SUSPENSAO   IS NULL
@@ -737,9 +815,16 @@ class PatientTherapeuticPlanRepository
 
     public function formatOrder(object $row): array
     {
+        $text = trim((string) ($row->name ?? 'No description'));
+        $type = ! empty($row->secondary_info) ? trim((string) $row->secondary_info) : null;
+        if ($type !== null && mb_strtolower($type) === mb_strtolower($text)) {
+            $type = null;
+        }
+
         return [
-            'text' => $row->name ?? 'No description',
-            'type' => $row->secondary_info ?? null,
+            'id' => (int) ($row->id ?? 0),
+            'text' => $text !== '' ? $text : 'No description',
+            'type' => $type,
             'observation' => ! empty($row->observation) ? $row->observation : null,
             'schedule' => $row->schedule ?? ($row->first_hour ?? null),
             'prescriber' => $row->professional_name ?? null,
@@ -767,11 +852,16 @@ class PatientTherapeuticPlanRepository
         }
 
         return [
+            'id' => (int) ($row->id ?? 0),
+            'procedure_code' => ! empty($row->procedure_code) ? (string) $row->procedure_code : null,
+            'prescriber_id' => ! empty($row->prescriber_id) ? (string) $row->prescriber_id : null,
             'name' => $row->name ?? 'Unidentified intervention',
             'observation' => ! empty($row->observation) ? $row->observation : null,
             'schedule' => $row->schedule ?? ($row->first_hour ?? null),
             'assignee' => $row->professional_name ?? null,
             'prescriber' => null,
+            'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
             'labels' => $labels,
             'dt_start' => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
             'dt_end' => $row->dt_end ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
@@ -902,6 +992,7 @@ class PatientTherapeuticPlanRepository
             'id' => (int) ($row->id ?? 0),
             'name' => $row->name ?? 'Hemocomponente',
             'tipo_code' => $row->secondary_info ?? null,
+            'prescriber_id' => ! empty($row->prescriber_id) ? (string) $row->prescriber_id : null,
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
             'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
             'is_urgent' => ($row->flag1 ?? 'N') === 'S',
@@ -926,9 +1017,13 @@ class PatientTherapeuticPlanRepository
         $carater = $caracterMap[$row->flag1 ?? ''] ?? 'Não informado';
         $is_urgent = in_array($row->flag1 ?? '', ['U', 'G']);
 
+        $name = $this->normalizeSurgeryDescription((string) ($row->name ?? 'Cirurgia não especificada'));
+
+        $surgeryObservation = $this->filterSensitiveSurgeryObservation($row->observation ?? null);
+
         return [
             'id' => (int) ($row->id ?? 0),
-            'name' => $row->name ?? 'Cirurgia não especificada',
+            'name' => $name,
             'carater' => $carater,
             'status' => $this->agendaStatusLabel((string) ($row->status_raw ?? '')),
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
@@ -937,9 +1032,43 @@ class PatientTherapeuticPlanRepository
             'dt' => $row->schedule ?? null,
             'sala' => ! empty($row->extra1) ? 'Sala '.$row->extra1 : null,
             'description' => ! empty($row->extra2) ? $row->extra2 : null,
+            'tipo_cirurgia_codigo' => ! empty($row->extra3) ? (int) $row->extra3 : null,
+            'local' => ! empty($row->extra4) ? trim((string) $row->extra4) : (! empty($row->extra2) ? trim((string) $row->extra2) : null),
             'observation' => ! empty($row->observation) ? $row->observation : null,
-            'has_details' => ! empty($row->observation),
+            'observacoes' => $surgeryObservation,
+            'has_details' => ! empty($row->observation) || ! empty($surgeryObservation),
         ];
+    }
+
+    private function normalizeSurgeryDescription(string $description): string
+    {
+        $cleaned = preg_replace('/\s*\(\s*Cirurgia[^\)]*\)\s*$/iu', '', $description);
+        $normalized = trim((string) ($cleaned ?? $description));
+
+        return $normalized !== '' ? $normalized : $description;
+    }
+
+    private function filterSensitiveSurgeryObservation(?string $observation): ?string
+    {
+        if (empty($observation)) {
+            return null;
+        }
+
+        $patterns = [
+            '/R\$\s*[\d.,]+/i',
+            '/valor.*[\d.,]+/i',
+            '/custo.*[\d.,]+/i',
+            '/autorizado.*coordenação/i',
+        ];
+
+        $filtered = $observation;
+        foreach ($patterns as $pattern) {
+            $filtered = preg_replace($pattern, '', (string) $filtered);
+        }
+
+        $normalized = trim((string) $filtered);
+
+        return $normalized !== '' ? $normalized : 'Informações disponíveis no prontuário';
     }
 
     private function agendaStatusLabel(?string $code): string
@@ -986,7 +1115,9 @@ class PatientTherapeuticPlanRepository
     {
         return [
             'id' => (int) ($row->id ?? 0),
+            'patient_person_id' => ! empty($row->patient_person_id) ? (string) $row->patient_person_id : null,
             'name' => $row->name ?? 'Quimioterapia',
+            'secondary_info' => ! empty($row->secondary_info) ? $row->secondary_info : null,
             'protocol' => ! empty($row->extra1) ? $row->extra1 : null,
             'cycle' => ! empty($row->extra2) ? (int) $row->extra2 : null,
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
@@ -1003,6 +1134,8 @@ class PatientTherapeuticPlanRepository
     {
         return [
             'id' => (int) ($row->id ?? 0),
+            'gas_code' => ! empty($row->gas_code) ? (string) $row->gas_code : null,
+            'prescriber_id' => ! empty($row->prescriber_id) ? (string) $row->prescriber_id : null,
             'tipo_gas' => $row->tipo_gas ?? null,
             'modalidade' => $row->modalidade ?? null,
             'modo_administracao' => $row->modo_administracao ?? null,
@@ -1027,6 +1160,8 @@ class PatientTherapeuticPlanRepository
             'observacao' => ! empty($row->observacao) ? $row->observacao : null,
             'justificativa' => ! empty($row->justificativa) ? $row->justificativa : null,
             'prescriber' => $row->professional_name ?? null,
+            'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
         ];
     }
 
@@ -1054,6 +1189,7 @@ class PatientTherapeuticPlanRepository
 
         return [
             'id' => (int) ($row->id ?? 0),
+            'prescriber_id' => ! empty($row->prescriber_id) ? (string) $row->prescriber_id : null,
             'modalidade' => $modalidade,
             'sessoes_por_semana' => $row->sessoes_por_semana ?? null,
             'duracao_sessao' => $row->duracao_sessao ?? null,
@@ -1067,16 +1203,28 @@ class PatientTherapeuticPlanRepository
             'observacao' => ! empty($row->observacao) ? $row->observacao : null,
             'justificativa' => ! empty($row->justificativa) ? $row->justificativa : null,
             'prescriber' => $row->professional_name ?? null,
+            'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
         ];
     }
 
     public function formatNutritionItem(object $row): array
     {
-        $isFasting = ($row->flag1 ?? '') === 'J';
+        $isFasting = in_array((string) ($row->flag1 ?? ''), ['J', 'S'], true)
+            || ! empty($row->fasting_goal)
+            || ! empty($row->fasting_type)
+            || ! empty($row->fasting_goal_id)
+            || ! empty($row->fasting_type_id)
+            || ! empty($row->fasting_start)
+            || ! empty($row->fasting_end);
 
         if ($isFasting) {
             $type = 'Fasting';
-            $displayName = 'Jejum';
+            $fastingLabel = collect([$row->fasting_goal ?? null, $row->fasting_type ?? null])
+                ->filter()
+                ->map(fn ($value) => trim((string) $value))
+                ->implode(' · ');
+            $displayName = $fastingLabel !== '' ? $fastingLabel : 'Jejum';
         } elseif (($row->flag3 ?? '') === 'S') {
             $type = 'Enteral';
             $displayName = $row->name ?? 'Nutrição Enteral';
@@ -1115,16 +1263,21 @@ class PatientTherapeuticPlanRepository
         ])->filter()->values()->all();
 
         return [
+            'id' => (int) ($row->id ?? 0),
             'name' => $displayName,
             'type' => $type,
+            'diet_code' => ! empty($row->diet_code) ? (string) $row->diet_code : null,
+            'material_code' => ! empty($row->material_code) ? (string) $row->material_code : null,
             'is_fasting' => $isFasting,
             'observation' => ! empty($row->observation) ? $row->observation : null,
             'allergies' => ! empty($row->note_text) ? $row->note_text : null,
             'schedule' => $row->schedule ?? ($row->first_hour ?? null),
             'volume' => $volume,
             'total_volume' => ! empty($row->total_volume) ? trim((string) $row->total_volume) : null,
+            'total_kcal' => ! empty($row->total_kcal) ? trim((string) $row->total_kcal) : null,
             'infusion_speed' => ! empty($row->infusion_speed) ? trim((string) $row->infusion_speed) : null,
             'route' => ! empty($row->route) ? trim((string) $row->route) : null,
+            'route_code' => ! empty($row->route_code) ? trim((string) $row->route_code) : null,
             'interval_code' => ! empty($row->interval_code) ? trim((string) $row->interval_code) : null,
             'interval_description' => ! empty($row->interval_description)
                 ? trim((string) $row->interval_description)
@@ -1134,6 +1287,14 @@ class PatientTherapeuticPlanRepository
             'delivery_mode' => $deliveryMode,
             'products' => $products,
             'prescriber' => $row->professional_name ?? null,
+            'nutritionist' => ! empty($row->nutritionist_name)
+                ? trim((string) $row->nutritionist_name)
+                : ($row->professional_name ?? null),
+            'nutritionist_id' => ! empty($row->nutritionist_id) ? (string) $row->nutritionist_id : null,
+            'fasting_goal' => ! empty($row->fasting_goal) ? trim((string) $row->fasting_goal) : null,
+            'fasting_type' => ! empty($row->fasting_type) ? trim((string) $row->fasting_type) : null,
+            'fasting_start' => ! empty($row->fasting_start ?? null) ? (string) $row->fasting_start : null,
+            'fasting_end' => ! empty($row->fasting_end ?? null) ? (string) $row->fasting_end : null,
             'dt_start' => ! empty($row->dt_start ?? null) ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
             'dt_end' => ! empty($row->dt_end ?? null) ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
             'has_details' => ! empty($row->observation)
@@ -1142,6 +1303,10 @@ class PatientTherapeuticPlanRepository
                 || ! empty($row->justification)
                 || ! empty($row->route)
                 || ! empty($row->infusion_speed)
+                || ! empty($row->total_kcal)
+                || ! empty($row->nutritionist_name)
+                || ! empty($row->fasting_goal)
+                || ! empty($row->fasting_type)
                 || ! empty($products),
         ];
     }

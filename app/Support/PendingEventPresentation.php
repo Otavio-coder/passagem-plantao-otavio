@@ -41,6 +41,47 @@ class PendingEventPresentation
     /**
      * @param  array<string, mixed>  $event
      */
+    public static function surgeryDescription(array $event): string
+    {
+        $parts = [];
+
+        $descricao = trim((string) ($event['descricao'] ?? $event['descricao_padronizada'] ?? 'Cirurgia'));
+        if ($descricao !== '') {
+            $parts[] = $descricao;
+        }
+
+        $local = trim((string) ($event['local'] ?? ''));
+        if ($local !== '' && mb_strtolower($local) !== mb_strtolower($descricao)) {
+            $parts[] = $local;
+        }
+
+        $sala = trim((string) ($event['sala'] ?? ''));
+        if ($sala !== '') {
+            $parts[] = 'Sala: '.$sala;
+        }
+
+        return implode(' - ', array_filter($parts, static fn (string $value): bool => $value !== ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    public static function classificationLabel(array $event, string $normalizedType): ?string
+    {
+        if ($normalizedType === PendingEventTypeClassifier::SURGERY) {
+            $surgeryType = trim((string) ($event['tipo_cirurgia_codigo'] ?? $event['cd_tipo_cirurgia'] ?? ''));
+
+            return $surgeryType !== '' ? 'Tipo '.$surgeryType : 'Tipo não informado';
+        }
+
+        $labGroup = trim((string) ($event['ds_grupo_lab'] ?? ''));
+
+        return $labGroup !== '' ? $labGroup : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
     public static function hemotherapyDescription(array $event): string
     {
         $parts = ['Hemoterapia'];

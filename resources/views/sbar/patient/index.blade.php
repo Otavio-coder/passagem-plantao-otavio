@@ -457,7 +457,7 @@
                                         class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-[#7712C7] text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 hover:bg-[#7712C7]/70 focus:outline-none focus:ring-2 focus:ring-[#7712C7]/50 focus:ring-offset-2"
                                         aria-label="Ver cirurgia"
                                     >
-                                        <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="w-6 h-6" />
+                                        <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="w-6 h-6 filter brightness-0 invert" />
                                     </button>
 
                                     {{-- Desktop: Tooltip --}}
@@ -479,9 +479,19 @@
                                                     <span class="text-white/70 ml-1">às {{ $firstSurgery['hora_agenda'] }}</span>
                                                 @endif
                                             </div>
-                                            <div class="py-0.5 text-white/90">{{ $firstSurgery['procedimento'] ?? 'Procedimento' }}</div>
-                                            @if(!empty($patient['ds_setor_atendimento']) || !empty($patient['cd_setor_atendimento']))
-                                                <div class="text-white/80 text-[10px] mt-0.5">{{ $patient['ds_setor_atendimento'] ?? ('Setor ' . $patient['cd_setor_atendimento']) }}</div>
+                                            @php
+                                                $firstSurgeryDescription = (string) ($firstSurgery['descricao_padronizada'] ?? $firstSurgery['procedimento'] ?? 'Procedimento');
+                                                $firstSurgeryDescription = preg_replace('/\s*\(\s*Cirurgia\s+agenda\s+para\s+[^\)]*\)\s*$/iu', '', $firstSurgeryDescription) ?: $firstSurgeryDescription;
+                                            @endphp
+                                            <div class="py-0.5 text-white/90">{{ $firstSurgeryDescription }}</div>
+                                            @if(!empty($firstSurgery['carater_cirurgia']))
+                                                <div class="text-white/80 text-[10px] mt-0.5">{{ $firstSurgery['carater_cirurgia'] }}</div>
+                                            @endif
+                                            @if(!empty($firstSurgery['status']))
+                                                <div class="text-white/80 text-[10px] mt-0.5">{{ $firstSurgery['status'] }}</div>
+                                            @endif
+                                            @if(!empty($firstSurgery['observacoes']))
+                                                <div class="text-white/80 text-[10px] mt-0.5">Obs: {{ $firstSurgery['observacoes'] }}</div>
                                             @endif
                                             @if(count($patient['procedimentos_cirurgicos']) > 1)
                                                 <div class="text-white/70 text-[10px] mt-1">+{{ count($patient['procedimentos_cirurgicos']) - 1 }} mais · clique para ver</div>
@@ -512,7 +522,7 @@
                                             {{-- Header --}}
                                             <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#7712C7] to-[#7712C7]/80 flex-shrink-0">
                                                 <div class="flex items-center gap-2.5">
-                                                    <img src="{{ asset('images/icons/patient-card/surgery-procedure.svg') }}" class="h-5 w-5 flex-shrink-0" />
+                                                    <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="h-5 w-5 flex-shrink-0 filter brightness-0 invert" />
                                                     <h3 class="text-base font-bold text-white">Agendas de Cirurgia Recente</h3>
                                                 </div>
                                                 <button @click="closeModal()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
@@ -530,14 +540,20 @@
                                                                 <div class="text-sm font-semibold text-gray-900">
                                                                     {{ $c['data_agenda'] ?? 'N/A' }} @if(!empty($c['hora_agenda'])) às {{ $c['hora_agenda'] }}@endif
                                                                 </div>
-                                                                @if(!empty($c['local']))
-                                                                    <div class="text-xs text-gray-500 mt-0.5">{{ $c['local'] }}</div>
+                                                                @php
+                                                                    $surgeryDescription = (string) ($c['descricao_padronizada'] ?? $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento');
+                                                                    $surgeryDescription = preg_replace('/\s*\(\s*Cirurgia\s+agenda\s+para\s+[^\)]*\)\s*$/iu', '', $surgeryDescription) ?: $surgeryDescription;
+                                                                @endphp
+                                                                <div class="text-sm text-gray-700 mt-1">{{ $surgeryDescription }}</div>
+                                                                @if(!empty($c['carater_cirurgia']))
+                                                                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-[#7712C7] bg-[#7712C7]/10 border border-[#7712C7]/20 px-1.5 py-0.5 rounded mt-1">
+                                                                        <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="h-3 w-3 opacity-80" alt="" />
+                                                                        <span>{{ $c['carater_cirurgia'] }}</span>
+                                                                    </div>
                                                                 @endif
-                                                                <div class="text-sm text-gray-700 mt-1">{{ $c['procedimento'] ?? $c['carater_cirurgia'] ?? 'Procedimento' }}</div>
-                                                                @if(!empty($patient['ds_setor_atendimento']) || !empty($patient['cd_setor_atendimento']))
-                                                                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded mt-1">
-                                                                        <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
-                                                                        <span>{{ $patient['ds_setor_atendimento'] ?? ('Setor ' . $patient['cd_setor_atendimento']) }}</span>
+                                                                @if(!empty($c['status']))
+                                                                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded mt-1">
+                                                                        <span>{{ $c['status'] }}</span>
                                                                     </div>
                                                                 @endif
                                                                 @if(!empty($c['observacoes']))

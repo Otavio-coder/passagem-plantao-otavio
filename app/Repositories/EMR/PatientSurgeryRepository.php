@@ -41,6 +41,11 @@ class PatientSurgeryRepository
         $cutoff = Carbon::now()->addMonth();
 
         $surgeriesByPerson = Appointment::surgeries()
+            ->select('agenda_paciente.*')
+            ->with(['patient.sector'])
+            ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
+            ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(cd_agenda), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
+            ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(cd_agenda), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
             ->whereIn('cd_pessoa_fisica', $personIds)
             ->where('dt_agenda', '>=', Carbon::today())
             ->where('dt_agenda', '<=', $cutoff)
@@ -54,21 +59,11 @@ class PatientSurgeryRepository
         foreach ($attToPerson as $nr => $personId) {
             $group = $surgeriesByPerson->get($personId, collect());
             if ($group->isNotEmpty()) {
+                $surgeryDescription = $this->getSurgeryDescription($nr, 'AA');
                 $hasMap[$nr] = true;
-                $detailed[$nr] = $group->map(function (Appointment $s) {
-                    $proc = $s->getProcedureDescriptionAttribute() ?? ($s->ds_cirurgia ?? 'Procedimento cirúrgico');
-
-                    return [
-                        'data_agenda' => $s->dt_agenda ? Carbon::parse($s->dt_agenda)->format('d/m/Y') : '',
-                        'hora_agenda' => $s->hr_inicio ? Carbon::parse($s->hr_inicio)->format('H:i') : '00:00',
-                        'procedimento' => $proc,
-                        'carater_cirurgia' => $s->getSurgeryCharacterAttribute() ?? ($s->ie_carater_cirurgia ?? ''),
-                        'observacoes' => $s->ds_observacao ?? '',
-                        'nr_sequencia' => $s->nr_sequencia,
-                        'cd_procedimento' => $s->cd_procedimento,
-                        'ie_origem_proced' => $s->ie_origem_proced,
-                    ];
-                })->values()->all();
+                $detailed[$nr] = $group->map(fn (Appointment $appointment) => $this->mapSurgeryAppointment($appointment, $surgeryDescription))
+                    ->values()
+                    ->all();
             }
         }
 
@@ -81,49 +76,32 @@ class PatientSurgeryRepository
     public function getSurgicalProcedures(int $attendanceNumber, ?string $sectorCode = null): array
     {
         try {
-            $rows = DB::connection('tasy')->select("
-                SELECT
-                    SUBSTR(
-                        TASY.obter_desc_agenda(aaa.cd_agenda) ||
-                        ' / Data e hora: ' || TO_CHAR(aaa.dt_agenda, 'DD/MM/YYYY') ||
-                        CASE WHEN aaa.hr_inicio IS NOT NULL THEN ' ' || TO_CHAR(aaa.hr_inicio, 'HH24:MI') ELSE ' 00:00' END ||
-                        ' - Proced.: ' || TASY.obter_descricao_procedimento(aaa.cd_procedimento, aaa.ie_origem_proced),
-                        1, 200
-                    ) AS ds_agenda_contat,
-                    aaa.hr_inicio,
-                    aaa.dt_agenda,
-                    aaa.cd_procedimento,
-                    aaa.ie_origem_proced,
-                    aaa.ie_carater_cirurgia,
-                    aaa.ds_observacao
-                FROM tasy.atendimento_paciente atp
-                JOIN tasy.agenda_paciente aaa ON atp.cd_pessoa_fisica = aaa.cd_pessoa_fisica
-                WHERE atp.nr_atendimento = :nr_atendimento
-                AND aaa.IE_CARATER_CIRURGIA IS NOT NULL
-                AND aaa.IE_CARATER_CIRURGIA <> 'X'
-                AND NVL(aaa.IE_STATUS_AGENDA, 'A') NOT IN ('C', 'S')
-                AND aaa.dt_agenda > SYSDATE
-                ORDER BY aaa.dt_agenda, aaa.hr_inicio
-            ", ['nr_atendimento' => $attendanceNumber]);
+            $query = Appointment::surgeries()
+                ->select('agenda_paciente.*')
+                ->with(['patient.sector'])
+                ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
+                ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(cd_agenda), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
+                ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(cd_agenda), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
+                ->where('nr_atendimento', $attendanceNumber)
+                ->where('dt_agenda', '>', Carbon::now())
+                ->whereNull('dt_executada')
+                ->whereNotIn('ie_status_agenda', ['C', 'S'])
+                ->orderBy('dt_agenda')
+                ->orderBy('hr_inicio');
 
-            if (empty($rows)) {
+            if (! empty($sectorCode)) {
+                $query->where('cd_setor_atendimento', $sectorCode);
+            }
+
+            $rows = $query->get();
+
+            if ($rows->isEmpty()) {
                 return [];
             }
 
-            return array_map(function ($row) {
-                return [
-                    'procedimento' => $row->ds_agenda_contat ?? 'Agendas de Cirurgia Recente',
-                    'data_agenda' => $row->dt_agenda ? Carbon::parse($row->dt_agenda)->format('d/m/Y') : 'Data não informada',
-                    'hora_agenda' => $row->hr_inicio ? Carbon::parse($row->hr_inicio)->format('H:i') : '00:00',
-                    'status' => 'AGENDADA',
-                    'tipo_agendamento' => 'Cirúrgico',
-                    'carater_cirurgia' => $this->getCaraterCirurgiaDescription($row->ie_carater_cirurgia ?? ''),
-                    'observacoes' => $this->filterSensitiveData($row->ds_observacao ?? ''),
-                    'duracao_formatada' => 'A definir',
-                    'cd_procedimento' => $row->cd_procedimento,
-                    'ie_origem_proced' => $row->ie_origem_proced,
-                ];
-            }, $rows);
+            return $rows->map(fn (Appointment $appointment) => $this->mapSurgeryAppointment($appointment))
+                ->values()
+                ->all();
         } catch (\Exception $e) {
             Log::warning('PatientSurgeryRepository failed to fetch surgical procedures', [
                 'exception' => $e,
@@ -143,6 +121,106 @@ class PatientSurgeryRepository
             'G' => 'Emergência',
             default => 'Não informado',
         };
+    }
+
+    private function getSurgeryDescription(int $attendanceNumber, string $option): ?string
+    {
+        try {
+            $result = DB::connection('tasy')->selectOne(
+                'SELECT TASY.OBTER_CIRURGIA_PACIENTE(:attendance_id, :ie_opcao) AS descricao FROM dual',
+                [
+                    'attendance_id' => $attendanceNumber,
+                    'ie_opcao' => $option,
+                ]
+            );
+
+            $descricao = trim((string) ($result->descricao ?? ''));
+
+            return $descricao !== '' ? $descricao : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function mapSurgeryAppointment(Appointment $appointment, ?string $fallbackDescription = null): array
+    {
+        $descricaoOriginal = trim((string) ($fallbackDescription ?: $appointment->procedure_description ?: $appointment->ds_cirurgia ?: 'Procedimento cirúrgico'));
+        $descricao = $this->normalizeSurgeryDescription($descricaoOriginal);
+        $local = trim((string) ($appointment->ds_cirurgia ?? ''));
+        $sala = trim((string) ($appointment->nr_seq_sala ?? ''));
+        $sectorLabel = trim((string) ($appointment->ds_setor_execucao ?? $appointment->cd_setor_execucao ?? $appointment->sector?->ds_setor_atendimento ?? $appointment->cd_setor_atendimento ?? ''));
+        $dataAgendada = $appointment->dt_agenda ? Carbon::parse($appointment->dt_agenda)->format('d/m/Y') : 'Data não informada';
+        $horaAgendada = $appointment->hr_inicio ? Carbon::parse($appointment->hr_inicio)->format('H:i') : '00:00';
+
+        return [
+            'procedimento' => $descricao,
+            'descricao' => $descricao,
+            'descricao_padronizada' => $descricao,
+            'data_agenda' => $dataAgendada,
+            'hora_agenda' => $horaAgendada,
+            'status' => $this->agendaStatusLabel((string) ($appointment->ie_status_agenda ?? '')),
+            'tipo_agendamento' => 'Cirúrgico',
+            'carater_cirurgia' => $appointment->getSurgeryCharacterAttribute() ?? ($appointment->ie_carater_cirurgia ?? 'Não informado'),
+            'observacoes' => $this->filterSensitiveData($appointment->ds_observacao ?? ''),
+            'duracao_formatada' => 'A definir',
+            'cd_procedimento' => $appointment->cd_procedimento,
+            'ie_origem_proced' => $appointment->ie_origem_proced,
+            'tipo_cirurgia_codigo' => ! empty($appointment->cd_tipo_cirurgia_proc)
+                ? (int) $appointment->cd_tipo_cirurgia_proc
+                : null,
+            'setor_execucao' => $sectorLabel !== '' ? $sectorLabel : '-',
+            'local' => $local !== '' ? $local : '-',
+            'sala' => $sala !== '' ? $sala : '-',
+            'summary' => trim(sprintf('[Cir] %s %s %s%s%s', $descricao, $dataAgendada, $horaAgendada, $local !== '' ? ' '.$local : '', $sala !== '' ? ' Sala '.$sala : '')),
+        ];
+    }
+
+    private function normalizeSurgeryDescription(string $description): string
+    {
+        $cleaned = preg_replace('/\s*\(\s*Cirurgia[^\)]*\)\s*$/iu', '', $description);
+        $normalized = trim((string) ($cleaned ?? $description));
+
+        return $normalized !== '' ? $normalized : $description;
+    }
+
+    private function agendaStatusLabel(?string $code): string
+    {
+        $map = [
+            'A' => 'Aguardando',
+            'AD' => 'Atendido',
+            'AE' => 'Aguardando remarcação',
+            'AP' => 'Aguardando paciente',
+            'AT' => 'Aguardando atendimento',
+            'B' => 'Bloqueada',
+            'C' => 'Cancelada',
+            'CN' => 'Confirmada',
+            'CR' => 'Cirurgia realizada',
+            'E' => 'Executada',
+            'EE' => 'Em exame',
+            'EP' => 'Em preparo',
+            'F' => 'Falta justificada',
+            'I' => 'Falta não justificada',
+            'II' => 'Inativo',
+            'IN' => 'Iniciada',
+            'IT' => 'Interrompida',
+            'L' => 'Livre',
+            'LF' => 'Livre forçado',
+            'N' => 'Normal',
+            'O' => 'Em consulta',
+            'P' => 'Paciente internado',
+            'PA' => 'Pré-agenda',
+            'PH' => 'Paciente chamado',
+            'PO' => 'Pós-operatório',
+            'PS' => 'Paciente em sala',
+            'R' => 'Reservada',
+            'RE' => 'Remarcada',
+            'RV' => 'Revisar',
+            'S' => 'Suspenso',
+        ];
+
+        $normalized = strtoupper(trim((string) $code));
+
+        return $map[$normalized] ?? ($normalized !== '' ? $normalized : 'Aguardando');
     }
 
     private function filterSensitiveData(?string $observacao): string

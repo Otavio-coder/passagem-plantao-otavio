@@ -142,7 +142,7 @@ class PendingEventsReportController extends Controller
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
                     'setor_execucao' => PendingEventPresentation::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
-                    'classificacao' => $event['ds_grupo_lab'] ?? null,
+                    'classificacao' => PendingEventPresentation::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
                     'data_agendamento' => $event['dt_evento_formatted'] ?? '-',
                     'tempo_pendente' => $this->resolveTempoPendente(
@@ -188,6 +188,10 @@ class PendingEventsReportController extends Controller
         $type = PendingEventTypeClassifier::fromPendingEvent($event);
         $subtipo = trim((string) ($event['ds_subtipo'] ?? ''));
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
+
+        if ($type === PendingEventTypeClassifier::SURGERY) {
+            return $this->truncate(PendingEventPresentation::surgeryDescription($event), 120);
+        }
 
         if ($type === PendingEventTypeClassifier::CHEMOTHERAPY) {
             $base = $descricao !== 'Sem descrição' ? $descricao : 'Quimioterapia';

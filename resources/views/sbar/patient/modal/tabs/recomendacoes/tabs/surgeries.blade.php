@@ -1,17 +1,17 @@
 <div x-show="activeRecomendacaoTab === 'tab-surg'" style="display:none;" class="pt-3">
 
     @if($surgCount > 0)
-    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Cirurgias Agendadas</p>
+    <p class="text-[10px] font-bold text-[#7712C7] uppercase tracking-wider mb-2">Cirurgias Agendadas</p>
     <div class="space-y-2">
         @foreach($plan['surgery']['items'] as $surg)
         <div class="bg-white rounded-lg border shadow-sm px-3 py-2.5
-                    {{ $surg['is_urgent'] ? 'border-red-200 bg-red-50/20' : 'border-orange-200 bg-orange-50/10' }}">
+                {{ $surg['is_urgent'] ? 'border-red-200 bg-red-50/20' : 'border-[#7712C7]/25 bg-[#7712C7]/[0.06]' }}">
             <div class="flex items-start justify-between gap-3">
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs font-semibold text-gray-800 leading-snug">{{ $surg['name'] }}</p>
+                    <p class="text-xs font-semibold text-gray-800 leading-snug">{{ $surg['descricao_padronizada'] ?? $surg['procedimento'] ?? $surg['name'] }}</p>
                     <div class="flex flex-wrap items-center gap-1.5 mt-1">
                         <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
-                                     {{ $surg['is_urgent'] ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' }}">
+                                     {{ $surg['is_urgent'] ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'bg-[#7712C7]/15 text-[#7712C7] ring-1 ring-[#7712C7]/30' }}">
                             {{ $surg['carater'] }}
                         </span>
                         @if(!empty($surg['status']))
@@ -34,10 +34,11 @@
                         </span>
                         @endif
                     </div>
-                    @if($surg['observation'])
-                    <p class="text-[10px] text-gray-500 mt-1.5 pl-2 border-l-2 border-orange-200 leading-snug">
-                        {{ $surg['observation'] }}
-                    </p>
+                    @php
+                        $surgeryDetail = $surg['observacoes'] ?? $surg['observation'] ?? null;
+                    @endphp
+                    @if(!empty($surgeryDetail))
+                    <p class="text-[10px] text-gray-500 italic mt-1.5">Obs: {{ $surgeryDetail }}</p>
                     @endif
                 </div>
             </div>
@@ -45,9 +46,9 @@
         @endforeach
     </div>
     @else
-    <div class="bg-white rounded-xl border border-gray-200 py-10 flex flex-col items-center gap-2">
-        <i class="fa-solid fa-user-doctor text-gray-200" style="font-size:28px;"></i>
-        <p class="text-sm text-gray-400">Nenhuma cirurgia agendada.</p>
+    <div class="bg-white rounded-xl border border-[#7712C7]/20 py-10 flex flex-col items-center gap-2">
+        <i class="fa-solid fa-user-doctor text-[#7712C7]/30" style="font-size:28px;"></i>
+        <p class="text-sm text-[#7712C7]/70">Nenhuma cirurgia agendada.</p>
     </div>
     @endif
 

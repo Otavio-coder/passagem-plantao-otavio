@@ -88,4 +88,31 @@ class PatientTherapeuticPlanRepositoryTest extends TestCase
         $this->assertCount(2, $formatted['items']);
         $this->assertArrayNotHasKey('shifts', $formatted);
     }
+
+    #[Test]
+    public function format_surgery_includes_surgery_type_code(): void
+    {
+        $repository = new PatientTherapeuticPlanRepository;
+
+        $row = new stdClass;
+        $row->id = 10;
+        $row->name = 'Procedimento cirúrgico (Cirurgia realizada)';
+        $row->flag1 = 'E';
+        $row->status_raw = 'A';
+        $row->setor_raw = 1120;
+        $row->setor_desc_raw = 'Centro Cirúrgico';
+        $row->schedule = '08/04/26 22:00';
+        $row->extra1 = '3';
+        $row->extra2 = 'Descrição';
+        $row->extra3 = 7;
+        $row->extra4 = 'Centro Cirúrgico HSR';
+        $row->observation = 'Pedido Medico: Com OPME / valor 100';
+
+        $formatted = $repository->formatSurgery($row);
+
+        $this->assertSame('Procedimento cirúrgico', $formatted['name']);
+        $this->assertSame(7, $formatted['tipo_cirurgia_codigo']);
+        $this->assertSame('Centro Cirúrgico HSR', $formatted['local']);
+        $this->assertSame('Pedido Medico: Com OPME /', $formatted['observacoes']);
+    }
 }

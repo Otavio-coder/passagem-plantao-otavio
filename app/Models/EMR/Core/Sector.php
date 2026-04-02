@@ -3,7 +3,6 @@
 namespace App\Models\EMR\Core;
 
 use App\Models\EMR\CPOE\Appointment;
-use App\Models\System\UserSectorPreference;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,15 +10,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class Sector extends Model
 {
     protected $connection = 'tasy';
+
     protected $table = 'TASY.SETOR_ATENDIMENTO';
+
     protected $primaryKey = 'cd_setor_atendimento';
+
     protected $keyType = 'string';
+
     public $incrementing = false;
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function hospital(): BelongsTo
@@ -39,22 +45,22 @@ class Sector extends Model
     public function scopeAllowed($query)
     {
         $user = Auth::user();
-        
-        if (!$user) {
+
+        if (! $user) {
             return $query->whereRaw('1 = 0');
         }
 
         // Obtém os códigos de setores preferidos do usuário
         $preferredSectorCodes = $user->sectorPreferences()
             ->pluck('sector_code')
-            ->map(fn($code) => (string) $code)
+            ->map(fn ($code) => (string) $code)
             ->toArray();
 
         if (empty($preferredSectorCodes)) {
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereIn($this->getTable() . '.cd_setor_atendimento', $preferredSectorCodes);
+        return $query->whereIn($this->getTable().'.cd_setor_atendimento', $preferredSectorCodes);
     }
 
     public function appointments(): HasManyThrough
@@ -81,7 +87,8 @@ class Sector extends Model
         // 2) Collect distinct person ids present in these appointments
         $personIds = $appointments->pluck('cd_pessoa_fisica')->filter()->unique()->values()->all();
         if (empty($personIds)) {
-            $appointments->each(fn($a) => $a->setAttribute('has_surgery', false) && $a->setAttribute('procedimentos_cirurgicos', []));
+            $appointments->each(fn ($a) => $a->setAttribute('has_surgery', false) && $a->setAttribute('procedimentos_cirurgicos', []));
+
             return $appointments;
         }
 
@@ -126,17 +133,42 @@ class Sector extends Model
         $appointments->each(function (Appointment $a) use ($surgeryMap) {
             $personId = $a->cd_pessoa_fisica;
             $surgeries = $surgeryMap[$personId] ?? collect();
+            $surgeryDescription = null;
 
-            $procedimentos = $surgeries->map(function (Appointment $s) {
-                $desc = $s->getProcedureDescriptionAttribute() ?? ($s->ds_cirurgia ?? 'Procedimento cirúrgico');
+            if (! empty($a->nr_atendimento)) {
+                try {
+                    $result = DB::connection('tasy')->selectOne(
+                        'SELECT TASY.OBTER_CIRURGIA_PACIENTE(:attendance_id, :ie_opcao) AS descricao FROM dual',
+                        [
+                            'attendance_id' => $a->nr_atendimento,
+                            'ie_opcao' => 'AA',
+                        ]
+                    );
+
+                    $descricao = trim((string) ($result->descricao ?? ''));
+                    $surgeryDescription = $descricao !== '' ? $descricao : null;
+                } catch (\Throwable) {
+                    $surgeryDescription = null;
+                }
+            }
+
+            $procedimentos = $surgeries->map(function (Appointment $s) use ($surgeryDescription) {
+                $desc = $surgeryDescription ?? ($s->ds_cirurgia ?? 'Procedimento cirúrgico');
                 $date = $s->dt_agenda ? Carbon::parse($s->dt_agenda)->format('d/m/Y') : '';
                 $time = $s->hr_inicio ? Carbon::parse($s->hr_inicio)->format('H:i') : '00:00';
+                $local = trim((string) ($s->ds_cirurgia ?? ''));
+                $sala = trim((string) ($s->nr_seq_sala ?? ''));
+
                 return [
                     'nr_sequencia' => $s->nr_sequencia,
                     'descricao' => $desc,
+                    'descricao_padronizada' => $desc,
+                    'procedimento' => $desc,
                     'data_agenda' => $date,
                     'hora_agenda' => $time,
-                    'summary' => "[Cir] {$desc} {$date} {$time}",
+                    'local' => $local !== '' ? $local : '-',
+                    'sala' => $sala !== '' ? $sala : '-',
+                    'summary' => trim("[Cir] {$desc} {$date} {$time}".($local !== '' ? " {$local}" : '').($sala !== '' ? " Sala {$sala}" : '')),
                 ];
             })->values()->all();
 

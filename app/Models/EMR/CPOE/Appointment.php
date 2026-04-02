@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models\EMR\CPOE;
 
 use App\Models\EMR\Core\Patient;
@@ -11,10 +12,15 @@ use Illuminate\Support\Facades\DB;
 class Appointment extends Model
 {
     protected $connection = 'tasy';
+
     protected $table = 'TASY.AGENDA_PACIENTE';
+
     protected $primaryKey = 'nr_sequencia';
+
     public $incrementing = false;
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     protected $casts = [
@@ -59,7 +65,7 @@ class Appointment extends Model
 
     public function isSurgery(): bool
     {
-        return !is_null($this->ie_carater_cirurgia)
+        return ! is_null($this->ie_carater_cirurgia)
             && $this->ie_carater_cirurgia !== 'X';
     }
 
@@ -70,11 +76,11 @@ class Appointment extends Model
 
     public function getSurgeryCharacterAttribute(): ?string
     {
-        if (!$this->isSurgery()) {
+        if (! $this->isSurgery()) {
             return null;
         }
 
-        return match($this->ie_carater_cirurgia) {
+        return match ($this->ie_carater_cirurgia) {
             'E' => 'Eletiva',
             'U' => 'Urgência',
             'G' => 'Emergência',
@@ -84,27 +90,33 @@ class Appointment extends Model
 
     public function getProcedureDescriptionAttribute(): string
     {
-        if ($this->isSurgery() && !empty($this->nr_seq_proc_interno)) {
+        if ($this->isSurgery()) {
             try {
+                $option = $this->dt_executada ? 'P' : 'AA';
                 $result = DB::connection('tasy')->selectOne(
-                    "SELECT TASY.OBTER_DESC_PROC_INTERNO(:seq) AS descricao FROM dual",
-                    ['seq' => $this->nr_seq_proc_interno]
+                    'SELECT TASY.OBTER_CIRURGIA_PACIENTE(:attendance_id, :ie_opcao) AS descricao FROM dual',
+                    [
+                        'attendance_id' => $this->nr_atendimento,
+                        'ie_opcao' => $option,
+                    ]
                 );
-                return $result->descricao ?? 'Procedimento cirúrgico';
+
+                return $result->descricao ?? ($this->ds_cirurgia ?? 'Procedimento cirúrgico');
             } catch (\Throwable) {
-                return 'Procedimento cirúrgico';
+                return $this->ds_cirurgia ?? 'Procedimento cirúrgico';
             }
         }
 
-        if ($this->isExam() && !empty($this->cd_procedimento) && !empty($this->ie_origem_proced)) {
+        if ($this->isExam() && ! empty($this->cd_procedimento) && ! empty($this->ie_origem_proced)) {
             try {
                 $result = DB::connection('tasy')->selectOne(
-                    "SELECT TASY.OBTER_EXAME_AGENDA(:cd_proc, :origem) AS descricao FROM dual",
+                    'SELECT TASY.OBTER_EXAME_AGENDA(:cd_proc, :origem) AS descricao FROM dual',
                     [
                         'cd_proc' => $this->cd_procedimento,
-                        'origem' => $this->ie_origem_proced
+                        'origem' => $this->ie_origem_proced,
                     ]
                 );
+
                 return $result->descricao ?? 'Exame não especificado';
             } catch (\Throwable) {
                 return 'Exame não especificado';

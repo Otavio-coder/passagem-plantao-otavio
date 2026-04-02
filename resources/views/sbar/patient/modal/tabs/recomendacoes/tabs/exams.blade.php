@@ -1,11 +1,11 @@
 <div x-show="activeRecomendacaoTab === 'tab-exam'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Exames</p>
+    <p class="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2">Exames</p>
     <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="relative flex-1 min-w-[160px]">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style="font-size:11px;"></i>
             <input type="search" :value="examQ" @input.debounce.250ms="setExamQ($event.target.value)"
                    placeholder="Buscar exame..."
-                   class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#004D9D]/20 focus:border-[#004D9D] transition-all placeholder-gray-400" style="font-size:16px;">
+                   class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all placeholder-gray-400" style="font-size:16px;">
             <button x-show="examQ" @click="setExamQ('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i class="fa-solid fa-xmark" style="font-size:11px;"></i>
             </button>
@@ -14,11 +14,11 @@
     <div x-show="filteredExams.length === 0" class="bg-white rounded-xl border border-gray-200 py-10 flex flex-col items-center gap-2">
         <i class="fa-solid fa-filter-circle-xmark text-gray-200" style="font-size:28px;"></i>
         <p class="text-sm text-gray-400">Nenhum exame encontrado.</p>
-        <button @click="clearExamFilters()" class="text-xs font-semibold text-[#004D9D] hover:underline">Limpar filtros</button>
+        <button @click="clearExamFilters()" class="text-xs font-semibold text-blue-700 hover:underline">Limpar filtros</button>
     </div>
     <div x-show="filteredExams.length > 0" class="space-y-2">
         <template x-for="(exam, idx) in pagedExams" :key="(exam.id || 'noid') + '-' + (exam.scheduled_raw || exam.scheduled || '') + '-' + idx">
-            <div class="bg-white rounded-lg border border-gray-200 px-3 py-2.5 shadow-sm transition-colors">
+            <div class="bg-white rounded-lg border border-blue-200 px-3 py-2.5 shadow-sm transition-colors">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-semibold text-gray-800 leading-snug">
@@ -71,7 +71,7 @@
         <button @click="examPage = Math.max(1, examPage-1)" :disabled="examPage===1" :class="examPage===1 ? 'opacity-40' : 'hover:bg-gray-100'" class="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center transition-colors"><i class="fa-solid fa-angle-left" style="font-size:10px;"></i></button>
         <template x-for="(p,i) in pageNums(examPages, examPage)" :key="i">
             <template x-if="typeof p === 'number'">
-                <button @click="examPage = p" :class="examPage===p ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'" class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
+                <button @click="examPage = p" :class="examPage===p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50'" class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
             </template>
             <template x-if="typeof p === 'string'">
                 <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>

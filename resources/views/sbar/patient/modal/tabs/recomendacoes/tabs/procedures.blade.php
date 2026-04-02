@@ -2,30 +2,30 @@
 
     {{-- Procedimentos header + search --}}
     @if($procCount > 0)
-    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2
+    <p class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-2
                mt-0">Procedimentos</p>
     <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="relative flex-1 min-w-[160px]">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style="font-size:11px;"></i>
                  <input type="search" :value="proc.q" @input.debounce.250ms="proc.setQ($event.target.value)"
                      placeholder="Buscar procedimento..."
-                   class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#004D9D]/20 focus:border-[#004D9D] transition-all placeholder-gray-400" style="font-size:16px;">
+                   class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition-all placeholder-gray-400" style="font-size:16px;">
             <button x-show="proc.q" @click="proc.setQ('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i class="fa-solid fa-xmark" style="font-size:11px;"></i>
             </button>
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
             <button @click="proc.setExtra('today'); proc.page = 1"
-                    :class="proc.extra === 'today' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]'"
+                    :class="proc.extra === 'today' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-500'"
                     class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap">Hoje</button>
             <button @click="proc.setExtra('all'); proc.page = 1"
-                    :class="proc.extra === 'all' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]'"
+                    :class="proc.extra === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-500'"
                     class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap">Todas Pendências</button>
         </div>
         <div x-show="proc.extra === 'all'" class="flex items-center gap-2 flex-shrink-0">
             <label class="text-[10px] text-gray-500 font-semibold">Tipo</label>
             <select x-model="procType" @change="proc.page = 1"
-                    class="px-2 py-1.5 text-[11px] rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/20 focus:border-[#004D9D]">
+                    class="px-2 py-1.5 text-[11px] rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500">
                 <option value="all">Todos</option>
                 <template x-for="t in procTypes" :key="t">
                     <option :value="t" x-text="t"></option>
@@ -41,7 +41,7 @@
         <i class="fa-solid fa-filter-circle-xmark text-gray-200" style="font-size:28px;"></i>
         <p class="text-sm text-gray-400">Nenhum resultado no período selecionado.</p>
         <div class="flex items-center gap-2">
-            <button @click="clearProcFilters()" class="text-xs font-semibold text-[#004D9D] hover:underline">Limpar filtros</button>
+            <button @click="clearProcFilters()" class="text-xs font-semibold text-indigo-700 hover:underline">Limpar filtros</button>
             <button @click="proc.setExtra('all'); procType = 'all'; proc.setQ(''); proc.page = 1" class="text-xs font-semibold text-gray-500 hover:underline">Mostrar todas</button>
         </div>
     </div>
@@ -53,7 +53,7 @@
         </div>
         <template x-for="(p, idx) in procPaged"
                   :key="(p.origem || 'PROC') + '-' + String(p.id ?? 'noid') + '-' + String(p.scheduled_raw || p.scheduled || '') + '-' + String(idx)">
-            <div class="bg-white rounded-lg border border-gray-200 px-3 py-2.5 shadow-sm transition-colors">
+            <div class="bg-white rounded-lg border border-indigo-200 px-3 py-2.5 shadow-sm transition-colors">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-semibold text-gray-800 leading-snug"
@@ -101,7 +101,7 @@
         </button>
         <template x-for="(p,i) in pageNums(procPages, proc.page)" :key="i">
             <template x-if="typeof p === 'number'">
-                <button @click="proc.page = p" :class="proc.page===p ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                <button @click="proc.page = p" :class="proc.page===p ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-indigo-50'"
                         class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
             </template>
             <template x-if="typeof p === 'string'">

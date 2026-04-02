@@ -44,11 +44,27 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     ap.ds_cirurgia,
                     ap.ds_observacao,
                     ap.ie_carater_cirurgia,
+                    ap.ie_status_agenda,
+                    ap.nr_seq_proc_interno,
                     ap.nr_seq_sala,
-                    ap.cd_setor_atendimento,
                     NVL(
+                        TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
+                        NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
+                    ) AS cd_setor_execucao,
+                    COALESCE(
+                        TASY.OBTER_TIPO_CIRUR_PROC(ap.nr_seq_proc_interno),
+                        (
+                            SELECT MAX(p.cd_tipo_procedimento)
+                            FROM tasy.procedimento p
+                            WHERE p.cd_procedimento = ap.cd_procedimento
+                              AND p.ie_origem_proced = ap.ie_origem_proced
+                        )
+                    ) AS cd_tipo_cirurgia,
+                    COALESCE(
+                        TASY.OBTER_CIRURGIA_PACIENTE(ap.nr_atendimento, 'AA'),
                         pi.ds_proc_exame,
-                        NVL(proced.ds_procedimento, ap.ds_cirurgia)
+                        proced.ds_procedimento,
+                        ap.ds_cirurgia
                     )                                        AS descricao_proc,
                     pi.nr_seq_exame_lab
                 FROM tasy.agenda_paciente ap
@@ -76,7 +92,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
 
             $sectorLabels = [];
             $sectorCodes = array_values(array_unique(array_filter(array_map(
-                static fn ($row) => (int) ($row->cd_setor_atendimento ?? 0),
+                static fn ($row) => (int) ($row->cd_setor_execucao ?? 0),
                 $rows
             ))));
 
@@ -113,12 +129,33 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     };
 
                     $parts = [];
-                    if (! empty($row->ds_cirurgia)) {
-                        $parts[] = $row->ds_cirurgia;
+                    $localAgenda = trim((string) ($row->ds_local_agenda ?? $row->ds_cirurgia ?? ''));
+                    if ($localAgenda !== '') {
+                        $parts[] = 'Local: '.$localAgenda;
                     }
                     if (! empty($row->nr_seq_sala)) {
                         $parts[] = 'Sala: '.$row->nr_seq_sala;
                     }
+
+                    $surgeryTypeCodeRaw = trim((string) ($row->cd_tipo_cirurgia ?? ''));
+                    $surgeryTypeCode = $surgeryTypeCodeRaw !== '' ? (int) $surgeryTypeCodeRaw : null;
+                    $statusCode = strtoupper(trim((string) ($row->ie_status_agenda ?? '')));
+                    $statusLabel = $statusCode !== ''
+                        ? (match ($statusCode) {
+                            'A' => 'Aguardando',
+                            'AD' => 'Atendido',
+                            'AE' => 'Aguardando remarcação',
+                            'AP' => 'Aguardando paciente',
+                            'AT' => 'Aguardando atendimento',
+                            'CN' => 'Confirmada',
+                            'CR' => 'Cirurgia realizada',
+                            'E' => 'Executada',
+                            'IN' => 'Iniciada',
+                            'PO' => 'Pós-operatório',
+                            'PS' => 'Paciente em sala',
+                            default => $statusCode,
+                        })
+                        : null;
 
                     $results[$row->nr_atendimento]['events'][] = [
                         'tipo' => 'cirurgia',
@@ -129,9 +166,12 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         'dt_evento_formatted' => $dtFormatted,
                         'ds_complemento' => implode(' · ', $parts),
                         'carater' => $carater,
-                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
-                        'local' => $row->ds_cirurgia ?? null,
+                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_execucao ?? 0)] ?? ($row->cd_setor_execucao ?? null),
+                        'local' => $localAgenda !== '' ? $localAgenda : null,
                         'sala' => $row->nr_seq_sala ?? null,
+                        'tipo_cirurgia_codigo' => $surgeryTypeCode,
+                        'cd_tipo_cirurgia' => $surgeryTypeCode,
+                        'status_laudo' => $statusLabel,
                         'observacoes' => $row->ds_observacao ?? null,
                         'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'G']),
                     ];
@@ -146,7 +186,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         'ds_subtipo' => 'Agendamento',
                         'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
-                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
+                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_execucao ?? 0)] ?? ($row->cd_setor_execucao ?? null),
                         'urgente' => false,
                     ];
                 }

@@ -7,7 +7,7 @@
                    :value="q"
                    @input.debounce.250ms="setSearch($event.target.value)"
                    placeholder="Buscar medicamento..."
-                   class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#004D9D]/20 focus:border-[#004D9D] transition-all placeholder-gray-400"
+                     class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#BDAD02]/20 focus:border-[#BDAD02] transition-all placeholder-gray-400"
                    style="font-size:16px;">
             <button x-show="q" @click="setSearch('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i class="fa-solid fa-xmark" style="font-size:11px;"></i>
@@ -18,7 +18,7 @@
             <i class="fa-regular fa-calendar text-gray-400" style="font-size:11px;"></i>
             <div class="flex flex-col items-start leading-none">
                 <span class="text-[11px] font-bold text-gray-700 whitespace-nowrap">{{ $dateLabel }}</span>
-                <span class="text-[10px] font-semibold text-[#004D9D] mt-0.5">Hoje</span>
+                <span class="text-[10px] font-semibold text-[#5C5300] mt-0.5">Hoje</span>
             </div>
         </div>
 
@@ -29,7 +29,7 @@
                 Antimicrobianos
             </button>
             <button @click="medSortDir = medSortDir === 'asc' ? 'desc' : 'asc'; medPage = 1"
-                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-gray-200 bg-white text-gray-600 hover:border-[#004D9D] hover:text-[#004D9D] transition-all leading-none whitespace-nowrap">
+                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-gray-200 bg-white text-gray-600 hover:border-[#BDAD02] hover:text-[#5C5300] transition-all leading-none whitespace-nowrap">
                 Prescricao <span x-text="medSortDir === 'asc' ? '↑' : '↓'"></span>
             </button>
         </div>
@@ -38,7 +38,7 @@
     <div x-show="filteredMeds.length === 0" class="bg-white rounded-xl border border-gray-200 py-10 flex flex-col items-center gap-2">
         <i class="fa-solid fa-filter-circle-xmark text-gray-200" style="font-size:28px;"></i>
         <p class="text-sm text-gray-400">Nenhum resultado para os filtros.</p>
-        <button @click="clearFilters()" class="text-xs font-semibold text-[#004D9D] hover:underline">Limpar filtros</button>
+        <button @click="clearFilters()" class="text-xs font-semibold text-[#5C5300] hover:underline">Limpar filtros</button>
     </div>
 
     <div x-show="filteredMeds.length > 0" class="block sm:hidden space-y-2">
@@ -57,7 +57,7 @@
 
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-colors"
                      :class="{
-                         'border-[#004D9D]/40': expandedMed === med.id,
+                          'border-[#BDAD02]/60': expandedMed === med.id,
                          'border-[#BDAD02]/60 bg-[#BDAD02]/[0.06]': med.is_antibiotic,
                          'cursor-pointer': med.has_details,
                          'cursor-default': !med.has_details
@@ -69,7 +69,7 @@
                             <i x-show="med.has_details"
                                class="fa-solid fa-chevron-down text-gray-300 flex-shrink-0 mt-1 transition-transform"
                                style="font-size:10px;"
-                               :class="{ 'rotate-180 !text-[#004D9D]': expandedMed === med.id }"></i>
+                               :class="{ 'rotate-180 !text-[#5C5300]': expandedMed === med.id }"></i>
                         </div>
                         <p class="text-xs text-gray-500 leading-snug mb-1.5">
                             <span x-show="med.dose" x-text="med.dose" class="font-medium text-gray-700"></span>
@@ -151,8 +151,8 @@
                     <div class="px-3 py-2.5 transition-colors"
                          :class="{
                              'opacity-50':               med.status === 'suspended',
-                             'hover:bg-[#004D9D]/[0.02]':expandedMed !== med.id && med.has_details,
-                             'bg-[#004D9D]/[0.03]':      expandedMed === med.id,
+                             'hover:bg-[#BDAD02]/[0.08]':expandedMed !== med.id && med.has_details,
+                             'bg-[#BDAD02]/[0.12]':      expandedMed === med.id,
                              'border border-[#BDAD02]/40 bg-[#BDAD02]/[0.06]': med.is_antibiotic,
                              'cursor-pointer': med.has_details,
                              'cursor-default': !med.has_details
@@ -163,7 +163,7 @@
                             <div class="min-w-0">
                                 <div class="flex items-start justify-between gap-1 mb-0.5">
                                     <p class="font-semibold text-gray-800 text-[12px] leading-snug" :class="{ 'line-through text-gray-400': med.status === 'suspended' }" x-text="med.name"></p>
-                                    <i class="fa-solid fa-chevron-down text-gray-300 flex-shrink-0 mt-0.5 transition-transform" style="font-size:9px;" x-show="med.has_details" :class="{ 'rotate-180 !text-[#004D9D]': expandedMed === med.id }"></i>
+                                    <i class="fa-solid fa-chevron-down text-gray-300 flex-shrink-0 mt-0.5 transition-transform" style="font-size:9px;" x-show="med.has_details" :class="{ 'rotate-180 !text-[#5C5300]': expandedMed === med.id }"></i>
                                 </div>
 
                                 <p class="text-[11px] text-gray-500 leading-snug mb-1">
@@ -232,7 +232,7 @@
                     <template x-for="(p, idx) in pageNums(medPages, medPage)" :key="idx">
                         <template x-if="typeof p === 'number'">
                             <button @click="medPage = p"
-                                    :class="medPage === p ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                                    :class="medPage === p ? 'bg-[#BDAD02] text-gray-900 border-[#BDAD02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-[#BDAD02]/10'"
                                     class="w-7 h-7 rounded-lg border text-[11px] font-bold transition-colors"
                                     x-text="p"></button>
                         </template>

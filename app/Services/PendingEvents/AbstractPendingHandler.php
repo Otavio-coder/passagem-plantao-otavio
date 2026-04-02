@@ -30,7 +30,9 @@ abstract class AbstractPendingHandler implements PendingEventHandler
 
     final public function handle(array &$results, array $attendances): void
     {
-        if (empty($attendances)) return;
+        if (empty($attendances)) {
+            return;
+        }
 
         $start = microtime(true);
 
@@ -39,12 +41,13 @@ abstract class AbstractPendingHandler implements PendingEventHandler
         }
 
         try {
-            Log::info(sprintf(
-                '[PendingEvents] %s: %.2fms',
-                $this->handlerName(),
-                (microtime(true) - $start) * 1000
-            ));
-        } catch (\Throwable) {}
+            Log::debug('[PendingEvents] Handler timing', [
+                'handler' => $this->handlerName(),
+                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
+                'attendance_count' => count($attendances),
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     /** Returns a comma-separated list of '?' placeholders matching the chunk size. */

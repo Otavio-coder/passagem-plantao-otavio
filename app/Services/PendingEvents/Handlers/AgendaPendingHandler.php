@@ -22,7 +22,10 @@ use Illuminate\Support\Facades\Log;
  */
 class AgendaPendingHandler extends AbstractPendingHandler
 {
-    protected function handlerName(): string { return 'Agenda (cirurgias+exames)'; }
+    protected function handlerName(): string
+    {
+        return 'Agenda (cirurgias+exames)';
+    }
 
     protected function processChunk(array &$results, array $chunk): void
     {
@@ -42,10 +45,12 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     ap.ds_observacao,
                     ap.ie_carater_cirurgia,
                     ap.nr_seq_sala,
+                    ap.cd_setor_atendimento,
                     NVL(
                         pi.ds_proc_exame,
                         NVL(proced.ds_procedimento, ap.ds_cirurgia)
-                    )                                        AS descricao_proc
+                    )                                        AS descricao_proc,
+                    pi.nr_seq_exame_lab
                 FROM tasy.agenda_paciente ap
                 LEFT JOIN tasy.proc_interno pi
                     ON pi.nr_sequencia = ap.nr_seq_proc_interno
@@ -69,59 +74,88 @@ class AgendaPendingHandler extends AbstractPendingHandler
                 ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
             ", $chunk);
 
+            $sectorLabels = [];
+            $sectorCodes = array_values(array_unique(array_filter(array_map(
+                static fn ($row) => (int) ($row->cd_setor_atendimento ?? 0),
+                $rows
+            ))));
+
+            if (! empty($sectorCodes)) {
+                $sectorRows = DB::connection('tasy')->select(
+                    'SELECT cd_setor_atendimento, ds_setor_atendimento FROM tasy.setor_atendimento WHERE cd_setor_atendimento IN ('.implode(',', array_fill(0, count($sectorCodes), '?')).')',
+                    $sectorCodes
+                );
+
+                foreach ($sectorRows as $sectorRow) {
+                    $sectorLabels[(int) $sectorRow->cd_setor_atendimento] = $sectorRow->ds_setor_atendimento;
+                }
+            }
+
             foreach ($rows as $row) {
-                if (!isset($results[$row->nr_atendimento])) continue;
+                if (! isset($results[$row->nr_atendimento])) {
+                    continue;
+                }
 
                 $dtFormatted = null;
                 if ($row->dt_evento) {
                     $dtFormatted = date('d/m/Y', strtotime($row->dt_evento));
-                    if (!empty($row->hr_inicio)) {
-                        $dtFormatted .= ' ' . date('H:i', strtotime($row->hr_inicio));
+                    if (! empty($row->hr_inicio)) {
+                        $dtFormatted .= ' '.date('H:i', strtotime($row->hr_inicio));
                     }
                 }
 
                 if ($row->tipo === 'cirurgia') {
                     $carater = match ($row->ie_carater_cirurgia) {
-                        'E'     => 'Eletiva',
-                        'U'     => 'Urgência',
-                        'G'     => 'Emergência',
+                        'E' => 'Eletiva',
+                        'U' => 'Urgência',
+                        'G' => 'Emergência',
                         default => 'Não informado',
                     };
 
                     $parts = [];
-                    if (!empty($row->ds_cirurgia)) $parts[] = $row->ds_cirurgia;
-                    if (!empty($row->nr_seq_sala)) $parts[] = 'Sala: ' . $row->nr_seq_sala;
+                    if (! empty($row->ds_cirurgia)) {
+                        $parts[] = $row->ds_cirurgia;
+                    }
+                    if (! empty($row->nr_seq_sala)) {
+                        $parts[] = 'Sala: '.$row->nr_seq_sala;
+                    }
 
                     $results[$row->nr_atendimento]['events'][] = [
-                        'tipo'                => 'cirurgia',
-                        'icone'               => 'general-surgery.svg',
-                        'descricao'           => $row->descricao_proc ?? 'Cirurgia Agendada',
-                        'ds_subtipo'          => 'Cirurgia ' . $carater,
-                        'dt_evento'           => $row->dt_evento,
+                        'tipo' => 'cirurgia',
+                        'icone' => 'general-surgery.svg',
+                        'descricao' => $row->descricao_proc ?? 'Cirurgia Agendada',
+                        'ds_subtipo' => 'Cirurgia '.$carater,
+                        'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
-                        'ds_complemento'      => implode(' · ', $parts),
-                        'carater'             => $carater,
-                        'local'               => $row->ds_cirurgia ?? null,
-                        'sala'                => $row->nr_seq_sala ?? null,
-                        'observacoes'         => $row->ds_observacao ?? null,
-                        'urgente'             => in_array($row->ie_carater_cirurgia, ['U', 'G']),
+                        'ds_complemento' => implode(' · ', $parts),
+                        'carater' => $carater,
+                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
+                        'local' => $row->ds_cirurgia ?? null,
+                        'sala' => $row->nr_seq_sala ?? null,
+                        'observacoes' => $row->ds_observacao ?? null,
+                        'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'G']),
                     ];
                 } else {
                     $descricao = $row->descricao_proc ?? $row->ds_observacao ?? 'Procedimento Agendado';
+                    $tipoAgenda = ! empty($row->nr_seq_exame_lab) ? 'exame' : 'procedimento';
 
                     $results[$row->nr_atendimento]['events'][] = [
-                        'tipo'                => 'exame',
-                        'icone'               => 'tac.svg',
-                        'descricao'           => substr($descricao, 0, 80),
-                        'ds_subtipo'          => 'Agendamento',
-                        'dt_evento'           => $row->dt_evento,
+                        'tipo' => $tipoAgenda,
+                        'icone' => $tipoAgenda === 'exame' ? 'outpatient-department.svg' : 'tac.svg',
+                        'descricao' => substr($descricao, 0, 80),
+                        'ds_subtipo' => 'Agendamento',
+                        'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
-                        'urgente'             => false,
+                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
+                        'urgente' => false,
                     ];
                 }
             }
         } catch (\Throwable $e) {
-            Log::warning('[PendingEvents] AgendaHandler query failed: ' . $e->getMessage());
+            Log::warning('[PendingEvents] AgendaHandler query failed', [
+                'exception' => $e,
+                'attendance_count' => count($chunk),
+            ]);
         }
     }
 }

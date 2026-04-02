@@ -12,10 +12,10 @@ class PatientRecomendacoesController extends Controller
 
     public function load(int $attendanceNumber): JsonResponse
     {
-        Log::info('PatientRecomendacoesController: Requisição recebida', [
+        Log::debug('PatientRecomendacoesController: Requisição recebida', [
             'attendance' => $attendanceNumber,
             'authenticated' => auth()->check(),
-            'user' => auth()->user()?->username,
+            'user_id' => auth()->id(),
         ]);
 
         if ($attendanceNumber <= 0) {
@@ -25,28 +25,28 @@ class PatientRecomendacoesController extends Controller
         try {
             $data = $this->tasyService->getPatientRecomendacoesData($attendanceNumber);
 
-            if (!$data) {
+            if (! $data) {
                 return response()->json([
                     'procedimentos' => null,
-                    'medicamentos'  => null,
-                    'nutricao'      => null,
+                    'medicamentos' => null,
+                    'nutricao' => null,
                     'recomendacoes' => null,
-                    'intervencoes'  => null,
+                    'intervencoes' => null,
                 ]);
             }
 
             return response()->json([
                 'procedimentos' => $data->procedimentos ?? null,
-                'medicamentos'  => $data->medicamentos  ?? null,
-                'nutricao'      => $data->nutricao      ?? null,
+                'medicamentos' => $data->medicamentos ?? null,
+                'nutricao' => $data->nutricao ?? null,
                 'recomendacoes' => $data->recomendacoes ?? null,
-                'intervencoes'  => $data->intervencoes  ?? null,
+                'intervencoes' => $data->intervencoes ?? null,
             ]);
 
         } catch (\Throwable $e) {
             Log::error('PatientRecomendacoesController: Erro ao carregar recomendações', [
                 'attendance' => $attendanceNumber,
-                'error'      => $e->getMessage(),
+                'exception' => $e,
             ]);
 
             return response()->json(['error' => 'Erro ao carregar recomendações'], 500);

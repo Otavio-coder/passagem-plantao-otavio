@@ -3,11 +3,11 @@
 namespace App\Repositories\EMR;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class PatientClinicalRepository
 {
     protected const CHUNK_SIZE = 200;
+
     protected $connection = 'tasy';
 
     /**
@@ -115,14 +115,26 @@ class PatientClinicalRepository
                     'Nenhum dispositivo'
                 ) AS dispositivos,
 
-                -- Alergias
+                -- Alergias (alergia_v: cascade de nomes + marcação de intolerância, sem truncamento)
                 COALESCE(
-                    (SELECT REGEXP_REPLACE(
-                        SUBSTR(ds_alergias, 1, 300),
-                        ' - (Não informado|desconhecido|N/A)[^;]*', '', 1, 0, 'i')
-                     FROM tasy.W_PAN_PACIENTE
-                     WHERE cd_pessoa_paciente = atp.cd_pessoa_fisica
-                     AND ROWNUM = 1),
+                    NULLIF((SELECT LISTAGG(
+                                agente || CASE WHEN classificacao = 'I' THEN ' (Intolerância)' ELSE '' END,
+                                ', ') WITHIN GROUP (ORDER BY agente)
+                            FROM (
+                                SELECT DISTINCT
+                                    COALESCE(ds_ficha_tecnica, ds_dcb, ds_dcb_mat,
+                                             REPLACE(ds_material, ',', '.'),
+                                             ds_classe_mat, ds_medic_nao_cad,
+                                             ds_alergeno, ds_familia_mat) AS agente,
+                                    ie_classificacao                      AS classificacao
+                                FROM tasy.alergia_v
+                                WHERE cd_pessoa_fisica = atp.cd_pessoa_fisica
+                                  AND COALESCE(ds_ficha_tecnica, ds_dcb, ds_dcb_mat,
+                                               REPLACE(ds_material, ',', '.'),
+                                               ds_classe_mat, ds_medic_nao_cad,
+                                               ds_alergeno, ds_familia_mat) IS NOT NULL
+                                  AND dt_liberacao IS NOT NULL
+                            )), ''),
                     'Sem alergias registradas'
                 ) AS alergias_detalhadas
 
@@ -150,7 +162,7 @@ class PatientClinicalRepository
             return [];
         }
 
-        $chunks     = array_chunk($attendanceNumbers, 100);
+        $chunks = array_chunk($attendanceNumbers, 100);
         $allResults = [];
 
         foreach ($chunks as $chunk) {
@@ -257,14 +269,26 @@ class PatientClinicalRepository
                     'Nenhum dispositivo'
                 ) AS dispositivos,
 
-                -- Alergias
+                -- Alergias (alergia_v: cascade de nomes + marcação de intolerância, sem truncamento)
                 COALESCE(
-                    (SELECT REGEXP_REPLACE(
-                        SUBSTR(ds_alergias, 1, 300),
-                        ' - (Não informado|desconhecido|N/A)[^;]*', '', 1, 0, 'i')
-                     FROM tasy.W_PAN_PACIENTE
-                     WHERE cd_pessoa_paciente = atp.cd_pessoa_fisica
-                     AND ROWNUM = 1),
+                    NULLIF((SELECT LISTAGG(
+                                agente || CASE WHEN classificacao = 'I' THEN ' (Intolerância)' ELSE '' END,
+                                ', ') WITHIN GROUP (ORDER BY agente)
+                            FROM (
+                                SELECT DISTINCT
+                                    COALESCE(ds_ficha_tecnica, ds_dcb, ds_dcb_mat,
+                                             REPLACE(ds_material, ',', '.'),
+                                             ds_classe_mat, ds_medic_nao_cad,
+                                             ds_alergeno, ds_familia_mat) AS agente,
+                                    ie_classificacao                      AS classificacao
+                                FROM tasy.alergia_v
+                                WHERE cd_pessoa_fisica = atp.cd_pessoa_fisica
+                                  AND COALESCE(ds_ficha_tecnica, ds_dcb, ds_dcb_mat,
+                                               REPLACE(ds_material, ',', '.'),
+                                               ds_classe_mat, ds_medic_nao_cad,
+                                               ds_alergeno, ds_familia_mat) IS NOT NULL
+                                  AND dt_liberacao IS NOT NULL
+                            )), ''),
                     'Sem alergias registradas'
                 ) AS alergias_detalhadas
 
@@ -277,7 +301,7 @@ class PatientClinicalRepository
             }
         }
 
-        $diagnostics   = $this->getBatchDiagnostics($attendanceNumbers);
+        $diagnostics = $this->getBatchDiagnostics($attendanceNumbers);
         $antimicrobials = $this->getBatchAntimicrobials($attendanceNumbers);
 
         $finalResults = [];
@@ -285,7 +309,7 @@ class PatientClinicalRepository
             $basic = $allResults[$nr] ?? $this->getDefaultClinicalData();
 
             $basic->diagnosticos_comorbidades = $diagnostics[$nr] ?? 'Sem diagnósticos';
-            $basic->materiais                 = $antimicrobials[$nr] ?? 'Nenhum antimicrobiano';
+            $basic->materiais = $antimicrobials[$nr] ?? 'Nenhum antimicrobiano';
 
             $finalResults[$nr] = $basic;
         }
@@ -295,7 +319,9 @@ class PatientClinicalRepository
 
     private function getBatchDiagnostics(array $attendanceNumbers): array
     {
-        if (empty($attendanceNumbers)) return [];
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
 
         $results = [];
 
@@ -306,9 +332,9 @@ class PatientClinicalRepository
                 COALESCE(tasy.obter_diagnostico_atendimento(nr_atendimento, 0), 'Sem diagnósticos') AS diagnosticos
             FROM (
                 SELECT COLUMN_VALUE as nr_atendimento
-                FROM TABLE(SYS.ODCINUMBERLIST(" . implode(',', $chunk) . "))
+                FROM TABLE(SYS.ODCINUMBERLIST(".implode(',', $chunk).'))
             )
-        ");
+        ');
 
             foreach ($rows as $row) {
                 $results[$row->nr_atendimento] = $row->diagnosticos;
@@ -320,7 +346,9 @@ class PatientClinicalRepository
 
     private function getBatchAntimicrobials(array $attendanceNumbers): array
     {
-        if (empty($attendanceNumbers)) return [];
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
 
         $results = [];
 
@@ -414,23 +442,23 @@ class PatientClinicalRepository
             )
         ", ['nr_atendimento' => $attendanceNumber]);
 
-        return (!empty($result) && !empty($result[0]->materiais)) ? $result[0]->materiais : null;
+        return (! empty($result) && ! empty($result[0]->materiais)) ? $result[0]->materiais : null;
     }
 
     private function getDefaultClinicalData(): object
     {
-        return (object)[
-            'medida_bloqueio'         => 'Não',
-            'motivos_isolamento'      => 'Nenhum motivo de isolamento',
-            'avaliacao_enf'           => 'Não realizada',
-            'plano_educ'              => 'Não realizado',
-            'pe_data'                 => 'Não realizado',
-            'ds_queda'                => 'Não avaliado',
-            'diag'                    => 'Sem diagnósticos SAE',
-            'dispositivos'            => 'Nenhum dispositivo',
-            'alergias_detalhadas'     => 'Sem alergias registradas',
+        return (object) [
+            'medida_bloqueio' => 'Não',
+            'motivos_isolamento' => 'Nenhum motivo de isolamento',
+            'avaliacao_enf' => 'Não realizada',
+            'plano_educ' => 'Não realizado',
+            'pe_data' => 'Não realizado',
+            'ds_queda' => 'Não avaliado',
+            'diag' => 'Sem diagnósticos SAE',
+            'dispositivos' => 'Nenhum dispositivo',
+            'alergias_detalhadas' => 'Sem alergias registradas',
             'diagnosticos_comorbidades' => 'Sem diagnósticos',
-            'materiais'               => 'Nenhum antimicrobiano',
+            'materiais' => 'Nenhum antimicrobiano',
         ];
     }
 }

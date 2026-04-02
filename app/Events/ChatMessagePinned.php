@@ -39,7 +39,13 @@ class ChatMessagePinned implements ShouldBroadcast
                 $pinnedBy = $user?->name;
             }
         } catch (\Exception $e) {
-            Log::warning('[Chat] Erro ao obter dados do pin: '.$e->getMessage());
+            Log::warning('[Chat] Erro ao obter dados do pin', [
+                'exception' => $e,
+                'message_id' => $this->message->id,
+                'user_id' => $this->message->user_id,
+                'nr_atendimento' => $this->message->nr_atendimento,
+                'is_pinned' => $this->isPinned,
+            ]);
         }
 
         return [

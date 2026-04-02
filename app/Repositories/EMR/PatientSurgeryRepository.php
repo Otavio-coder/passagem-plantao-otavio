@@ -27,10 +27,10 @@ class PatientSurgeryRepository
 
         $personIds = array_values(array_filter(array_unique(array_values($attToPerson))));
 
-        $hasMap  = [];
+        $hasMap = [];
         $detailed = [];
         foreach ($attendanceNumbers as $nr) {
-            $hasMap[$nr]   = false;
+            $hasMap[$nr] = false;
             $detailed[$nr] = [];
         }
 
@@ -45,6 +45,7 @@ class PatientSurgeryRepository
             ->where('dt_agenda', '>=', Carbon::today())
             ->where('dt_agenda', '<=', $cutoff)
             ->whereNull('dt_executada')
+            ->whereNotIn('ie_status_agenda', ['C', 'S'])
             ->orderBy('dt_agenda')
             ->orderBy('hr_inicio')
             ->get()
@@ -53,17 +54,18 @@ class PatientSurgeryRepository
         foreach ($attToPerson as $nr => $personId) {
             $group = $surgeriesByPerson->get($personId, collect());
             if ($group->isNotEmpty()) {
-                $hasMap[$nr]   = true;
+                $hasMap[$nr] = true;
                 $detailed[$nr] = $group->map(function (Appointment $s) {
                     $proc = $s->getProcedureDescriptionAttribute() ?? ($s->ds_cirurgia ?? 'Procedimento cirúrgico');
+
                     return [
-                        'data_agenda'      => $s->dt_agenda ? Carbon::parse($s->dt_agenda)->format('d/m/Y') : '',
-                        'hora_agenda'      => $s->hr_inicio ? Carbon::parse($s->hr_inicio)->format('H:i') : '00:00',
-                        'procedimento'     => $proc,
+                        'data_agenda' => $s->dt_agenda ? Carbon::parse($s->dt_agenda)->format('d/m/Y') : '',
+                        'hora_agenda' => $s->hr_inicio ? Carbon::parse($s->hr_inicio)->format('H:i') : '00:00',
+                        'procedimento' => $proc,
                         'carater_cirurgia' => $s->getSurgeryCharacterAttribute() ?? ($s->ie_carater_cirurgia ?? ''),
-                        'observacoes'      => $s->ds_observacao ?? '',
-                        'nr_sequencia'     => $s->nr_sequencia,
-                        'cd_procedimento'  => $s->cd_procedimento,
+                        'observacoes' => $s->ds_observacao ?? '',
+                        'nr_sequencia' => $s->nr_sequencia,
+                        'cd_procedimento' => $s->cd_procedimento,
                         'ie_origem_proced' => $s->ie_origem_proced,
                     ];
                 })->values()->all();
@@ -99,6 +101,7 @@ class PatientSurgeryRepository
                 WHERE atp.nr_atendimento = :nr_atendimento
                 AND aaa.IE_CARATER_CIRURGIA IS NOT NULL
                 AND aaa.IE_CARATER_CIRURGIA <> 'X'
+                AND NVL(aaa.IE_STATUS_AGENDA, 'A') NOT IN ('C', 'S')
                 AND aaa.dt_agenda > SYSDATE
                 ORDER BY aaa.dt_agenda, aaa.hr_inicio
             ", ['nr_atendimento' => $attendanceNumber]);
@@ -109,27 +112,32 @@ class PatientSurgeryRepository
 
             return array_map(function ($row) {
                 return [
-                    'procedimento'     => $row->ds_agenda_contat ?? 'Agendas de Cirurgia Recente',
-                    'data_agenda'      => $row->dt_agenda ? Carbon::parse($row->dt_agenda)->format('d/m/Y') : 'Data não informada',
-                    'hora_agenda'      => $row->hr_inicio ? Carbon::parse($row->hr_inicio)->format('H:i') : '00:00',
-                    'status'           => 'AGENDADA',
+                    'procedimento' => $row->ds_agenda_contat ?? 'Agendas de Cirurgia Recente',
+                    'data_agenda' => $row->dt_agenda ? Carbon::parse($row->dt_agenda)->format('d/m/Y') : 'Data não informada',
+                    'hora_agenda' => $row->hr_inicio ? Carbon::parse($row->hr_inicio)->format('H:i') : '00:00',
+                    'status' => 'AGENDADA',
                     'tipo_agendamento' => 'Cirúrgico',
                     'carater_cirurgia' => $this->getCaraterCirurgiaDescription($row->ie_carater_cirurgia ?? ''),
-                    'observacoes'      => $this->filterSensitiveData($row->ds_observacao ?? ''),
-                    'duracao_formatada'=> 'A definir',
-                    'cd_procedimento'  => $row->cd_procedimento,
+                    'observacoes' => $this->filterSensitiveData($row->ds_observacao ?? ''),
+                    'duracao_formatada' => 'A definir',
+                    'cd_procedimento' => $row->cd_procedimento,
                     'ie_origem_proced' => $row->ie_origem_proced,
                 ];
             }, $rows);
         } catch (\Exception $e) {
-            Log::warning('PatientSurgeryRepository: Erro ao buscar procedimentos cirúrgicos: ' . $e->getMessage());
+            Log::warning('PatientSurgeryRepository failed to fetch surgical procedures', [
+                'exception' => $e,
+                'attendance_number' => $attendanceNumber,
+                'sector_code' => $sectorCode,
+            ]);
+
             return [];
         }
     }
 
     private function getCaraterCirurgiaDescription(string $carater): string
     {
-        return match($carater) {
+        return match ($carater) {
             'E' => 'Eletiva',
             'U' => 'Urgência',
             'G' => 'Emergência',

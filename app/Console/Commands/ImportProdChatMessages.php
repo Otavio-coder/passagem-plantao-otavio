@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ChatArchivePayload;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -47,20 +48,21 @@ class ImportProdChatMessages extends Command
     protected $description = 'Importa mensagens do banco de produção (formato antigo) para o novo esquema';
 
     // Tabelas na conexão de produção
-    private const PROD_SESSIONS  = 'chat_sessoes';
-    private const PROD_MESSAGES  = 'chat_mensagens';
+    private const PROD_SESSIONS = 'chat_sessoes';
+
+    private const PROD_MESSAGES = 'chat_mensagens';
 
     public function handle(): int
     {
-        $execute     = $this->option('execute');
-        $activeOnly  = $this->option('active-only');
+        $execute = $this->option('execute');
+        $activeOnly = $this->option('active-only');
         $archiveOnly = $this->option('archive-only');
-        $chunk       = (int) $this->option('chunk');
-        $since       = $this->option('since');
+        $chunk = (int) $this->option('chunk');
+        $since = $this->option('since');
 
         $this->info('=== Importação de Mensagens de Produção ===');
-        $this->info('Conexão origem : mysql_prod (' . config('database.connections.mysql_prod.host') . ')');
-        $this->info('Conexão destino: ' . config('database.default'));
+        $this->info('Conexão origem : mysql_prod ('.config('database.connections.mysql_prod.host').')');
+        $this->info('Conexão destino: '.config('database.default'));
         $this->newLine();
 
         // ─── Testa conectividade ─────────────────────────────────────────────
@@ -68,18 +70,20 @@ class ImportProdChatMessages extends Command
             DB::connection('mysql_prod')->getPdo();
             $this->info('[OK] Conectado ao banco de produção.');
         } catch (\Exception $e) {
-            $this->error('[ERRO] Não foi possível conectar ao banco de produção: ' . $e->getMessage());
+            $this->error('[ERRO] Não foi possível conectar ao banco de produção: '.$e->getMessage());
             $this->warn('Verifique as variáveis DB_HOST2, DB_PORT2, DB_DATABASE2, DB_USERNAME2, DB_PASSWORD2 no .env');
+
             return 1;
         }
 
         // ─── Diagnóstico ─────────────────────────────────────────────────────
         $this->runDiagnostics($since);
 
-        if (!$execute) {
+        if (! $execute) {
             $this->newLine();
             $this->warn('Modo diagnóstico — nenhum dado foi alterado.');
             $this->warn('Use --execute para executar a importação.');
+
             return 0;
         }
 
@@ -89,8 +93,8 @@ class ImportProdChatMessages extends Command
 
         $imported = 0;
         $archived = 0;
-        $skipped  = 0;
-        $errors   = 0;
+        $skipped = 0;
+        $errors = 0;
 
         // Busca todos os nr_atendimento distintos com mensagens não deletadas
         $query = DB::connection('mysql_prod')
@@ -100,12 +104,12 @@ class ImportProdChatMessages extends Command
             ->distinct();
 
         if ($since) {
-            $query->where('m.dt_criacao', '>=', $since . ' 00:00:00');
+            $query->where('m.dt_criacao', '>=', $since.' 00:00:00');
         }
 
         $attendances = $query->pluck('nr_atendimento')->toArray();
 
-        $this->info('Atendimentos com mensagens encontrados: ' . count($attendances));
+        $this->info('Atendimentos com mensagens encontrados: '.count($attendances));
 
         // Atendimentos que já têm mensagens no destino (para evitar duplicatas)
         $existingAttendances = DB::table('chat_messages')
@@ -124,12 +128,13 @@ class ImportProdChatMessages extends Command
 
         $toProcess = array_diff($attendances, $alreadyHandled);
 
-        $this->info('Já importados/arquivados: ' . count($alreadyHandled));
-        $this->info('A processar nesta execução: ' . count($toProcess));
+        $this->info('Já importados/arquivados: '.count($alreadyHandled));
+        $this->info('A processar nesta execução: '.count($toProcess));
         $this->newLine();
 
         if (empty($toProcess)) {
             $this->info('Nada a importar.');
+
             return 0;
         }
 
@@ -148,15 +153,15 @@ class ImportProdChatMessages extends Command
 
         $inactiveAttendances = array_diff($toProcess, $activeAttendances);
 
-        $this->info('Ativos (importar para chat_messages): ' . count($activeAttendances));
-        $this->info('Encerrados (arquivar em chat_messages_archive): ' . count($inactiveAttendances));
+        $this->info('Ativos (importar para chat_messages): '.count($activeAttendances));
+        $this->info('Encerrados (arquivar em chat_messages_archive): '.count($inactiveAttendances));
         $this->newLine();
 
         $bar = $this->output->createProgressBar(count($toProcess));
         $bar->start();
 
         // ─── Processa ativos ─────────────────────────────────────────────────
-        if (!$archiveOnly) {
+        if (! $archiveOnly) {
             foreach ($activeAttendances as $nr) {
                 try {
                     $count = $this->importActiveAttendance($nr, $since);
@@ -165,7 +170,7 @@ class ImportProdChatMessages extends Command
                     $errors++;
                     Log::error('[ImportProdChat] Erro ao importar ativo', [
                         'nr_atendimento' => $nr,
-                        'error'          => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                 }
                 $bar->advance();
@@ -173,7 +178,7 @@ class ImportProdChatMessages extends Command
         }
 
         // ─── Processa encerrados ─────────────────────────────────────────────
-        if (!$activeOnly) {
+        if (! $activeOnly) {
             foreach ($inactiveAttendances as $nr) {
                 try {
                     $this->archiveAttendance($nr, $since);
@@ -182,7 +187,7 @@ class ImportProdChatMessages extends Command
                     $errors++;
                     Log::error('[ImportProdChat] Erro ao arquivar', [
                         'nr_atendimento' => $nr,
-                        'error'          => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                 }
                 $bar->advance();
@@ -209,7 +214,7 @@ class ImportProdChatMessages extends Command
 
         // Verifica se as tabelas antigas existem
         $tables = $prod->select("SHOW TABLES LIKE 'chat_%'");
-        $tableNames = array_map(fn($t) => array_values((array) $t)[0], $tables);
+        $tableNames = array_map(fn ($t) => array_values((array) $t)[0], $tables);
 
         $this->line('Tabelas encontradas no banco de produção:');
         foreach ($tableNames as $t) {
@@ -217,16 +222,17 @@ class ImportProdChatMessages extends Command
         }
         $this->newLine();
 
-        if (!in_array('chat_mensagens', $tableNames)) {
+        if (! in_array('chat_mensagens', $tableNames)) {
             $this->warn('Tabela chat_mensagens não encontrada. Verifique a conexão.');
+
             return;
         }
 
         $sessionsCount = $prod->table(self::PROD_SESSIONS)->count();
         $messagesCount = $prod->table(self::PROD_MESSAGES)->count();
-        $deletedCount  = $prod->table(self::PROD_MESSAGES)->where('is_deleted', true)->count();
-        $activeCount   = $prod->table(self::PROD_MESSAGES)->where('is_deleted', false)->count();
-        $fixedCount    = $prod->table(self::PROD_MESSAGES)->where('is_fixed', true)->where('is_deleted', false)->count();
+        $deletedCount = $prod->table(self::PROD_MESSAGES)->where('is_deleted', true)->count();
+        $activeCount = $prod->table(self::PROD_MESSAGES)->where('is_deleted', false)->count();
+        $fixedCount = $prod->table(self::PROD_MESSAGES)->where('is_fixed', true)->where('is_deleted', false)->count();
 
         $this->table(['Métrica', 'Valor'], [
             ['Total de sessões',            number_format($sessionsCount)],
@@ -246,7 +252,7 @@ class ImportProdChatMessages extends Command
 
         $this->newLine();
         $this->line('Distribuição por turno:');
-        $this->table(['Turno', 'Mensagens'], $turnos->map(fn($r) => [$r->turno_id, number_format($r->total)])->toArray());
+        $this->table(['Turno', 'Mensagens'], $turnos->map(fn ($r) => [$r->turno_id, number_format($r->total)])->toArray());
 
         // Distribuição temporal
         $byMonth = $prod->table(self::PROD_MESSAGES)
@@ -259,7 +265,7 @@ class ImportProdChatMessages extends Command
 
         $this->newLine();
         $this->line('Mensagens por mês (últimos 12 meses):');
-        $this->table(['Mês', 'Mensagens'], $byMonth->map(fn($r) => [$r->mes, number_format($r->total)])->toArray());
+        $this->table(['Mês', 'Mensagens'], $byMonth->map(fn ($r) => [$r->mes, number_format($r->total)])->toArray());
 
         // Atendimentos distintos
         $distinctNr = $prod->table(self::PROD_MESSAGES)
@@ -277,7 +283,7 @@ class ImportProdChatMessages extends Command
         $this->newLine();
         $this->line("Atendimentos distintos com mensagens: {$distinctNr}");
         $this->line("Destes, ativos (últimos 30 dias):     {$activeNr}");
-        $this->line("Provavelmente encerrados:              " . ($distinctNr - $activeNr));
+        $this->line('Provavelmente encerrados:              '.($distinctNr - $activeNr));
 
         // Estimativa de espaço para arquivo
         $avgLen = $prod->table(self::PROD_MESSAGES)
@@ -315,7 +321,7 @@ class ImportProdChatMessages extends Command
             ]);
 
         if ($since) {
-            $query->where('dt_criacao', '>=', $since . ' 00:00:00');
+            $query->where('dt_criacao', '>=', $since.' 00:00:00');
         }
 
         $messages = $query->get();
@@ -324,23 +330,23 @@ class ImportProdChatMessages extends Command
         DB::transaction(function () use ($messages, &$count) {
             foreach ($messages as $msg) {
                 $newId = DB::table('chat_messages')->insertGetId([
-                    'nr_atendimento'  => $msg->nr_atendimento,
+                    'nr_atendimento' => $msg->nr_atendimento,
                     'cd_pessoa_fisica' => null,
-                    'user_id'         => $msg->user_id,
-                    'content'        => $msg->content,
-                    'created_at'     => $msg->created_at,
-                    'updated_at'     => $msg->updated_at,
+                    'user_id' => $msg->user_id,
+                    'content' => $msg->content,
+                    'created_at' => $msg->created_at,
+                    'updated_at' => $msg->updated_at,
                 ]);
 
                 // Recria pin se a mensagem estava fixada
                 if ($msg->is_fixed && $msg->fixed_by) {
                     DB::table('chat_message_pins')->insertOrIgnore([
-                        'message_id'    => $newId,
+                        'message_id' => $newId,
                         'nr_atendimento' => $msg->nr_atendimento,
-                        'pinned_by'     => $msg->fixed_by,
-                        'pinned_at'     => $msg->fixed_at ?? $msg->created_at,
-                        'unpinned_at'   => null,
-                        'unpinned_by'   => null,
+                        'pinned_by' => $msg->fixed_by,
+                        'pinned_at' => $msg->fixed_at ?? $msg->created_at,
+                        'unpinned_at' => null,
+                        'unpinned_by' => null,
                     ]);
                 }
 
@@ -363,18 +369,16 @@ class ImportProdChatMessages extends Command
             ->select(['usuario_id', 'mensagem', 'dt_criacao', 'turno_id']);
 
         if ($since) {
-            $query->where('dt_criacao', '>=', $since . ' 00:00:00');
+            $query->where('dt_criacao', '>=', $since.' 00:00:00');
         }
 
-        // Busca o username para armazenar no payload (mais legível que ID)
         $messages = $query->get();
 
         if ($messages->isEmpty()) {
             return;
         }
 
-        // Monta payload compacto
-        $userIds   = $messages->pluck('usuario_id')->unique()->toArray();
+        $userIds = $messages->pluck('usuario_id')->unique()->toArray();
         $userNames = DB::table('users')
             ->whereIn('id', $userIds)
             ->pluck('username', 'id')
@@ -383,27 +387,47 @@ class ImportProdChatMessages extends Command
         $payload = $messages->map(function ($m) use ($userNames) {
             return [
                 'ts' => Carbon::parse($m->dt_criacao)->timestamp,
-                'u'  => $userNames[$m->usuario_id] ?? (string) $m->usuario_id,
-                'm'  => $m->mensagem,
-                't'  => $m->turno_id ?? $this->inferTurno($m->dt_criacao),
+                'u' => $userNames[$m->usuario_id] ?? (string) $m->usuario_id,
+                'm' => $m->mensagem,
+                't' => $m->turno_id ?? $this->inferTurno($m->dt_criacao),
             ];
         })->values()->toArray();
 
-        $json       = json_encode($payload, JSON_UNESCAPED_UNICODE);
-        $compressed = base64_encode(gzcompress($json, 6));
+        $usersByUsername = [];
+        $userRows = DB::table('users')
+            ->whereIn('id', $userIds)
+            ->get();
+
+        foreach ($userRows as $user) {
+            if (! empty($user->username)) {
+                $usersByUsername[$user->username] = (array) $user;
+            }
+        }
+
+        foreach ($payload as $message) {
+            $username = $message['u'] ?? null;
+            if ($username && ! isset($usersByUsername[$username])) {
+                $usersByUsername[$username] = [
+                    'username' => $username,
+                    'id' => null,
+                ];
+            }
+        }
+
+        $compressed = ChatArchivePayload::encode($payload, $usersByUsername);
 
         $firstAt = $messages->first()->dt_criacao;
-        $lastAt  = $messages->last()->dt_criacao;
+        $lastAt = $messages->last()->dt_criacao;
 
         DB::table('chat_messages_archive')->updateOrInsert(
             ['nr_atendimento' => $nr],
             [
-                'message_count'   => $messages->count(),
+                'message_count' => $messages->count(),
                 'first_message_at' => $firstAt,
-                'last_message_at'  => $lastAt,
-                'payload'         => $compressed,
-                'source'          => 'prod_import',
-                'archived_at'     => now(),
+                'last_message_at' => $lastAt,
+                'payload' => $compressed,
+                'source' => 'prod_import',
+                'archived_at' => now(),
             ]
         );
     }
@@ -411,8 +435,13 @@ class ImportProdChatMessages extends Command
     private function inferTurno(string $datetime): string
     {
         $hour = (int) Carbon::parse($datetime)->format('H');
-        if ($hour >= 7 && $hour < 13) return 'manha';
-        if ($hour >= 13 && $hour < 19) return 'tarde';
+        if ($hour >= 7 && $hour < 13) {
+            return 'manha';
+        }
+        if ($hour >= 13 && $hour < 19) {
+            return 'tarde';
+        }
+
         return 'noite';
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ChatArchivePayload;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class CleanupOldChatData extends Command
 
     public function handle(): int
     {
-        $days   = (int) $this->option('days');
+        $days = (int) $this->option('days');
         $dryRun = $this->option('dry-run');
         $cutoff = Carbon::now()->subDays($days);
 
@@ -45,18 +46,32 @@ class CleanupOldChatData extends Command
 
         if ($nrs->isEmpty()) {
             $this->info('Nenhuma mensagem antiga encontrada.');
+
             return 0;
         }
 
         $this->info("Atendimentos com mensagens a arquivar: {$nrs->count()}");
         $this->newLine();
 
-        // Mapa username para identificar autores no payload
-        $usernames = DB::table('users')->pluck('username', 'id')->toArray();
+        $usersById = DB::table('users')
+            ->get()
+            ->mapWithKeys(function ($user) {
+                return [(int) $user->id => (array) $user];
+            })
+            ->toArray();
+
+        $usernames = [];
+        $usersByUsername = [];
+        foreach ($usersById as $user) {
+            if (! empty($user['username'])) {
+                $usernames[(int) $user['id']] = $user['username'];
+                $usersByUsername[$user['username']] = $user;
+            }
+        }
 
         $archived = 0;
-        $deleted  = 0;
-        $errors   = 0;
+        $deleted = 0;
+        $errors = 0;
 
         $bar = $this->output->createProgressBar($nrs->count());
         $bar->start();
@@ -73,27 +88,35 @@ class CleanupOldChatData extends Command
 
                 if ($messages->isEmpty()) {
                     $bar->advance();
+
                     continue;
                 }
 
                 // Monta payload compacto (mesmo formato do import)
-                $payload = $messages->map(fn($m) => [
+                $payload = $messages->map(fn ($m) => [
                     'ts' => Carbon::parse($m->created_at)->timestamp,
-                    'u'  => $usernames[$m->user_id] ?? 'user_' . $m->user_id,
-                    'm'  => $m->content,
-                    't'  => $this->inferTurno($m->created_at),
+                    'u' => $usernames[$m->user_id] ?? 'user_'.$m->user_id,
+                    'm' => $m->content,
+                    't' => $this->inferTurno($m->created_at),
                 ])->values()->toArray();
 
-                $json       = json_encode($payload, JSON_UNESCAPED_UNICODE);
-                $compressed = base64_encode(gzcompress($json, 6));
+                $payloadUsers = [];
+                foreach ($payload as $message) {
+                    $username = $message['u'] ?? null;
+                    if ($username && isset($usersByUsername[$username])) {
+                        $payloadUsers[$username] = $usersByUsername[$username];
+                    }
+                }
 
-                $timestamps  = array_column($payload, 'ts');
-                $firstAt     = date('Y-m-d H:i:s', min($timestamps));
-                $lastAt      = date('Y-m-d H:i:s', max($timestamps));
-                $msgIds      = $messages->pluck('id')->toArray();
+                $compressed = ChatArchivePayload::encode($payload, $payloadUsers);
 
-                if (!$dryRun) {
-                    DB::transaction(function () use ($nr, $compressed, $firstAt, $lastAt, $msgIds, $payload, &$deleted) {
+                $timestamps = array_column($payload, 'ts');
+                $firstAt = date('Y-m-d H:i:s', min($timestamps));
+                $lastAt = date('Y-m-d H:i:s', max($timestamps));
+                $msgIds = $messages->pluck('id')->toArray();
+
+                if (! $dryRun) {
+                    DB::transaction(function () use ($nr, $compressed, $firstAt, $lastAt, $msgIds, $payload, $payloadUsers, &$deleted) {
                         // Upsert no archive — mantém o registro existente se já houver,
                         // mesclando a contagem de mensagens ao invés de sobrescrever tudo
                         $existing = DB::table('chat_messages_archive')
@@ -102,34 +125,35 @@ class CleanupOldChatData extends Command
 
                         if ($existing) {
                             // Mescla com payload já arquivado
-                            $oldPayload  = json_decode(gzuncompress(base64_decode($existing->payload)), true) ?? [];
-                            $merged      = array_merge($oldPayload, $payload);
-                            usort($merged, fn($a, $b) => $a['ts'] <=> $b['ts']);
-                            $merged      = array_values(array_unique($merged, SORT_REGULAR));
-
-                            $mergedJson  = json_encode($merged, JSON_UNESCAPED_UNICODE);
-                            $mergedComp  = base64_encode(gzcompress($mergedJson, 6));
-                            $allTs       = array_column($merged, 'ts');
+                            $oldPayload = ChatArchivePayload::decode($existing->payload);
+                            $mergedComp = ChatArchivePayload::merge(
+                                $oldPayload['messages'],
+                                $oldPayload['users'],
+                                $payload,
+                                $payloadUsers
+                            );
+                            $merged = ChatArchivePayload::decode($mergedComp);
+                            $allTs = array_column($merged['messages'], 'ts');
 
                             DB::table('chat_messages_archive')
                                 ->where('nr_atendimento', $nr)
                                 ->update([
-                                    'message_count'    => count($merged),
+                                    'message_count' => count($merged['messages']),
                                     'first_message_at' => date('Y-m-d H:i:s', min($allTs)),
-                                    'last_message_at'  => date('Y-m-d H:i:s', max($allTs)),
-                                    'payload'          => $mergedComp,
-                                    'source'           => 'cleanup_archive',
-                                    'archived_at'      => now(),
+                                    'last_message_at' => date('Y-m-d H:i:s', max($allTs)),
+                                    'payload' => $mergedComp,
+                                    'source' => 'cleanup_archive',
+                                    'archived_at' => now(),
                                 ]);
                         } else {
                             DB::table('chat_messages_archive')->insert([
-                                'nr_atendimento'   => $nr,
-                                'message_count'    => count($payload),
+                                'nr_atendimento' => $nr,
+                                'message_count' => count($payload),
                                 'first_message_at' => $firstAt,
-                                'last_message_at'  => $lastAt,
-                                'payload'          => $compressed,
-                                'source'           => 'cleanup_archive',
-                                'archived_at'      => now(),
+                                'last_message_at' => $lastAt,
+                                'payload' => $compressed,
+                                'source' => 'cleanup_archive',
+                                'archived_at' => now(),
                             ]);
                         }
 
@@ -148,7 +172,7 @@ class CleanupOldChatData extends Command
                 $errors++;
                 Log::error('[ChatCleanup] Erro ao arquivar', [
                     'nr_atendimento' => $nr,
-                    'error'          => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
 
@@ -163,14 +187,14 @@ class CleanupOldChatData extends Command
         $this->info("Erros                   : {$errors}");
         $this->newLine();
         $this->line('Totais no banco:');
-        $this->line('  chat_messages:         ' . DB::table('chat_messages')->count());
-        $this->line('  chat_messages_archive: ' . DB::table('chat_messages_archive')->count());
+        $this->line('  chat_messages:         '.DB::table('chat_messages')->count());
+        $this->line('  chat_messages_archive: '.DB::table('chat_messages_archive')->count());
 
         Log::info('[ChatCleanup] Arquivamento concluído', [
             'archived_attendances' => $archived,
-            'deleted_messages'     => $deleted,
-            'errors'               => $errors,
-            'cutoff'               => $cutoff->toDateTimeString(),
+            'deleted_messages' => $deleted,
+            'errors' => $errors,
+            'cutoff' => $cutoff->toDateTimeString(),
         ]);
 
         return $errors > 0 ? 1 : 0;
@@ -179,8 +203,13 @@ class CleanupOldChatData extends Command
     private function inferTurno(string $datetime): string
     {
         $hour = (int) Carbon::parse($datetime)->format('H');
-        if ($hour >= 7 && $hour < 13) return 'manha';
-        if ($hour >= 13 && $hour < 19) return 'tarde';
+        if ($hour >= 7 && $hour < 13) {
+            return 'manha';
+        }
+        if ($hour >= 13 && $hour < 19) {
+            return 'tarde';
+        }
+
         return 'noite';
     }
 }

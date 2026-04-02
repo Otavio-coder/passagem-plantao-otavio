@@ -1,63 +1,14 @@
 <div x-show="activeRecomendacaoTab === 'tab-proc'" style="display:none;" class="pt-3">
 
-    {{-- Cirurgias agendadas --}}
-    @if($surgCount > 0)
-    <div class="mb-4">
-        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Cirurgias Agendadas</p>
-        <div class="space-y-2">
-            @foreach($plan['surgery']['items'] as $surg)
-            <div class="bg-white rounded-lg border shadow-sm px-3 py-2.5
-                        {{ $surg['is_urgent'] ? 'border-red-200 bg-red-50/20' : 'border-orange-200 bg-orange-50/10' }}">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-gray-800 leading-snug">{{ $surg['name'] }}</p>
-                        <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
-                                         {{ $surg['is_urgent'] ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' }}">
-                                {{ $surg['carater'] }}
-                            </span>
-                            @if(!empty($surg['status']))
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 ring-1 ring-blue-200">
-                                {{ $surg['status'] }}
-                            </span>
-                            @endif
-                            @if(!empty($surg['sector_name']) || !empty($surg['sector_code']))
-                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
-                                <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
-                                {{ !empty($surg['sector_name']) ? $surg['sector_name'] : ('Setor ' . $surg['sector_code']) }}
-                            </span>
-                            @endif
-                            @if($surg['sala'])
-                            <span class="text-[10px] text-gray-500 font-medium">{{ $surg['sala'] }}</span>
-                            @endif
-                            @if($surg['dt'])
-                            <span class="text-[10px] font-mono text-gray-400">
-                                <i class="fa-regular fa-calendar mr-0.5"></i>{{ $surg['dt'] }}
-                            </span>
-                            @endif
-                        </div>
-                        @if($surg['observation'])
-                        <p class="text-[10px] text-gray-500 mt-1.5 pl-2 border-l-2 border-orange-200 leading-snug">
-                            {{ $surg['observation'] }}
-                        </p>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            @endforeach
-        </div>
-    </div>
-    @endif
-
-    {{-- Procedimentos / Exames header + search --}}
+    {{-- Procedimentos header + search --}}
     @if($procCount > 0)
     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2
-               {{ $surgCount > 0 ? 'mt-0' : '' }}">Procedimentos e Exames</p>
+               mt-0">Procedimentos</p>
     <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="relative flex-1 min-w-[160px]">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style="font-size:11px;"></i>
-            <input type="search" :value="proc.q" @input.debounce.250ms="proc.setQ($event.target.value)"
-                   placeholder="Buscar procedimento ou exame..."
+                 <input type="search" :value="proc.q" @input.debounce.250ms="proc.setQ($event.target.value)"
+                     placeholder="Buscar procedimento..."
                    class="w-full pl-8 pr-7 py-2 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#004D9D]/20 focus:border-[#004D9D] transition-all placeholder-gray-400" style="font-size:16px;">
             <button x-show="proc.q" @click="proc.setQ('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <i class="fa-solid fa-xmark" style="font-size:11px;"></i>
@@ -128,6 +79,9 @@
                         </div>
                         <p x-show="p.prescriber" class="text-[10px] text-gray-400 mt-0.5">
                             <i class="fa-regular fa-user mr-1"></i><span x-text="p.prescriber"></span>
+                        </p>
+                        <p x-show="p.resultado_laudo" class="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                            <i class="fa-solid fa-flask mr-1 opacity-70"></i><span x-text="p.resultado_laudo"></span>
                         </p>
                     </div>
                     <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"

@@ -9,7 +9,16 @@
     $nutCount  = $plan['nutrition']['count']      ?? 0;
     $ordCount  = $plan['orders']['count']         ?? 0;
     $intCount  = $plan['interventions']['count']  ?? 0;
-    $procCount = $plan['procedures']['count']     ?? 0;
+    $allProcedureItems = collect($plan['procedures']['items'] ?? []);
+    $examCount = $allProcedureItems->filter(function (array $item) {
+        $eventType = strtolower((string) ($item['event_type'] ?? ''));
+        $type = strtolower((string) ($item['type'] ?? ''));
+
+        return $eventType === 'exame'
+            || str_contains($type, 'exame')
+            || str_contains($type, 'laborat');
+    })->count();
+    $procCount = $allProcedureItems->count() - $examCount;
     $hemoCount = $plan['hemotherapy']['count']    ?? 0;
     $surgCount = $plan['surgery']['count']        ?? 0;
     $chemoCount= $plan['chemotherapy']['count']   ?? 0;
@@ -18,7 +27,9 @@
 
     $subtabs = [
         ['tab-med',  'fa-pills',           'Medicamentos',   $medCount],
-        ['tab-proc', 'fa-clipboard-list',  'Proc. e Exames', $procCount + $surgCount],
+        ['tab-exam', 'fa-vial',            'Exames',         $examCount],
+        ['tab-proc', 'fa-clipboard-list',  'Procedimentos',  $procCount],
+        ['tab-surg', 'fa-user-doctor',     'Cirurgias',      $surgCount],
         ['tab-hemo', 'fa-droplet',         'Hemoterapia',    $hemoCount],
         ['tab-chemo','fa-flask-vial',      'Quimioterapia',  $chemoCount],
         ['tab-nut',  'fa-utensils',        'Nutrição',       $nutCount],
@@ -72,13 +83,11 @@
     $chemoJson       = json_encode($plan['chemotherapy']['items']  ?? [], $flags);
     $gasJson         = json_encode($plan['gasotherapy']['items']   ?? [], $flags);
     $dialJson        = json_encode($plan['dialysis']['items']      ?? [], $flags);
-
-    // Nutrition stays Blade-rendered (shift-grouped, no Alpine needed)
-    $nutShifts = $plan['nutrition']['shifts'] ?? ['MORNING' => [], 'AFTERNOON' => [], 'NIGHT' => []];
+    $nutJson         = json_encode($plan['nutrition']['items']     ?? [], $flags);
 @endphp
 
 <div wire:key="tp-{{ $scheduleDate }}"
-    x-data="therapeuticPlan({{ $medsJson }}, {{ $schedJson }}, {{ $colsJson }}, {{ $currentHourJson }}, {{ $procsJson }}, {{ $ordsJson }}, {{ $intsJson }}, {{ $hemoJson }}, {{ $surgJson }}, {{ $chemoJson }}, {{ $gasJson }}, {{ $dialJson }})"
+    x-data="therapeuticPlan({{ $medsJson }}, {{ $schedJson }}, {{ $colsJson }}, {{ $currentHourJson }}, {{ $procsJson }}, {{ $ordsJson }}, {{ $intsJson }}, {{ $hemoJson }}, {{ $surgJson }}, {{ $nutJson }}, {{ $chemoJson }}, {{ $gasJson }}, {{ $dialJson }})"
     x-init="@if($medCount === 0 && $defaultTab !== 'tab-med') activeRecomendacaoTab = '{{ $defaultTab }}' @endif">
 
 {{-- ════════════════════════════════════════════════════════
@@ -87,24 +96,27 @@
 <div class="bg-white border-b border-gray-200 -mx-3 sm:-mx-4 lg:-mx-6 mb-0">
     <nav class="flex overflow-x-auto scrollbar-hide px-3 sm:px-4 lg:px-6 -mb-px">
         @foreach($subtabs as [$tabId, $icon, $label, $count])
-        <button @click="@if($count > 0) activeRecomendacaoTab = '{{ $tabId }}' @endif"
-                @if($count === 0) disabled @endif
-                :class="activeRecomendacaoTab === '{{ $tabId }}'
-                    ? 'border-[#004D9D] text-[#004D9D]'
-                    : '{{ $count > 0 ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'border-transparent text-gray-300' }}'"
-                class="group flex items-center gap-1.5 px-3 py-2.5 border-b-2 text-xs font-semibold
-                       whitespace-nowrap transition-colors flex-shrink-0 {{ $count === 0 ? 'opacity-40 cursor-not-allowed' : '' }}">
-            <i class="fa-solid {{ $icon }}" style="font-size:11px;"></i>
-            <span>{{ $label }}</span>
-            @if($count > 0)
-            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none transition-colors"
-                  :class="activeRecomendacaoTab === '{{ $tabId }}'
-                      ? 'bg-[#004D9D] text-white'
-                      : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'">
-                {{ $count }}
+        @if($count > 0)
+            <button @click="activeRecomendacaoTab = '{{ $tabId }}'"
+                    :class="activeRecomendacaoTab === '{{ $tabId }}'
+                        ? 'border-[#004D9D] text-[#004D9D]'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="group flex items-center gap-1.5 px-3 py-2.5 border-b-2 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0">
+                <i class="fa-solid {{ $icon }}" style="font-size:11px;"></i>
+                <span>{{ $label }}</span>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none transition-colors"
+                    :class="activeRecomendacaoTab === '{{ $tabId }}'
+                        ? 'bg-[#004D9D] text-white'
+                        : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'">
+                    {{ $count }}
+                </span>
+            </button>
+        @else
+            <span class="flex items-center justify-center px-2 py-2.5 border-b-2 border-transparent text-gray-300 flex-shrink-0"
+                  title="{{ $label }} sem informações">
+                <i class="fa-solid {{ $icon }}" style="font-size:11px;"></i>
             </span>
-            @endif
-        </button>
+        @endif
         @endforeach
     </nav>
 </div>
@@ -113,7 +125,9 @@
      TABS — cada sub-tab em arquivo dedicado
 ════════════════════════════════════════════════════════ --}}
 @include('sbar.patient.modal.tabs.recomendacoes.tabs.medications')
+@include('sbar.patient.modal.tabs.recomendacoes.tabs.exams')
 @include('sbar.patient.modal.tabs.recomendacoes.tabs.procedures')
+@include('sbar.patient.modal.tabs.recomendacoes.tabs.surgeries')
 @include('sbar.patient.modal.tabs.recomendacoes.tabs.nutrition')
 @include('sbar.patient.modal.tabs.recomendacoes.tabs.hemotherapy')
 @include('sbar.patient.modal.tabs.recomendacoes.tabs.chemotherapy')

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ChatArchivePayload;
+use App\Support\ChatArchiveShiftResolver;
+use App\Support\ChatArchiveUserResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,22 +17,22 @@ class ChatArchiveController extends Controller
     public function index()
     {
         // ── Métricas globais (arquivo)
-        $stats = DB::table('chat_messages_archive')->selectRaw("
+        $stats = DB::table('chat_messages_archive')->selectRaw('
             COUNT(*)                                                        AS total,
             SUM(message_count)                                              AS total_msgs,
             SUM(CASE WHEN message_count >= 3 THEN 1 ELSE 0 END)            AS consistent,
             ROUND(AVG(message_count), 1)                                    AS avg_per_attendance,
             MIN(first_message_at)                                           AS oldest,
             MAX(last_message_at)                                            AS newest
-        ")->first();
+        ')->first();
 
         // ── Adiciona mensagens ativas ao total para consistência com o ranking
         // Conta apenas atendimentos que NÃO estão no arquivo (evita duplicação)
-        $activeStats = DB::table('chat_messages')->selectRaw("
+        $activeStats = DB::table('chat_messages')->selectRaw('
             COUNT(*)                       AS total_msgs,
             MIN(created_at)                AS oldest,
             MAX(created_at)                AS newest
-        ")->first();
+        ')->first();
         $activeOnlyAttendances = DB::table('chat_messages')
             ->distinct()
             ->whereNotIn('nr_atendimento', function ($q) {
@@ -38,12 +41,12 @@ class ChatArchiveController extends Controller
             ->count('nr_atendimento');
 
         if ($stats) {
-            $stats->total      += $activeOnlyAttendances;
+            $stats->total += $activeOnlyAttendances;
             $stats->total_msgs += (int) ($activeStats->total_msgs ?? 0);
-            if ($activeStats->oldest && (!$stats->oldest || $activeStats->oldest < $stats->oldest)) {
+            if ($activeStats->oldest && (! $stats->oldest || $activeStats->oldest < $stats->oldest)) {
                 $stats->oldest = $activeStats->oldest;
             }
-            if ($activeStats->newest && (!$stats->newest || $activeStats->newest > $stats->newest)) {
+            if ($activeStats->newest && (! $stats->newest || $activeStats->newest > $stats->newest)) {
                 $stats->newest = $activeStats->newest;
             }
         }
@@ -69,15 +72,15 @@ class ChatArchiveController extends Controller
             ->get()
             ->keyBy('month');
 
-        $ptMonths = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        $months   = [];
+        $ptMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        $months = [];
         for ($i = 5; $i >= 0; $i--) {
-            $dt  = now()->subMonths($i);
+            $dt = now()->subMonths($i);
             $key = $dt->format('Y-m');
             $months[$key] = [
-                'label'       => $ptMonths[(int) $dt->format('n') - 1] . '/' . $dt->format('y'),
+                'label' => $ptMonths[(int) $dt->format('n') - 1].'/'.$dt->format('y'),
                 'attendances' => (int) ($seriesRaw->get($key)?->attendances ?? 0),
-                'messages'    => (int) ($seriesRaw->get($key)?->messages ?? 0)
+                'messages' => (int) ($seriesRaw->get($key)?->messages ?? 0)
                               + (int) ($activeSeriesRaw->get($key)?->messages ?? 0),
             ];
         }
@@ -106,26 +109,27 @@ class ChatArchiveController extends Controller
         $all = $archiveRows->merge($activeRows);
 
         // Enriquece com Oracle em lotes de 500 para não explodir o IN clause
-        $nrs       = $all->pluck('nr_atendimento')->map(fn($v) => (int) $v)->toArray();
-        $oracle    = [];
+        $nrs = $all->pluck('nr_atendimento')->map(fn ($v) => (int) $v)->toArray();
+        $oracle = [];
         foreach (array_chunk($nrs, 500) as $chunk) {
             $oracle += $this->fetchPatientData($chunk);
         }
 
         $data = $all->map(function ($row) use ($oracle) {
-            $o  = $oracle[(int) $row->nr_atendimento] ?? null;
+            $o = $oracle[(int) $row->nr_atendimento] ?? null;
             $ts = $row->last_message_at;
+
             return [
-                'nr_atendimento'  => (string) $row->nr_atendimento,
-                'patient_name'    => $o['name']          ?? '',
-                'sector_name'     => $o['sector_name']   ?? '',
-                'dt_entrada'      => $o['dt_entrada']    ?? '',
-                'dt_alta'         => $o['dt_alta']       ?? '',
-                'still_admitted'  => $o ? $o['still_admitted'] : null,
-                'admission_days'  => $o['admission_days'] ?? null,
-                'message_count'   => (int) $row->message_count,
+                'nr_atendimento' => (string) $row->nr_atendimento,
+                'patient_name' => $o['name'] ?? '',
+                'sector_name' => $o['sector_name'] ?? '',
+                'dt_entrada' => $o['dt_entrada'] ?? '',
+                'dt_alta' => $o['dt_alta'] ?? '',
+                'still_admitted' => $o ? $o['still_admitted'] : null,
+                'admission_days' => $o['admission_days'] ?? null,
+                'message_count' => (int) $row->message_count,
                 'last_message_at' => $ts ? Carbon::parse($ts)->format('d/m/Y') : '',
-                'last_message_raw'=> $ts ? Carbon::parse($ts)->format('Y-m-d') : '',
+                'last_message_raw' => $ts ? Carbon::parse($ts)->format('Y-m-d') : '',
             ];
         })->values()->all();
 
@@ -136,16 +140,16 @@ class ChatArchiveController extends Controller
 
     public function datatables(Request $request)
     {
-        $draw   = (int) $request->input('draw', 1);
-        $start  = max(0, (int) $request->input('start', 0));
+        $draw = (int) $request->input('draw', 1);
+        $start = max(0, (int) $request->input('start', 0));
         $length = min(100, max(1, (int) $request->input('length', 25)));
 
         // UNION: registros arquivados + registros ativos não arquivados
-        $archiveSql = "SELECT nr_atendimento, message_count, last_message_at FROM chat_messages_archive";
-        $activeSql  = "SELECT nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at
+        $archiveSql = 'SELECT nr_atendimento, message_count, last_message_at FROM chat_messages_archive';
+        $activeSql = 'SELECT nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at
                        FROM chat_messages
                        WHERE nr_atendimento NOT IN (SELECT nr_atendimento FROM chat_messages_archive)
-                       GROUP BY nr_atendimento";
+                       GROUP BY nr_atendimento';
 
         $unionSql = "({$archiveSql}) UNION ALL ({$activeSql})";
 
@@ -156,14 +160,14 @@ class ChatArchiveController extends Controller
             $query->where('nr_atendimento', 'like', "%{$search}%");
         }
         if ($from = $request->input('from')) {
-            $query->where('last_message_at', '>=', $from . ' 00:00:00');
+            $query->where('last_message_at', '>=', $from.' 00:00:00');
         }
         if ($to = $request->input('to')) {
-            $query->where('last_message_at', '<=', $to . ' 23:59:59');
+            $query->where('last_message_at', '<=', $to.' 23:59:59');
         }
         if ($sector = trim($request->input('sector', ''))) {
             $sectorNrs = $this->getAttendancesForSector($sector);
-            if (!empty($sectorNrs)) {
+            if (! empty($sectorNrs)) {
                 $query->whereIn('nr_atendimento', $sectorNrs);
             } else {
                 $query->whereRaw('1 = 0');
@@ -171,7 +175,7 @@ class ChatArchiveController extends Controller
         }
 
         $recordsFiltered = $query->count();
-        $recordsTotal    = DB::table(DB::raw("({$unionSql}) AS total_count"))->count();
+        $recordsTotal = DB::table(DB::raw("({$unionSql}) AS total_count"))->count();
 
         // ── Ordenação (apenas colunas MySQL disponíveis)
         $sortableMap = [
@@ -181,11 +185,11 @@ class ChatArchiveController extends Controller
             7 => 'last_message_at',
         ];
         $orderColIdx = (int) $request->input('order.0.column', 7);
-        $orderDir    = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
-        $orderByCol  = $sortableMap[$orderColIdx] ?? 'last_message_at';
+        $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $orderByCol = $sortableMap[$orderColIdx] ?? 'last_message_at';
 
         // Colunas Oracle (1=patient_name,2=sector_name,3=dt_entrada,4=dt_alta) → fallback
-        if (!isset($sortableMap[$orderColIdx])) {
+        if (! isset($sortableMap[$orderColIdx])) {
             $orderByCol = 'last_message_at';
         }
 
@@ -194,32 +198,33 @@ class ChatArchiveController extends Controller
         $rows = $query->skip($start)->take($length)->get();
 
         // ── Enriquece apenas as linhas visíveis com Oracle
-        $nrs        = $rows->pluck('nr_atendimento')->toArray();
+        $nrs = $rows->pluck('nr_atendimento')->toArray();
         $oracleData = $this->fetchPatientData($nrs);
 
         $data = $rows->map(function ($row) use ($oracleData) {
             $o = $oracleData[(int) $row->nr_atendimento] ?? null;
+
             return [
                 'nr_atendimento' => $row->nr_atendimento,
-                'patient_name'   => $o['name']           ?? null,
-                'sector_name'    => $o['sector_name']     ?? null,
-                'dt_entrada'     => $o['dt_entrada']      ?? null,
-                'dt_alta'        => $o['dt_alta']         ?? null,
+                'patient_name' => $o['name'] ?? null,
+                'sector_name' => $o['sector_name'] ?? null,
+                'dt_entrada' => $o['dt_entrada'] ?? null,
+                'dt_alta' => $o['dt_alta'] ?? null,
                 'still_admitted' => $o ? $o['still_admitted'] : null,
-                'admission_days' => $o['admission_days']  ?? null,
-                'message_count'  => $row->message_count,
-                'last_message_at'=> $row->last_message_at
+                'admission_days' => $o['admission_days'] ?? null,
+                'message_count' => $row->message_count,
+                'last_message_at' => $row->last_message_at
                     ? Carbon::parse($row->last_message_at)->format('d/m/Y')
                     : null,
-                'DT_RowId'       => 'row_' . $row->nr_atendimento,
+                'DT_RowId' => 'row_'.$row->nr_atendimento,
             ];
         })->values()->all();
 
         return response()->json([
-            'draw'            => $draw,
-            'recordsTotal'    => $recordsTotal,
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
-            'data'            => $data,
+            'data' => $data,
         ]);
     }
 
@@ -232,11 +237,19 @@ class ChatArchiveController extends Controller
             ->first();
 
         // Fallback: mensagens ativas em chat_messages
-        if (!$archive) {
+        if (! $archive) {
             $activeMessages = DB::table('chat_messages')
-                ->where('nr_atendimento', $nr)
-                ->orderBy('created_at')
-                ->get(['created_at', 'user_id', 'content']);
+                ->leftJoin('users', 'chat_messages.user_id', '=', 'users.id')
+                ->where('chat_messages.nr_atendimento', $nr)
+                ->orderBy('chat_messages.created_at')
+                ->get([
+                    'chat_messages.created_at',
+                    'chat_messages.user_id',
+                    'chat_messages.content',
+                    'users.username',
+                    'users.name',
+                    'users.photo',
+                ]);
 
             if ($activeMessages->isEmpty()) {
                 if ($request->expectsJson()) {
@@ -245,21 +258,33 @@ class ChatArchiveController extends Controller
                 abort(404);
             }
 
-            $messages = $activeMessages->map(fn($m) => [
-                'ts'    => strtotime($m->created_at),
-                'date'  => date('d/m/Y H:i', strtotime($m->created_at)),
-                'user'  => $m->user_id,
-                'turno' => '—',
-                'text'  => $m->content ?? '',
-            ])->values()->all();
+            $messages = ChatArchiveUserResolver::normalizeMessages(
+                $activeMessages->map(fn ($m) => [
+                    'ts' => strtotime($m->created_at),
+                    'date' => date('d/m/Y H:i', strtotime($m->created_at)),
+                    'user' => $m->user_id,
+                    'turno' => ChatArchiveShiftResolver::label(ChatArchiveShiftResolver::inferTurno($m->created_at)),
+                    'text' => $m->content ?? '',
+                ])->values()->all(),
+                $activeMessages->mapWithKeys(function ($message) {
+                    $key = (string) ($message->user_id ?? '');
+
+                    return $key !== '' ? [$key => [
+                        'id' => $message->user_id ?? null,
+                        'username' => $message->username ?? null,
+                        'name' => $message->name ?? null,
+                        'photo' => $message->photo ?? null,
+                    ]] : [];
+                })->toArray()
+            );
 
             if ($request->expectsJson()) {
                 return response()->json([
-                    'messages'     => $messages,
-                    'nr'           => $nr,
+                    'messages' => $messages,
+                    'nr' => $nr,
                     'patient_name' => $this->resolvePatientName($nr),
-                    'total'        => count($messages),
-                    'users'        => $this->resolveUserPhotos(array_column($messages, 'user')),
+                    'total' => count($messages),
+                    'users' => $this->resolveUserPhotos(array_column($messages, 'user')),
                 ]);
             }
 
@@ -267,31 +292,32 @@ class ChatArchiveController extends Controller
         }
 
         $messages = [];
-        if (!empty($archive->payload)) {
-            $decoded = base64_decode($archive->payload, true);
-            $json    = $decoded !== false ? @gzuncompress($decoded) : false;
-            if ($json === false) {
-                // Tenta sem gzuncompress (payload pode ser JSON puro em base64)
-                $json = $decoded;
-            }
-            $raw   = is_string($json) ? (json_decode($json, true) ?? []) : [];
-            $label = ['manha' => 'Manhã', 'tarde' => 'Tarde', 'noite' => 'Noite'];
-            $messages = array_map(fn($m) => [
-                'ts'    => $m['ts'] ?? 0,
-                'date'  => isset($m['ts']) ? date('d/m/Y H:i', $m['ts']) : '—',
-                'user'  => $m['u'] ?? '—',
-                'turno' => $label[$m['t'] ?? ''] ?? ($m['t'] ?? '—'),
-                'text'  => $m['m'] ?? '',
-            ], $raw);
+        $archivePayload = ChatArchivePayload::decode($archive->payload ?? null);
+        $archiveUsers = $archivePayload['users'] ?? [];
+
+        if (! empty($archivePayload['messages'])) {
+            $raw = $archivePayload['messages'];
+            $messages = ChatArchiveUserResolver::normalizeMessages(
+                array_map(fn ($m) => [
+                    'ts' => $m['ts'] ?? 0,
+                    'date' => isset($m['ts']) ? date('d/m/Y H:i', $m['ts']) : '—',
+                    'user' => $m['u'] ?? '—',
+                    'turno' => ChatArchiveShiftResolver::label($m['t'] ?? null, $m['ts'] ?? null),
+                    'text' => $m['m'] ?? '',
+                ], $raw),
+                $archiveUsers
+            );
         }
 
         if ($request->expectsJson()) {
             return response()->json([
-                'messages'     => array_values($messages),
-                'nr'           => $nr,
+                'messages' => array_values($messages),
+                'nr' => $nr,
                 'patient_name' => $this->resolvePatientName($nr),
-                'total'        => count($messages),
-                'users'        => $this->resolveUserPhotos(array_column($messages, 'user')),
+                'total' => count($messages),
+                'users' => ! empty($archiveUsers)
+                    ? $this->resolveUserPhotos(array_column($messages, 'user'), $archiveUsers)
+                    : $this->resolveUserPhotos(array_column($messages, 'user')),
             ]);
         }
 
@@ -300,10 +326,26 @@ class ChatArchiveController extends Controller
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private function resolveUserPhotos(array $usernames): array
+    private function resolveUserPhotos(array $usernames, array $users = []): array
     {
         $unique = array_values(array_unique(array_filter($usernames)));
-        if (empty($unique)) return [];
+        if (empty($unique)) {
+            return [];
+        }
+
+        if (! empty($users)) {
+            $map = [];
+            foreach ($users as $username => $user) {
+                $photo = is_array($user) ? ($user['photo'] ?? null) : null;
+                if ($photo && strlen($photo) > 100 && base64_decode($photo, true) !== false) {
+                    $map[$username] = $photo;
+                }
+            }
+
+            if (! empty($map)) {
+                return $map;
+            }
+        }
 
         $rows = DB::table('users')
             ->whereIn('username', $unique)
@@ -316,6 +358,7 @@ class ChatArchiveController extends Controller
                 $map[$row->username] = $raw;
             }
         }
+
         return $map;
     }
 
@@ -323,11 +366,12 @@ class ChatArchiveController extends Controller
     {
         try {
             $row = DB::connection('tasy')->select(
-                "SELECT pf.nm_pessoa_fisica FROM tasy.atendimento_paciente atp
+                'SELECT pf.nm_pessoa_fisica FROM tasy.atendimento_paciente atp
                  LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
-                 WHERE atp.nr_atendimento = ?",
+                 WHERE atp.nr_atendimento = ?',
                 [(int) $nr]
             );
+
             return $this->fullName($row[0]->nm_pessoa_fisica ?? null);
         } catch (\Exception) {
             return null;
@@ -337,22 +381,29 @@ class ChatArchiveController extends Controller
     private function getAttendancesForSector(string $search): array
     {
         try {
-            $rows = DB::connection('tasy')->select("
+            $rows = DB::connection('tasy')->select('
                 SELECT DISTINCT ua.nr_atendimento
                 FROM tasy.unidade_atendimento ua
                 JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
                 WHERE UPPER(sa.ds_setor_atendimento) LIKE UPPER(:search)
-            ", ['search' => '%' . $search . '%']);
-            return array_map(fn($r) => (int) $r->nr_atendimento, $rows);
+            ', ['search' => '%'.$search.'%']);
+
+            return array_map(fn ($r) => (int) $r->nr_atendimento, $rows);
         } catch (\Exception $e) {
-            Log::warning('ChatArchive getAttendancesForSector: ' . $e->getMessage());
+            Log::warning('ChatArchive getAttendancesForSector failed', [
+                'exception' => $e,
+                'search' => $search,
+            ]);
+
             return [];
         }
     }
 
     private function fetchPatientData(array $nrs): array
     {
-        if (empty($nrs)) return [];
+        if (empty($nrs)) {
+            return [];
+        }
 
         try {
             $placeholders = implode(',', array_map('intval', $nrs));
@@ -374,30 +425,40 @@ class ChatArchiveController extends Controller
             $result = [];
             foreach ($rows as $row) {
                 $entrada = $row->dt_entrada ? Carbon::parse($row->dt_entrada) : null;
-                $alta    = $row->dt_alta    ? Carbon::parse($row->dt_alta)    : null;
+                $alta = $row->dt_alta ? Carbon::parse($row->dt_alta) : null;
 
                 $result[(int) $row->nr_atendimento] = [
-                    'name'           => $this->fullName($row->nm_pessoa_fisica),
-                    'dt_entrada'     => $entrada ? $entrada->format('d/m/Y') : null,
-                    'dt_alta'        => $alta    ? $alta->format('d/m/Y')    : null,
+                    'name' => $this->fullName($row->nm_pessoa_fisica),
+                    'dt_entrada' => $entrada ? $entrada->format('d/m/Y') : null,
+                    'dt_alta' => $alta ? $alta->format('d/m/Y') : null,
                     'still_admitted' => is_null($row->dt_alta),
                     'admission_days' => $entrada ? (int) $entrada->diffInDays($alta ?? now()) : null,
-                    'sector_name'    => $row->ds_setor ?? null,
+                    'sector_name' => $row->ds_setor ?? null,
                 ];
             }
+
             return $result;
         } catch (\Exception $e) {
-            Log::error('ChatArchive fetchPatientData: ' . $e->getMessage(), ['count' => count($nrs)]);
+            Log::error('ChatArchive fetchPatientData failed', [
+                'exception' => $e,
+                'count' => count($nrs),
+            ]);
+
             return [];
         }
     }
 
     private function fullName(?string $full): ?string
     {
-        if (!$full) return null;
+        if (! $full) {
+            return null;
+        }
         $parts = preg_split('/\s+/', trim($full));
-        if (count($parts) === 1) return ucfirst(strtolower($parts[0]));
-        return ucfirst(strtolower($parts[0])) . ' ' . ucfirst(strtolower(end($parts)));
+        if (count($parts) === 1) {
+            return ucfirst(strtolower($parts[0]));
+        }
+
+        return ucfirst(strtolower($parts[0])).' '.ucfirst(strtolower(end($parts)));
     }
 
     private function computeStats(): array
@@ -409,13 +470,16 @@ class ChatArchiveController extends Controller
         $shiftStats = ['manha' => 0, 'tarde' => 0, 'noite' => 0];
 
         foreach ($rows as $payload) {
-            $json = @gzuncompress(base64_decode($payload));
-            if (!$json) continue;
-            foreach (json_decode($json, true) ?? [] as $m) {
+            $decoded = ChatArchivePayload::decode($payload);
+            foreach ($decoded['messages'] as $m) {
                 $u = $m['u'] ?? null;
-                if ($u) $userCounts[$u] = ($userCounts[$u] ?? 0) + 1;
+                if ($u) {
+                    $userCounts[$u] = ($userCounts[$u] ?? 0) + 1;
+                }
                 $t = $m['t'] ?? null;
-                if ($t && isset($shiftStats[$t])) $shiftStats[$t]++;
+                if ($t && isset($shiftStats[$t])) {
+                    $shiftStats[$t]++;
+                }
             }
         }
 
@@ -460,9 +524,9 @@ class ChatArchiveController extends Controller
 
         $topAnnotators = [];
         foreach ($top20 as $username => $count) {
-            $u        = $users->get($username);
+            $u = $users->get($username);
             $rawPhoto = $u?->photo;
-            $photo    = null;
+            $photo = null;
             if ($rawPhoto && strlen($rawPhoto) > 100) {
                 $decoded = base64_decode($rawPhoto, true);
                 if ($decoded !== false && strlen($decoded) > 50) {
@@ -471,15 +535,15 @@ class ChatArchiveController extends Controller
             }
             $topAnnotators[] = [
                 'username' => $username,
-                'name'     => $u ? $this->fullName($u->name) : $username,
-                'count'    => $count,
-                'tier'     => match(true) {
+                'name' => $u ? $this->fullName($u->name) : $username,
+                'count' => $count,
+                'tier' => match (true) {
                     $count >= 100 => 'ouro',
-                    $count >= 50  => 'prata',
-                    $count >= 20  => 'bronze',
-                    default       => 'participante',
+                    $count >= 50 => 'prata',
+                    $count >= 20 => 'bronze',
+                    default => 'participante',
                 },
-                'photo'    => $photo,
+                'photo' => $photo,
             ];
         }
 

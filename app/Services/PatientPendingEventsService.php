@@ -61,7 +61,7 @@ class PatientPendingEventsService
     {
         $start = microtime(true);
 
-        // Query principal otimizada: traz dados básicos + previsão de alta recente (10 dias)
+        // Query principal otimizada: traz dados básicos e contexto de alta médica.
         $rows = DB::connection('tasy')->select("
                 SELECT
                     ua.nr_atendimento,
@@ -86,7 +86,11 @@ class PatientPendingEventsService
             ", ['sector_id' => $sectorId]);
 
         try {
-            Log::info('[PendingEvents] Query principal: '.round((microtime(true) - $start) * 1000, 2).'ms - '.count($rows).' pacientes');
+            Log::debug('[PendingEvents] Query principal', [
+                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
+                'patient_count' => count($rows),
+                'sector_id' => $sectorId,
+            ]);
         } catch (\Throwable) {
         }
 
@@ -149,7 +153,10 @@ class PatientPendingEventsService
         unset($data);
 
         try {
-            Log::info('[PendingEvents] Total: '.round((microtime(true) - $start) * 1000, 2).'ms');
+            Log::debug('[PendingEvents] Total', [
+                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
+                'sector_id' => $sectorId,
+            ]);
         } catch (\Throwable) {
         }
 
@@ -216,24 +223,6 @@ class PatientPendingEventsService
                 'dt_previsto_alta' => $row->apa_dt_previsto_alta ?? null,
                 'dt_previsto_alta_formatted' => ! empty($row->apa_dt_previsto_alta)
                     ? date('d/m/Y H:i', strtotime($row->apa_dt_previsto_alta)) : null,
-            ];
-        }
-
-        if (! empty($row->apa_dt_previsto_alta)) {
-            $events[] = [
-                'tipo' => 'previsao_alta',
-                'icone' => 'alta.svg',
-                'descricao' => 'Previsão de Alta: '.date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
-                'ds_subtipo' => 'Previsão',
-                'dt_evento' => $row->apa_dt_previsto_alta,
-                'dt_evento_formatted' => date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
-                'urgente' => false,
-            ];
-
-            return [
-                'tipo' => 'previsao_alta',
-                'dt_previsto_alta' => $row->apa_dt_previsto_alta,
-                'dt_previsto_alta_formatted' => date('d/m/Y', strtotime($row->apa_dt_previsto_alta)),
             ];
         }
 

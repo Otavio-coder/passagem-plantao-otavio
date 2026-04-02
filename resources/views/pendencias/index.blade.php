@@ -113,14 +113,17 @@
                         <tr class="bg-gray-50 border-b border-gray-200">
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Atend.</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Paciente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Leito</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">UGB</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">UGA</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Tipo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Setor de execução</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Classif.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Descrição</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Pendência</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Solicitação</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Agendamento</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Pendente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Laudo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Data de Realização</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Pendente há</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Desc.</th>
+                            <th class="hidden">Tipo bruto</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -129,18 +132,16 @@
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 font-medium whitespace-nowrap">{{ $row['atendimento'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['paciente'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['ugb'] }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[160px] truncate" title="{{ $row['uga'] ?? '-' }}">{{ $row['uga'] ?? '-' }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['tipo_label'] ?? '-' }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[180px] truncate" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['classificacao'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[220px] truncate" title="{{ $row['item'] }}">{{ $row['item'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_solicitacao'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_agendamento'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] whitespace-nowrap">
-                                    @php $isUrgent = str_contains(mb_strtolower($row['status'] ?? ''), 'urg'); @endphp
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-medium text-[10px] {{ $isUrgent ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700' }}">
-                                        {{ $row['status'] }}
-                                    </span>
-                                </td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[200px] truncate" title="{{ $row['laudo'] }}">{{ $row['laudo'] ?? '-' }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[180px] truncate" title="{{ $row['laudo'] ?? '-' }}">{{ $row['laudo'] ?? '-' }}</td>
+                                <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -173,6 +174,8 @@ document.addEventListener('DOMContentLoaded', hidePendingLoader);
 </script>
 <script>
 $(document).ready(function () {
+    var activePendingTypeTab = 'all';
+
     var table = $('#pendencias-table').DataTable({
         pageLength: 15,
         lengthMenu: [15, 50, 100, 200],
@@ -201,17 +204,28 @@ $(document).ready(function () {
         initComplete: function () {
             var api = this.api();
 
+            function titleCase(text) {
+                return String(text || '')
+                    .toLowerCase()
+                    .split(' ')
+                    .filter(function (part) { return part !== ''; })
+                    .map(function (part) {
+                        return part.charAt(0).toUpperCase() + part.slice(1);
+                    })
+                    .join(' ');
+            }
+
             $('#pendencias-table_filter input').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100');
             $('#pendencias-table_length select').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs');
 
-            // Popula o filtro de Tipo com os prefixos únicos (parte antes do primeiro " - ")
+            // Popula o filtro de Tipo com o tipo bruto da consulta
             var tiposSet = {};
-            api.column(4).data().each(function (val) {
-                var prefix = val.split(' - ')[0].trim();
-                if (prefix) tiposSet[prefix] = true;
+            api.column(12).data().each(function (val) {
+                var label = String(val || '').trim();
+                if (label) tiposSet[label] = true;
             });
             Object.keys(tiposSet).sort().forEach(function (tipo) {
-                $('#filter-tipo').append('<option value="' + tipo + '">' + tipo + '</option>');
+                $('#filter-tipo').append('<option value="' + tipo + '">' + titleCase(tipo) + '</option>');
             });
 
             hidePendingLoader();
@@ -227,17 +241,40 @@ $(document).ready(function () {
         return (Date.now() - ts) / 3600000;
     }
 
-    // Filtro customizado por tempo pendente (col 5 = data de solicitação)
+    // Filtro customizado por tempo pendente (col 6 = data de solicitação)
     $.fn.dataTable.ext.search.push(function (settings, data) {
         if (settings.nTable.id !== 'pendencias-table') { return true; }
         var range = $('#filter-tempo').val();
-        if (!range) { return true; }
-        var hours = cellDateToHoursAgo(data[5]);
-        if (hours === null) { return true; }
-        var parts = range.split('-');
-        var min = parseFloat(parts[0]);
-        var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
-        return hours >= min && hours < max;
+        if (range) {
+            var hours = cellDateToHoursAgo(data[6]);
+            if (hours !== null) {
+                var parts = range.split('-');
+                var min = parseFloat(parts[0]);
+                var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
+                if (!(hours >= min && hours < max)) {
+                    return false;
+                }
+            }
+        }
+
+        if (activePendingTypeTab === 'all') {
+            return true;
+        }
+
+        var tipo = String(data[12] || '').toLowerCase();
+        if (activePendingTypeTab === 'exame') {
+            return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1;
+        }
+
+        if (activePendingTypeTab === 'procedimento') {
+            return tipo === 'procedimento';
+        }
+
+        if (activePendingTypeTab === 'cirurgia') {
+            return tipo === 'cirurgia';
+        }
+
+        return true;
     });
 
     function updateLimparBtn() {
@@ -245,9 +282,9 @@ $(document).ready(function () {
         $('#filter-limpar').toggleClass('hidden', !hasFilter);
     }
 
-    // Filtro por Tipo (prefixo da coluna Descrição)
+    // Filtro por Tipo (prefixo da coluna Pendência)
     $('#filter-tipo').on('change', function () {
-        table.column(4).search(
+        table.column(12).search(
             this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '',
             true, false
         ).draw();
@@ -264,8 +301,19 @@ $(document).ready(function () {
     $('#filter-limpar').on('click', function () {
         $('#filter-tipo').val('');
         $('#filter-tempo').val('');
-        table.column(4).search('', false, false).draw();
+        table.column(12).search('', false, false).draw();
         updateLimparBtn();
+    });
+
+    $('#pending-type-tabs').on('click', '.pending-tab', function () {
+        activePendingTypeTab = $(this).data('type');
+        $('.pending-tab')
+            .removeClass('border-santacasa-100 bg-santacasa-100 text-white')
+            .addClass('border-gray-300 text-gray-600');
+        $(this)
+            .removeClass('border-gray-300 text-gray-600')
+            .addClass('border-santacasa-100 bg-santacasa-100 text-white');
+        table.draw();
     });
 });
 </script>

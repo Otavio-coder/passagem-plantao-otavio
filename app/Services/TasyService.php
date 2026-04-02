@@ -1,27 +1,31 @@
 <?php
+
 namespace App\Services;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
-use App\Models\EMR\Core\{Patient, Person, Bed, Sector, Doctor, Hospital};
+use App\Models\EMR\Core\Patient;
+use App\Models\EMR\Core\Sector;
 use App\Services\Tasy\SbarFormatter;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TasyService
 {
     use UsesRepositories;
 
     // ==================== CONSTANTES ====================
-    private const CACHE_TTL_SECTOR  = 900;  // 15 minutos
+    private const CACHE_TTL_SECTOR = 900;  // 15 minutos
+
     private const CACHE_TTL_PATIENT = 600;  // 10 minutos
-    private const THERAPEUTIC_PLAN_CACHE_VERSION = 2;
+
+    private const THERAPEUTIC_PLAN_CACHE_VERSION = 3;
 
     private SbarFormatter $formatter;
 
     public function __construct()
     {
-        $this->formatter = new SbarFormatter();
+        $this->formatter = new SbarFormatter;
     }
 
     // ==================== MÉTODOS PÚBLICOS PRINCIPAIS ====================
@@ -36,10 +40,10 @@ class TasyService
         return Cache::remember($cacheKey, self::CACHE_TTL_SECTOR, function () use ($sectorId) {
             $t0 = microtime(true);
 
-            $sectorContext    = $this->getSectorContext($sectorId);
+            $sectorContext = $this->getSectorContext($sectorId);
 
             $t1 = microtime(true);
-            $rawBeds          = $this->fetchSectorBedsRaw($sectorId);
+            $rawBeds = $this->fetchSectorBedsRaw($sectorId);
             $t2 = microtime(true);
 
             $attendanceNumbers = $this->extractAttendanceNumbers($rawBeds);
@@ -54,15 +58,16 @@ class TasyService
             $t5 = microtime(true);
 
             try {
-                Log::info('[TasyService] getSectorPatientsForSbar timing', [
-                    'sector_id'     => $sectorId,
+                Log::debug('[TasyService] getSectorPatientsForSbar timing', [
+                    'sector_id' => $sectorId,
                     'patient_count' => count($result),
-                    'beds_ms'       => round(($t2 - $t1) * 1000),
-                    'batch_ms'      => round(($t4 - $t3) * 1000),
-                    'format_ms'     => round(($t5 - $t4) * 1000),
-                    'total_ms'      => round(($t5 - $t0) * 1000),
+                    'beds_ms' => round(($t2 - $t1) * 1000),
+                    'batch_ms' => round(($t4 - $t3) * 1000),
+                    'format_ms' => round(($t5 - $t4) * 1000),
+                    'total_ms' => round(($t5 - $t0) * 1000),
                 ]);
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
 
             return $result;
         });
@@ -73,18 +78,22 @@ class TasyService
      */
     public function getPatientBasicData(int $attendanceNumber): ?object
     {
-        if (!$attendanceNumber) return null;
+        if (! $attendanceNumber) {
+            return null;
+        }
 
         $cacheKey = "patient_basic_modal_{$attendanceNumber}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             $patient = $this->loadPatientWithRelations($attendanceNumber);
-            if (!$patient) return null;
+            if (! $patient) {
+                return null;
+            }
 
-            $basicData        = $this->buildBasicDataFromEloquent($patient);
+            $basicData = $this->buildBasicDataFromEloquent($patient);
             $batchClinicalData = $this->fetchBatchClinicalData([$attendanceNumber]);
-            $clinicalData     = $this->extractClinicalDataForPatient($attendanceNumber, $batchClinicalData, $patient->person_id);
-            $scalesData       = $this->fetchScalesData($attendanceNumber, $patient->isPediatric());
+            $clinicalData = $this->extractClinicalDataForPatient($attendanceNumber, $batchClinicalData, $patient->person_id);
+            $scalesData = $this->fetchScalesData($attendanceNumber, $patient->isPediatric());
 
             return $this->assemblePatientData($basicData, $clinicalData, $scalesData);
         });
@@ -94,13 +103,15 @@ class TasyService
      * Fetches the complete therapeutic plan for a patient (single UNION ALL query, cached).
      * Replaces the 5-query approach from getPatientRecomendacoesData.
      *
-      * Cache key: patient_therapeutic_plan_v{version}_{nr} — 10 min TTL
+     * Cache key: patient_therapeutic_plan_v{version}_{nr} — 10 min TTL
      */
     public function getTherapeuticPlan(int $attendanceNumber): array
     {
-        if (!$attendanceNumber) return [];
+        if (! $attendanceNumber) {
+            return [];
+        }
 
-          $cacheKey = $this->therapeuticPlanCacheKey($attendanceNumber);
+        $cacheKey = $this->therapeuticPlanCacheKey($attendanceNumber);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             return $this->therapeuticPlan()->getTherapeuticPlan($attendanceNumber);
@@ -115,7 +126,9 @@ class TasyService
      */
     public function getMedicationSchedule(int $attendanceNumber, string $date): array
     {
-        if (!$attendanceNumber || !$date) return [];
+        if (! $attendanceNumber || ! $date) {
+            return [];
+        }
 
         $cacheKey = "patient_med_schedule_{$attendanceNumber}_{$date}";
 
@@ -135,10 +148,14 @@ class TasyService
 
         foreach ($attendanceNumbers as $nr) {
             $nr = (int) $nr;
-            if (!$nr) continue;
+            if (! $nr) {
+                continue;
+            }
 
             $cacheKey = $this->therapeuticPlanCacheKey($nr);
-            if (Cache::has($cacheKey)) continue;
+            if (Cache::has($cacheKey)) {
+                continue;
+            }
 
             try {
                 Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($nr) {
@@ -148,7 +165,7 @@ class TasyService
             } catch (\Throwable $e) {
                 Log::warning('TasyService: Failed to warm therapeutic plan', [
                     'attendance' => $nr,
-                    'error'      => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -158,11 +175,14 @@ class TasyService
 
     /**
      * Busca dados de recomendações/prescrições do paciente
+     *
      * @deprecated Use getTherapeuticPlan() instead.
      */
     public function getPatientRecomendacoesData(int $attendanceNumber): ?object
     {
-        if (!$attendanceNumber) return null;
+        if (! $attendanceNumber) {
+            return null;
+        }
 
         $cacheKey = "patient_recomendacoes_{$attendanceNumber}";
 
@@ -176,15 +196,20 @@ class TasyService
      */
     public function getFullPatientData(int $attendanceNumber): ?object
     {
-        if (!$attendanceNumber) return null;
+        if (! $attendanceNumber) {
+            return null;
+        }
 
         $cacheKey = "patient_full_data_{$attendanceNumber}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             $basicData = $this->getPatientBasicData($attendanceNumber);
-            if (!$basicData) return null;
+            if (! $basicData) {
+                return null;
+            }
 
             $recomendacoesData = $this->fetchRecomendacoesData($attendanceNumber);
+
             return $this->mergeRecomendacoesWithBasicData($basicData, $recomendacoesData);
         });
     }
@@ -196,16 +221,20 @@ class TasyService
     public function warmSectorCache(int $sectorId): bool
     {
         $cacheKey = "sector_patients_sbar_{$sectorId}";
-        if (Cache::has($cacheKey)) return false;
+        if (Cache::has($cacheKey)) {
+            return false;
+        }
 
         try {
             $this->getSectorPatientsForSbar($sectorId);
+
             return true;
         } catch (\Throwable $e) {
             Log::warning('TasyService: Failed to warm sector cache', [
                 'sector_id' => $sectorId,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -246,15 +275,16 @@ class TasyService
         } catch (\Throwable $e) {
             Log::warning('TasyService: Failed to fetch alerts', [
                 'attendance' => $attendanceNumber,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return [];
         }
     }
 
     private function therapeuticPlanCacheKey(int $attendanceNumber): string
     {
-        return "patient_therapeutic_plan_v" . self::THERAPEUTIC_PLAN_CACHE_VERSION . "_{$attendanceNumber}";
+        return 'patient_therapeutic_plan_v'.self::THERAPEUTIC_PLAN_CACHE_VERSION."_{$attendanceNumber}";
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA FETCHING ====================
@@ -272,7 +302,9 @@ class TasyService
     private function fetchSectorBedsRaw(int $sectorId)
     {
         $sector = Sector::find($sectorId);
-        if (!$sector) return collect([]);
+        if (! $sector) {
+            return collect([]);
+        }
 
         $results = DB::connection('tasy')->select("
             SELECT
@@ -331,37 +363,38 @@ class TasyService
         $scales = $this->fetchBatchScales($attendanceNumbers);
         $tc = microtime(true);
 
-        $pendingEventsService = new \App\Services\PatientPendingEventsService();
+        $pendingEventsService = new PatientPendingEventsService;
         $pendingRaw = $pendingEventsService->getPendingEventsForSector($sectorId);
         $td = microtime(true);
 
         try {
-            Log::info('[TasyService] fetchBatchData breakdown', [
-                'sector_id'  => $sectorId,
-                'nr_count'   => count($attendanceNumbers),
-                'clinical_ms'=> round(($tb - $ta) * 1000),
-                'scales_ms'  => round(($tc - $tb) * 1000),
+            Log::debug('[TasyService] fetchBatchData breakdown', [
+                'sector_id' => $sectorId,
+                'nr_count' => count($attendanceNumbers),
+                'clinical_ms' => round(($tb - $ta) * 1000),
+                'scales_ms' => round(($tc - $tb) * 1000),
                 'pending_ms' => round(($td - $tc) * 1000),
             ]);
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         $pendingEventsMap = [];
         $dischargeInfoMap = [];
         foreach ($pendingRaw as $nr => $data) {
             $pendingEventsMap[$nr] = $data['events'] ?? [];
-            $dischargeInfoMap[$nr] = !empty($data['discharge']) ? $data['discharge'] : null;
+            $dischargeInfoMap[$nr] = ! empty($data['discharge']) ? $data['discharge'] : null;
         }
 
         return [
-            'clinical_details'           => $clinicalBatch['clinical_details'] ?? [],
-            'surgery'                    => $clinicalBatch['surgery'] ?? [],
-            'surgery_detailed'           => $clinicalBatch['surgery_detailed'] ?? [],
-            'multidisciplinary'          => $clinicalBatch['multidisciplinary'] ?? [],
+            'clinical_details' => $clinicalBatch['clinical_details'] ?? [],
+            'surgery' => $clinicalBatch['surgery'] ?? [],
+            'surgery_detailed' => $clinicalBatch['surgery_detailed'] ?? [],
+            'multidisciplinary' => $clinicalBatch['multidisciplinary'] ?? [],
             'multidisciplinary_requests' => $clinicalBatch['multidisciplinary_requests'] ?? [],
-            'priority_exams'             => $clinicalBatch['priority_exams'] ?? [],
-            'scales'                     => $scales,
-            'pending_events'             => $pendingEventsMap,
-            'discharge_info'             => $dischargeInfoMap,
+            'priority_exams' => $clinicalBatch['priority_exams'] ?? [],
+            'scales' => $scales,
+            'pending_events' => $pendingEventsMap,
+            'discharge_info' => $dischargeInfoMap,
         ];
     }
 
@@ -369,50 +402,54 @@ class TasyService
     {
         if (empty($attendanceNumbers)) {
             return [
-                'surgery'                    => [],
-                'surgery_detailed'           => [],
-                'multidisciplinary'          => [],
+                'surgery' => [],
+                'surgery_detailed' => [],
+                'multidisciplinary' => [],
                 'multidisciplinary_requests' => [],
-                'priority_exams'             => [],
-                'clinical_details'           => [],
+                'priority_exams' => [],
+                'clinical_details' => [],
             ];
         }
 
         $t1 = microtime(true);
-        $clinicalDetails        = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
+        $clinicalDetails = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
         $t2 = microtime(true);
-        $surgeries              = $this->surgery()->getFutureSurgeriesForAttendances($attendanceNumbers);
+        $surgeries = $this->surgery()->getFutureSurgeriesForAttendances($attendanceNumbers);
         $t3 = microtime(true);
-        $multidisciplinary      = $this->multidisciplinary()->getMultidisciplinaryTeams($attendanceNumbers);
+        $multidisciplinary = $this->multidisciplinary()->getMultidisciplinaryTeams($attendanceNumbers);
         $t4 = microtime(true);
-        $multidisciplinaryReqs  = $this->multidisciplinary()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
+        $multidisciplinaryReqs = $this->multidisciplinary()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
         $t5 = microtime(true);
-        $priorityExams          = $this->exams()->getPriorityExamsForAttendances($attendanceNumbers);
+        $priorityExams = $this->exams()->getPriorityExamsForAttendances($attendanceNumbers);
         $t6 = microtime(true);
 
         try {
-            Log::info('[TasyService] fetchBatchClinicalData breakdown', [
+            Log::debug('[TasyService] fetchBatchClinicalData breakdown', [
                 'clinical_details_ms' => round(($t2 - $t1) * 1000),
-                'surgeries_ms'        => round(($t3 - $t2) * 1000),
-                'multi_teams_ms'      => round(($t4 - $t3) * 1000),
-                'multi_requests_ms'   => round(($t5 - $t4) * 1000),
-                'priority_exams_ms'   => round(($t6 - $t5) * 1000),
+                'surgeries_ms' => round(($t3 - $t2) * 1000),
+                'multi_teams_ms' => round(($t4 - $t3) * 1000),
+                'multi_requests_ms' => round(($t5 - $t4) * 1000),
+                'priority_exams_ms' => round(($t6 - $t5) * 1000),
             ]);
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+        }
 
         return [
-            'surgery'                    => $surgeries['surgery'] ?? [],
-            'surgery_detailed'           => $surgeries['surgery_detailed'] ?? [],
-            'multidisciplinary'          => $multidisciplinary,
+            'surgery' => $surgeries['surgery'] ?? [],
+            'surgery_detailed' => $surgeries['surgery_detailed'] ?? [],
+            'multidisciplinary' => $multidisciplinary,
             'multidisciplinary_requests' => $multidisciplinaryReqs,
-            'priority_exams'             => $priorityExams,
-            'clinical_details'           => $clinicalDetails,
+            'priority_exams' => $priorityExams,
+            'clinical_details' => $clinicalDetails,
         ];
     }
 
     private function fetchBatchScales(array $attendanceNumbers): array
     {
-        if (empty($attendanceNumbers)) return [];
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+
         return $this->scales()->getPatientsScalesUnified($attendanceNumbers, []);
     }
 
@@ -420,25 +457,25 @@ class TasyService
     {
         $details = $batchData['clinical_details'][$attendanceNumber] ?? null;
 
-        if (!$details) {
-            return (object)[
+        if (! $details) {
+            return (object) [
                 'diagnosticos_comorbidades' => null,
-                'medida_bloqueio'           => 'Não',
-                'motivos_isolamento'        => null,
-                'avaliacao_enf'             => null,
-                'plano_educ'               => null,
-                'pe_data'                  => null,
-                'ds_queda'                 => 'Não',
-                'diag'                     => null,
-                'dispositivos'             => null,
-                'alergias_detalhadas'      => null,
-                'materiais'                => null,
-                'prioridade_exames'        => null,
+                'medida_bloqueio' => 'Não',
+                'motivos_isolamento' => null,
+                'avaliacao_enf' => null,
+                'plano_educ' => null,
+                'pe_data' => null,
+                'ds_queda' => 'Não',
+                'diag' => null,
+                'dispositivos' => null,
+                'alergias_detalhadas' => null,
+                'materiais' => null,
+                'prioridade_exames' => null,
                 'procedimentos_cirurgicos' => [],
-                'alerts'                   => [],
-                'multidisciplinary'        => $this->formatter->getDefaultMultidisciplinary(),
-                'has_allergy'              => false,
-                'has_isolation'            => false,
+                'alerts' => [],
+                'multidisciplinary' => $this->formatter->getDefaultMultidisciplinary(),
+                'has_allergy' => false,
+                'has_isolation' => false,
             ];
         }
 
@@ -449,64 +486,67 @@ class TasyService
             } catch (\Throwable $e) {
                 Log::warning('Failed to fetch alerts', [
                     'attendance' => $attendanceNumber,
-                    'person_id'  => $personId,
-                    'error'      => $e->getMessage(),
+                    'person_id' => $personId,
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        $multidisciplinaryEval     = null;
+        $multidisciplinaryEval = null;
         $multidisciplinaryRequests = [];
         try {
-            $multidisciplinaryEval     = $this->multidisciplinary()->getMultidisciplinaryTeamEvaluations($attendanceNumber);
+            $multidisciplinaryEval = $this->multidisciplinary()->getMultidisciplinaryTeamEvaluations($attendanceNumber);
             $multidisciplinaryRequests = $this->multidisciplinary()->getDetailedMultidisciplinaryRequests($attendanceNumber);
         } catch (\Throwable $e) {
             Log::warning('Failed to fetch multidisciplinary evaluations', [
                 'attendance' => $attendanceNumber,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
-        $hasAllergy   = $this->formatter->checkHasAllergy($details->alergias_detalhadas ?? null);
+        $hasAllergy = $this->formatter->checkHasAllergy($details->alergias_detalhadas ?? null);
         $hasIsolation = $this->formatter->checkHasIsolation($details->medida_bloqueio ?? null);
 
-        return (object)[
+        return (object) [
             'diagnosticos_comorbidades' => $details->diagnosticos_comorbidades ?? null,
-            'medida_bloqueio'           => $details->medida_bloqueio ?? 'Não',
-            'motivos_isolamento'        => $details->motivos_isolamento ?? null,
-            'avaliacao_enf'             => $details->avaliacao_enf ?? null,
-            'plano_educ'               => $details->plano_educ ?? null,
-            'pe_data'                  => $details->pe_data ?? null,
-            'ds_queda'                 => $details->ds_queda ?? 'Não',
-            'diag'                     => $details->diag ?? null,
-            'dispositivos'             => $details->dispositivos ?? null,
-            'alergias_detalhadas'      => $details->alergias_detalhadas ?? null,
-            'materiais'                => $details->materiais ?? null,
-            'prioridade_exames'        => $batchData['priority_exams'][$attendanceNumber] ?? null,
+            'medida_bloqueio' => $details->medida_bloqueio ?? 'Não',
+            'motivos_isolamento' => $details->motivos_isolamento ?? null,
+            'avaliacao_enf' => $details->avaliacao_enf ?? null,
+            'plano_educ' => $details->plano_educ ?? null,
+            'pe_data' => $details->pe_data ?? null,
+            'ds_queda' => $details->ds_queda ?? 'Não',
+            'diag' => $details->diag ?? null,
+            'dispositivos' => $details->dispositivos ?? null,
+            'alergias_detalhadas' => $details->alergias_detalhadas ?? null,
+            'materiais' => $details->materiais ?? null,
+            'prioridade_exames' => $batchData['priority_exams'][$attendanceNumber] ?? null,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
-            'alerts'                   => $alerts,
-            'multidisciplinary'        => $multidisciplinaryEval ?? $this->formatter->getDefaultMultidisciplinary(),
+            'alerts' => $alerts,
+            'multidisciplinary' => $multidisciplinaryEval ?? $this->formatter->getDefaultMultidisciplinary(),
             'multidisciplinary_requests' => $multidisciplinaryRequests,
-            'has_allergy'              => $hasAllergy,
-            'has_isolation'            => $hasIsolation,
+            'has_allergy' => $hasAllergy,
+            'has_isolation' => $hasIsolation,
         ];
     }
 
     private function fetchScalesData(int $attendanceNumber, bool $isPediatric = false): ?array
     {
-        if (!$attendanceNumber) return null;
+        if (! $attendanceNumber) {
+            return null;
+        }
         $map = $this->scales()->getPatientsScalesUnified([$attendanceNumber], []);
+
         return $map[$attendanceNumber] ?? null;
     }
 
     private function fetchRecomendacoesData(int $attendanceNumber): object
     {
-        return (object)[
-            'procedimentos'  => $this->prescricoes()->getProcedimentos($attendanceNumber),
-            'medicamentos'   => $this->prescricoes()->getMedicamentos($attendanceNumber),
-            'nutricao'       => $this->prescricoes()->getNutricao($attendanceNumber),
-            'recomendacoes'  => $this->prescricoes()->getRecomendacoes($attendanceNumber),
-            'intervencoes'   => $this->prescricoes()->getIntervencoes($attendanceNumber),
+        return (object) [
+            'procedimentos' => $this->prescricoes()->getProcedimentos($attendanceNumber),
+            'medicamentos' => $this->prescricoes()->getMedicamentos($attendanceNumber),
+            'nutricao' => $this->prescricoes()->getNutricao($attendanceNumber),
+            'recomendacoes' => $this->prescricoes()->getRecomendacoes($attendanceNumber),
+            'intervencoes' => $this->prescricoes()->getIntervencoes($attendanceNumber),
         ];
     }
 
@@ -515,16 +555,16 @@ class TasyService
     private function buildBasicDataFromEloquent(Patient $patient): object
     {
         $birthDate = $patient->person?->dt_nascimento;
-        $age       = 99;
+        $age = 99;
         $ageMonths = 0;
-        $ageDays   = 0;
+        $ageDays = 0;
 
         if ($birthDate) {
-            $birth     = Carbon::parse($birthDate);
-            $now       = now();
-            $age       = $birth->age;
+            $birth = Carbon::parse($birthDate);
+            $now = now();
+            $age = $birth->age;
             $ageMonths = $birth->copy()->addYears($age)->diffInMonths($now);
-            $ageDays   = $birth->copy()->addYears($age)->addMonths($ageMonths)->diffInDays($now);
+            $ageDays = $birth->copy()->addYears($age)->addMonths($ageMonths)->diffInDays($now);
         }
 
         $internmentDays = null;
@@ -534,23 +574,23 @@ class TasyService
 
         $convenio = 'Convênio não informado';
         try {
-            $convenioResult = DB::connection('tasy')->selectOne("
+            $convenioResult = DB::connection('tasy')->selectOne('
                 SELECT TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(?)) as convenio
                 FROM DUAL
-            ", [$patient->nr_atendimento]);
+            ', [$patient->nr_atendimento]);
 
-            if ($convenioResult && !empty($convenioResult->convenio)) {
+            if ($convenioResult && ! empty($convenioResult->convenio)) {
                 $convenio = trim($convenioResult->convenio);
             }
         } catch (\Exception $e) {
             Log::warning('Failed to fetch convenio', [
                 'attendance' => $patient->nr_atendimento,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
         $medicoResponsavel = 'Não informado';
-        if ($patient->doctor && !empty($patient->doctor->nm_pessoa_fisica)) {
+        if ($patient->doctor && ! empty($patient->doctor->nm_pessoa_fisica)) {
             $medicoResponsavel = trim($patient->doctor->nm_pessoa_fisica);
         } else {
             try {
@@ -559,84 +599,84 @@ class TasyService
                     FROM DUAL
                 ", [$patient->nr_atendimento]);
 
-                if ($medicoResult && !empty($medicoResult->medico)) {
+                if ($medicoResult && ! empty($medicoResult->medico)) {
                     $medicoResponsavel = trim($medicoResult->medico);
                 }
             } catch (\Exception $e) {
                 Log::warning('Failed to fetch medico', [
                     'attendance' => $patient->nr_atendimento,
-                    'error'      => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        return (object)[
-            'nr_atendimento'         => $patient->nr_atendimento,
-            'cd_pessoa_fisica'       => $patient->cd_pessoa_fisica,
-            'nm_pessoa_fisica'       => $patient->person?->nm_pessoa_fisica ?? 'Nome não informado',
-            'nm_social'              => $patient->person?->social_name ?? null,
-            'nr_prontuario'          => $patient->person?->nr_prontuario ?? 'N/A',
-            'birth_date'             => $birthDate ? Carbon::parse($birthDate)->format('d/m/Y') : null,
-            'age'                    => $age,
-            'age_months'             => $ageMonths,
-            'age_days'               => $ageDays,
-            'age_detailed'           => $this->formatter->formatDetailedAgeFromParts($age, $ageMonths, $ageDays),
-            'sexo'                   => $patient->person?->ie_sexo ?? 'N/A',
-            'convenio'               => $convenio,
-            'medico_responsavel'     => $medicoResponsavel,
-            'dt_entrada'             => $patient->dt_entrada,
-            'internment_days'        => $internmentDays,
-            'is_new_patient'         => $internmentDays === null || $internmentDays < 1,
-            'hospital_name'          => $patient->bed?->sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
-            'sector_name'            => $patient->bed?->sector?->ds_setor_atendimento ?? 'Setor não identificado',
-            'cd_setor_atendimento'   => $patient->bed?->sector?->cd_setor_atendimento ?? null,
-            'bed_name'               => $patient->bed?->cd_unidade_basica ?? 'N/A',
-            'is_pediatric'           => $patient->isPediatric(),
-            'has_patient'            => true,
-            'is_occupied'            => true,
+        return (object) [
+            'nr_atendimento' => $patient->nr_atendimento,
+            'cd_pessoa_fisica' => $patient->cd_pessoa_fisica,
+            'nm_pessoa_fisica' => $patient->person?->nm_pessoa_fisica ?? 'Nome não informado',
+            'nm_social' => $patient->person?->social_name ?? null,
+            'nr_prontuario' => $patient->person?->nr_prontuario ?? 'N/A',
+            'birth_date' => $birthDate ? Carbon::parse($birthDate)->format('d/m/Y') : null,
+            'age' => $age,
+            'age_months' => $ageMonths,
+            'age_days' => $ageDays,
+            'age_detailed' => $this->formatter->formatDetailedAgeFromParts($age, $ageMonths, $ageDays),
+            'sexo' => $patient->person?->ie_sexo ?? 'N/A',
+            'convenio' => $convenio,
+            'medico_responsavel' => $medicoResponsavel,
+            'dt_entrada' => $patient->dt_entrada,
+            'internment_days' => $internmentDays,
+            'is_new_patient' => $internmentDays === null || $internmentDays < 1,
+            'hospital_name' => $patient->bed?->sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
+            'sector_name' => $patient->bed?->sector?->ds_setor_atendimento ?? 'Setor não identificado',
+            'cd_setor_atendimento' => $patient->bed?->sector?->cd_setor_atendimento ?? null,
+            'bed_name' => $patient->bed?->cd_unidade_basica ?? 'N/A',
+            'is_pediatric' => $patient->isPediatric(),
+            'has_patient' => true,
+            'is_occupied' => true,
         ];
     }
 
     private function assemblePatientData(object $basicData, object $clinicalData, ?array $scalesData): object
     {
         $data = array_merge(
-            (array)$basicData,
+            (array) $basicData,
             [
-                'has_patient'              => true,
-                'is_occupied'              => true,
-                'diagnosticos_comorbidades'=> $clinicalData->diagnosticos_comorbidades,
-                'medida_bloqueio'          => $clinicalData->medida_bloqueio,
-                'motivos_isolamento'       => $clinicalData->motivos_isolamento,
-                'avaliacao_enf'            => $clinicalData->avaliacao_enf,
-                'plano_educ'              => $clinicalData->plano_educ,
-                'pe_data'                 => $clinicalData->pe_data,
-                'ds_queda'                => $clinicalData->ds_queda,
-                'diag'                    => $clinicalData->diag,
-                'dispositivos'            => $clinicalData->dispositivos,
-                'alergias_detalhadas'     => $clinicalData->alergias_detalhadas,
-                'materiais'               => $clinicalData->materiais,
-                'prioridade_exames'       => $clinicalData->prioridade_exames,
-                'procedimentos_cirurgicos'=> $clinicalData->procedimentos_cirurgicos,
-                'alerts'                  => $clinicalData->alerts,
-                'multidisciplinary'       => $clinicalData->multidisciplinary,
+                'has_patient' => true,
+                'is_occupied' => true,
+                'diagnosticos_comorbidades' => $clinicalData->diagnosticos_comorbidades,
+                'medida_bloqueio' => $clinicalData->medida_bloqueio,
+                'motivos_isolamento' => $clinicalData->motivos_isolamento,
+                'avaliacao_enf' => $clinicalData->avaliacao_enf,
+                'plano_educ' => $clinicalData->plano_educ,
+                'pe_data' => $clinicalData->pe_data,
+                'ds_queda' => $clinicalData->ds_queda,
+                'diag' => $clinicalData->diag,
+                'dispositivos' => $clinicalData->dispositivos,
+                'alergias_detalhadas' => $clinicalData->alergias_detalhadas,
+                'materiais' => $clinicalData->materiais,
+                'prioridade_exames' => $clinicalData->prioridade_exames,
+                'procedimentos_cirurgicos' => $clinicalData->procedimentos_cirurgicos,
+                'alerts' => $clinicalData->alerts,
+                'multidisciplinary' => $clinicalData->multidisciplinary,
             ]
         );
 
         $data = $this->formatter->addScalesToData($data, $scalesData, $basicData->age ?? 99);
 
-        return (object)$data;
+        return (object) $data;
     }
 
     private function mergeRecomendacoesWithBasicData(object $basicData, object $recomendacoesData): object
     {
-        $combined = (array)$basicData;
+        $combined = (array) $basicData;
         $combined['procedimentos'] = $recomendacoesData->procedimentos;
-        $combined['medicamentos']  = $recomendacoesData->medicamentos;
-        $combined['nutricao']      = $recomendacoesData->nutricao;
+        $combined['medicamentos'] = $recomendacoesData->medicamentos;
+        $combined['nutricao'] = $recomendacoesData->nutricao;
         $combined['recomendacoes'] = $recomendacoesData->recomendacoes;
-        $combined['intervencoes']  = $recomendacoesData->intervencoes;
+        $combined['intervencoes'] = $recomendacoesData->intervencoes;
 
-        return (object)$combined;
+        return (object) $combined;
     }
 
     // ==================== MÉTODOS PRIVADOS - HELPERS ====================
@@ -651,10 +691,10 @@ class TasyService
         $sector = Sector::with('hospital')->find($sectorId);
 
         return [
-            'sector_id'    => $sectorId,
-            'sector_name'  => $sector?->ds_setor_atendimento ?? '',
-            'hospital_id'  => $sector?->hospital?->nr_sequencia ?? null,
-            'hospital_name'=> $sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
+            'sector_id' => $sectorId,
+            'sector_name' => $sector?->ds_setor_atendimento ?? '',
+            'hospital_id' => $sector?->hospital?->nr_sequencia ?? null,
+            'hospital_name' => $sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
         ];
     }
 }

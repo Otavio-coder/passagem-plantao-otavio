@@ -332,7 +332,7 @@
 
 @script
 <script>
-window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, ords, ints, hemo, surgs, chemos, gas, dial) {
+window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, ords, ints, hemo, surgs, nuts, chemos, gas, dial) {
     // Generic paginated-list helper used by every tab
     function listState(items, defaultExtra = 'all') {
         return {
@@ -372,11 +372,26 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
     ints  = ints.map(i => ({ ...i, _extra: (i.labels || []).includes('Urgent') ? 'urgent' : 'normal' }));
     hemo  = hemo.map(h => ({ ...h, _extra: h.is_urgent ? 'urgent' : 'normal' }));
     surgs = surgs.map(s => ({ ...s, _extra: s.is_urgent ? 'urgent' : 'normal' }));
+    nuts  = nuts.map(n => ({ ...n, _extra: String(n.type || 'Diet').toLowerCase() }));
     chemos= chemos.map(c => ({ ...c, _extra: 'all' }));
     gas   = gas.map(g => ({ ...g, _extra: 'all' }));
     dial  = dial.map(d => ({ ...d, _extra: 'all' }));
 
     return {
+                resolveProcedureEventType(item) {
+                    const explicit = String(item?.event_type || '').toLowerCase().trim();
+                    if (explicit === 'exame' || explicit === 'procedimento' || explicit === 'cirurgia') {
+                        return explicit;
+                    }
+
+                    const type = String(item?.type || '').toLowerCase();
+                    if (type.includes('exame') || type.includes('laborat')) {
+                        return 'exame';
+                    }
+
+                    return 'procedimento';
+                },
+
         meds, schedule, timeCols, currentHour,
         q: '', antibioticoF: false,
         expandedMed: null,
@@ -386,6 +401,10 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
 
         proc: listState(procs, 'today'),
         procType: 'all',
+        examQ: '',
+        examPage: 1,
+        examPerPage: 10,
+        nut: listState(nuts),
         ord:  listState(ords),
         int:  listState(ints),
         hemo: listState(hemo),
@@ -393,8 +412,23 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         chemo:listState(chemos),
         gas:  listState(gas),
         dial: listState(dial),
+        nutTypes: [...new Set(nuts.map(n => String(n.type || 'Diet')).filter(Boolean))].sort(),
         ordTypes: [...new Set(ords.map(o => o._extra).filter(Boolean))].sort(),
-        procTypes: [...new Set(procs.map(p => p.type || 'Sem tipo'))].sort(),
+        procTypes: [...new Set(procs
+            .filter(p => {
+                const explicit = String((p && p.event_type) || '').toLowerCase().trim();
+                if (explicit === 'procedimento') {
+                    return true;
+                }
+                if (explicit === 'exame' || explicit === 'cirurgia') {
+                    return false;
+                }
+
+                const type = String((p && p.type) || '').toLowerCase();
+
+                return !(type.includes('exame') || type.includes('laborat'));
+            })
+            .map(p => p.type || 'Sem tipo'))].sort(),
 
         init() {
             this.$nextTick(() => this.initMarScroll());
@@ -405,6 +439,27 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         clearProcFilters() {
             this.proc.clear();
             this.procType = 'all';
+        },
+        setExamQ(v) {
+            this.examQ = v;
+            this.examPage = 1;
+        },
+        clearExamFilters() {
+            this.examQ = '';
+            this.examPage = 1;
+        },
+        clearNutritionFilters() {
+            this.nut.clear();
+        },
+        nutritionTypePt(type) {
+            const key = String(type || 'Diet').toLowerCase();
+
+            return {
+                fasting: 'Jejum',
+                enteral: 'Enteral',
+                special: 'Especial',
+                diet: 'Dieta',
+            }[key] || type || 'Dieta';
         },
 
         medById(medId) {
@@ -494,8 +549,9 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         get medFrom()    { return this.filteredMeds.length ? (this.medPage-1)*this.medPerPage+1 : 0; },
         get medTo()      { return Math.min(this.medPage*this.medPerPage, this.filteredMeds.length); },
         get procFiltered() {
-            if (this.procType === 'all') return this.proc.filtered;
-            return this.proc.filtered.filter(p => (p.type || 'Sem tipo') === this.procType);
+            const procedures = this.proc.filtered.filter(p => this.resolveProcedureEventType(p) === 'procedimento');
+            if (this.procType === 'all') return procedures;
+            return procedures.filter(p => (p.type || 'Sem tipo') === this.procType);
         },
         get procPaged() {
             return this.procFiltered.slice((this.proc.page-1)*this.proc.perPage, this.proc.page*this.proc.perPage);
@@ -508,6 +564,44 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         },
         get procTo() {
             return Math.min(this.proc.page*this.proc.perPage, this.procFiltered.length);
+        },
+        get filteredExams() {
+            const q = this.examQ.trim().toLowerCase();
+            return this.proc.items
+                .filter(p => this.resolveProcedureEventType(p) === 'exame')
+                .filter(p => {
+                    if (!q) {
+                        return true;
+                    }
+
+                    const haystack = [
+                        p.name,
+                        p.type,
+                        p.material,
+                        p.prescriber,
+                        p.resultado_laudo,
+                    ]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLowerCase();
+
+                    return haystack.includes(q);
+                });
+        },
+        get pagedExams() {
+            return this.filteredExams.slice((this.examPage - 1) * this.examPerPage, this.examPage * this.examPerPage);
+        },
+        get examPages() {
+            return Math.max(1, Math.ceil(this.filteredExams.length / this.examPerPage));
+        },
+        get filteredNutrition() {
+            return this.nut.filtered;
+        },
+        get pagedNutrition() {
+            return this.filteredNutrition.slice((this.nut.page - 1) * this.nut.perPage, this.nut.page * this.nut.perPage);
+        },
+        get nutPages() {
+            return Math.max(1, Math.ceil(this.filteredNutrition.length / this.nut.perPage));
         },
 
         initMarScroll() {
@@ -594,6 +688,9 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
                 Done:'Realizado', Completed:'Concluído', Analyzing:'Em análise', Collected:'Coletado', Scheduled:'Agendado', Waiting:'Pendente'
             }[s] || s;
         },
+        examStatusPt(s) {
+            return this.procStatusPt(s);
+        },
         procBadge(s) {
             if ([
                 'Atendido', 'Cirurgia realizada', 'Executada', 'Realizado', 'Concluído', 'Done', 'Completed'
@@ -609,6 +706,9 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
             if (s === 'Collected')  return 'bg-blue-50 text-blue-700 ring-1 ring-blue-200';
             if (s === 'Scheduled')  return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
             return 'bg-gray-100 text-gray-500 ring-1 ring-gray-200';
+        },
+        examBadge(s) {
+            return this.procBadge(s);
         },
         labelPt(l) { return { Urgent:'Urgente', PRN:'Se Necessário', ACM:'A Crit. Médico' }[l] || l; },
     };

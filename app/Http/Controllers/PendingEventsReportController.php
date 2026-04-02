@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\PatientPendingEventsService;
 use App\Services\TasyService;
+use App\Support\PendingEventPresentation;
+use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -103,10 +105,12 @@ class PendingEventsReportController extends Controller
                 continue;
             }
 
+            $sector = $patient['ds_setor_atendimento'] ?? '-';
             $base = [
                 'atendimento' => $patient['nr_atendimento'] ?? '-',
                 'paciente' => $patient['nm_pessoa_fisica'] ?? '-',
                 'ugb' => $patient['cd_unidade_basica'] ?? '-',
+                'uga' => $sector,
             ];
 
             foreach (($patient['pending_events'] ?? []) as $event) {
@@ -131,7 +135,12 @@ class PendingEventsReportController extends Controller
                     ?? $this->parseDateToTs($event['dt_solicitacao'] ?? null)
                     ?? 0;
 
+                $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
+
                 $rows->push(array_merge($base, [
+                    'tipo_evento' => $normalizedType,
+                    'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
+                    'setor_execucao' => PendingEventPresentation::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
                     'classificacao' => $event['ds_grupo_lab'] ?? null,
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
@@ -141,7 +150,7 @@ class PendingEventsReportController extends Controller
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
                     'status' => $status,
-                    'laudo' => $statusLaudoExame !== '' ? $statusLaudoExame : ($event['ds_complemento'] ?? '-'),
+                    'laudo' => $statusLaudoExame !== '' ? $statusLaudoExame : '-',
                     'sort_ts' => $sortTs,
                 ]));
             }
@@ -157,6 +166,8 @@ class PendingEventsReportController extends Controller
                     ?? 0;
 
                 $rows->push(array_merge($base, [
+                    'tipo_evento' => 'consultoria',
+                    'tipo_label' => 'Consultoria',
                     'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
                     'classificacao' => null,
                     'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
@@ -174,34 +185,29 @@ class PendingEventsReportController extends Controller
 
     private function normalizeItemLabel(array $event): string
     {
-        $tipo = (string) ($event['tipo'] ?? '');
+        $type = PendingEventTypeClassifier::fromPendingEvent($event);
         $subtipo = trim((string) ($event['ds_subtipo'] ?? ''));
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
 
-        $prefix = match ($tipo) {
-            'proc_exame', 'exame' => 'Exame/Laboratório',
-            'cirurgia' => 'Procedimento/Cirurgia',
-            'quimioterapia' => 'Quimioterapia',
-            'hemoterapia' => 'Hemoterapia',
-            'antibiotico' => 'Antimicrobiano',
-            default => 'Pendência',
-        };
+        if ($type === PendingEventTypeClassifier::CHEMOTHERAPY) {
+            $base = $descricao !== 'Sem descrição' ? $descricao : 'Quimioterapia';
 
-        // Evita repetições consecutivas (ex: Quimioterapia - Quimioterapia - Quimioterapia - ...)
-        $parts = [$prefix];
-        if ($subtipo !== '' && mb_strtolower($subtipo) !== mb_strtolower($prefix)) {
-            $parts[] = $subtipo;
-        }
-        // Só adiciona descrição se for diferente do prefixo e do subtipo
-        if (
-            $descricao !== '' &&
-            mb_strtolower($descricao) !== mb_strtolower($prefix) &&
-            ($subtipo === '' || mb_strtolower($descricao) !== mb_strtolower($subtipo))
-        ) {
-            $parts[] = $this->truncate($descricao, 120);
+            if ($subtipo !== '' && mb_strtolower($subtipo) !== mb_strtolower($base)) {
+                return $this->truncate($base.' - '.$subtipo, 120);
+            }
+
+            return $this->truncate($base, 120);
         }
 
-        return implode(' - ', $parts);
+        if ($descricao !== 'Sem descrição') {
+            return $this->truncate($descricao, 120);
+        }
+
+        if ($subtipo !== '') {
+            return $this->truncate($subtipo, 120);
+        }
+
+        return 'Pendência';
     }
 
     private function parseDateToTs(?string $date): ?int

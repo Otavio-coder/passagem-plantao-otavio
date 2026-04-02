@@ -36,15 +36,32 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
         $rows = DB::connection('tasy')->select("
             SELECT
                 pm.nr_atendimento,
+                pm.nr_prescricao,
+                pp.nr_seq_exame,
+                pp.nr_seq_proc_interno,
                 pp.dt_prev_execucao                      AS dt_evento,
+                pp.dt_coleta,
+                pp.ie_amostra,
                 pm.dt_prescricao                         AS dt_solicitacao,
                 pm.dt_liberacao                          AS dt_autorizacao,
                 NVL(pf.nm_pessoa_fisica, pm.nm_usuario)  AS nm_prescritor,
-                pp.nr_seq_proc_interno,
                 pp.ie_status_execucao,
-                NVL(pi.ds_proc_exame, proced.ds_procedimento) AS descricao,
+                NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
                 dv.ds_valor_dominio                      AS ds_subtipo,
                 COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
+                NVL(
+                    tasy.AGEINT_OBTER_SETOR_PROC_INT(
+                        pp.nr_seq_proc_interno,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
+                        pm.cd_estabelecimento
+                    ),
+                    NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
+                )                                         AS cd_setor_execucao,
+                sa.ds_setor_atendimento                   AS setor_desc_raw,
                 (SELECT tasy.obter_status_laudo(MAX(pp_pac.nr_laudo))
                  FROM tasy.procedimento_paciente pp_pac
                  WHERE pp_pac.nr_prescricao          = pm.nr_prescricao
@@ -67,7 +84,8 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             LEFT JOIN (
                 SELECT cd_procedimento,
                        MIN(ds_procedimento)        AS ds_procedimento,
-                       MIN(cd_tipo_procedimento)   AS cd_tipo_procedimento
+                       MIN(cd_tipo_procedimento)   AS cd_tipo_procedimento,
+                       MIN(cd_setor_exclusivo)     AS cd_setor_exclusivo
                 FROM tasy.procedimento
                 GROUP BY cd_procedimento
             ) proced ON proced.cd_procedimento = pp.cd_procedimento
@@ -75,6 +93,19 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             LEFT JOIN tasy.valor_dominio dv
                 ON dv.cd_dominio = 95
                AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
+            LEFT JOIN tasy.setor_atendimento sa
+                ON sa.cd_setor_atendimento = NVL(
+                    tasy.AGEINT_OBTER_SETOR_PROC_INT(
+                        pp.nr_seq_proc_interno,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
+                        NULL,
+                        pm.cd_estabelecimento
+                    ),
+                    NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
+                )
             WHERE pm.nr_atendimento IN ({$this->placeholders($chunk)})
                 AND pp.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
                 AND pp.dt_baixa        IS NULL
@@ -108,7 +139,7 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 continue;
             }
 
-            $isInternal = ! empty($row->nr_seq_proc_interno);
+            $isExam = ! empty($row->nr_seq_exame);
 
             $tempo = '';
             if ($row->dt_evento) {
@@ -137,16 +168,20 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             }
 
             $results[$row->nr_atendimento]['events'][] = [
-                'tipo' => 'proc_exame',
-                'icone' => $isInternal ? 'outpatient-department.svg' : 'tac.svg',
+                'tipo' => $isExam ? 'exame' : 'procedimento',
+                'icone' => $isExam ? 'outpatient-department.svg' : 'tac.svg',
                 'descricao' => substr($row->descricao ?? '', 0, 80),
                 'ds_subtipo' => $row->ds_subtipo ?? null,
                 'ds_grupo_lab' => $row->ds_grupo_lab ?? null,
                 'nm_prescritor' => $row->nm_prescritor ?? null,
+                'nr_prescricao' => $row->nr_prescricao ?? null,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'dt_solicitacao' => $row->dt_solicitacao ? date('d/m/Y H:i', strtotime($row->dt_solicitacao)) : null,
                 'dt_autorizacao' => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
+                'dt_coleta' => $row->dt_coleta ? date('d/m/Y H:i', strtotime($row->dt_coleta)) : null,
+                'ie_amostra' => $isExam ? ($row->ie_amostra ?? null) : null,
+                'setor_execucao' => $row->setor_desc_raw ?? ($row->cd_setor_execucao ?? null),
                 'tempo_pendente' => $tempo,
                 'status_laudo' => self::STATUS_MAP[$row->ie_status_execucao] ?? 'Pendente',
                 'ds_status_laudo' => $row->ds_status_laudo ?? null,

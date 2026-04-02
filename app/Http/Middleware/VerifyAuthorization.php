@@ -11,16 +11,11 @@ class VerifyAuthorization
 {
     use UsesRepositories;
 
-    /**
-     * @param Request $request
-     * @param Closure $next
-     * @return mixed
-     */
     public function handle(Request $request, Closure $next): mixed
     {
         $user = auth()->user();
-        
-        if (!$user) {
+
+        if (! $user) {
             Log::warning('VerifyAuthorization: Usuário não autenticado', [
                 'url' => $request->url(),
                 'ajax' => $request->ajax(),
@@ -30,12 +25,12 @@ class VerifyAuthorization
 
         // Verifica se é um usuário local existente
         $findUser = $this->users()->find([
-            'username' => $user->username
+            'username' => $user->username,
         ]);
 
-        Log::info('VerifyAuthorization: Verificando usuário', [
+        Log::debug('VerifyAuthorization: Verificando usuário', [
             'username' => $user->username,
-            'found_local' => !!$findUser,
+            'found_local' => (bool) $findUser,
             'status' => $findUser?->status,
             'url' => $request->url(),
         ]);
@@ -45,7 +40,7 @@ class VerifyAuthorization
             Log::warning('VerifyAuthorization: Usuário inativo', ['username' => $user->username]);
             abort(403, 'Usuário inativo');
         }
-        
+
         return $next($request);
     }
 }

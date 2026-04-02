@@ -19,15 +19,23 @@
 @section('content')
 
 <div id="dashboard-page" class="px-3 text-blue-700">
-    <div class="w-full py-4 sm:py-6">
+    <div class="w-full h-full pt-10 pb-4 sm:pt-16 sm:pb-6">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-            <div class="text-center">
-                <p class="text-xl sm:text-3xl md:text-4xl font-bold tracking-tight text-santacasa-100 leading-tight">
+            <div class="text-center mb-8 sm:mb-12">
+                <h1 class="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-santacasa-100 leading-tight">
                     Bem-vindo ao {{ env('APP_NAME') }}
+                </h1>
+                <p class="mt-3 sm:mt-4 md:mt-6 max-w-2xl mx-auto text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed">
+                    Facilitando uma passagem de plantão segura, clara e padronizada para garantir a continuidade do cuidado.
                 </p>
-                <p class="hidden sm:block mt-2 md:mt-4 max-w-2xl text-sm md:text-base text-gray-500 mx-auto">
-                    Facilitando uma passagem de plantão, segura, clara e padronizada para garantir a continuidade do cuidado.
-                </p>
+                <div class="mt-4 sm:mt-6 md:mt-8 inline-flex items-start gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-lg bg-yellow-50 border border-yellow-200">
+                    <svg class="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <span class="text-xs sm:text-sm text-yellow-800">
+                        <strong>Atenção:</strong> o sistema é apenas um visualizador de dados do Tasy com recursos extras separados e não tem integração direta. Ou seja, todas as baixas e atualizações do quadro do paciente deve seguir sendo registradas no sistema principal até que haja uma integração futura.
+                    </span>
+                </div>
             </div>
 
             <div class="mt-4 sm:mt-8 md:mt-12">

@@ -3,6 +3,7 @@
 namespace App\Services\PendingEvents\Handlers;
 
 use App\Services\PendingEvents\AbstractPendingHandler;
+use App\Support\PendingEventPresentation;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,34 +24,78 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
         '5' => 'Concentrado de Granulócitos',
     ];
 
-    protected function handlerName(): string { return 'Hemoterapia'; }
+    protected function handlerName(): string
+    {
+        return 'Hemoterapia';
+    }
 
     protected function processChunk(array &$results, array $chunk): void
     {
         $rows = DB::connection('tasy')->select("
             SELECT
-                nr_atendimento,
-                dt_programada  AS dt_evento,
-                ie_tipo_hemoterap,
-                ie_urgencia
-            FROM tasy.cpoe_hemoterapia
-            WHERE nr_atendimento IN ({$this->placeholders($chunk)})
-                AND dt_programada BETWEEN SYSDATE AND SYSDATE + 2
-                AND dt_suspensao IS NULL
+                ch.nr_atendimento,
+                ch.dt_programada AS dt_evento,
+                ch.ie_tipo_hemoterap,
+                ch.ds_procedimento_prescrito,
+                ch.ds_observacao,
+                ch.ds_observacao_proc,
+                ch.ds_horarios,
+                ch.qt_vol_hemocomp,
+                ch.ie_via_aplicacao,
+                va.ds_via_aplicacao AS via_aplicacao,
+                ch.ie_urgencia,
+                ch.cd_setor_atendimento
+            FROM tasy.cpoe_hemoterapia ch
+            LEFT JOIN tasy.via_aplicacao va
+                ON va.ie_via_aplicacao = ch.ie_via_aplicacao
+               AND va.ie_situacao = 'A'
+            WHERE ch.nr_atendimento IN ({$this->placeholders($chunk)})
+              AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
+              AND ch.dt_suspensao IS NULL
         ", $chunk);
 
-        foreach ($rows as $row) {
-            if (!isset($results[$row->nr_atendimento])) continue;
+        $sectorLabels = [];
+        $sectorCodes = array_values(array_unique(array_filter(array_map(
+            static fn ($row) => (int) ($row->cd_setor_atendimento ?? 0),
+            $rows
+        ))));
 
-            $tipo = self::TIPO_MAP[(string)($row->ie_tipo_hemoterap ?? '')] ?? 'Hemocomponente';
+        if (! empty($sectorCodes)) {
+            $sectorRows = DB::connection('tasy')->select(
+                'SELECT cd_setor_atendimento, ds_setor_atendimento FROM tasy.setor_atendimento WHERE cd_setor_atendimento IN ('.implode(',', array_fill(0, count($sectorCodes), '?')).')',
+                $sectorCodes
+            );
+
+            foreach ($sectorRows as $sectorRow) {
+                $sectorLabels[(int) $sectorRow->cd_setor_atendimento] = $sectorRow->ds_setor_atendimento;
+            }
+        }
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $tipo = self::TIPO_MAP[(string) ($row->ie_tipo_hemoterap ?? '')] ?? 'Hemocomponente';
 
             $results[$row->nr_atendimento]['events'][] = [
-                'tipo'                => 'hemoterapia',
-                'icone'               => 'hemoterapia.svg',
-                'descricao'           => 'Hemoterapia - ' . $tipo,
-                'dt_evento'           => $row->dt_evento,
+                'tipo' => 'hemoterapia',
+                'icone' => 'hemoterapia.svg',
+                'descricao' => PendingEventPresentation::hemotherapyDescription([
+                    'tipo_label' => $tipo,
+                    'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
+                    'ds_procedimento_prescrito' => $row->ds_procedimento_prescrito ?? null,
+                    'ds_observacao' => $row->ds_observacao ?? null,
+                    'ds_observacao_proc' => $row->ds_observacao_proc ?? null,
+                    'ds_horarios' => $row->ds_horarios ?? null,
+                    'qt_vol_hemocomp' => $row->qt_vol_hemocomp ?? null,
+                    'via_aplicacao' => $row->via_aplicacao ?? null,
+                    'ie_via_aplicacao' => $row->ie_via_aplicacao ?? null,
+                ]),
+                'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
-                'urgente'             => ($row->ie_urgencia ?? 'N') === 'S',
+                'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
+                'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
             ];
         }
     }

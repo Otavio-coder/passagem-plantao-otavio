@@ -75,7 +75,7 @@
             {{-- Card --}}
             <div class="bg-white rounded-2xl p-7 shadow-2xl">
 
-                <h2 class="text-xs font-medium text-gray-400 text-center mb-6">Acesse com suas credenciais da rede</h2>
+                <h2 class="text-sm font-medium text-gray-600 text-center mb-6">Acesse com suas credenciais da rede</h2>
 
                 <form method="post" action="{{ route('login') }}" id="login-form">
                     @csrf

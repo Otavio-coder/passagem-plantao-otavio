@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ChatArchivePayload;
+use App\Support\ChatImportUserPayload;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +60,7 @@ class ImportCsvChatMessages extends Command
         // ─── Lê e valida o CSV ───────────────────────────────────────────────
         $messages = $this->parseCsv($csvPath);
         $active = array_filter($messages, fn ($m) => $m['is_deleted'] === '0');
+        $csvUsers = $this->loadUsersCsv($usersCsvPath);
 
         $this->info('Total de mensagens no CSV:   '.count($messages));
         $this->info('Não deletadas (a importar):  '.count($active));
@@ -100,12 +103,13 @@ class ImportCsvChatMessages extends Command
         }
 
         // ─── Verifica usuários no banco ───────────────────────────────────────
-        $userIdsInCsv = array_unique(array_column(array_values($active), 'usuario_id'));
+        $userIdsInCsv = array_values(array_unique(array_column($csvUsers, 'id')));
         $userIdsInDb = DB::table('users')->whereIn('id', $userIdsInCsv)->pluck('username', 'id')->toArray();
         $missingUsers = array_diff($userIdsInCsv, array_keys($userIdsInDb));
 
         if (! empty($missingUsers)) {
             $this->warn('user_ids sem correspondência no banco: '.implode(', ', $missingUsers));
+            $this->warn('Esses usuários serão inseridos na tabela users com os mesmos IDs antes da importação.');
         } else {
             $this->info('[OK] Todos os user_ids do CSV existem no banco.');
         }
@@ -116,6 +120,8 @@ class ImportCsvChatMessages extends Command
 
             return 0;
         }
+
+        $this->syncMissingUsers($csvUsers);
 
         // ─── Limpa dados existentes em lote antes de reescrever ──────────────
         $allNrs = array_keys($byNr);
@@ -175,11 +181,34 @@ class ImportCsvChatMessages extends Command
         }
 
         // ─── Arquiva encerrados → chat_messages_archive ───────────────────────
-        $usernames = DB::table('users')->pluck('username', 'id')->toArray();
+        $usersById = DB::table('users')
+            ->get()
+            ->mapWithKeys(function ($user) {
+                return [(int) $user->id => (array) $user];
+            })
+            ->toArray();
+
+        $usersByUsername = [];
+        foreach ($usersById as $user) {
+            if (! empty($user['username'])) {
+                $usersByUsername[$user['username']] = $user;
+            }
+        }
+
         if (file_exists($usersCsvPath)) {
             foreach ($this->parseCsv($usersCsvPath) as $u) {
-                $usernames[(int) $u['id']] = $u['username'];
+                $id = (int) $u['id'];
+                $usersById[$id] = array_replace($usersById[$id] ?? [], $u);
+
+                if (! empty($u['username'])) {
+                    $usersByUsername[$u['username']] = array_replace($usersByUsername[$u['username']] ?? [], $u);
+                }
             }
+        }
+
+        $usernames = [];
+        foreach ($usersById as $id => $user) {
+            $usernames[(int) $id] = $user['username'] ?? ('user_'.$id);
         }
 
         foreach ($archiveNrs as $nr) {
@@ -196,8 +225,15 @@ class ImportCsvChatMessages extends Command
 
                 usort($payload, fn ($a, $b) => $a['ts'] <=> $b['ts']);
 
-                $json = json_encode(array_values($payload), JSON_UNESCAPED_UNICODE);
-                $compressed = base64_encode(gzcompress($json, 6));
+                $messageUsers = [];
+                foreach ($payload as $message) {
+                    $username = $message['u'] ?? null;
+                    if ($username && isset($usersByUsername[$username])) {
+                        $messageUsers[$username] = $usersByUsername[$username];
+                    }
+                }
+
+                $compressed = ChatArchivePayload::encode($payload, $messageUsers);
                 $timestamps = array_column($payload, 'ts');
 
                 DB::table('chat_messages_archive')->insert([
@@ -217,9 +253,12 @@ class ImportCsvChatMessages extends Command
             }
         }
 
+        $personBackfillCount = $this->backfillChatMessagePeople();
+
         $this->newLine();
         $this->info("Mensagens importadas (chat_messages):        {$importedMsgs}");
         $this->info("Atendimentos arquivados (archive):           {$archivedNrCount}");
+        $this->info("Mensagens atualizadas com cd_pessoa_fisica:  {$personBackfillCount}");
         $this->info("Erros:                                       {$errors}");
         $this->newLine();
         $this->line('Total no banco:');
@@ -257,9 +296,46 @@ class ImportCsvChatMessages extends Command
     {
         $rows = [];
         $handle = fopen($path, 'r');
-        $headers = fgetcsv($handle);
+        if ($handle === false) {
+            return [];
+        }
 
-        while (($row = fgetcsv($handle)) !== false) {
+        $delimiter = $this->detectDelimiter($path);
+        $headerLine = fgets($handle);
+
+        if ($headerLine === false) {
+            fclose($handle);
+
+            return [];
+        }
+
+        $headers = str_getcsv(trim($headerLine), $delimiter);
+        if (! empty($headers)) {
+            $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
+        }
+
+        $buffer = '';
+        while (($line = fgets($handle)) !== false) {
+            $buffer .= ($buffer === '' ? '' : "\n").rtrim($line, "\r\n");
+
+            $row = str_getcsv($buffer, $delimiter);
+            if (count($row) < count($headers)) {
+                continue;
+            }
+
+            if (count($row) === count($headers)) {
+                $rows[] = array_combine($headers, $row);
+                $buffer = '';
+
+                continue;
+            }
+
+            // Se ficou com colunas sobrando, tentamos limpar o buffer atual e seguir.
+            $buffer = '';
+        }
+
+        if ($buffer !== '') {
+            $row = str_getcsv($buffer, $delimiter);
             if (count($row) === count($headers)) {
                 $rows[] = array_combine($headers, $row);
             }
@@ -268,6 +344,114 @@ class ImportCsvChatMessages extends Command
         fclose($handle);
 
         return $rows;
+    }
+
+    private function detectDelimiter(string $path): string
+    {
+        $handle = fopen($path, 'r');
+        $line = $handle ? fgets($handle) : false;
+
+        if ($handle) {
+            fclose($handle);
+        }
+
+        if ($line === false) {
+            return ',';
+        }
+
+        $semicolonCount = substr_count($line, ';');
+        $commaCount = substr_count($line, ',');
+
+        return $semicolonCount > $commaCount ? ';' : ',';
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadUsersCsv(string $path): array
+    {
+        if (! file_exists($path)) {
+            throw new \RuntimeException("Arquivo de usuários não encontrado: {$path}");
+        }
+
+        return $this->parseCsv($path);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $csvUsers
+     */
+    private function syncMissingUsers(array $csvUsers): int
+    {
+        $ids = array_values(array_unique(array_column($csvUsers, 'id')));
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $existingIds = DB::table('users')->whereIn('id', $ids)->pluck('id')->all();
+        $existingLookup = array_fill_keys(array_map('intval', $existingIds), true);
+
+        $missingRows = [];
+        foreach ($csvUsers as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id <= 0 || isset($existingLookup[$id])) {
+                continue;
+            }
+
+            $missingRows[] = ChatImportUserPayload::fromCsvRow($row);
+        }
+
+        if (empty($missingRows)) {
+            return 0;
+        }
+
+        DB::table('users')->insert($missingRows);
+
+        $this->info('Usuários inseridos na tabela users: '.count($missingRows));
+
+        return count($missingRows);
+    }
+
+    private function backfillChatMessagePeople(): int
+    {
+        $attendanceNumbers = DB::table('chat_messages')
+            ->distinct()
+            ->pluck('nr_atendimento')
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($attendanceNumbers)) {
+            return 0;
+        }
+
+        $attendanceToPerson = [];
+        foreach (array_chunk($attendanceNumbers, 500) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+            $rows = DB::connection('tasy')->select(
+                "SELECT nr_atendimento, cd_pessoa_fisica FROM tasy.atendimento_paciente WHERE nr_atendimento IN ({$placeholders})",
+                $chunk
+            );
+
+            foreach ($rows as $nr => $cdPessoaFisica) {
+                if ($cdPessoaFisica->cd_pessoa_fisica !== null) {
+                    $attendanceToPerson[(string) $cdPessoaFisica->nr_atendimento] = (int) $cdPessoaFisica->cd_pessoa_fisica;
+                }
+            }
+        }
+
+        if (empty($attendanceToPerson)) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($attendanceToPerson as $nr => $cdPessoaFisica) {
+            $updated += DB::table('chat_messages')
+                ->where('nr_atendimento', $nr)
+                ->update(['cd_pessoa_fisica' => $cdPessoaFisica]);
+        }
+
+        return $updated;
     }
 
     private function inferTurno(string $datetime): string

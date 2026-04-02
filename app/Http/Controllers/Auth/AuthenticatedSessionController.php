@@ -9,9 +9,10 @@ use App\Repositories\MySQL\UserRepository;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
-use Spatie\Permission\Models\Role;
 use LdapRecord\Models\ActiveDirectory\User as LdapUser;
+use Spatie\Permission\Models\Role;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -35,27 +36,27 @@ class AuthenticatedSessionController extends Controller
         $localUser = auth()->user();
         $username = $request->get('username');
         $userRecord = AppUser::where('username', $username)->first();
-        
+
         // Verifica se precisa provisionar o usuário localmente
         if ($localUser) {
-            if (!$userRecord) {
+            if (! $userRecord) {
                 try {
                     // Busca usuário no LDAP para obter informações completas
                     $ldapUser = LdapUser::query()->findBy('samaccountname', $username);
 
                     if ($ldapUser) {
-                        $repo = new UserRepository();
+                        $repo = new UserRepository;
                         $userData = [
-                            'name'     => $ldapUser->getFirstAttribute('displayname') ?? $username,
+                            'name' => $ldapUser->getFirstAttribute('displayname') ?? $username,
                             'username' => $username,
-                            'email'    => $ldapUser->getFirstAttribute('mail') ?? ($ldapUser->getFirstAttribute('userprincipalname') ?? "{$username}@santacasa.org.br"),
+                            'email' => $ldapUser->getFirstAttribute('mail') ?? ($ldapUser->getFirstAttribute('userprincipalname') ?? "{$username}@santacasa.org.br"),
                             'created_by' => 0,
-                            'guid'     => $ldapUser->getConvertedGuid(),
-                            'domain'   => 'default',
-                            'status'   => 'A',
+                            'guid' => $ldapUser->getConvertedGuid(),
+                            'domain' => 'default',
+                            'status' => 'A',
                             'last_access_at' => $now,
                         ];
-                        
+
                         $newUser = $repo->store($userData, true);
 
                         // Atribui perfil padrão "Usuário"
@@ -69,7 +70,10 @@ class AuthenticatedSessionController extends Controller
                         }
                     }
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error("Erro ao provisionar usuário {$username}: " . $e->getMessage());
+                    Log::error('Erro ao provisionar usuário no login', [
+                        'exception' => $e,
+                        'username' => $username,
+                    ]);
                     // Continua o login mesmo se o provisionamento falhar
                 }
             }

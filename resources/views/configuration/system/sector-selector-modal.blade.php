@@ -41,6 +41,14 @@
 
                 {{-- Content --}}
                 <div class="flex-1 overflow-y-auto min-h-0 bg-gray-50 p-3" style="scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9;">
+                    @php
+                        $hospitalColors = [
+                            '1' => '#8C3134', '8' => '#42909A', '2' => '#A96538',
+                            '6' => '#3E6B35', '4' => '#4586B4', '3' => '#9574A1',
+                            '25' => '#CE7D74', '7' => '#563174', '18' => '#073772',
+                        ];
+                    @endphp
+
                     @if(empty($this->filteredSectors))
                         <div class="flex flex-col items-center justify-center h-48 text-gray-400">
                             <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,19 +66,21 @@
                                     $selectedCount = collect($sectors)->filter(fn($s) => in_array($s['sector_code'], $selectedSectors))->count();
                                     $allSelected = $selectedCount === count($sectors) && count($sectors) > 0;
                                     $isExpanded = $selectedCount > 0 || $loop->first;
+                                    $hospitalColor = $hospitalColors[$hospitalCode] ?? '#004D9D';
+                                    $hospitalName = $sectors[0]['hospital_name'] ?? 'Hospital';
                                 @endphp
-                                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm" wire:key="hospital-{{ $hospitalCode }}">
+                                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm" wire:key="hospital-{{ $hospitalCode }}" style="border-top: 4px solid {{ $hospitalColor }};">
                                     <button type="button" @click="expandedHospitals['{{ $hospitalCode }}'] = !expandedHospitals['{{ $hospitalCode }}']" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors">
                                         <div class="flex items-center gap-3 min-w-0">
-                                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[#004D9D] to-[#0071B9] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">{{ substr($sectors[0]['hospital_name'], 0, 1) }}</div>
+                                            <div class="w-9 h-9 rounded-lg text-white flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm" style="background: {{ $hospitalColor }};">{{ substr($hospitalName, 0, 1) }}</div>
                                             <div class="text-left min-w-0">
-                                                <h3 class="font-semibold text-gray-800 text-sm truncate">{{ $sectors[0]['hospital_name'] }}</h3>
+                                                <h3 class="font-semibold text-gray-800 text-sm truncate">{{ $hospitalName }}</h3>
                                                 <p class="text-xs text-gray-500">{{ count($sectors) }} setores</p>
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-2 flex-shrink-0">
                                             @if($selectedCount > 0)
-                                                <span class="bg-[#004D9D] text-white text-xs px-2 py-0.5 rounded-full">{{ $selectedCount }}</span>
+                                                <span class="text-white text-xs px-2 py-0.5 rounded-full shadow-sm" style="background: {{ $hospitalColor }};">{{ $selectedCount }}</span>
                                             @endif
                                             <svg class="w-5 h-5 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': expandedHospitals['{{ $hospitalCode }}'] ?? {{ $isExpanded ? 'true' : 'false' }} }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -82,13 +92,13 @@
                                         <div class="p-3 border-t border-gray-100">
                                             <div class="flex justify-between items-center mb-3">
                                                 <span class="text-xs text-gray-500">Clique para selecionar/deselecionar</span>
-                                                <button type="button" wire:click="selectAllFromHospital('{{ $hospitalCode }}')" class="text-xs font-medium px-3 py-1.5 rounded-lg {{ $allSelected ? 'bg-gray-100 text-gray-600' : 'bg-[#004D9D]/10 text-[#004D9D]' }} hover:bg-opacity-80 transition-colors">{{ $allSelected ? 'Desmarcar todos' : 'Selecionar todos' }}</button>
+                                                <button type="button" wire:click="selectAllFromHospital('{{ $hospitalCode }}')" class="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors" style="{{ $allSelected ? 'background: #f3f4f6; color: #4b5563;' : 'background: ' . $hospitalColor . '15; color: ' . $hospitalColor . ';' }}">{{ $allSelected ? 'Desmarcar todos' : 'Selecionar todos' }}</button>
                                             </div>
                                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 @foreach($sectors as $sector)
                                                     @php $isSelected = in_array($sector['sector_code'], $selectedSectors); @endphp
-                                                    <button type="button" wire:key="sector-{{ $sector['sector_code'] }}" wire:click="toggleSector('{{ $sector['sector_code'] }}')" class="flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all {{ $isSelected ? 'bg-blue-50 border-blue-400' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50' }}">
-                                                        <div class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 {{ $isSelected ? 'bg-[#004D9D] border-[#004D9D]' : 'border-gray-300 bg-white' }}">
+                                                    <button type="button" wire:key="sector-{{ $sector['sector_code'] }}" wire:click="toggleSector('{{ $sector['sector_code'] }}')" class="flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all {{ $isSelected ? 'bg-blue-50' : 'bg-white hover:bg-gray-50' }}" style="border-color: {{ $isSelected ? $hospitalColor : '#e5e7eb' }};">
+                                                        <div class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0" style="{{ $isSelected ? 'background: ' . $hospitalColor . '; border-color: ' . $hospitalColor . ';' : 'border-color: #d1d5db; background: #fff;' }}">
                                                             @if($isSelected)
                                                                 <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                                                             @endif

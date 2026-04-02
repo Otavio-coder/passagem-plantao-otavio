@@ -53,16 +53,18 @@
         .chat-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .chat-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        .send-btn-loading { background: #93c5fd !important; pointer-events: none; }
-        .send-btn-loading .btn-text { opacity: 0.5; }
-        .send-btn-loading .btn-spinner { display: block; }
+        .send-btn-loading { background: #93c5fd !important; pointer-events: none; opacity: 0.8; }
+        .send-btn-loading .btn-text { visibility: hidden; }
+        .send-btn-loading .btn-spinner { display: inline-block !important; }
         .btn-spinner {
             display: none;
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 16px; height: 16px;
-            border: 2px solid white; border-top-color: transparent;
-            border-radius: 50%; animation: spin 0.8s linear infinite;
+            position: relative;
+            width: 18px;
+            height: 18px;
+            border: 2.5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
         .pinned-minimized { height: 40px; overflow: hidden; }
@@ -466,7 +468,7 @@
                         type="submit"
                         :disabled="!messageText.trim() || isSendingMessage()"
                         :class="{ 'send-btn-loading': isSendingMessage() }"
-                        class="relative px-3 py-2.5 h-[40px] rounded-lg transition bg-blue-600 text-white disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0 flex items-center"
+                        class="relative px-3 py-2.5 h-[40px] rounded-lg transition bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300 flex-shrink-0 flex items-center justify-center"
                     >
                         <div class="btn-spinner"></div>
                         <div class="btn-text flex items-center gap-1.5">

@@ -11,76 +11,84 @@ use Spatie\Permission\Models\Role;
 
 class ProfileController extends Controller
 {
-
     public function index()
     {
 
-        $roles = Role::where('name','<>','Administrador')->get();
+        $roles = Role::where('name', '<>', 'Administrador')->get();
         $permissions = Permission::all();
 
-        return view( 'profiles.index', compact( 'roles', 'permissions' ) );
+        return view('profiles.index', compact('roles', 'permissions'));
     }
 
-    public function create( CreateProfileRequest $request )
+    public function create(CreateProfileRequest $request)
     {
 
         try {
 
-            $role = Role::create( [
-                'name' => $request->name
-            ] );
+            $role = Role::create([
+                'name' => $request->name,
+            ]);
 
-            if ( $role )
-                $role->syncPermissions( $request->permissions );
+            if ($role) {
+                $role->syncPermissions($request->permissions);
+            }
 
-        } catch ( \Exception $exception ) {
+        } catch (\Exception $exception) {
 
-            Log::error( "Erro ao tentar criar o perfil {$request->name}: {$exception->getMessage()}" );
+            Log::error('Erro ao tentar criar perfil', [
+                'exception' => $exception,
+                'profile_name' => $request->name,
+            ]);
 
             return redirect()->back()->with([
                 'status' => 'danger',
-                'message' => "Erro ao tentar criar o perfil {$request->name}"
+                'message' => "Erro ao tentar criar o perfil {$request->name}",
             ]);
         }
 
         return redirect()->back()->with([
             'status' => 'success',
-            'message' => 'Perfil criado com sucesso'
+            'message' => 'Perfil criado com sucesso',
         ]);
     }
 
-    public function edit( UpdateProfileRequest $request )
+    public function edit(UpdateProfileRequest $request)
     {
 
         try {
 
-            $profile = Role::findById( $request->profile );
+            $profile = Role::findById($request->profile);
 
-            if ( $profile->name != 'Administrador' )
+            if ($profile->name != 'Administrador') {
                 $profile->update([
-                    'name' => $request->name
+                    'name' => $request->name,
                 ]);
+            }
 
-            if ( !$request->permissions )
-                $profile->syncPermissions(); //remove todas as permissões
+            if (! $request->permissions) {
+                $profile->syncPermissions();
+            } // remove todas as permissões
 
-            $profile->syncPermissions( $request->permissions ); //sincroniza com as permissões do request
+            $profile->syncPermissions($request->permissions); // sincroniza com as permissões do request
 
-        } catch ( \Exception $exception ) {
+        } catch (\Exception $exception) {
 
-            Log::error( "Erro ao tentar atualizar o perfil '{$request->name}': {$exception->getMessage()}" );
+            Log::error('Erro ao tentar atualizar perfil', [
+                'exception' => $exception,
+                'profile_name' => $request->name,
+                'profile_id' => $request->profile,
+            ]);
 
             return redirect()->back()->with([
                 'status' => 'danger',
-                'message' => "Erro ao tentar atualizar o perfil '{$request->name}'"
+                'message' => "Erro ao tentar atualizar o perfil '{$request->name}'",
             ]);
         }
 
         return redirect()->back()->with([
             'status' => 'success',
-            'message' => 'Perfil atualizado com sucesso'
+            'message' => 'Perfil atualizado com sucesso',
         ]);
 
     }
-
 }

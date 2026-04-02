@@ -307,15 +307,20 @@ function esc(str) {
 const ARCHIVE_PALETTE = ['4F46E5','0891B2','059669','B45309','7C3AED','0284C7','BE185D','0F766E'];
 
 function archiveInitials(name) {
-    if (!name) return '?';
-    const parts = name.split(/[\s.]+/);
+    if (name === null || name === undefined) return '?';
+    const normalized = String(name).trim();
+    if (!normalized) return '?';
+    if (normalized === '—') return '?';
+    const parts = normalized.split(/[\s.]+/);
     let ini = (parts[0] || '').charAt(0).toUpperCase();
     if (parts.length > 1) ini += (parts[parts.length - 1] || '').charAt(0).toUpperCase();
     return ini;
 }
 
 function archiveAvatarColor(name) {
-    if (!name) return '#6B7280';
+    if (name === null || name === undefined) return '#6B7280';
+    name = String(name);
+    if (!name || name === '—') return '#6B7280';
     let h = 0;
     for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
     return '#' + ARCHIVE_PALETTE[Math.abs(h) % ARCHIVE_PALETTE.length];

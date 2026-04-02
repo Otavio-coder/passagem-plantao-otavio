@@ -487,7 +487,7 @@
                                                 <div class="text-white/70 text-[10px] mt-1">+{{ count($patient['procedimentos_cirurgicos']) - 1 }} mais · clique para ver</div>
                                             @endif
                                         @else
-                                            <div class="text-white/80">Ver detalhes no modal</div>
+                                            <div class="text-white/80">Ver detalhes</div>
                                         @endif
                                     </div>
 
@@ -551,7 +551,7 @@
                                                         <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                                         </svg>
-                                                        <p class="text-sm">Verificar detalhes no modal</p>
+                                                        <p class="text-sm">Verificar detalhes</p>
                                                     </div>
                                                 @endif
                                             </div>
@@ -1024,7 +1024,34 @@
                 {{-- Pending Events Section --}}
                 @php
                     $pendingEvents = $patient['pending_events'] ?? [];
-                    $firstEvent    = $pendingEvents[0] ?? null;
+                    $pinnedEvaluation = $patient['pinned_evaluation'] ?? null;
+                    $latestEvaluation = $patient['latest_evaluation'] ?? null;
+                    // Priority: pinned; Fallback: latest
+                    $evaluation = $pinnedEvaluation ?? $latestEvaluation;
+                    $isPinned = !empty($pinnedEvaluation);
+                    
+                    $now = \Carbon\Carbon::now();
+
+                    $todayStart = $now->copy()->startOfDay();
+
+                    $futurePendingEvents = array_values(array_filter($pendingEvents, function ($ev) use ($todayStart) {
+                        $dtEvento = $ev['dt_evento'] ?? null;
+                        if (empty($dtEvento)) {
+                            return false;
+                        }
+
+                        try {
+                            return \Carbon\Carbon::parse($dtEvento)->greaterThanOrEqualTo($todayStart);
+                        } catch (\Exception $e) {
+                            return false;
+                        }
+                    }));
+
+                    $firstEvent = $futurePendingEvents[0] ?? null;
+                    $hasPendingCard = $firstEvent !== null;
+                    $hasAnyPending = !empty($pendingEvents);
+                    $hasEvaluationCard = !empty($evaluation['content'] ?? null);
+                    $hasCarousel = $hasPendingCard && $hasEvaluationCard;
 
                     // Adiciona is_near a cada evento (ontem, hoje ou amanhã)
                     $today = \Carbon\Carbon::today();
@@ -1041,13 +1068,15 @@
                         return $ev;
                     }, $pendingEvents);
 
-                    // Agrupa para o modal — proc_exame unifica procedimento+exame
+                    // Agrupa para o modal — exame e procedimento são grupos distintos
                     $grouped    = [];
-                    $groupOrder = ['alta', 'alta_medica', 'aviso', 'proc_exame', 'cirurgia', 'hemoterapia', 'quimioterapia', 'antibiotico', 'previsao_alta', 'outros'];
+                    $groupOrder = ['alta', 'alta_medica', 'aviso', 'exame', 'procedimento', 'cirurgia', 'hemoterapia', 'quimioterapia', 'antibiotico', 'previsao_alta', 'outros'];
                     foreach ($pendingEvents as $ev) {
                         $tipo = $ev['tipo'] ?? 'outros';
-                        // Migração de tipos antigos para o grupo unificado
-                        if (in_array($tipo, ['procedimento', 'exame'])) $tipo = 'proc_exame';
+                        // Migração de tipo legado proc_exame → exame
+                        if ($tipo === 'proc_exame') {
+                            $tipo = 'exame';
+                        }
                         $grouped[$tipo][] = $ev;
                     }
                     uksort($grouped, fn($a,$b) =>
@@ -1055,62 +1084,88 @@
                     );
                 @endphp
                 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col"
-                     x-data="{ showPendingModal: false, pendingShowAll: false }"
+                     x-data="{ showPendingModal: false, pendingShowAll: false, cardSlide: 0 }"
                      @pending-filter.window="pendingShowAll = $event.detail.v">
 
-                    @if($firstEvent)
+                    @if($hasPendingCard || $hasEvaluationCard)
                         {{-- ── CARD: somente o evento mais próximo/urgente ── --}}
-                        @php
-                            $fIcon   = $firstEvent['icone'] ?? 'alert-circle.svg';
-                            $fUrgent = $firstEvent['urgente'] ?? false;
-                            $fTipo   = $firstEvent['tipo'] ?? 'outros';
+                        @if($hasPendingCard)
+                            @php
+                                $fIcon   = $firstEvent['icone'] ?? 'alert-circle.svg';
+                                $fUrgent = $firstEvent['urgente'] ?? false;
+                                $fTipo   = $firstEvent['tipo'] ?? 'outros';
 
-                            [$fBg, $fTxtDesc, $fTxtTime, $fPulseColor] = match(true) {
-                                in_array($fTipo, ['alta', 'aviso', 'obito'])
-                                    => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
-                                $fTipo === 'alta_medica'
-                                    => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
-                                $fTipo === 'previsao_alta'
-                                    => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-600 font-semibold', 'text-gray-500 font-medium', 'bg-gray-400'],
-                                $fTipo === 'cirurgia' && $fUrgent
-                                    => ['bg-[#7712C7]/10 border border-[#7712C7]', 'text-[#7712C7] font-bold', 'text-[#7712C7] font-semibold', 'bg-[#7712C7]'],
-                                $fTipo === 'cirurgia'
-                                    => ['bg-[#7712C7]/10 border border-[#7712C7]/50', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]/70'],
-                                $fTipo === 'hemoterapia'
-                                    => ['bg-red-50/70 border border-red-300', 'text-red-700 font-semibold', 'text-red-600 font-medium', 'bg-red-500'],
-                                $fTipo === 'quimioterapia'
-                                    => ['bg-[#0A4700]/10 border border-[#0A4700]/40', 'text-[#0A4700] font-semibold', 'text-[#0A4700]/80 font-medium', 'bg-[#0A4700]'],
-                                $fTipo === 'antibiotico'
-                                    => ['bg-[#BDAD02]/10 border border-[#BDAD02]/60', 'text-[#5C5300] font-semibold', 'text-[#5C5300]/80 font-medium', 'bg-[#BDAD02]'],
-                                in_array($fTipo, ['proc_exame', 'exame', 'procedimento'])
-                                    => ['bg-blue-50/60 border border-blue-200', 'text-blue-700 font-semibold', 'text-blue-600 font-medium', 'bg-blue-400'],
-                                $fUrgent
-                                    => ['bg-red-50/90 border border-red-300', 'text-red-700 font-bold', 'text-red-600 font-semibold', 'bg-red-500'],
-                                default
-                                    => ['bg-white/30 border border-white/50', 'text-[#062047] font-semibold', 'text-[#004D9D] font-medium', 'bg-gray-400'],
-                            };
-                            $showPulse = $fUrgent || in_array($fTipo, ['alta', 'aviso']);
-                        @endphp
-                        <div class="rounded-lg p-2 {{ $fBg }}">
+                                [$fBg, $fTxtDesc, $fTxtTime, $fPulseColor] = match(true) {
+                                    in_array($fTipo, ['alta', 'aviso', 'obito'])
+                                        => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
+                                    $fTipo === 'alta_medica'
+                                        => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
+                                    $fTipo === 'previsao_alta'
+                                        => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-600 font-semibold', 'text-gray-500 font-medium', 'bg-gray-400'],
+                                    $fTipo === 'cirurgia' && $fUrgent
+                                        => ['bg-[#7712C7]/10 border border-[#7712C7]', 'text-[#7712C7] font-bold', 'text-[#7712C7] font-semibold', 'bg-[#7712C7]'],
+                                    $fTipo === 'cirurgia'
+                                        => ['bg-[#7712C7]/10 border border-[#7712C7]/50', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]/70'],
+                                    $fTipo === 'hemoterapia'
+                                        => ['bg-red-50/70 border border-red-300', 'text-red-700 font-semibold', 'text-red-600 font-medium', 'bg-red-500'],
+                                    $fTipo === 'quimioterapia'
+                                        => ['bg-[#0A4700]/10 border border-[#0A4700]/40', 'text-[#0A4700] font-semibold', 'text-[#0A4700]/80 font-medium', 'bg-[#0A4700]'],
+                                    $fTipo === 'antibiotico'
+                                        => ['bg-[#BDAD02]/10 border border-[#BDAD02]/60', 'text-[#5C5300] font-semibold', 'text-[#5C5300]/80 font-medium', 'bg-[#BDAD02]'],
+                                    in_array($fTipo, ['proc_exame', 'exame'])
+                                        => ['bg-blue-50/60 border border-blue-200', 'text-blue-700 font-semibold', 'text-blue-600 font-medium', 'bg-blue-400'],
+                                    $fTipo === 'procedimento'
+                                        => ['bg-indigo-50/60 border border-indigo-200', 'text-indigo-700 font-semibold', 'text-indigo-600 font-medium', 'bg-indigo-400'],
+                                    $fUrgent
+                                        => ['bg-red-50/90 border border-red-300', 'text-red-700 font-bold', 'text-red-600 font-semibold', 'bg-red-500'],
+                                    default
+                                        => ['bg-white/30 border border-white/50', 'text-[#062047] font-semibold', 'text-[#004D9D] font-medium', 'bg-gray-400'],
+                                };
+                                $showPulse = $fUrgent || in_array($fTipo, ['alta', 'aviso']);
+                            @endphp
+                        @endif
+
+                        <div class="rounded-lg p-2 {{ $hasPendingCard ? $fBg : 'bg-amber-50 border border-amber-200' }}">
                             {{-- Cabeçalho da seção --}}
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="text-[12px] font-bold tracking-wide text-[#004D9D]">
-                                    Pendências
+                                    @if($hasCarousel)
+                                        Pendências / Avaliação{{ $isPinned ? ' fixada' : '' }}
+                                    @elseif($hasPendingCard)
+                                        Pendências
+                                    @else
+                                        Avaliação
+                                    @endif
                                 </span>
                                 <div class="flex items-center gap-1.5">
-                                    <button
-                                        @click="showPendingModal = true; document.body.style.overflow = 'hidden'; $dispatch('pending-filter', { v: false })"
-                                        class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D]
-                                               hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
-                                        title="Ver todas as pendências"
-                                    >
-                                        <x-iconoir-expand class="h-3.5 w-3.5 flex-shrink-0" />
-                                    </button>
+                                    @if($hasPendingCard)
+                                        <button
+                                            @click="showPendingModal = true; document.body.style.overflow = 'hidden'; $dispatch('pending-filter', { v: false })"
+                                            class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D]
+                                                   hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
+                                            title="Ver todas as pendências"
+                                        >
+                                            <x-iconoir-expand class="h-3.5 w-3.5 flex-shrink-0" />
+                                        </button>
+                                    @endif
+
+                                    @if($hasCarousel)
+                                        <button class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors"
+                                                title="Anterior"
+                                                @click="cardSlide = cardSlide === 0 ? 1 : 0">
+                                            <x-iconoir-nav-arrow-left class="h-3.5 w-3.5" />
+                                        </button>
+                                        <button class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors"
+                                                title="Próximo"
+                                                @click="cardSlide = cardSlide === 0 ? 1 : 0">
+                                            <x-iconoir-nav-arrow-right class="h-3.5 w-3.5" />
+                                        </button>
+                                    @endif
                                 </div>
                             </div>
 
-                            {{-- Evento em destaque --}}
-                            <div class="flex items-start gap-2">
+                            @if($hasPendingCard)
+                            <div x-show="{{ $hasCarousel ? 'cardSlide === 0' : 'true' }}" class="flex items-start gap-2" x-transition>
                                 <img src="{{ asset('images/icons/patient-card/' . $fIcon) }}"
                                      class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-90" alt="">
                                 <div class="flex-1 min-w-0">
@@ -1134,13 +1189,65 @@
                                     <span class="w-2 h-2 rounded-full {{ $fPulseColor }} animate-pulse flex-shrink-0 mt-1"></span>
                                 @endif
                             </div>
+                            @endif
+
+                            @if($hasEvaluationCard)
+                            <div x-show="{{ $hasCarousel ? 'cardSlide === 1' : 'true' }}" class="flex items-start gap-2" x-transition>
+                                <x-ui.user-avatar 
+                                    :photo="$evaluation['photo'] ?? null" 
+                                    :name="$isPinned ? ($evaluation['pinned_by_name'] ?? 'U') : ($evaluation['user_name'] ?? 'U')" 
+                                    class="w-5 h-5 flex-shrink-0 mt-0.5"
+                                />
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-[11px] {{ $isPinned ? 'text-amber-800 font-semibold' : 'text-blue-800 font-medium' }} leading-tight line-clamp-2">
+                                        {{ $evaluation['content'] ?? '-' }}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        @if($isPinned && !empty($evaluation['pinned_at_formatted']))
+                                            <span class="text-[9px] text-amber-700 font-medium">
+                                                {{ $evaluation['pinned_at_formatted'] }}
+                                            </span>
+                                        @elseif(!$isPinned && !empty($evaluation['created_at_formatted']))
+                                            <span class="text-[9px] text-blue-700 font-medium">
+                                                {{ $evaluation['created_at_formatted'] }}
+                                            </span>
+                                        @endif
+                                        @if($isPinned && !empty($evaluation['pinned_by_name']))
+                                            <span class="text-[9px] text-amber-700">
+                                                · {{ $evaluation['pinned_by_name'] }}
+                                            </span>
+                                        @elseif(!$isPinned && !empty($evaluation['user_name']))
+                                            <span class="text-[9px] text-blue-700">
+                                                · {{ $evaluation['user_name'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            @endif
+
+                            @if($hasCarousel)
+                                <div class="mt-1.5 flex justify-center gap-1">
+                                    <span class="h-1.5 w-1.5 rounded-full" :class="cardSlide === 0 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
+                                    <span class="h-1.5 w-1.5 rounded-full" :class="cardSlide === 1 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
+                                </div>
+                            @endif
                         </div>
 
                     @else
                         <div class="flex items-center justify-center h-full w-full">
                             <div class="text-center py-2">
                                 <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
-                                <p class="text-xs text-gray-500 font-medium">Sem pendências</p>
+                                <p class="text-xs text-gray-500 font-medium">Sem pendências para hoje</p>
+                                <p class="text-[10px] text-gray-400 mt-0.5">O card mostra pendências de hoje; na aba de pendências você vê todas.</p>
+                                @if($hasAnyPending)
+                                    <button
+                                        @click="showPendingModal = true; pendingShowAll = true; document.body.style.overflow = 'hidden'"
+                                        class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#004D9D] hover:text-[#003d7a] transition-colors"
+                                    >
+                                        Ver todas as pendências
+                                    </button>
+                                @endif
                             </div>
                         </div>
                     @endif
@@ -1209,12 +1316,23 @@
 
                             {{-- Grupos --}}
                             <div class="flex-1 overflow-y-auto min-h-0 p-3 space-y-3">
+                                @php
+                                    $modalAllCount = count($pendingEvents);
+                                    $modalNearCount = count(array_filter($pendingEvents, fn ($ev) => (bool) ($ev['is_near'] ?? false)));
+                                @endphp
+
+                                <div x-show="pendingShowAll ? {{ $modalAllCount === 0 ? 'true' : 'false' }} : {{ $modalNearCount === 0 ? 'true' : 'false' }}"
+                                     class="rounded-xl border border-gray-200 bg-gray-50/60 p-6 text-center">
+                                    <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
+                                    <p class="text-xs text-gray-500 font-medium mt-2">Nenhuma pendência para este filtro.</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Troque o período para visualizar outros itens.</p>
+                                </div>
+
                                 @foreach($grouped as $groupTipo => $groupEvents)
                                     @php
                                         $groupJson  = json_encode(array_values($groupEvents), JSON_HEX_QUOT | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE);
                                         $groupLabel = match($groupTipo) {
-                                            'proc_exame'    => 'Proc. e Exames',
-                                            'exame'         => 'Exames',
+                                            'exame','proc_exame' => 'Exames/Laboratório',
                                             'procedimento'  => 'Procedimentos',
                                             'cirurgia'      => 'Cirurgias Agendadas',
                                             'hemoterapia'   => 'Hemoterapia',
@@ -1236,7 +1354,7 @@
                                             'antibiotico'   => ['border-[#BDAD02]/50', 'bg-[#BDAD02]/10', 'text-[#5C5300]', 'border-[#BDAD02]/30','bg-[#BDAD02]/5'],
                                             'exame','proc_exame'
                                                             => ['border-blue-200',     'bg-blue-50/60',   'text-blue-700',  'border-blue-200',    'bg-blue-50/40'],
-                                            'procedimento'  => ['border-[#004D9D]/25', 'bg-[#004D9D]/5',  'text-[#062047]', 'border-[#004D9D]/20','bg-[#004D9D]/5'],
+                                            'procedimento'  => ['border-indigo-200',   'bg-indigo-50/60', 'text-indigo-700','border-indigo-200',  'bg-indigo-50/40'],
                                             default         => ['border-gray-200',     'bg-white/30',     'text-[#062047]', 'border-gray-200',    'bg-gray-50/50'],
                                         };
                                     @endphp
@@ -1323,6 +1441,18 @@
                                                             <span>
                                                                 <span class="font-medium text-gray-600">Liberado: </span>
                                                                 <span x-text="ev.dt_autorizacao"></span>
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="ev.nr_prescricao">
+                                                            <span>
+                                                                <span class="font-medium text-gray-600">Prescrição: </span>
+                                                                <span x-text="ev.nr_prescricao"></span>
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="ev.dt_coleta">
+                                                            <span>
+                                                                <span class="font-medium text-gray-600">Coletado: </span>
+                                                                <span x-text="ev.dt_coleta"></span>
                                                             </span>
                                                         </template>
                                                         <span x-show="ev.tempo_pendente"

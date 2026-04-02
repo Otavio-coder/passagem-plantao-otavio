@@ -74,7 +74,10 @@ class SbarReport extends Component
                 ])
                 ->toArray();
         } catch (\Exception $e) {
-            Log::error('Error loading hospitals: '.$e->getMessage());
+            Log::error('Error loading hospitals', [
+                'exception' => $e,
+                'user_id' => Auth::id(),
+            ]);
 
             return [];
         }
@@ -108,7 +111,11 @@ class SbarReport extends Component
                 ])
                 ->toArray();
         } catch (\Exception $e) {
-            Log::error('Error loading sectors: '.$e->getMessage());
+            Log::error('Error loading sectors', [
+                'exception' => $e,
+                'selected_hospital' => $this->selectedHospital,
+                'user_id' => Auth::id(),
+            ]);
 
             return [];
         }
@@ -134,8 +141,10 @@ class SbarReport extends Component
 
             return $this->injectHandoverStatus($patients);
         } catch (\Exception $e) {
-            Log::error('Error loading patients: '.$e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
+            Log::error('Error loading patients', [
+                'exception' => $e,
+                'selected_sector' => $this->selectedSector,
+                'user_id' => Auth::id(),
             ]);
             $this->errorMessage = 'Erro ao carregar pacientes: '.$e->getMessage();
 
@@ -173,7 +182,10 @@ class SbarReport extends Component
                 'hospital_name' => $hospitalNames->get($s->nr_seq_agrupamento, 'Hospital'),
             ])->toArray();
         } catch (\Exception $e) {
-            Log::error('Error loading available sectors for onboarding: '.$e->getMessage());
+            Log::error('Error loading available sectors for onboarding', [
+                'exception' => $e,
+                'user_id' => Auth::id(),
+            ]);
 
             return [];
         }
@@ -238,7 +250,10 @@ class SbarReport extends Component
             $this->lastRefresh = now()->format('H:i:s');
             $this->auditSectorView('mount');
         } catch (\Exception $e) {
-            Log::error('SBAR mount error: '.$e->getMessage());
+            Log::error('SBAR mount error', [
+                'exception' => $e,
+                'user_id' => Auth::id(),
+            ]);
             $this->errorMessage = 'Erro durante inicialização: '.$e->getMessage();
         }
     }
@@ -299,8 +314,10 @@ class SbarReport extends Component
             unset($this->patients); // force recompute after cache clear
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
-            Log::error('Error in refreshData: '.$e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
+            Log::error('Error in refreshData', [
+                'exception' => $e,
+                'selected_sector' => $this->selectedSector,
+                'user_id' => Auth::id(),
             ]);
             $this->errorMessage = 'Erro ao atualizar: '.$e->getMessage();
         }
@@ -380,7 +397,10 @@ class SbarReport extends Component
             // Re-initialize with new preferences
             $this->mount();
         } catch (\Exception $e) {
-            Log::error('Error saving sector preferences: '.$e->getMessage());
+            Log::error('Error saving sector preferences', [
+                'exception' => $e,
+                'user_id' => Auth::id(),
+            ]);
         }
     }
 
@@ -480,7 +500,82 @@ class SbarReport extends Component
             ->get()
             ->keyBy('nr_atendimento');
 
-        return array_map(function ($patient) use ($rows) {
+        // Fetch pinned evaluations (priority)
+        $pinnedRows = DB::table('chat_message_pins as cmp')
+            ->join('chat_messages as cm', 'cm.id', '=', 'cmp.message_id')
+            ->leftJoin('users as u', 'u.id', '=', 'cmp.pinned_by')
+            ->whereIn('cm.nr_atendimento', $nrs)
+            ->whereNull('cmp.unpinned_at')
+            ->orderByDesc('cmp.pinned_at')
+            ->select([
+                'cm.nr_atendimento',
+                'cm.content',
+                'cm.created_at as message_created_at',
+                'cmp.pinned_at',
+                'u.name as pinned_by_name',
+                'u.photo',
+            ])
+            ->get();
+
+        $latestPinnedByAttendance = [];
+        foreach ($pinnedRows as $pinnedRow) {
+            $attendance = (int) ($pinnedRow->nr_atendimento ?? 0);
+            if ($attendance <= 0 || isset($latestPinnedByAttendance[$attendance])) {
+                continue;
+            }
+
+            $latestPinnedByAttendance[$attendance] = [
+                'content' => (string) ($pinnedRow->content ?? ''),
+                'pinned_at' => $pinnedRow->pinned_at,
+                'pinned_at_formatted' => $pinnedRow->pinned_at
+                    ? Carbon::parse($pinnedRow->pinned_at)->format('d/m H:i')
+                    : null,
+                'message_created_at' => $pinnedRow->message_created_at,
+                'message_created_at_formatted' => $pinnedRow->message_created_at
+                    ? Carbon::parse($pinnedRow->message_created_at)->format('d/m H:i')
+                    : null,
+                'pinned_by_name' => $pinnedRow->pinned_by_name,
+                'photo' => (string) ($pinnedRow->photo ?? ''),
+            ];
+        }
+
+        // Fetch latest evaluations (fallback when no pinned) for attendances without pinned
+        $attendancesWithoutPinned = array_diff($nrs, array_keys($latestPinnedByAttendance));
+        $latestEvaluationByAttendance = [];
+
+        if (! empty($attendancesWithoutPinned)) {
+            $latestRows = DB::table('chat_messages as cm')
+                ->leftJoin('users as u', 'u.id', '=', 'cm.user_id')
+                ->whereIn('cm.nr_atendimento', $attendancesWithoutPinned)
+                ->select([
+                    'cm.nr_atendimento',
+                    'cm.content',
+                    'cm.created_at',
+                    'u.name as user_name',
+                    'u.photo',
+                ])
+                ->orderByDesc('cm.created_at')
+                ->get();
+
+            foreach ($latestRows as $latestRow) {
+                $attendance = (int) ($latestRow->nr_atendimento ?? 0);
+                if ($attendance <= 0 || isset($latestEvaluationByAttendance[$attendance])) {
+                    continue;
+                }
+
+                $latestEvaluationByAttendance[$attendance] = [
+                    'content' => (string) ($latestRow->content ?? ''),
+                    'created_at' => $latestRow->created_at,
+                    'created_at_formatted' => $latestRow->created_at
+                        ? Carbon::parse($latestRow->created_at)->format('d/m H:i')
+                        : null,
+                    'user_name' => $latestRow->user_name,
+                    'photo' => (string) ($latestRow->photo ?? ''),
+                ];
+            }
+        }
+
+        return array_map(function ($patient) use ($rows, $latestPinnedByAttendance, $latestEvaluationByAttendance) {
             if (! ($patient['has_patient'] ?? false)) {
                 return $patient;
             }
@@ -493,6 +588,10 @@ class SbarReport extends Component
                 ? Carbon::parse($row->last_msg)->format('H:i')
                 : null;
             $patient['handover_msg_count'] = $row ? (int) $row->msg_count : 0;
+
+            // Priority: pinned evaluation; fallback: latest evaluation
+            $patient['pinned_evaluation'] = $latestPinnedByAttendance[(int) $nr] ?? null;
+            $patient['latest_evaluation'] = $latestEvaluationByAttendance[(int) $nr] ?? null;
 
             return $patient;
         }, $patients);

@@ -141,7 +141,7 @@
                                                                 <option value="antibiotico">Antibiótico</option>
                                                                 <option value="quimioterapia">Quimioterapia</option>
                                                                 <option value="exame">Exame</option>
-                                                                <option value="proc_exame">Procedimento</option>
+                                                                <option value="procedimento">Procedimento</option>
                                                             </select>
                                                         </div>
                                                         <div>
@@ -266,7 +266,7 @@
                                                             <option value="antibiotico">Antibiótico</option>
                                                             <option value="quimioterapia">Quimioterapia</option>
                                                             <option value="exame">Exame</option>
-                                                            <option value="proc_exame">Procedimento</option>
+                                                            <option value="procedimento">Procedimento</option>
                                                         </select>
                                                     </div>
 
@@ -391,7 +391,17 @@
                                     @foreach($patients as $index => $patient)
                                         @php
                                             $cardPendingTypes = collect($patient['pending_events']['events'] ?? [])
-                                                ->pluck('tipo')->unique()->filter()->implode(',');
+                                                ->pluck('tipo')
+                                                ->map(function ($type) {
+                                                    if ($type === 'proc_exame') {
+                                                        return 'exame';
+                                                    }
+
+                                                    return $type;
+                                                })
+                                                ->unique()
+                                                ->filter()
+                                                ->implode(',');
                                             $cardMultiTeams = collect($patient['multidisciplinary'] ?? [])
                                                 ->filter()->keys()->implode(',');
                                         @endphp
@@ -543,7 +553,12 @@ window.sbarFilters = function () {
                 if (this.surgicalFilter === 'with_surgery'    && !c.hasSurgery)  return false;
                 if (this.surgicalFilter === 'without_surgery' && c.hasSurgery)   return false;
                 if (this.isolationFilter === 'with_isolation' && !c.hasIsolation) return false;
-                if (this.pendingTypeFilter !== 'all' && !c.pendingTypes.includes(this.pendingTypeFilter)) return false;
+                if (this.pendingTypeFilter !== 'all') {
+                    const normalizedPending = c.pendingTypes.map((t) => t === 'proc_exame' ? 'exame' : t);
+                    if (!normalizedPending.includes(this.pendingTypeFilter)) {
+                        return false;
+                    }
+                }
                 if (this.multiFilter !== 'all' && !c.multi.includes(this.multiFilter)) return false;
 
                 return true;

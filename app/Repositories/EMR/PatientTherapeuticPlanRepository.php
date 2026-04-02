@@ -2,8 +2,9 @@
 
 namespace App\Repositories\EMR;
 
-use Illuminate\Support\Facades\DB;
+use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Fetches the complete therapeutic plan for a patient using separate query methods
@@ -29,46 +30,46 @@ class PatientTherapeuticPlanRepository
     {
         $nr = $attendanceNumber;
 
-        $medRows   = DB::connection('tasy')->select($this->medicationsQuery(),   [':nr' => $nr]);
-        $nutRows   = DB::connection('tasy')->select($this->nutritionQuery(),     [':nr' => $nr]);
-        $ordRows   = DB::connection('tasy')->select($this->ordersQuery(),        [':nr' => $nr]);
-        $intRows   = DB::connection('tasy')->select($this->interventionsQuery(), [':nr' => $nr]);
-        $procRows  = DB::connection('tasy')->select($this->proceduresQuery(),    [
-            ':nr_proc'       => $nr,
-            ':nr_surg'       => $nr,
+        $medRows = DB::connection('tasy')->select($this->medicationsQuery(), [':nr' => $nr]);
+        $nutRows = DB::connection('tasy')->select($this->nutritionQuery(), [':nr' => $nr]);
+        $ordRows = DB::connection('tasy')->select($this->ordersQuery(), [':nr' => $nr]);
+        $intRows = DB::connection('tasy')->select($this->interventionsQuery(), [':nr' => $nr]);
+        $procRows = DB::connection('tasy')->select($this->proceduresQuery(), [
+            ':nr_proc' => $nr,
+            ':nr_surg' => $nr,
             ':nr_surg_setor' => $nr,
         ]);
-        $hemoRows  = DB::connection('tasy')->select($this->hemotherapyQuery(),   [':nr' => $nr]);
-        $surgRows  = DB::connection('tasy')->select($this->surgeryQuery(),       [
-            ':nr'       => $nr,
+        $hemoRows = DB::connection('tasy')->select($this->hemotherapyQuery(), [':nr' => $nr]);
+        $surgRows = DB::connection('tasy')->select($this->surgeryQuery(), [
+            ':nr' => $nr,
             ':nr_setor' => $nr,
         ]);
-        $chemoRows = DB::connection('tasy')->select($this->chemotherapyQuery(),  [':nr' => $nr]);
-        $gasRows   = DB::connection('tasy')->select($this->gasotherapyQuery(),   [':nr' => $nr]);
-        $dialRows  = DB::connection('tasy')->select($this->dialysisQuery(),      [':nr' => $nr]);
+        $chemoRows = DB::connection('tasy')->select($this->chemotherapyQuery(), [':nr' => $nr]);
+        $gasRows = DB::connection('tasy')->select($this->gasotherapyQuery(), [':nr' => $nr]);
+        $dialRows = DB::connection('tasy')->select($this->dialysisQuery(), [':nr' => $nr]);
 
-        $formattedMeds  = collect($medRows)->map(fn($r) => $this->formatMedication($r))->values()->all();
-        $formattedNut   = $this->organizeNutritionByShift(collect($nutRows));
-        $formattedOrd   = collect($ordRows)->map(fn($r) => $this->formatOrder($r))->values()->all();
-        $formattedInt   = collect($intRows)->map(fn($r) => $this->formatIntervention($r))->values()->all();
-        $formattedProc  = collect($procRows)->map(fn($r) => $this->formatProcedure($r))->values()->all();
-        $formattedHemo  = collect($hemoRows)->map(fn($r) => $this->formatHemotherapy($r))->values()->all();
-        $formattedSurg  = collect($surgRows)->map(fn($r) => $this->formatSurgery($r))->values()->all();
-        $formattedChemo = collect($chemoRows)->map(fn($r) => $this->formatChemotherapy($r))->values()->all();
-        $formattedGas   = collect($gasRows)->map(fn($r) => $this->formatGasotherapy($r))->values()->all();
-        $formattedDial  = collect($dialRows)->map(fn($r) => $this->formatDialysis($r))->values()->all();
+        $formattedMeds = collect($medRows)->map(fn ($r) => $this->formatMedication($r))->values()->all();
+        $formattedNut = $this->organizeNutritionByShift(collect($nutRows));
+        $formattedOrd = collect($ordRows)->map(fn ($r) => $this->formatOrder($r))->values()->all();
+        $formattedInt = collect($intRows)->map(fn ($r) => $this->formatIntervention($r))->values()->all();
+        $formattedProc = collect($procRows)->map(fn ($r) => $this->formatProcedure($r))->values()->all();
+        $formattedHemo = collect($hemoRows)->map(fn ($r) => $this->formatHemotherapy($r))->values()->all();
+        $formattedSurg = collect($surgRows)->map(fn ($r) => $this->formatSurgery($r))->values()->all();
+        $formattedChemo = collect($chemoRows)->map(fn ($r) => $this->formatChemotherapy($r))->values()->all();
+        $formattedGas = collect($gasRows)->map(fn ($r) => $this->formatGasotherapy($r))->values()->all();
+        $formattedDial = collect($dialRows)->map(fn ($r) => $this->formatDialysis($r))->values()->all();
 
         return [
-            'medications'   => ['count' => count($formattedMeds),  'items' => $formattedMeds],
-            'nutrition'     => $formattedNut,
-            'orders'        => ['count' => count($formattedOrd),   'items' => $formattedOrd],
+            'medications' => ['count' => count($formattedMeds),  'items' => $formattedMeds],
+            'nutrition' => $formattedNut,
+            'orders' => ['count' => count($formattedOrd),   'items' => $formattedOrd],
             'interventions' => ['count' => count($formattedInt),   'items' => $formattedInt],
-            'procedures'    => ['count' => count($formattedProc),  'items' => $formattedProc],
-            'hemotherapy'   => ['count' => count($formattedHemo),  'items' => $formattedHemo],
-            'surgery'       => ['count' => count($formattedSurg),  'items' => $formattedSurg],
-            'chemotherapy'  => ['count' => count($formattedChemo), 'items' => $formattedChemo],
-            'gasotherapy'   => ['count' => count($formattedGas),   'items' => $formattedGas],
-            'dialysis'      => ['count' => count($formattedDial),  'items' => $formattedDial],
+            'procedures' => ['count' => count($formattedProc),  'items' => $formattedProc],
+            'hemotherapy' => ['count' => count($formattedHemo),  'items' => $formattedHemo],
+            'surgery' => ['count' => count($formattedSurg),  'items' => $formattedSurg],
+            'chemotherapy' => ['count' => count($formattedChemo), 'items' => $formattedChemo],
+            'gasotherapy' => ['count' => count($formattedGas),   'items' => $formattedGas],
+            'dialysis' => ['count' => count($formattedDial),  'items' => $formattedDial],
         ];
     }
 
@@ -171,10 +172,29 @@ class PatientTherapeuticPlanRepository
     private function nutritionQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('cd.NM_USUARIO');
+
         return "
             SELECT
                 cd.NR_SEQUENCIA                            AS id,
                 NVL(d.DS_DIETA, SUBSTR(mat.ds_material, 1, 255)) AS name,
+                cd.CD_INTERVALO                            AS interval_code,
+                                NVL(
+                                        (
+                                                SELECT MAX(
+                                                        NVL(
+                                                                tasy.Obter_intervalo_dieta(pd.NR_PRESCRICAO, pd.IE_REFEICAO),
+                                                                SUBSTR(tasy.Obter_Unid_Med_Dieta(pd.CD_DIETA), 1, 150)
+                                                        )
+                                                )
+                                                FROM tasy.PRESCR_DIETA pd
+                                                JOIN tasy.PRESCR_MEDICA pm
+                                                    ON pm.NR_PRESCRICAO = pd.NR_PRESCRICAO
+                                                WHERE pd.NR_SEQ_DIETA_CPOE = cd.NR_SEQUENCIA
+                                                    AND pm.DT_SUSPENSAO IS NULL
+                                                    AND NVL(pd.IE_SUSPENSO, 'N') <> 'S'
+                                        ),
+                                        ip.DS_INTERVALO
+                                )                                           AS interval_description,
                 cd.DS_HORARIOS                             AS schedule,
                 cd.HR_PRIM_HORARIO                         AS first_hour,
                 cd.DT_INICIO                               AS dt_start,
@@ -183,25 +203,41 @@ class PatientTherapeuticPlanRepository
                 cd.IE_JEJUM                                AS flag2,
                 cd.IE_DIETA_ENTERAL                        AS flag3,
                 cd.IE_DIETA_ESPECIAL                       AS flag4,
+                cd.IE_BOMBA_INFUSAO                        AS flag5,
+                cd.IE_APLIC_BOLUS                          AS flag6,
+                cd.IE_CONTINUO                             AS flag7,
+                cd.IE_LEITE_MATERNO                        AS flag8,
                 cd.DS_OBSERVACAO                           AS observation,
                 cd.DS_ALERGIAS_ALIMENTARES                 AS note_text,
+                cd.DS_ORIENTACAO                           AS guidance,
+                cd.DS_JUSTIFICATIVA                        AS justification,
                 {$prescriberName}                          AS professional_name,
                 TO_CHAR(cd.QT_VOLUME)                      AS qty,
+                TO_CHAR(cd.QT_VOLUME_TOTAL)                AS total_volume,
+                TO_CHAR(cd.QT_VEL_INFUSAO)                 AS infusion_speed,
                 NULL                                       AS unit_measure,
-                CASE
-                    WHEN cd.HR_PRIM_HORARIO IS NOT NULL
-                     AND TO_NUMBER(SUBSTR(cd.HR_PRIM_HORARIO, 1, 2)) >= 7
-                     AND TO_NUMBER(SUBSTR(cd.HR_PRIM_HORARIO, 1, 2)) <  13 THEN 'MORNING'
-                    WHEN cd.HR_PRIM_HORARIO IS NOT NULL
-                     AND TO_NUMBER(SUBSTR(cd.HR_PRIM_HORARIO, 1, 2)) >= 13
-                     AND TO_NUMBER(SUBSTR(cd.HR_PRIM_HORARIO, 1, 2)) <  19 THEN 'AFTERNOON'
-                    ELSE 'NIGHT'
-                END                                        AS shift
+                va.DS_VIA_APLICACAO                        AS route,
+                (SELECT MAX(m1.DS_MATERIAL) FROM tasy.MATERIAL m1 WHERE m1.CD_MATERIAL = cd.CD_MAT_PROD1) AS product_1,
+                TO_CHAR(cd.QT_DOSE_PROD1)                  AS product_1_qty,
+                (SELECT MAX(m2.DS_MATERIAL) FROM tasy.MATERIAL m2 WHERE m2.CD_MATERIAL = cd.CD_MAT_PROD2) AS product_2,
+                TO_CHAR(cd.QT_DOSE_PROD2)                  AS product_2_qty,
+                (SELECT MAX(m3.DS_MATERIAL) FROM tasy.MATERIAL m3 WHERE m3.CD_MATERIAL = cd.CD_MAT_PROD3) AS product_3,
+                TO_CHAR(cd.QT_DOSE_PROD3)                  AS product_3_qty,
+                (SELECT MAX(m4.DS_MATERIAL) FROM tasy.MATERIAL m4 WHERE m4.CD_MATERIAL = cd.CD_MAT_PROD4) AS product_4,
+                TO_CHAR(cd.QT_DOSE_PROD4)                  AS product_4_qty,
+                (SELECT MAX(m5.DS_MATERIAL) FROM tasy.MATERIAL m5 WHERE m5.CD_MATERIAL = cd.CD_MAT_PROD5) AS product_5,
+                TO_CHAR(cd.QT_DOSE_PROD5)                  AS product_5_qty
             FROM tasy.CPOE_DIETA cd
             LEFT JOIN tasy.dieta d
                    ON cd.CD_DIETA         = d.CD_DIETA
             LEFT JOIN tasy.material mat
                    ON cd.CD_MATERIAL      = mat.cd_material
+            LEFT JOIN tasy.via_aplicacao va
+                   ON cd.IE_VIA_APLICACAO = va.IE_VIA_APLICACAO
+                  AND va.IE_SITUACAO      = 'A'
+            LEFT JOIN tasy.INTERVALO_PRESCRICAO ip
+                 ON UPPER(ip.CD_INTERVALO) = UPPER(cd.CD_INTERVALO)
+                AND NVL(ip.IE_SITUACAO, 'A') = 'A'
             WHERE cd.NR_ATENDIMENTO = :nr
               AND cd.DT_LIBERACAO   IS NOT NULL
               AND cd.DT_SUSPENSAO   IS NULL
@@ -222,6 +258,7 @@ class PatientTherapeuticPlanRepository
     private function ordersQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('cr.NM_USUARIO');
+
         return "
             SELECT
                 cr.NR_SEQUENCIA                            AS id,
@@ -259,6 +296,7 @@ class PatientTherapeuticPlanRepository
     private function interventionsQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('ci.NM_USUARIO');
+
         return "
             SELECT
                 ci.NR_SEQUENCIA                            AS id,
@@ -295,6 +333,7 @@ class PatientTherapeuticPlanRepository
     private function proceduresQuery(): string
     {
         $prescriberName = $this->nameFromPrescritor('pm.CD_PRESCRITOR');
+
         return "
             SELECT
                 pp.NR_SEQUENCIA                             AS id,
@@ -319,11 +358,44 @@ class PatientTherapeuticPlanRepository
                 {$prescriberName}                           AS professional_name,
                 pm.NR_PRESCRICAO                            AS nr_prescricao,
                 pp.DT_BAIXA                                 AS dt_baixa,
+                                pm.DT_PRESCRICAO                            AS dt_solicitacao_raw,
+                                pm.DT_LIBERACAO                             AS dt_liberacao_raw,
+                CASE
+                    WHEN pp.NR_SEQ_EXAME IS NOT NULL THEN 'exame'
+                    ELSE 'procedimento'
+                END                                         AS event_type,
+                pp.IE_AMOSTRA                               AS sample_check,
+                pp.DT_COLETA                                AS collected_at_raw,
+                                (SELECT MAX(gel.DS_GRUPO_EXAME_LAB)
+                                 FROM tasy.EXAME_LABORATORIO el
+                                 LEFT JOIN tasy.GRUPO_EXAME_LAB gel
+                                                ON gel.NR_SEQUENCIA = el.NR_SEQ_GRUPO
+                                 WHERE el.NR_SEQ_EXAME = pp.NR_SEQ_EXAME)   AS ds_grupo_lab,
+                                (SELECT tasy.OBTER_STATUS_LAUDO(MAX(pp_pac.nr_laudo))
+                                 FROM tasy.PROCEDIMENTO_PACIENTE pp_pac
+                                 WHERE pp_pac.nr_prescricao           = pm.NR_PRESCRICAO
+                                     AND pp_pac.nr_sequencia_prescricao = pp.nr_sequencia) AS ds_status_laudo,
                 CAST(NULL AS NUMBER)                        AS setor_raw,
                 CAST(NULL AS VARCHAR2(255))                 AS setor_desc_raw,
                 CASE WHEN TRUNC(pp.DT_PREV_EXECUCAO) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
                 CASE WHEN TRUNC(pp.DT_PREV_EXECUCAO) = TRUNC(SYSDATE - 1) THEN 1 ELSE 0 END AS is_yesterday,
-                CASE WHEN TRUNC(pp.DT_PREV_EXECUCAO) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow
+                CASE WHEN TRUNC(pp.DT_PREV_EXECUCAO) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow,
+                (SELECT CASE
+                            WHEN elri.ds_resultado IS NOT NULL THEN elri.ds_resultado
+                            ELSE REPLACE(
+                                NVL(
+                                    TO_CHAR(elri.qt_resultado, 'FM9G999G990D099999', 'NLS_NUMERIC_CHARACTERS='',.'''),
+                                    TO_CHAR(elri.pr_resultado, 'FM9G999G990D099999', 'NLS_NUMERIC_CHARACTERS='',.''')
+                                ), '.', ','
+                            )
+                        END
+                 FROM tasy.result_laboratorio rl
+                 JOIN tasy.exame_lab_result_item elri
+                      ON elri.nr_seq_resultado = rl.nr_sequencia
+                     AND elri.nr_sequencia     = 1
+                 WHERE rl.nr_prescricao     = pm.NR_PRESCRICAO
+                   AND rl.nr_seq_prescricao = pp.NR_SEQUENCIA
+                   AND ROWNUM = 1)                              AS ds_resultado_laudo
             FROM tasy.PRESCR_PROCEDIMENTO pp
             JOIN tasy.PRESCR_MEDICA pm
               ON pm.NR_PRESCRICAO = pp.NR_PRESCRICAO
@@ -363,11 +435,25 @@ class PatientTherapeuticPlanRepository
                 NULL                                        AS professional_name,
                 NULL                                        AS nr_prescricao,
                 CAST(NULL AS DATE)                          AS dt_baixa,
+                CAST(NULL AS DATE)                          AS dt_solicitacao_raw,
+                CAST(NULL AS DATE)                          AS dt_liberacao_raw,
+                CASE
+                    WHEN (SELECT MAX(pi.NR_SEQ_EXAME_LAB)
+                          FROM tasy.PROC_INTERNO pi
+                          WHERE pi.NR_SEQUENCIA = ap.NR_SEQ_PROC_INTERNO) IS NOT NULL
+                    THEN 'exame'
+                    ELSE 'procedimento'
+                END                                         AS event_type,
+                CAST(NULL AS VARCHAR2(1))                   AS sample_check,
+                CAST(NULL AS DATE)                          AS collected_at_raw,
+                CAST(NULL AS VARCHAR2(255))                 AS ds_grupo_lab,
+                CAST(NULL AS VARCHAR2(255))                 AS ds_status_laudo,
                 NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) AS setor_raw,
                 tasy.OBTER_DS_SETOR_ATENDIMENTO(NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)) AS setor_desc_raw,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE - 1) THEN 1 ELSE 0 END AS is_yesterday,
-                CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow
+                CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow,
+                CAST(NULL AS VARCHAR2(255))                     AS ds_resultado_laudo
             FROM tasy.AGENDA_PACIENTE ap
             WHERE ap.NR_ATENDIMENTO      = :nr_surg
               AND ap.IE_CARATER_CIRURGIA IS NULL
@@ -386,6 +472,7 @@ class PatientTherapeuticPlanRepository
     private function hemotherapyQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('ch.NM_USUARIO');
+
         return "
             SELECT
                 ch.NR_SEQUENCIA                            AS id,
@@ -504,6 +591,7 @@ class PatientTherapeuticPlanRepository
     private function gasotherapyQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('cg.NM_USUARIO');
+
         return "
             SELECT
                 cg.NR_SEQUENCIA                            AS id,
@@ -551,6 +639,7 @@ class PatientTherapeuticPlanRepository
     private function dialysisQuery(): string
     {
         $prescriberName = $this->nameFromCpoeUser('cd.NM_USUARIO');
+
         return "
             SELECT
                 cd.NR_SEQUENCIA                            AS id,
@@ -586,29 +675,29 @@ class PatientTherapeuticPlanRepository
 
     private function formatMedication(object $row): array
     {
-        $totalDoses   = (int) ($row->num1 ?? 0);
+        $totalDoses = (int) ($row->num1 ?? 0);
         $checkedDoses = (int) ($row->num2 ?? 0);
 
         // Status: always 'active' since we filter DT_SUSPENSAO IS NULL at query level
         $status = 'active';
 
-        $doseDisplay = trim(($row->qty ?? '') . ' ' . ($row->unit_measure ?? ''));
+        $doseDisplay = trim(($row->qty ?? '').' '.($row->unit_measure ?? ''));
 
-        $isAntibiotic   = ($row->flag2 ?? '') === 'S';
-        $antibioticDay  = !empty($row->flag3) ? (int) $row->flag3 : null;
-        $antibioticDays = !empty($row->flag4) ? (int) $row->flag4 : null;
+        $isAntibiotic = ($row->flag2 ?? '') === 'S';
+        $antibioticDay = ! empty($row->flag3) ? (int) $row->flag3 : null;
+        $antibioticDays = ! empty($row->flag4) ? (int) $row->flag4 : null;
 
-        $hasDialuent    = !empty($row->diluent_name);
+        $hasDialuent = ! empty($row->diluent_name);
         $diluentDisplay = $hasDialuent
-            ? trim($row->diluent_name . (!empty($row->diluent_qty) ? ' – ' . $row->diluent_qty : ''))
+            ? trim($row->diluent_name.(! empty($row->diluent_qty) ? ' – '.$row->diluent_qty : ''))
             : null;
 
-        $hasPrepNotes = !empty($row->prep_notes);
-        $hasObs       = !empty($row->observation);
-        $hasJust      = !empty($row->note_text);
+        $hasPrepNotes = ! empty($row->prep_notes);
+        $hasObs = ! empty($row->observation);
+        $hasJust = ! empty($row->note_text);
 
-        $volume      = !empty($row->med_volume) ? trim($row->med_volume) . ' mL' : null;
-        $infusionMin = !empty($row->infusion_min) ? (int) $row->infusion_min : null;
+        $volume = ! empty($row->med_volume) ? trim($row->med_volume).' mL' : null;
+        $infusionMin = ! empty($row->infusion_min) ? (int) $row->infusion_min : null;
 
         // NR_PRESCRICAO from subquery
         $nrPrescricao = isset($row->nr_prescricao) && $row->nr_prescricao !== null
@@ -616,71 +705,77 @@ class PatientTherapeuticPlanRepository
             : null;
 
         return [
-            'id'              => (int) ($row->id ?? 0),
-            'name'            => $row->name ?? 'Medicamento não identificado',
-            'dose'            => $doseDisplay ?: null,
-            'route'           => $row->route ?? null,
-            'frequency'       => $row->secondary_info ?? null,
-            'schedule'        => $row->schedule ?? ($row->first_hour ?? null),
-            'admin_code'      => $row->flag1 ?? null,
-            'is_antibiotic'   => $isAntibiotic,
-            'antibiotic_day'  => $antibioticDay,
+            'id' => (int) ($row->id ?? 0),
+            'name' => $row->name ?? 'Medicamento não identificado',
+            'dose' => $doseDisplay ?: null,
+            'route' => $row->route ?? null,
+            'frequency' => $row->secondary_info ?? null,
+            'schedule' => $row->schedule ?? ($row->first_hour ?? null),
+            'admin_code' => $row->flag1 ?? null,
+            'is_antibiotic' => $isAntibiotic,
+            'antibiotic_day' => $antibioticDay,
             'antibiotic_days' => $antibioticDays,
-            'diluent'         => $diluentDisplay,
-            'volume'          => $volume,
-            'infusion_min'    => $infusionMin,
-            'prep_notes'      => $hasPrepNotes ? $row->prep_notes : null,
-            'dt_start'        => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
-            'dt_end'          => $row->dt_end   ? Carbon::parse($row->dt_end)->format('d/m/Y')   : null,
-            'status'          => $status,
-            'total_doses'     => $totalDoses,
-            'checked_doses'   => $checkedDoses,
-            'observation'     => $hasObs ? $row->observation : null,
-            'justification'   => $hasJust ? $row->note_text  : null,
-            'prescriber'      => $row->extra1 ?? ($row->professional_name ?? null),
-            'is_high_alert'   => ($row->flag5 ?? '') === 'S',
-            'is_controlled'   => ($row->flag6 ?? '') === 'S',
-            'drug_class'      => !empty($row->extra2) ? $row->extra2 : null,
-            'has_details'     => $hasObs || $hasJust || $hasPrepNotes || $hasDialuent || $infusionMin || $volume,
-            'nr_prescricao'   => $nrPrescricao,
+            'diluent' => $diluentDisplay,
+            'volume' => $volume,
+            'infusion_min' => $infusionMin,
+            'prep_notes' => $hasPrepNotes ? $row->prep_notes : null,
+            'dt_start' => ! empty($row->dt_start ?? null) ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
+            'dt_end' => ! empty($row->dt_end ?? null) ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
+            'status' => $status,
+            'total_doses' => $totalDoses,
+            'checked_doses' => $checkedDoses,
+            'observation' => $hasObs ? $row->observation : null,
+            'justification' => $hasJust ? $row->note_text : null,
+            'prescriber' => $row->extra1 ?? ($row->professional_name ?? null),
+            'is_high_alert' => ($row->flag5 ?? '') === 'S',
+            'is_controlled' => ($row->flag6 ?? '') === 'S',
+            'drug_class' => ! empty($row->extra2) ? $row->extra2 : null,
+            'has_details' => $hasObs || $hasJust || $hasPrepNotes || $hasDialuent || $infusionMin || $volume,
+            'nr_prescricao' => $nrPrescricao,
         ];
     }
 
     public function formatOrder(object $row): array
     {
         return [
-            'text'        => $row->name ?? 'No description',
-            'type'        => $row->secondary_info ?? null,
-            'observation' => !empty($row->observation) ? $row->observation : null,
-            'schedule'    => $row->schedule ?? ($row->first_hour ?? null),
-            'prescriber'  => $row->professional_name ?? null,
-            'dt_start'    => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
-            'dt_end'      => $row->dt_end   ? Carbon::parse($row->dt_end)->format('d/m/Y')   : null,
-            'has_details' => !empty($row->observation),
+            'text' => $row->name ?? 'No description',
+            'type' => $row->secondary_info ?? null,
+            'observation' => ! empty($row->observation) ? $row->observation : null,
+            'schedule' => $row->schedule ?? ($row->first_hour ?? null),
+            'prescriber' => $row->professional_name ?? null,
+            'dt_start' => ! empty($row->dt_start ?? null) ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
+            'dt_end' => ! empty($row->dt_end ?? null) ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
+            'has_details' => ! empty($row->observation),
         ];
     }
 
     public function formatIntervention(object $row): array
     {
         $labels = [];
-        if (($row->flag1 ?? '') === '1') $labels[] = 'Urgent';
-        if (($row->flag2 ?? '') === 'S') $labels[] = 'PRN';
-        if (($row->flag3 ?? '') === 'S') $labels[] = 'ACM';
-        if (!empty($row->flag4)) {
+        if (($row->flag1 ?? '') === '1') {
+            $labels[] = 'Urgent';
+        }
+        if (($row->flag2 ?? '') === 'S') {
+            $labels[] = 'PRN';
+        }
+        if (($row->flag3 ?? '') === 'S') {
+            $labels[] = 'ACM';
+        }
+        if (! empty($row->flag4)) {
             $sideMap = ['D' => 'Right', 'E' => 'Left', 'B' => 'Bilateral'];
-            $labels[] = 'Side: ' . ($sideMap[$row->flag4] ?? $row->flag4);
+            $labels[] = 'Side: '.($sideMap[$row->flag4] ?? $row->flag4);
         }
 
         return [
-            'name'        => $row->name ?? 'Unidentified intervention',
-            'observation' => !empty($row->observation) ? $row->observation : null,
-            'schedule'    => $row->schedule ?? ($row->first_hour ?? null),
-            'assignee'    => $row->professional_name ?? null,
-            'prescriber'  => null,
-            'labels'      => $labels,
-            'dt_start'    => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
-            'dt_end'      => $row->dt_end   ? Carbon::parse($row->dt_end)->format('d/m/Y')   : null,
-            'has_details' => !empty($row->observation) || !empty($labels),
+            'name' => $row->name ?? 'Unidentified intervention',
+            'observation' => ! empty($row->observation) ? $row->observation : null,
+            'schedule' => $row->schedule ?? ($row->first_hour ?? null),
+            'assignee' => $row->professional_name ?? null,
+            'prescriber' => null,
+            'labels' => $labels,
+            'dt_start' => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
+            'dt_end' => $row->dt_end ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
+            'has_details' => ! empty($row->observation) || ! empty($labels),
         ];
     }
 
@@ -692,32 +787,39 @@ class PatientTherapeuticPlanRepository
             '20' => 'Collected',
             '30' => 'Analyzing',
             '40' => 'Completed',
-            'A'  => 'Scheduled',
-            'R'  => 'Done',
+            'A' => 'Scheduled',
+            'R' => 'Done',
         ];
 
-        $origem    = $row->origem ?? 'PRESCRICAO';
+        $origem = $row->origem ?? 'PRESCRICAO';
         $statusRaw = (string) ($row->status_raw ?? '');
-        $status    = 'Pendente';
+        $status = 'Pendente';
         if ($origem === 'AGENDAMENTO') {
             $status = $this->agendaStatusLabel($statusRaw);
-        } elseif (!empty($row->dt_baixa)) {
+        } elseif (! empty($row->dt_baixa)) {
             $status = 'Done';
         } elseif ($statusRaw !== '') {
             $status = $prescricaoStatusMap[$statusRaw] ?? 'Pendente';
         }
 
-        $type      = !empty($row->tipo) ? $row->tipo : null;
+        $type = ! empty($row->tipo) ? $row->tipo : null;
+
+        $eventType = PendingEventTypeClassifier::fromTherapeuticProcedure([
+            'event_type' => $row->event_type ?? null,
+            'type' => $type,
+            'name' => $row->name ?? null,
+        ]);
+
         if ($origem === 'AGENDAMENTO' && $type === null) {
-            $type = 'Cirurgia';
+            $type = $eventType === PendingEventTypeClassifier::EXAM ? 'Exame' : 'Procedimento';
         }
-        $isToday   = (int) ($row->is_today ?? 0) === 1;
-        $isYest    = (int) ($row->is_yesterday ?? 0) === 1;
+        $isToday = (int) ($row->is_today ?? 0) === 1;
+        $isYest = (int) ($row->is_yesterday ?? 0) === 1;
         $isTomorrow = (int) ($row->is_tomorrow ?? 0) === 1;
-        $isNear    = $isToday || $isYest || $isTomorrow;
+        $isNear = $isToday || $isYest || $isTomorrow;
 
         $scheduledRaw = null;
-        if (!empty($row->scheduled_raw)) {
+        if (! empty($row->scheduled_raw)) {
             try {
                 $scheduledRaw = Carbon::parse($row->scheduled_raw)->format('Y-m-d');
             } catch (\Exception $e) {
@@ -726,45 +828,90 @@ class PatientTherapeuticPlanRepository
         }
 
         return [
-            'id'           => (int) ($row->id ?? 0),
-            'name'         => $row->name ?? 'Procedimento não identificado',
-            'origem'       => $origem,
-            'type'         => $type,
-            'scheduled'    => $row->scheduled ?? null,
-            'scheduled_raw'=> $scheduledRaw,
-            'status'       => $status,
-            'is_today'     => $isToday,
+            'id' => (int) ($row->id ?? 0),
+            'name' => $row->name ?? 'Procedimento não identificado',
+            'origem' => $origem,
+            'type' => $type,
+            'scheduled' => $row->scheduled ?? null,
+            'scheduled_raw' => $scheduledRaw,
+            'status' => $status,
+            'event_type' => $eventType,
+            'is_today' => $isToday,
             'is_yesterday' => $isYest,
-            'is_tomorrow'  => $isTomorrow,
-            'is_near'      => $isNear,
-            'sector_code'  => isset($row->setor_raw) ? (string) $row->setor_raw : null,
-            'sector_name'  => !empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
-            'prescriber'   => !empty($row->professional_name) ? $row->professional_name : null,
-            'nr_prescricao'=> isset($row->nr_prescricao) && $row->nr_prescricao !== null ? (int) $row->nr_prescricao : null,
+            'is_tomorrow' => $isTomorrow,
+            'is_near' => $isNear,
+            'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
+            'prescriber' => ! empty($row->professional_name) ? $row->professional_name : null,
+            'nr_prescricao' => isset($row->nr_prescricao) && $row->nr_prescricao !== null ? (int) $row->nr_prescricao : null,
+            'checklist_amostra' => ! empty($row->sample_check) ? (string) $row->sample_check : null,
+            'dt_coleta' => ! empty($row->collected_at_raw) ? Carbon::parse($row->collected_at_raw)->format('d/m/Y H:i') : null,
+            'dt_solicitacao' => ! empty($row->dt_solicitacao_raw) ? Carbon::parse($row->dt_solicitacao_raw)->format('d/m/Y H:i') : null,
+            'dt_liberacao' => ! empty($row->dt_liberacao_raw) ? Carbon::parse($row->dt_liberacao_raw)->format('d/m/Y H:i') : null,
+            'classificacao' => ! empty($row->ds_grupo_lab) ? trim((string) $row->ds_grupo_lab) : null,
+            'status_laudo' => ! empty($row->ds_status_laudo) ? trim((string) $row->ds_status_laudo) : null,
+            'tempo_pendente' => $this->formatTempoPendenteFromDate(
+                ! empty($row->dt_solicitacao_raw) ? (string) $row->dt_solicitacao_raw : (! empty($row->scheduled_raw) ? (string) $row->scheduled_raw : null)
+            ),
+            'resultado_laudo' => ! empty($row->ds_resultado_laudo) ? trim((string) $row->ds_resultado_laudo) : null,
         ];
+    }
+
+    private function formatTempoPendenteFromDate(?string $date): ?string
+    {
+        if (empty($date)) {
+            return null;
+        }
+
+        try {
+            $start = Carbon::parse($date);
+            $now = now();
+
+            if ($start->greaterThan($now)) {
+                $diffMinutes = (int) $now->diffInMinutes($start);
+                if ($diffMinutes < 60) {
+                    return 'em '.$diffMinutes.'min';
+                }
+
+                $diffHours = intdiv($diffMinutes, 60);
+
+                return $diffHours < 24 ? 'em '.$diffHours.'h' : 'em '.intdiv($diffHours, 24).'d';
+            }
+
+            $diffMinutes = (int) $start->diffInMinutes($now);
+            if ($diffMinutes < 60) {
+                return $diffMinutes.'min em aberto';
+            }
+
+            $diffHours = intdiv($diffMinutes, 60);
+
+            return $diffHours < 24 ? $diffHours.'h em aberto' : intdiv($diffHours, 24).'d em aberto';
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function formatHemotherapy(object $row): array
     {
         $volume = null;
-        if (!empty($row->qty)) {
-            $volume = trim($row->qty . (!empty($row->unit_measure) ? ' ' . $row->unit_measure : ''));
+        if (! empty($row->qty)) {
+            $volume = trim($row->qty.(! empty($row->unit_measure) ? ' '.$row->unit_measure : ''));
         }
 
         return [
-            'id'          => (int) ($row->id ?? 0),
-            'name'        => $row->name ?? 'Hemocomponente',
-            'tipo_code'   => $row->secondary_info ?? null,
+            'id' => (int) ($row->id ?? 0),
+            'name' => $row->name ?? 'Hemocomponente',
+            'tipo_code' => $row->secondary_info ?? null,
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
-            'sector_name' => !empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
-            'is_urgent'   => ($row->flag1 ?? 'N') === 'S',
-            'schedule'    => $row->schedule ?? null,
-            'volume'      => $volume,
-            'observation' => !empty($row->observation) ? $row->observation : null,
-            'prescriber'  => $row->professional_name ?? null,
-            'dt_start'    => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
-            'dt_end'      => $row->dt_end   ? Carbon::parse($row->dt_end)->format('d/m/Y')   : null,
-            'has_details' => !empty($row->observation),
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
+            'is_urgent' => ($row->flag1 ?? 'N') === 'S',
+            'schedule' => $row->schedule ?? null,
+            'volume' => $volume,
+            'observation' => ! empty($row->observation) ? $row->observation : null,
+            'prescriber' => $row->professional_name ?? null,
+            'dt_start' => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
+            'dt_end' => $row->dt_end ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
+            'has_details' => ! empty($row->observation),
         ];
     }
 
@@ -776,109 +923,110 @@ class PatientTherapeuticPlanRepository
             'G' => 'Emergência',
         ];
 
-        $carater   = $caracterMap[$row->flag1 ?? ''] ?? 'Não informado';
+        $carater = $caracterMap[$row->flag1 ?? ''] ?? 'Não informado';
         $is_urgent = in_array($row->flag1 ?? '', ['U', 'G']);
 
         return [
-            'id'          => (int) ($row->id ?? 0),
-            'name'        => $row->name ?? 'Cirurgia não especificada',
-            'carater'     => $carater,
-            'status'      => $this->agendaStatusLabel((string) ($row->status_raw ?? '')),
+            'id' => (int) ($row->id ?? 0),
+            'name' => $row->name ?? 'Cirurgia não especificada',
+            'carater' => $carater,
+            'status' => $this->agendaStatusLabel((string) ($row->status_raw ?? '')),
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
-            'sector_name' => !empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
-            'is_urgent'   => $is_urgent,
-            'dt'          => $row->schedule ?? null,
-            'sala'        => !empty($row->extra1) ? 'Sala ' . $row->extra1 : null,
-            'description' => !empty($row->extra2) ? $row->extra2 : null,
-            'observation' => !empty($row->observation) ? $row->observation : null,
-            'has_details' => !empty($row->observation),
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
+            'is_urgent' => $is_urgent,
+            'dt' => $row->schedule ?? null,
+            'sala' => ! empty($row->extra1) ? 'Sala '.$row->extra1 : null,
+            'description' => ! empty($row->extra2) ? $row->extra2 : null,
+            'observation' => ! empty($row->observation) ? $row->observation : null,
+            'has_details' => ! empty($row->observation),
         ];
     }
 
     private function agendaStatusLabel(?string $code): string
     {
         $map = [
-            'A'  => 'Aguardando',
+            'A' => 'Aguardando',
             'AD' => 'Atendido',
             'AE' => 'Aguardando remarcação',
             'AP' => 'Aguardando paciente',
             'AT' => 'Aguardando atendimento',
-            'B'  => 'Bloqueada',
-            'C'  => 'Cancelada',
+            'B' => 'Bloqueada',
+            'C' => 'Cancelada',
             'CN' => 'Confirmada',
             'CR' => 'Cirurgia realizada',
-            'E'  => 'Executada',
+            'E' => 'Executada',
             'EE' => 'Em exame',
             'EP' => 'Em preparo',
-            'F'  => 'Falta justificada',
-            'I'  => 'Falta não justificada',
+            'F' => 'Falta justificada',
+            'I' => 'Falta não justificada',
             'II' => 'Inativo',
             'IN' => 'Iniciada',
             'IT' => 'Interrompida',
-            'L'  => 'Livre',
+            'L' => 'Livre',
             'LF' => 'Livre forçado',
-            'N'  => 'Normal',
-            'O'  => 'Em Consulta',
-            'P'  => 'Paciente internado',
+            'N' => 'Normal',
+            'O' => 'Em Consulta',
+            'P' => 'Paciente internado',
             'PA' => 'Pré-agenda',
             'PH' => 'Paciente chamado',
             'PO' => 'Pós-operatório',
             'PS' => 'Paciente em sala',
-            'R'  => 'Reservada',
+            'R' => 'Reservada',
             'RE' => 'Remarcada',
             'RV' => 'Revisar',
-            'S'  => 'Suspenso',
+            'S' => 'Suspenso',
         ];
 
         $normalized = strtoupper(trim((string) $code));
+
         return $map[$normalized] ?? ($normalized !== '' ? $normalized : 'Aguardando');
     }
 
     public function formatChemotherapy(object $row): array
     {
         return [
-            'id'          => (int) ($row->id ?? 0),
-            'name'        => $row->name ?? 'Quimioterapia',
-            'protocol'    => !empty($row->extra1) ? $row->extra1 : null,
-            'cycle'       => !empty($row->extra2) ? (int) $row->extra2 : null,
+            'id' => (int) ($row->id ?? 0),
+            'name' => $row->name ?? 'Quimioterapia',
+            'protocol' => ! empty($row->extra1) ? $row->extra1 : null,
+            'cycle' => ! empty($row->extra2) ? (int) $row->extra2 : null,
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
-            'sector_name' => !empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
-            'scheduled'   => $row->schedule ?? null,
-            'local'       => !empty($row->observation) ? $row->observation : null,
-            'prescriber'  => !empty($row->professional_name) ? $row->professional_name : null,
-            'dt_start'    => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y H:i') : null,
-            'has_details' => !empty($row->observation) || !empty($row->professional_name),
+            'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
+            'scheduled' => $row->schedule ?? null,
+            'local' => ! empty($row->observation) ? $row->observation : null,
+            'prescriber' => ! empty($row->professional_name) ? $row->professional_name : null,
+            'dt_start' => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y H:i') : null,
+            'has_details' => ! empty($row->observation) || ! empty($row->professional_name),
         ];
     }
 
     private function formatGasotherapy(object $row): array
     {
         return [
-            'id'                 => (int) ($row->id ?? 0),
-            'tipo_gas'           => $row->tipo_gas ?? null,
-            'modalidade'         => $row->modalidade ?? null,
+            'id' => (int) ($row->id ?? 0),
+            'tipo_gas' => $row->tipo_gas ?? null,
+            'modalidade' => $row->modalidade ?? null,
             'modo_administracao' => $row->modo_administracao ?? null,
-            'quantidade'         => $row->quantidade ?? null,
-            'unidade'            => $row->unidade ?? null,
-            'fio2'               => $row->fio2 ?? null,
+            'quantidade' => $row->quantidade ?? null,
+            'unidade' => $row->unidade ?? null,
+            'fio2' => $row->fio2 ?? null,
             'fluxo_inspiratorio' => $row->fluxo_inspiratorio ?? null,
-            'pip'                => $row->pip ?? null,
-            'peep'               => $row->peep ?? null,
-            'volume_corrente'    => $row->volume_corrente ?? null,
-            'freq_ventilatoria'  => $row->freq_ventilatoria ?? null,
-            'pressao_suporte'    => $row->pressao_suporte ?? null,
-            'equipamento_1'      => $row->equipamento_1 ?? null,
-            'equipamento_2'      => $row->equipamento_2 ?? null,
-            'equipamento_3'      => $row->equipamento_3 ?? null,
-            'horarios'           => $row->horarios ?? null,
-            'dt_inicio'          => $row->dt_inicio ? Carbon::parse($row->dt_inicio)->format('d/m/Y') : null,
-            'dt_fim'             => $row->dt_fim    ? Carbon::parse($row->dt_fim)->format('d/m/Y')    : null,
-            'urgente'            => ($row->urgente ?? 'N') === 'S',
-            'se_necessario'      => ($row->se_necessario ?? 'N') === 'S',
-            'a_criterio_medico'  => ($row->a_criterio_medico ?? 'N') === 'S',
-            'observacao'         => !empty($row->observacao) ? $row->observacao : null,
-            'justificativa'      => !empty($row->justificativa) ? $row->justificativa : null,
-            'prescriber'         => $row->professional_name ?? null,
+            'pip' => $row->pip ?? null,
+            'peep' => $row->peep ?? null,
+            'volume_corrente' => $row->volume_corrente ?? null,
+            'freq_ventilatoria' => $row->freq_ventilatoria ?? null,
+            'pressao_suporte' => $row->pressao_suporte ?? null,
+            'equipamento_1' => $row->equipamento_1 ?? null,
+            'equipamento_2' => $row->equipamento_2 ?? null,
+            'equipamento_3' => $row->equipamento_3 ?? null,
+            'horarios' => $row->horarios ?? null,
+            'dt_inicio' => $row->dt_inicio ? Carbon::parse($row->dt_inicio)->format('d/m/Y') : null,
+            'dt_fim' => $row->dt_fim ? Carbon::parse($row->dt_fim)->format('d/m/Y') : null,
+            'urgente' => ($row->urgente ?? 'N') === 'S',
+            'se_necessario' => ($row->se_necessario ?? 'N') === 'S',
+            'a_criterio_medico' => ($row->a_criterio_medico ?? 'N') === 'S',
+            'observacao' => ! empty($row->observacao) ? $row->observacao : null,
+            'justificativa' => ! empty($row->justificativa) ? $row->justificativa : null,
+            'prescriber' => $row->professional_name ?? null,
         ];
     }
 
@@ -905,20 +1053,20 @@ class PatientTherapeuticPlanRepository
         }
 
         return [
-            'id'                  => (int) ($row->id ?? 0),
-            'modalidade'          => $modalidade,
-            'sessoes_por_semana'  => $row->sessoes_por_semana ?? null,
-            'duracao_sessao'      => $row->duracao_sessao ?? null,
-            'dias_semana'         => implode(', ', $diasSemana) ?: null,
-            'fluxo_sangue'        => $row->fluxo_sangue ?? null,
-            'ktv'                 => $row->ktv ?? null,
-            'ultrafiltracao'      => $row->ultrafiltracao ?? null,
-            'horarios'            => $row->horarios ?? null,
-            'dt_inicio'           => $row->dt_inicio ? Carbon::parse($row->dt_inicio)->format('d/m/Y') : null,
-            'dt_fim'              => $row->dt_fim    ? Carbon::parse($row->dt_fim)->format('d/m/Y')    : null,
-            'observacao'          => !empty($row->observacao) ? $row->observacao : null,
-            'justificativa'       => !empty($row->justificativa) ? $row->justificativa : null,
-            'prescriber'          => $row->professional_name ?? null,
+            'id' => (int) ($row->id ?? 0),
+            'modalidade' => $modalidade,
+            'sessoes_por_semana' => $row->sessoes_por_semana ?? null,
+            'duracao_sessao' => $row->duracao_sessao ?? null,
+            'dias_semana' => implode(', ', $diasSemana) ?: null,
+            'fluxo_sangue' => $row->fluxo_sangue ?? null,
+            'ktv' => $row->ktv ?? null,
+            'ultrafiltracao' => $row->ultrafiltracao ?? null,
+            'horarios' => $row->horarios ?? null,
+            'dt_inicio' => $row->dt_inicio ? Carbon::parse($row->dt_inicio)->format('d/m/Y') : null,
+            'dt_fim' => $row->dt_fim ? Carbon::parse($row->dt_fim)->format('d/m/Y') : null,
+            'observacao' => ! empty($row->observacao) ? $row->observacao : null,
+            'justificativa' => ! empty($row->justificativa) ? $row->justificativa : null,
+            'prescriber' => $row->professional_name ?? null,
         ];
     }
 
@@ -927,50 +1075,82 @@ class PatientTherapeuticPlanRepository
         $isFasting = ($row->flag1 ?? '') === 'J';
 
         if ($isFasting) {
-            $type        = 'Fasting';
-            $displayName = 'FASTING';
+            $type = 'Fasting';
+            $displayName = 'Jejum';
         } elseif (($row->flag3 ?? '') === 'S') {
-            $type        = 'Enteral';
-            $displayName = $row->name ?? 'Enteral nutrition';
+            $type = 'Enteral';
+            $displayName = $row->name ?? 'Nutrição Enteral';
         } elseif (($row->flag4 ?? '') === 'S') {
-            $type        = 'Special';
-            $displayName = $row->name ?? 'Special diet';
+            $type = 'Special';
+            $displayName = $row->name ?? 'Dieta Especial';
         } else {
-            $type        = 'Diet';
-            $displayName = $row->name ?? 'Dietary prescription';
+            $type = 'Diet';
+            $displayName = $row->name ?? 'Dieta';
         }
 
         $volume = null;
-        if (!empty($row->qty)) {
-            $volume = trim($row->qty . (!empty($row->unit_measure) ? ' ' . $row->unit_measure : ''));
+        if (! empty($row->qty)) {
+            $volume = trim($row->qty.(! empty($row->unit_measure) ? ' '.$row->unit_measure : ''));
         }
 
+        $products = [];
+        foreach ([1, 2, 3, 4, 5] as $idx) {
+            $productName = $row->{"product_{$idx}"} ?? null;
+            if (empty($productName)) {
+                continue;
+            }
+
+            $dose = $row->{"product_{$idx}_qty"} ?? null;
+            $products[] = [
+                'name' => trim((string) $productName),
+                'dose' => ! empty($dose) ? trim((string) $dose) : null,
+            ];
+        }
+
+        $deliveryMode = collect([
+            ($row->flag7 ?? 'N') === 'S' ? 'Contínuo' : null,
+            ($row->flag6 ?? 'N') === 'S' ? 'Bolus' : null,
+            ($row->flag5 ?? 'N') === 'S' ? 'Bomba de infusão' : null,
+            ($row->flag8 ?? 'N') === 'S' ? 'Leite materno' : null,
+        ])->filter()->values()->all();
+
         return [
-            'name'        => $displayName,
-            'type'        => $type,
-            'is_fasting'  => $isFasting,
-            'observation' => !empty($row->observation) ? $row->observation : null,
-            'allergies'   => !empty($row->note_text)   ? $row->note_text   : null,
-            'schedule'    => $row->schedule ?? ($row->first_hour ?? null),
-            'shift'       => $row->shift ?? 'NIGHT',
-            'volume'      => $volume,
-            'prescriber'  => $row->professional_name ?? null,
-            'dt_start'    => $row->dt_start ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
-            'dt_end'      => $row->dt_end   ? Carbon::parse($row->dt_end)->format('d/m/Y')   : null,
-            'has_details' => !empty($row->observation) || !empty($row->note_text),
+            'name' => $displayName,
+            'type' => $type,
+            'is_fasting' => $isFasting,
+            'observation' => ! empty($row->observation) ? $row->observation : null,
+            'allergies' => ! empty($row->note_text) ? $row->note_text : null,
+            'schedule' => $row->schedule ?? ($row->first_hour ?? null),
+            'volume' => $volume,
+            'total_volume' => ! empty($row->total_volume) ? trim((string) $row->total_volume) : null,
+            'infusion_speed' => ! empty($row->infusion_speed) ? trim((string) $row->infusion_speed) : null,
+            'route' => ! empty($row->route) ? trim((string) $row->route) : null,
+            'interval_code' => ! empty($row->interval_code) ? trim((string) $row->interval_code) : null,
+            'interval_description' => ! empty($row->interval_description)
+                ? trim((string) $row->interval_description)
+                : (! empty($row->interval_code) ? trim((string) $row->interval_code) : null),
+            'guidance' => ! empty($row->guidance) ? $row->guidance : null,
+            'justification' => ! empty($row->justification) ? $row->justification : null,
+            'delivery_mode' => $deliveryMode,
+            'products' => $products,
+            'prescriber' => $row->professional_name ?? null,
+            'dt_start' => ! empty($row->dt_start ?? null) ? Carbon::parse($row->dt_start)->format('d/m/Y') : null,
+            'dt_end' => ! empty($row->dt_end ?? null) ? Carbon::parse($row->dt_end)->format('d/m/Y') : null,
+            'has_details' => ! empty($row->observation)
+                || ! empty($row->note_text)
+                || ! empty($row->guidance)
+                || ! empty($row->justification)
+                || ! empty($row->route)
+                || ! empty($row->infusion_speed)
+                || ! empty($products),
         ];
     }
 
     public function organizeNutritionByShift($nutrition): array
     {
-        $items   = $nutrition->map(fn($r) => $this->formatNutritionItem($r))->values()->all();
-        $byShift = ['MORNING' => [], 'AFTERNOON' => [], 'NIGHT' => []];
+        $items = $nutrition->map(fn ($r) => $this->formatNutritionItem($r))->values()->all();
 
-        foreach ($items as $item) {
-            $byShift[$item['shift'] ?? 'NIGHT'][] = $item;
-        }
-
-        return ['count' => count($items), 'shifts' => $byShift];
+        return ['count' => count($items), 'items' => $items];
     }
 
     // ==================== DAILY SCHEDULE GRID ====================
@@ -1043,31 +1223,33 @@ class PatientTherapeuticPlanRepository
             GROUP BY med_id, time_label
             ORDER BY med_id, time_label
         ", [
-            'att_a'  => $attendanceNumber,
+            'att_a' => $attendanceNumber,
             'date_a' => $date,
-            'att_b'  => $attendanceNumber,
+            'att_b' => $attendanceNumber,
             'date_b' => $date,
         ]);
 
         $schedule = [];
         foreach ($rows as $row) {
-            $id       = (int) $row->med_id;
+            $id = (int) $row->med_id;
             $priority = (int) $row->priority;
-            $time     = trim($row->time_label ?? '');
+            $time = trim($row->time_label ?? '');
 
             if ($time && strlen($time) === 4 && $time[0] !== '0') {
-                $time = '0' . $time;
+                $time = '0'.$time;
             }
-            if (!$time || !preg_match('/^\d{2}:\d{2}$/', $time)) continue;
+            if (! $time || ! preg_match('/^\d{2}:\d{2}$/', $time)) {
+                continue;
+            }
 
-            $status = match(true) {
+            $status = match (true) {
                 $priority >= 600 => 'administered',
                 $priority >= 500 => 'conferido',
                 $priority >= 400 => 'coletado',
                 $priority >= 300 => 'refused',
                 $priority >= 200 => 'undone',
-                $priority >= 30  => 'rescheduled',
-                default          => 'scheduled',
+                $priority >= 30 => 'rescheduled',
+                default => 'scheduled',
             };
 
             $schedule[$id][$time] = $status;

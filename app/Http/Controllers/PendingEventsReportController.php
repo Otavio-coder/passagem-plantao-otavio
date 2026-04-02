@@ -150,7 +150,9 @@ class PendingEventsReportController extends Controller
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
                     'status' => $status,
-                    'laudo' => $statusLaudoExame !== '' ? $statusLaudoExame : '-',
+                    'laudo' => $normalizedType === PendingEventTypeClassifier::SURGERY
+                        ? PendingEventPresentation::surgeryDiagnosticLabel($event)
+                        : ($statusLaudoExame !== '' ? $statusLaudoExame : '-'),
                     'sort_ts' => $sortTs,
                 ]));
             }

@@ -63,7 +63,7 @@ class PendingEventPresentationTest extends TestCase
     public function builds_a_richer_surgery_description(): void
     {
         $description = PendingEventPresentation::surgeryDescription([
-            'descricao' => 'Dissecção de veia para colocação de cateter',
+            'descricao' => 'Dissecção de veia para colocação de cateter (Cirurgia realizada)',
             'local' => 'Centro Cirúrgico',
             'sala' => '3',
         ]);
@@ -103,5 +103,22 @@ class PendingEventPresentationTest extends TestCase
         ], PendingEventTypeClassifier::EXAM);
 
         $this->assertSame('Hematologia', $classification);
+    }
+
+    #[Test]
+    public function builds_surgery_diagnostic_with_status_and_missing_fields(): void
+    {
+        $diagnostic = PendingEventPresentation::surgeryDiagnosticLabel([
+            'status_agenda_codigo' => 'PS',
+            'status_laudo' => 'Paciente em sala',
+            'tipo_cirurgia_codigo' => null,
+            'local' => null,
+            'sala' => null,
+        ]);
+
+        $this->assertSame(
+            'Status agenda: PS - Paciente em sala | Tipo de cirurgia nulo | Local nulo | Sala nula',
+            $diagnostic
+        );
     }
 }

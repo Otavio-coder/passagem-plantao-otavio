@@ -171,6 +171,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         'sala' => $row->nr_seq_sala ?? null,
                         'tipo_cirurgia_codigo' => $surgeryTypeCode,
                         'cd_tipo_cirurgia' => $surgeryTypeCode,
+                        'status_agenda_codigo' => $statusCode !== '' ? $statusCode : null,
                         'status_laudo' => $statusLabel,
                         'observacoes' => $row->ds_observacao ?? null,
                         'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'G']),

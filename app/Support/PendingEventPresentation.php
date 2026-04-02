@@ -46,6 +46,7 @@ class PendingEventPresentation
         $parts = [];
 
         $descricao = trim((string) ($event['descricao'] ?? $event['descricao_padronizada'] ?? 'Cirurgia'));
+        $descricao = trim((string) (preg_replace('/\s*\(\s*Cirurgia[^\)]*\)\s*$/iu', '', $descricao) ?? $descricao));
         if ($descricao !== '') {
             $parts[] = $descricao;
         }
@@ -75,6 +76,36 @@ class PendingEventPresentation
         $labGroup = trim((string) ($event['ds_grupo_lab'] ?? ''));
 
         return $labGroup !== '' ? $labGroup : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    public static function surgeryDiagnosticLabel(array $event): string
+    {
+        $status = trim((string) ($event['status_laudo'] ?? ''));
+        $statusCode = strtoupper(trim((string) ($event['status_agenda_codigo'] ?? '')));
+        $parts = [];
+
+        if ($statusCode !== '') {
+            $parts[] = 'Status agenda: '.$statusCode.($status !== '' ? ' - '.$status : '');
+        } else {
+            $parts[] = 'Status: '.($status !== '' ? $status : 'não informado');
+        }
+
+        if (empty($event['tipo_cirurgia_codigo']) && empty($event['cd_tipo_cirurgia'])) {
+            $parts[] = 'Tipo de cirurgia nulo';
+        }
+
+        if (empty($event['local'])) {
+            $parts[] = 'Local nulo';
+        }
+
+        if (empty($event['sala'])) {
+            $parts[] = 'Sala nula';
+        }
+
+        return implode(' | ', $parts);
     }
 
     /**

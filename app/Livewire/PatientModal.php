@@ -1,44 +1,56 @@
 <?php
+
 namespace App\Livewire;
 
-use Livewire\Component;
-use Livewire\Attributes\Isolate;
-use Livewire\Attributes\On;
 use App\Models\EMR\Core\Patient;
 use App\Services\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Isolate;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 #[Isolate]
 class PatientModal extends Component
 {
     public $showModal = false;
+
     public $currentPatient = null;
+
     public $currentHospitalName = '';
+
     public $patientDetails = null;
+
     public $patientAlerts = [];
+
     public $showAlertsModal = false;
+
     public $currentShift = 'morning';
+
     public $loadingPatient = false;
 
     /** @var array|null Therapeutic plan data (medications, nutrition, orders, interventions, procedures) */
     public $therapeuticPlan = null;
+
     public bool $planLoaded = false;
-    public bool $planError  = false;
+
+    public bool $planError = false;
 
     /** Date shown in the medication schedule grid (Y-m-d). Navigable with shiftScheduleDay(). */
     public string $scheduleDate = '';
+
     /** @var array Per-medication hour slots: [ med_id => [ 'HH:MI' => 'administered'|'scheduled'|'missed' ] ] */
     public array $medicationSchedule = [];
 
     // Model centralizada
     protected $patientModel;
+
     protected TasyService $tasyService;
 
     public function boot(TasyService $tasyService)
     {
-        $this->patientModel = new Patient();
+        $this->patientModel = new Patient;
         $this->tasyService = $tasyService;
     }
 
@@ -67,10 +79,11 @@ class PatientModal extends Component
     #[On('openModal')]
     public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null)
     {
-        if (!$attendanceNumber || $attendanceNumber == 0) {
+        if (! $attendanceNumber || $attendanceNumber == 0) {
             Log::warning('PatientModal: Invalid attendanceNumber', [
-                'attendanceNumber' => $attendanceNumber
+                'attendanceNumber' => $attendanceNumber,
             ]);
+
             return;
         }
 
@@ -88,11 +101,11 @@ class PatientModal extends Component
 
             $this->dispatch('patient-loading-started', [
                 'patientId' => $attendanceNumber,
-                'shift' => $this->currentShift
+                'shift' => $this->currentShift,
             ]);
 
             // Se o payload do SBAR foi passado, usa diretamente (evita re-fetch)
-            if (!empty($sbarPatient) && is_array($sbarPatient)) {
+            if (! empty($sbarPatient) && is_array($sbarPatient)) {
                 $this->loadFromSbarData($sbarPatient, $attendanceNumber);
             } else {
                 $this->loadPatientData($attendanceNumber);
@@ -101,7 +114,7 @@ class PatientModal extends Component
         } catch (\Exception $e) {
             Log::error('PatientModal: Error in openModal', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             $this->loadingPatient = false;
             $this->showModal = false;
@@ -125,7 +138,7 @@ class PatientModal extends Component
                 } catch (\Throwable $e) {
                     Log::warning('PatientModal: Failed to fetch alerts', [
                         'attendance' => $attendanceNumber,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
@@ -134,13 +147,14 @@ class PatientModal extends Component
             $this->patientAlerts = $details->alerts;
 
             $this->currentPatient = array_merge($this->currentPatient, [
+                'cd_pessoa_fisica' => $sbarData['cd_pessoa_fisica'] ?? null,
                 'nm_pessoa_fisica' => $sbarData['nm_pessoa_fisica'] ?? 'Paciente',
-                'nm_social'        => $sbarData['nm_social'] ?? null,
-                'nr_prontuario'    => $sbarData['nr_prontuario'] ?? 'N/A',
-                'age_detailed'     => $sbarData['age_detailed'] ?? 'N/A',
-                'sexo'             => $sbarData['sexo'] ?? 'N/A',
-                'convenio'         => $sbarData['convenio'] ?? 'N/A',
-                'hospital_name'    => $sbarData['hospital_name'] ?? $this->currentHospitalName,
+                'nm_social' => $sbarData['nm_social'] ?? null,
+                'nr_prontuario' => $sbarData['nr_prontuario'] ?? 'N/A',
+                'age_detailed' => $sbarData['age_detailed'] ?? 'N/A',
+                'sexo' => $sbarData['sexo'] ?? 'N/A',
+                'convenio' => $sbarData['convenio'] ?? 'N/A',
+                'hospital_name' => $sbarData['hospital_name'] ?? $this->currentHospitalName,
             ]);
 
             $this->checkAndShowAlertsModal();
@@ -148,9 +162,10 @@ class PatientModal extends Component
         } catch (\Throwable $e) {
             Log::warning('PatientModal: Failed to load from SBAR data, falling back to DB', [
                 'attendance' => $attendanceNumber,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             $this->loadPatientData($attendanceNumber);
+
             return;
         }
 
@@ -158,10 +173,10 @@ class PatientModal extends Component
         $this->loadTherapeuticPlanData($attendanceNumber);
 
         $this->dispatch('patient-data-loaded', [
-            'patientId'  => $attendanceNumber,
-            'shift'      => $this->currentShift,
-            'success'    => true,
-            'hasAlerts'  => !empty($this->patientAlerts),
+            'patientId' => $attendanceNumber,
+            'shift' => $this->currentShift,
+            'success' => true,
+            'hasAlerts' => ! empty($this->patientAlerts),
         ]);
     }
 
@@ -171,16 +186,20 @@ class PatientModal extends Component
      */
     public function reloadTherapeuticPlan(): void
     {
-        if (!$this->currentPatient) return;
+        if (! $this->currentPatient) {
+            return;
+        }
 
         $nr = (int) ($this->currentPatient['nr_atendimento'] ?? 0);
-        if (!$nr) return;
+        if (! $nr) {
+            return;
+        }
 
         Cache::forget("patient_therapeutic_plan_{$nr}");
         Cache::forget("patient_therapeutic_plan_v2_{$nr}");
 
         $this->planLoaded = false;
-        $this->planError  = false;
+        $this->planError = false;
         $this->loadTherapeuticPlanData($nr);
     }
 
@@ -190,7 +209,9 @@ class PatientModal extends Component
      */
     public function shiftScheduleDay(int $delta): void
     {
-        if (!$this->currentPatient) return;
+        if (! $this->currentPatient) {
+            return;
+        }
 
         // Day navigation is disabled in UI: medication schedule is always locked to today.
         $this->scheduleDate = now()->format('Y-m-d');
@@ -204,36 +225,40 @@ class PatientModal extends Component
      */
     private function loadTherapeuticPlanData(int $nr): void
     {
-        if (!$nr) return;
+        if (! $nr) {
+            return;
+        }
 
         try {
             $this->therapeuticPlan = $this->tasyService->getTherapeuticPlan($nr);
-            $this->planLoaded      = true;
-            $this->planError       = false;
+            $this->planLoaded = true;
+            $this->planError = false;
             $this->loadMedicationSchedule();
         } catch (\Throwable $e) {
             Log::error('PatientModal: Failed to load therapeutic plan', [
                 'attendance' => $nr,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
             $this->therapeuticPlan = null;
-            $this->planLoaded      = false;
-            $this->planError       = true;
+            $this->planLoaded = false;
+            $this->planError = true;
         }
     }
 
     private function loadMedicationSchedule(): void
     {
         $nr = (int) ($this->currentPatient['nr_atendimento'] ?? 0);
-        if (!$nr || !$this->scheduleDate) return;
+        if (! $nr || ! $this->scheduleDate) {
+            return;
+        }
 
         try {
             $this->medicationSchedule = $this->tasyService->getMedicationSchedule($nr, $this->scheduleDate);
         } catch (\Throwable $e) {
             Log::warning('PatientModal: Failed to load medication schedule', [
                 'attendance' => $nr,
-                'date'       => $this->scheduleDate,
-                'error'      => $e->getMessage(),
+                'date' => $this->scheduleDate,
+                'error' => $e->getMessage(),
             ]);
             $this->medicationSchedule = [];
         }
@@ -252,19 +277,19 @@ class PatientModal extends Component
                 $this->currentPatient = array_merge($this->currentPatient, [
                     'cd_pessoa_fisica' => $this->patientDetails->cd_pessoa_fisica ?? null,
                     'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
-                    'nm_social'        => $this->patientDetails->nm_social ?? null,
+                    'nm_social' => $this->patientDetails->nm_social ?? null,
                     'nr_prontuario' => $this->patientDetails->nr_prontuario ?? 'N/A',
                     'age_detailed' => $this->patientDetails->age_detailed ?? 'N/A',
                     'sexo' => $this->patientDetails->sexo ?? 'N/A',
                     'convenio' => $this->patientDetails->convenio ?? 'N/A',
-                    'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName
+                    'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName,
                 ]);
 
                 // Verifica e mostra alertas se necessário
                 $this->checkAndShowAlertsModal();
             } else {
                 Log::warning('PatientModal: No patient data found', [
-                    'attendanceNumber' => $attendanceNumber
+                    'attendanceNumber' => $attendanceNumber,
                 ]);
 
                 $this->patientAlerts = [];
@@ -276,7 +301,7 @@ class PatientModal extends Component
                     'age_detailed' => 'N/A',
                     'sexo' => 'N/A',
                     'convenio' => 'N/A',
-                    'hospital_name' => $this->currentHospitalName
+                    'hospital_name' => $this->currentHospitalName,
                 ]);
             }
 
@@ -287,7 +312,7 @@ class PatientModal extends Component
                 'patientId' => $attendanceNumber,
                 'shift' => $this->currentShift,
                 'success' => true,
-                'hasAlerts' => !empty($this->patientAlerts)
+                'hasAlerts' => ! empty($this->patientAlerts),
             ]);
 
         } catch (\Exception $e) {
@@ -301,14 +326,14 @@ class PatientModal extends Component
         $this->patientAlerts = [];
         $this->loadingPatient = false;
 
-        Log::error("PatientModal: Erro ao carregar dados do paciente", [
+        Log::error('PatientModal: Erro ao carregar dados do paciente', [
             'attendance_number' => $attendanceNumber,
             'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
+            'trace' => $e->getTraceAsString(),
         ]);
 
         // Define dados básicos para exibir mensagem de erro
-        if (!$this->currentPatient) {
+        if (! $this->currentPatient) {
             $this->currentPatient = [
                 'nr_atendimento' => $attendanceNumber,
                 'has_patient' => true,
@@ -317,7 +342,7 @@ class PatientModal extends Component
                 'age_detailed' => 'N/A',
                 'sexo' => 'N/A',
                 'convenio' => 'N/A',
-                'hospital_name' => $this->currentHospitalName
+                'hospital_name' => $this->currentHospitalName,
             ];
         }
 
@@ -325,7 +350,7 @@ class PatientModal extends Component
             'patientId' => $attendanceNumber,
             'shift' => $this->currentShift,
             'success' => false,
-            'error' => 'Erro ao carregar dados do paciente. Por favor, tente novamente.'
+            'error' => 'Erro ao carregar dados do paciente. Por favor, tente novamente.',
         ]);
     }
 
@@ -335,10 +360,10 @@ class PatientModal extends Component
             return;
         }
 
-        $activeAlerts = collect($this->patientAlerts)->filter(function($alert) {
-            return !isset($alert['end_date']) ||
+        $activeAlerts = collect($this->patientAlerts)->filter(function ($alert) {
+            return ! isset($alert['end_date']) ||
                 $alert['end_date'] === null ||
-                \Carbon\Carbon::parse($alert['end_date'])->isFuture();
+                Carbon::parse($alert['end_date'])->isFuture();
         });
 
         if ($activeAlerts->count() > 0) {
@@ -348,24 +373,25 @@ class PatientModal extends Component
 
     private function resetModalState()
     {
-        $this->currentPatient      = null;
+        $this->currentPatient = null;
         $this->currentHospitalName = '';
-        $this->patientDetails      = null;
-        $this->patientAlerts       = [];
-        $this->showAlertsModal     = false;
-        $this->loadingPatient      = false;
+        $this->patientDetails = null;
+        $this->patientAlerts = [];
+        $this->showAlertsModal = false;
+        $this->loadingPatient = false;
 
-        $this->therapeuticPlan     = null;
-        $this->planLoaded          = false;
-        $this->planError           = false;
-        $this->scheduleDate        = now()->format('Y-m-d');
-        $this->medicationSchedule  = [];
+        $this->therapeuticPlan = null;
+        $this->planLoaded = false;
+        $this->planError = false;
+        $this->scheduleDate = now()->format('Y-m-d');
+        $this->medicationSchedule = [];
     }
 
     public function refreshPatientData()
     {
-        if (!$this->currentPatient || !isset($this->currentPatient['nr_atendimento'])) {
+        if (! $this->currentPatient || ! isset($this->currentPatient['nr_atendimento'])) {
             Log::warning('PatientModal: Cannot refresh - no current patient');
+
             return;
         }
 
@@ -373,9 +399,9 @@ class PatientModal extends Component
 
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
 
-        $this->therapeuticPlan    = null;
-        $this->planLoaded         = false;
-        $this->planError          = false;
+        $this->therapeuticPlan = null;
+        $this->planLoaded = false;
+        $this->planError = false;
         $this->medicationSchedule = [];
 
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
@@ -405,16 +431,16 @@ class PatientModal extends Component
             return collect([]);
         }
 
-        return collect($this->patientAlerts)->filter(function($alert) {
-            return !isset($alert['end_date']) ||
+        return collect($this->patientAlerts)->filter(function ($alert) {
+            return ! isset($alert['end_date']) ||
                 $alert['end_date'] === null ||
-                \Carbon\Carbon::parse($alert['end_date'])->isFuture();
+                Carbon::parse($alert['end_date'])->isFuture();
         });
     }
 
     public function getCriticalAlertsCountProperty()
     {
-        return $this->activeAlerts->filter(function($alert) {
+        return $this->activeAlerts->filter(function ($alert) {
             return ($alert['severity'] ?? 'warning') === 'danger' ||
                 ($alert['type'] ?? '') === 'ALERTA';
         })->count();
@@ -422,7 +448,7 @@ class PatientModal extends Component
 
     public function getScalesDataProperty()
     {
-        if (!$this->patientDetails) {
+        if (! $this->patientDetails) {
             return null;
         }
 
@@ -430,13 +456,13 @@ class PatientModal extends Component
         $scales = [];
 
         // MEWS (adultos) ou PEWS (pediátricos)
-        if (!$isPediatric) {
+        if (! $isPediatric) {
             $scales['mews'] = [
                 'score' => $this->patientDetails->mews_score ?? null,
                 'timestamp' => $this->patientDetails->mews_timestamp ?? null,
                 'classification' => $this->patientDetails->mews_classification ?? null,
                 'increased' => $this->patientDetails->mews_increased ?? false,
-                'needs_assessment' => $this->patientDetails->mews_needs_assessment ?? true
+                'needs_assessment' => $this->patientDetails->mews_needs_assessment ?? true,
             ];
         } else {
             $scales['pews'] = [
@@ -444,7 +470,7 @@ class PatientModal extends Component
                 'timestamp' => $this->patientDetails->pews_timestamp ?? null,
                 'classification' => $this->patientDetails->pews_classification ?? null,
                 'increased' => $this->patientDetails->pews_increased ?? false,
-                'needs_assessment' => $this->patientDetails->pews_needs_assessment ?? true
+                'needs_assessment' => $this->patientDetails->pews_needs_assessment ?? true,
             ];
         }
 
@@ -454,7 +480,7 @@ class PatientModal extends Component
             'timestamp' => $this->patientDetails->braden_timestamp ?? null,
             'classification' => $this->patientDetails->braden_classification ?? null,
             'increased' => $this->patientDetails->braden_increased ?? false,
-            'needs_assessment' => $this->patientDetails->braden_needs_assessment ?? true
+            'needs_assessment' => $this->patientDetails->braden_needs_assessment ?? true,
         ];
 
         $scales['morse'] = [
@@ -462,7 +488,7 @@ class PatientModal extends Component
             'timestamp' => $this->patientDetails->morse_timestamp ?? null,
             'classification' => $this->patientDetails->morse_classification ?? null,
             'increased' => $this->patientDetails->morse_increased ?? false,
-            'needs_assessment' => $this->patientDetails->morse_needs_assessment ?? true
+            'needs_assessment' => $this->patientDetails->morse_needs_assessment ?? true,
         ];
 
         $scales['pain'] = [
@@ -470,7 +496,7 @@ class PatientModal extends Component
             'timestamp' => $this->patientDetails->pain_timestamp ?? null,
             'classification' => $this->patientDetails->pain_classification ?? null,
             'increased' => $this->patientDetails->pain_increased ?? false,
-            'needs_assessment' => $this->patientDetails->pain_needs_assessment ?? true
+            'needs_assessment' => $this->patientDetails->pain_needs_assessment ?? true,
         ];
 
         $scales['vte'] = [
@@ -478,7 +504,7 @@ class PatientModal extends Component
             'timestamp' => $this->patientDetails->vte_timestamp ?? null,
             'classification' => $this->patientDetails->vte_classification ?? null,
             'increased' => $this->patientDetails->vte_increased ?? false,
-            'needs_assessment' => $this->patientDetails->vte_needs_assessment ?? true
+            'needs_assessment' => $this->patientDetails->vte_needs_assessment ?? true,
         ];
 
         return $scales;
@@ -486,7 +512,7 @@ class PatientModal extends Component
 
     public function getClinicalDataProperty()
     {
-        if (!$this->patientDetails) {
+        if (! $this->patientDetails) {
             return [
                 'diagnosticos' => 'Sem diagnósticos registrados',
                 'isolamento' => 'Não',
@@ -499,7 +525,7 @@ class PatientModal extends Component
                 'avaliacao_enfermagem' => 'Não realizada',
                 'plano_educacional' => 'Não realizado',
                 'pe_data' => 'Não realizado',
-                'historico_queda' => 'Não avaliado'
+                'historico_queda' => 'Não avaliado',
             ];
         }
 
@@ -515,7 +541,7 @@ class PatientModal extends Component
             'avaliacao_enfermagem' => $this->patientDetails->avaliacao_enf ?? 'Não realizada',
             'plano_educacional' => $this->patientDetails->plano_educ ?? 'Não realizado',
             'pe_data' => $this->patientDetails->pe_data ?? 'Não realizado',
-            'historico_queda' => $this->patientDetails->ds_queda ?? 'Não avaliado'
+            'historico_queda' => $this->patientDetails->ds_queda ?? 'Não avaliado',
         ];
     }
 

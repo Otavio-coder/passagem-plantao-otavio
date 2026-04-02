@@ -85,27 +85,12 @@ class PendingEventPresentation
     {
         $status = trim((string) ($event['status_laudo'] ?? ''));
         $statusCode = strtoupper(trim((string) ($event['status_agenda_codigo'] ?? '')));
-        $parts = [];
 
         if ($statusCode !== '') {
-            $parts[] = 'Status agenda: '.$statusCode.($status !== '' ? ' - '.$status : '');
-        } else {
-            $parts[] = 'Status: '.($status !== '' ? $status : 'não informado');
+            return 'Status agenda: '.$statusCode.($status !== '' ? ' - '.$status : '');
         }
 
-        if (empty($event['tipo_cirurgia_codigo']) && empty($event['cd_tipo_cirurgia'])) {
-            $parts[] = 'Tipo de cirurgia nulo';
-        }
-
-        if (empty($event['local'])) {
-            $parts[] = 'Local nulo';
-        }
-
-        if (empty($event['sala'])) {
-            $parts[] = 'Sala nula';
-        }
-
-        return implode(' | ', $parts);
+        return $status !== '' ? 'Status: '.$status : '';
     }
 
     /**

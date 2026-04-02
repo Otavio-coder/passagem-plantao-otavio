@@ -116,9 +116,6 @@ class PendingEventPresentationTest extends TestCase
             'sala' => null,
         ]);
 
-        $this->assertSame(
-            'Status agenda: PS - Paciente em sala | Tipo de cirurgia nulo | Local nulo | Sala nula',
-            $diagnostic
-        );
+        $this->assertSame('Status agenda: PS - Paciente em sala', $diagnostic);
     }
 }

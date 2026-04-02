@@ -151,7 +151,7 @@ class PendingEventsReportController extends Controller
                     ),
                     'status' => $status,
                     'laudo' => $normalizedType === PendingEventTypeClassifier::SURGERY
-                        ? PendingEventPresentation::surgeryDiagnosticLabel($event)
+                        ? '-'
                         : ($statusLaudoExame !== '' ? $statusLaudoExame : '-'),
                     'sort_ts' => $sortTs,
                 ]));
@@ -192,7 +192,14 @@ class PendingEventsReportController extends Controller
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
 
         if ($type === PendingEventTypeClassifier::SURGERY) {
-            return $this->truncate(PendingEventPresentation::surgeryDescription($event), 120);
+            $base = PendingEventPresentation::surgeryDescription($event);
+            $statusDetail = PendingEventPresentation::surgeryDiagnosticLabel($event);
+
+            if ($statusDetail !== '') {
+                return $this->truncate($base.' | '.$statusDetail, 120);
+            }
+
+            return $this->truncate($base, 120);
         }
 
         if ($type === PendingEventTypeClassifier::CHEMOTHERAPY) {

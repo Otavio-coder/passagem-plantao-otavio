@@ -32,7 +32,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
         try {
             $rows = DB::connection('tasy')->select("
                 SELECT
-                    ap.nr_atendimento,
+                    atp.nr_atendimento,
                     CASE
                         WHEN ap.ie_carater_cirurgia IS NOT NULL
                          AND ap.ie_carater_cirurgia <> 'X'
@@ -68,6 +68,8 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     )                                        AS descricao_proc,
                     pi.nr_seq_exame_lab
                 FROM tasy.agenda_paciente ap
+                JOIN tasy.atendimento_paciente atp
+                    ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
                 LEFT JOIN tasy.proc_interno pi
                     ON pi.nr_sequencia = ap.nr_seq_proc_interno
                 LEFT JOIN (
@@ -76,7 +78,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     GROUP BY cd_procedimento
                 ) proced ON proced.cd_procedimento = ap.cd_procedimento
                          AND ap.nr_seq_proc_interno IS NULL
-                WHERE ap.nr_atendimento IN ({$this->placeholders($chunk)})
+                WHERE atp.nr_atendimento IN ({$this->placeholders($chunk)})
                     AND ap.dt_agenda >= TRUNC(SYSDATE)
                     AND ap.dt_agenda <= SYSDATE + 30
                     AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
@@ -147,12 +149,31 @@ class AgendaPendingHandler extends AbstractPendingHandler
                             'AE' => 'Aguardando remarcação',
                             'AP' => 'Aguardando paciente',
                             'AT' => 'Aguardando atendimento',
+                            'B' => 'Bloqueada',
+                            'C' => 'Cancelada',
                             'CN' => 'Confirmada',
                             'CR' => 'Cirurgia realizada',
                             'E' => 'Executada',
+                            'EE' => 'Em exame',
+                            'EP' => 'Em preparo',
+                            'F' => 'Falta justificada',
+                            'I' => 'Falta não justificada',
+                            'II' => 'Inativo',
                             'IN' => 'Iniciada',
+                            'IT' => 'Interrompida',
+                            'L' => 'Livre',
+                            'LF' => 'Livre forçado',
+                            'N' => 'Normal',
+                            'O' => 'Em consulta',
+                            'P' => 'Paciente internado',
+                            'PA' => 'Pré-agenda',
+                            'PH' => 'Paciente chamado',
                             'PO' => 'Pós-operatório',
                             'PS' => 'Paciente em sala',
+                            'R' => 'Reservada',
+                            'RE' => 'Remarcada',
+                            'RV' => 'Revisar',
+                            'S' => 'Suspenso',
                             default => $statusCode,
                         })
                         : null;

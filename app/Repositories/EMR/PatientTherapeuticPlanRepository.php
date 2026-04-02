@@ -614,7 +614,7 @@ class PatientTherapeuticPlanRepository
               AND ap.DT_AGENDA             >= TRUNC(SYSDATE)
               AND ap.IE_CARATER_CIRURGIA   IS NOT NULL
               AND ap.IE_CARATER_CIRURGIA   <> 'X'
-              AND ap.IE_STATUS_AGENDA      NOT IN ('C', 'S')
+              AND ap.IE_STATUS_AGENDA      NOT IN ('C', 'S', 'CR', 'E', 'AD')
                             AND ap.DT_EXECUTADA          IS NULL
         ";
     }

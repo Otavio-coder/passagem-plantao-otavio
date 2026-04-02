@@ -50,7 +50,7 @@ class PatientSurgeryRepository
             ->where('dt_agenda', '>=', Carbon::today())
             ->where('dt_agenda', '<=', $cutoff)
             ->whereNull('dt_executada')
-            ->whereNotIn('ie_status_agenda', ['C', 'S'])
+            ->whereNotIn('ie_status_agenda', ['C', 'S', 'CR', 'E', 'AD'])
             ->orderBy('dt_agenda')
             ->orderBy('hr_inicio')
             ->get()
@@ -85,7 +85,7 @@ class PatientSurgeryRepository
                 ->where('nr_atendimento', $attendanceNumber)
                 ->where('dt_agenda', '>', Carbon::now())
                 ->whereNull('dt_executada')
-                ->whereNotIn('ie_status_agenda', ['C', 'S'])
+                ->whereNotIn('ie_status_agenda', ['C', 'S', 'CR', 'E', 'AD'])
                 ->orderBy('dt_agenda')
                 ->orderBy('hr_inicio');
 

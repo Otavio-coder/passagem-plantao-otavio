@@ -120,7 +120,7 @@
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Classif.</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Pendência</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Solicitação</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Data de Realização</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Data Prev. Execução</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Pendente há</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Desc.</th>
                             <th class="hidden">Tipo bruto</th>
@@ -138,7 +138,7 @@
                                 <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['classificacao'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[220px] truncate" title="{{ $row['item'] }}">{{ $row['item'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_solicitacao'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_agendamento'] }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_prev_execucao'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[180px] truncate" title="{{ $row['laudo'] ?? '-' }}">{{ $row['laudo'] ?? '-' }}</td>
                                 <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>

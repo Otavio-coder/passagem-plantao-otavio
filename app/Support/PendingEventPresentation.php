@@ -69,9 +69,7 @@ class PendingEventPresentation
     public static function classificationLabel(array $event, string $normalizedType): ?string
     {
         if ($normalizedType === PendingEventTypeClassifier::SURGERY) {
-            $surgeryType = trim((string) ($event['tipo_cirurgia_codigo'] ?? $event['cd_tipo_cirurgia'] ?? ''));
-
-            return $surgeryType !== '' ? 'Tipo '.$surgeryType : 'Tipo não informado';
+            return null;
         }
 
         $labGroup = trim((string) ($event['ds_grupo_lab'] ?? ''));

@@ -75,24 +75,24 @@ class PendingEventPresentationTest extends TestCase
     }
 
     #[Test]
-    public function returns_surgery_type_as_classification_for_surgery_events(): void
+    public function returns_null_classification_for_surgery_events(): void
     {
         $classification = PendingEventPresentation::classificationLabel([
             'tipo_cirurgia_codigo' => 7,
             'ds_grupo_lab' => 'Grupo não usado',
         ], PendingEventTypeClassifier::SURGERY);
 
-        $this->assertSame('Tipo 7', $classification);
+        $this->assertNull($classification);
     }
 
     #[Test]
-    public function returns_default_surgery_classification_when_type_is_missing(): void
+    public function returns_null_classification_when_surgery_type_is_missing(): void
     {
         $classification = PendingEventPresentation::classificationLabel([
             'descricao' => 'Cirurgia sem tipo retornado',
         ], PendingEventTypeClassifier::SURGERY);
 
-        $this->assertSame('Tipo não informado', $classification);
+        $this->assertNull($classification);
     }
 
     #[Test]

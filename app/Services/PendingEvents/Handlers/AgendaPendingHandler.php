@@ -79,7 +79,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
                 WHERE ap.nr_atendimento IN ({$this->placeholders($chunk)})
                     AND ap.dt_agenda >= TRUNC(SYSDATE)
                     AND ap.dt_agenda <= SYSDATE + 30
-                    AND ap.ie_status_agenda NOT IN ('C', 'S')
+                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
                     AND ap.dt_executada IS NULL
                     AND (
                         (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')

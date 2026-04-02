@@ -144,7 +144,7 @@ class PendingEventsReportController extends Controller
                     'item' => $this->normalizeItemLabel($event),
                     'classificacao' => PendingEventPresentation::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
-                    'data_agendamento' => $event['dt_evento_formatted'] ?? '-',
+                    'data_prev_execucao' => $event['dt_evento_formatted'] ?? '-',
                     'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
@@ -171,7 +171,7 @@ class PendingEventsReportController extends Controller
                     'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
                     'classificacao' => null,
                     'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
-                    'data_agendamento' => '-',
+                    'data_prev_execucao' => '-',
                     'tempo_pendente' => $this->formatTempoPendente($req['dt_registro'] ?? null),
                     'status' => $status,
                     'laudo' => ! empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',

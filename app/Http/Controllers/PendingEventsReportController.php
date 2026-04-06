@@ -10,14 +10,18 @@ use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
 {
     public function index(Request $request): View
     {
+        $user = Auth::user();
+
         $allSectors = UserSectorPreference::query()
             ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
+            ->where('user_id', $user->id)
             ->distinct()
             ->get();
 

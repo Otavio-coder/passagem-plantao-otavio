@@ -342,19 +342,36 @@ $(document).ready(function () {
         return (Date.now() - ts) / 3600000;
     }
 
-    // Filtro customizado por tempo pendente (col 6 = data de solicitação)
-    $.fn.dataTable.ext.search.push(function (settings, data) {
+    // Filtro customizado por tempo pendente:
+    // prioriza o valor numérico de data-order na coluna "Pendente há" (col 10)
+    $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
         if (settings.nTable.id !== 'pendencias-table') { return true; }
         var range = $('#filter-tempo').val();
         if (range) {
-            var hours = cellDateToHoursAgo(data[8]);
-            if (hours !== null) {
-                var parts = range.split('-');
-                var min = parseFloat(parts[0]);
-                var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
-                if (!(hours >= min && hours < max)) {
-                    return false;
+            var hours = null;
+
+            var row = settings.aoData[dataIndex];
+            var pendingCell = row && row.anCells && row.anCells[10] ? row.anCells[10] : null;
+            if (pendingCell) {
+                var pendingSeconds = parseFloat(pendingCell.getAttribute('data-order') || '');
+                if (!isNaN(pendingSeconds) && pendingSeconds >= 0) {
+                    hours = pendingSeconds / 3600;
                 }
+            }
+
+            if (hours === null) {
+                hours = cellDateToHoursAgo(data[8]);
+            }
+
+            if (hours === null) {
+                return false;
+            }
+
+            var parts = range.split('-');
+            var min = parseFloat(parts[0]);
+            var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
+            if (!(hours >= min && hours < max)) {
+                return false;
             }
         }
 

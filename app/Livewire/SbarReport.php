@@ -56,31 +56,16 @@ class SbarReport extends Component
     #[Computed(persist: true)]
     public function hospitals(): array
     {
-        $user = Auth::user();
-        $userHospitalCodes = $user->sectorPreferences()->pluck('hospital_code')->unique()->toArray();
-
-        if (empty($userHospitalCodes)) {
-            return [];
-        }
-
-        try {
-            return Hospital::whereIn('nr_sequencia', $userHospitalCodes)
-                ->where('ie_situacao', 'A')
-                ->select(['nr_sequencia as hospital_id', 'ds_agrupamento as hospital_name'])
-                ->get()
-                ->map(fn ($h) => [
-                    'hospital_id' => $h->hospital_id,
-                    'hospital_name' => $h->hospital_name,
-                ])
-                ->toArray();
-        } catch (\Exception $e) {
-            Log::error('Error loading hospitals', [
-                'exception' => $e,
-                'user_id' => Auth::id(),
-            ]);
-
-            return [];
-        }
+        return Auth::user()->sectorPreferences()
+            ->select(['hospital_code', 'hospital_name'])
+            ->distinct()
+            ->orderBy('hospital_name')
+            ->get()
+            ->map(fn ($p) => [
+                'hospital_id' => (int) $p->hospital_code,
+                'hospital_name' => $p->hospital_name,
+            ])
+            ->toArray();
     }
 
     /**
@@ -94,31 +79,15 @@ class SbarReport extends Component
             return [];
         }
 
-        $user = Auth::user();
-        $userSectorCodes = $user->sectorPreferences()
+        return Auth::user()->sectorPreferences()
             ->where('hospital_code', $this->selectedHospital)
-            ->pluck('sector_code')
+            ->orderBy('sector_name')
+            ->get()
+            ->map(fn ($p) => [
+                'cd_setor_atendimento' => (int) $p->sector_code,
+                'ds_setor_atendimento' => $p->sector_name,
+            ])
             ->toArray();
-
-        try {
-            return Sector::where('nr_seq_agrupamento', $this->selectedHospital)
-                ->whereIn('cd_setor_atendimento', $userSectorCodes)
-                ->allowed()
-                ->get()
-                ->map(fn ($s) => [
-                    'cd_setor_atendimento' => $s->cd_setor_atendimento,
-                    'ds_setor_atendimento' => $s->ds_setor_atendimento,
-                ])
-                ->toArray();
-        } catch (\Exception $e) {
-            Log::error('Error loading sectors', [
-                'exception' => $e,
-                'selected_hospital' => $this->selectedHospital,
-                'user_id' => Auth::id(),
-            ]);
-
-            return [];
-        }
     }
 
     /**

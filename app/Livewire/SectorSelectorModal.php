@@ -16,8 +16,11 @@ use Livewire\Component;
 class SectorSelectorModal extends Component
 {
     public bool $show = false;
+
     public string $search = '';
+
     public string $activeHospital = '';
+
     public array $selectedSectors = [];
 
     private const ALLOWED_HOSPITAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
@@ -25,15 +28,15 @@ class SectorSelectorModal extends Component
     public function mount(): void
     {
         $user = Auth::user();
-        
+
         // Se não tem setores configurados, mostra o modal automaticamente
-        if (!$user->hasConfiguredSectors()) {
+        if (! $user->hasConfiguredSectors()) {
             $this->show = true;
         }
-        
+
         // Define o primeiro hospital como ativo
         $hospitals = $this->getSectorsByHospital();
-        if (!empty($hospitals)) {
+        if (! empty($hospitals)) {
             $this->activeHospital = (string) array_key_first($hospitals);
         }
     }
@@ -62,13 +65,13 @@ class SectorSelectorModal extends Component
                        str_contains(mb_strtolower($sector['hospital_name']), $search);
             });
 
-            if (!empty($matchingSectors)) {
+            if (! empty($matchingSectors)) {
                 $filtered[$hospitalCode] = array_values($matchingSectors);
             }
         }
 
         // Se o hospital ativo não está nos resultados filtrados, seleciona o primeiro disponível
-        if (!empty($filtered) && !isset($filtered[$this->activeHospital])) {
+        if (! empty($filtered) && ! isset($filtered[$this->activeHospital])) {
             $this->activeHospital = (string) array_key_first($filtered);
         }
 
@@ -91,26 +94,32 @@ class SectorSelectorModal extends Component
                 ->where('ie_situacao', 'A')
                 ->get()
                 ->mapWithKeys(function ($h) {
-                    return [(string)$h->nr_sequencia => $h->ds_agrupamento];
+                    return [(string) $h->nr_sequencia => $h->ds_agrupamento];
                 });
 
-            // Obtém setores apenas cd_classif_setor = 3 ou 4 com leitos ativos
-            return Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
+            // Obtém setores apenas cd_classif_setor = 3 ou 4
+            $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
                 ->whereIn('cd_classif_setor', [3, 4])
                 ->where('ie_situacao', 'A')
                 ->orderBy('ds_setor_atendimento')
-                ->get()
-                ->filter(function ($s) {
-                    return Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)
-                        ->where('ie_situacao', 'A')
-                        ->exists();
-                })
+                ->get();
+
+            // Batch query — 1 query instead of N (one per sector)
+            $codesWithBeds = Bed::whereIn('cd_setor_atendimento', $sectors->pluck('cd_setor_atendimento')->toArray())
+                ->where('ie_situacao', 'A')
+                ->distinct()
+                ->pluck('cd_setor_atendimento')
+                ->flip()
+                ->toArray();
+
+            return $sectors
+                ->filter(fn ($s) => isset($codesWithBeds[$s->cd_setor_atendimento]))
                 ->map(function ($s) use ($hospitals) {
                     return [
-                        'sector_code' => (string)$s->cd_setor_atendimento,
+                        'sector_code' => (string) $s->cd_setor_atendimento,
                         'sector_name' => $s->ds_setor_atendimento,
-                        'hospital_code' => (string)$s->nr_seq_agrupamento,
-                        'hospital_name' => $hospitals->get((string)$s->nr_seq_agrupamento, 'Hospital'),
+                        'hospital_code' => (string) $s->nr_seq_agrupamento,
+                        'hospital_name' => $hospitals->get((string) $s->nr_seq_agrupamento, 'Hospital'),
                     ];
                 })
                 ->groupBy('hospital_code')
@@ -134,7 +143,7 @@ class SectorSelectorModal extends Component
 
         $allSelected = true;
         foreach ($codes as $code) {
-            if (!in_array($code, $this->selectedSectors)) {
+            if (! in_array($code, $this->selectedSectors)) {
                 $allSelected = false;
                 break;
             }
@@ -177,7 +186,7 @@ class SectorSelectorModal extends Component
         $this->show = false;
         $this->dispatch('show-toast', [
             'message' => 'Setores configurados com sucesso!',
-            'type' => 'success'
+            'type' => 'success',
         ]);
         $this->dispatch('sectors-configured');
     }

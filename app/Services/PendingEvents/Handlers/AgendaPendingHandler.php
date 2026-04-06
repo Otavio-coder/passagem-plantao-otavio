@@ -51,6 +51,12 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
                         NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
                     ) AS cd_setor_execucao,
+                    TASY.OBTER_DS_SETOR_ATENDIMENTO(
+                        NVL(
+                            TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
+                            NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
+                        )
+                    ) AS ds_setor_execucao,
                     COALESCE(
                         TASY.OBTER_TIPO_CIRUR_PROC(ap.nr_seq_proc_interno),
                         (
@@ -91,23 +97,6 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     )
                 ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
             ", $chunk);
-
-            $sectorLabels = [];
-            $sectorCodes = array_values(array_unique(array_filter(array_map(
-                static fn ($row) => (int) ($row->cd_setor_execucao ?? 0),
-                $rows
-            ))));
-
-            if (! empty($sectorCodes)) {
-                $sectorRows = DB::connection('tasy')->select(
-                    'SELECT cd_setor_atendimento, ds_setor_atendimento FROM tasy.setor_atendimento WHERE cd_setor_atendimento IN ('.implode(',', array_fill(0, count($sectorCodes), '?')).')',
-                    $sectorCodes
-                );
-
-                foreach ($sectorRows as $sectorRow) {
-                    $sectorLabels[(int) $sectorRow->cd_setor_atendimento] = $sectorRow->ds_setor_atendimento;
-                }
-            }
 
             foreach ($rows as $row) {
                 if (! isset($results[$row->nr_atendimento])) {
@@ -178,23 +167,32 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         })
                         : null;
 
+                    $descricaoNormalizado = $this->normalizeSurgeryDescription($row->descricao_proc ?? 'Cirurgia Agendada');
+                    $dataAgenda = $row->dt_evento ? date('d/m/Y', strtotime($row->dt_evento)) : null;
+                    $horaAgenda = ! empty($row->hr_inicio) ? date('H:i', strtotime($row->hr_inicio)) : '00:00';
+
                     $results[$row->nr_atendimento]['events'][] = [
                         'tipo' => 'cirurgia',
                         'icone' => 'general-surgery.svg',
-                        'descricao' => $row->descricao_proc ?? 'Cirurgia Agendada',
+                        'descricao' => $descricaoNormalizado,
+                        'descricao_padronizada' => $descricaoNormalizado,
                         'ds_subtipo' => 'Cirurgia '.$carater,
                         'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
+                        'data_agenda' => $dataAgenda,
+                        'hora_agenda' => $horaAgenda,
                         'ds_complemento' => implode(' · ', $parts),
                         'carater' => $carater,
-                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_execucao ?? 0)] ?? ($row->cd_setor_execucao ?? null),
+                        'carater_cirurgia' => $carater,
+                        'tipo_agendamento' => 'Cirúrgico',
+                        'setor_execucao' => trim((string) ($row->ds_setor_execucao ?? '')) !== '' ? trim((string) $row->ds_setor_execucao) : null,
                         'local' => $localAgenda !== '' ? $localAgenda : null,
                         'sala' => $row->nr_seq_sala ?? null,
                         'tipo_cirurgia_codigo' => $surgeryTypeCode,
                         'cd_tipo_cirurgia' => $surgeryTypeCode,
                         'status_agenda_codigo' => $statusCode !== '' ? $statusCode : null,
                         'status_laudo' => $statusLabel,
-                        'observacoes' => $row->ds_observacao ?? null,
+                        'observacoes' => $this->filterSensitiveSurgeryObservation($row->ds_observacao ?? null),
                         'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'G']),
                     ];
                 } else {
@@ -208,7 +206,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         'ds_subtipo' => 'Agendamento',
                         'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
-                        'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_execucao ?? 0)] ?? ($row->cd_setor_execucao ?? null),
+                        'setor_execucao' => trim((string) ($row->ds_setor_execucao ?? '')) !== '' ? trim((string) $row->ds_setor_execucao) : null,
                         'urgente' => false,
                     ];
                 }
@@ -219,5 +217,36 @@ class AgendaPendingHandler extends AbstractPendingHandler
                 'attendance_count' => count($chunk),
             ]);
         }
+    }
+
+    private function normalizeSurgeryDescription(string $description): string
+    {
+        $cleaned = preg_replace('/\s*\(\s*Cirurgia[^\)]*\)\s*$/iu', '', $description);
+        $normalized = trim((string) ($cleaned ?? $description));
+
+        return $normalized !== '' ? $normalized : $description;
+    }
+
+    private function filterSensitiveSurgeryObservation(?string $observation): ?string
+    {
+        if (empty($observation)) {
+            return null;
+        }
+
+        $patterns = [
+            '/R\$\s*[\d.,]+/i',
+            '/valor.*[\d.,]+/i',
+            '/custo.*[\d.,]+/i',
+            '/autorizado.*coordenação/i',
+        ];
+
+        $filtered = $observation;
+        foreach ($patterns as $pattern) {
+            $filtered = preg_replace($pattern, '', (string) $filtered);
+        }
+
+        $normalized = trim((string) $filtered);
+
+        return $normalized !== '' ? $normalized : null;
     }
 }

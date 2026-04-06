@@ -259,7 +259,8 @@ class PatientTherapeuticPlanRepository
             WHERE cd.NR_ATENDIMENTO = :nr
               AND cd.DT_LIBERACAO   IS NOT NULL
               AND cd.DT_SUSPENSAO   IS NULL
-              AND TRUNC(SYSDATE) BETWEEN TRUNC(cd.DT_INICIO) AND NVL(TRUNC(cd.DT_FIM), TRUNC(SYSDATE))
+              AND cd.DT_INICIO <= SYSDATE
+              AND (cd.DT_FIM IS NULL OR cd.DT_FIM >= SYSDATE)
               AND cd.NR_SEQUENCIA   = (
                   SELECT MAX(cd2.NR_SEQUENCIA)
                   FROM tasy.CPOE_DIETA cd2
@@ -268,7 +269,8 @@ class PatientTherapeuticPlanRepository
                     AND NVL(cd2.CD_MATERIAL,  0)   = NVL(cd.CD_MATERIAL,  0)
                     AND cd2.DT_LIBERACAO            IS NOT NULL
                     AND cd2.DT_SUSPENSAO            IS NULL
-                    AND TRUNC(SYSDATE) BETWEEN TRUNC(cd2.DT_INICIO) AND NVL(TRUNC(cd2.DT_FIM), TRUNC(SYSDATE))
+                  AND cd2.DT_INICIO <= SYSDATE
+                  AND (cd2.DT_FIM IS NULL OR cd2.DT_FIM >= SYSDATE)
               )
         ";
     }

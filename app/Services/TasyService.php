@@ -20,7 +20,9 @@ class TasyService
 
     private const CACHE_TTL_PATIENT = 600;  // 10 minutos
 
-    private const THERAPEUTIC_PLAN_CACHE_VERSION = 3;
+    private const SBAR_CACHE_VERSION = 2;
+
+    private const THERAPEUTIC_PLAN_CACHE_VERSION = 4;
 
     private SbarFormatter $formatter;
 
@@ -36,7 +38,7 @@ class TasyService
      */
     public function getSectorPatientsForSbar(int $sectorId): array
     {
-        $cacheKey = "sector_patients_sbar_{$sectorId}";
+        $cacheKey = 'sector_patients_sbar_v'.self::SBAR_CACHE_VERSION."_{$sectorId}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECTOR, function () use ($sectorId) {
             $t0 = microtime(true);
@@ -83,7 +85,7 @@ class TasyService
             return null;
         }
 
-        $cacheKey = "patient_basic_modal_{$attendanceNumber}";
+        $cacheKey = 'patient_basic_modal_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             $patient = $this->loadPatientWithRelations($attendanceNumber);

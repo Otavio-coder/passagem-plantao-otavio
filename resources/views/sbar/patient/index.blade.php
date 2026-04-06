@@ -1049,11 +1049,7 @@
                 {{-- Pending Events Section --}}
                 @php
                     $pendingEvents = $patient['pending_events'] ?? [];
-                    $pinnedEvaluation = $patient['pinned_evaluation'] ?? null;
-                    $latestEvaluation = $patient['latest_evaluation'] ?? null;
-                    // Priority: pinned; Fallback: latest
-                    $evaluation = $pinnedEvaluation ?? $latestEvaluation;
-                    $isPinned = !empty($pinnedEvaluation);
+                    $evaluation = $patient['latest_evaluation'] ?? null;
                     
                     $now = \Carbon\Carbon::now();
 
@@ -1150,12 +1146,12 @@
                             @endphp
                         @endif
 
-                        <div class="rounded-lg p-2 {{ $hasPendingCard ? $fBg : 'bg-amber-50 border border-amber-200' }}">
+                        <div class="rounded-lg p-2 {{ $hasPendingCard ? $fBg : 'bg-blue-50/60 border border-blue-200' }}">
                             {{-- Cabeçalho da seção --}}
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="text-[12px] font-bold tracking-wide text-[#004D9D]">
                                     @if($hasCarousel)
-                                        Pendências / Avaliação{{ $isPinned ? ' fixada' : '' }}
+                                        Pendências / Avaliação
                                     @elseif($hasPendingCard)
                                         Pendências
                                     @else
@@ -1220,28 +1216,20 @@
                             <div x-show="{{ $hasCarousel ? 'cardSlide === 1' : 'true' }}" class="flex items-start gap-2" x-transition>
                                 <x-ui.user-avatar 
                                     :photo="$evaluation['photo'] ?? null" 
-                                    :name="$isPinned ? ($evaluation['pinned_by_name'] ?? 'U') : ($evaluation['user_name'] ?? 'U')" 
+                                    :name="$evaluation['user_name'] ?? 'U'" 
                                     class="w-5 h-5 flex-shrink-0 mt-0.5"
                                 />
                                 <div class="flex-1 min-w-0">
-                                    <div class="text-[11px] {{ $isPinned ? 'text-amber-800 font-semibold' : 'text-blue-800 font-medium' }} leading-tight line-clamp-2">
+                                    <div class="text-[11px] text-blue-800 font-medium leading-tight line-clamp-2">
                                         {{ $evaluation['content'] ?? '-' }}
                                     </div>
                                     <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                        @if($isPinned && !empty($evaluation['pinned_at_formatted']))
-                                            <span class="text-[9px] text-amber-700 font-medium">
-                                                {{ $evaluation['pinned_at_formatted'] }}
-                                            </span>
-                                        @elseif(!$isPinned && !empty($evaluation['created_at_formatted']))
+                                        @if(!empty($evaluation['created_at_formatted']))
                                             <span class="text-[9px] text-blue-700 font-medium">
                                                 {{ $evaluation['created_at_formatted'] }}
                                             </span>
                                         @endif
-                                        @if($isPinned && !empty($evaluation['pinned_by_name']))
-                                            <span class="text-[9px] text-amber-700">
-                                                · {{ $evaluation['pinned_by_name'] }}
-                                            </span>
-                                        @elseif(!$isPinned && !empty($evaluation['user_name']))
+                                        @if(!empty($evaluation['user_name']))
                                             <span class="text-[9px] text-blue-700">
                                                 · {{ $evaluation['user_name'] }}
                                             </span>
@@ -1484,13 +1472,11 @@
                                                               x-text="ev.tempo_pendente"
                                                               class="font-semibold"
                                                               :class="ev.urgente ? 'text-red-600' : 'text-[#0071B9]'"></span>
-                                                                                                                    @if(!empty($patient['ds_setor_atendimento']) || !empty($patient['cd_setor_atendimento']))
-                                                          <span x-show="['cirurgia','hemoterapia','quimioterapia'].includes(ev.tipo)"
+                                                                                                                <span x-show="['cirurgia','hemoterapia','quimioterapia'].includes(ev.tipo) && (ev.setor_execucao || {{ !empty($patient['ds_setor_atendimento']) || !empty($patient['cd_setor_atendimento']) ? 'true' : 'false' }})"
                                                                                                                             class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
                                                                                                                         <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
-                                                                                                                        <span>{{ $patient['ds_setor_atendimento'] ?? ('Setor ' . $patient['cd_setor_atendimento']) }}</span>
-                                                          </span>
-                                                          @endif
+                                                                                                                        <span x-text="ev.setor_execucao || '{{ $patient['ds_setor_atendimento'] ?? ('Setor ' . $patient['cd_setor_atendimento']) }}'"></span>
+                                                                                                                </span>
                                                         <span x-show="ev.ds_complemento"
                                                               x-text="ev.ds_complemento"
                                                               class="text-gray-500 italic"></span>

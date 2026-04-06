@@ -429,6 +429,10 @@ class TasyService
         $tb = microtime(true);
         $parallelMs = (int) round(($tb - $ta) * 1000);
         $maxBranchMs = max($clinicalMs, $scalesMs, $pendingMs);
+        $sumBranchMs = $clinicalMs + $scalesMs + $pendingMs;
+        $estimatedOverheadMs = $mode === 'parallel_fork'
+            ? max(0, $parallelMs - $maxBranchMs)
+            : max(0, $parallelMs - $sumBranchMs);
 
         try {
             Log::debug('[TasyService] fetchBatchData breakdown', [
@@ -440,7 +444,8 @@ class TasyService
                 'scales_branch_ms' => $scalesMs,
                 'pending_branch_ms' => $pendingMs,
                 'max_branch_ms' => $maxBranchMs,
-                'estimated_overhead_ms' => max(0, $parallelMs - $maxBranchMs),
+                'sum_branch_ms' => $sumBranchMs,
+                'estimated_overhead_ms' => $estimatedOverheadMs,
             ]);
         } catch (\Throwable) {
         }

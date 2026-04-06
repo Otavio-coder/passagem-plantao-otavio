@@ -41,16 +41,13 @@
     {{-- ── Full-screen background ── --}}
     <div class="relative min-h-full flex items-center justify-center overflow-hidden">
 
-        {{-- Hospital background video --}}
-        <video
+        {{-- Hospital background photo --}}
+        <img
             class="absolute inset-0 w-full h-full object-cover object-center"
-            src="{{ asset('images/login-video.mp4') }}"
-            autoplay
-            loop
-            muted
-            playsinline
+            src="{{ asset('images/login-photo.png') }}"
+            alt=""
             aria-hidden="true"
-        ></video>
+        />
 
         {{-- Deep navy gradient overlay --}}
         <div class="absolute inset-0" style="background: linear-gradient(155deg, rgba(0,20,70,0.90) 0%, rgba(0,55,130,0.70) 50%, rgba(0,15,60,0.92) 100%);"></div>
@@ -126,14 +123,14 @@
 
                     {{-- Errors --}}
                     @if ($errors->any())
-                        <div class="mt-5 rounded-xl px-4 py-3" style="background: rgba(239,68,68,0.18); border: 1px solid rgba(239,68,68,0.35);" role="alert">
+                        <div class="mt-5 rounded-xl px-4 py-3 bg-red-50 border border-red-300" role="alert">
                             <div class="flex items-start gap-3">
-                                <svg class="w-5 h-5 text-red-300 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                 </svg>
                                 <div>
                                     @foreach ($errors->all() as $error)
-                                        <p class="text-sm text-white">{!! errorMessageFormat($error) !!}</p>
+                                        <p class="text-sm text-red-700 font-medium">{!! errorMessageFormat($error) !!}</p>
                                     @endforeach
                                 </div>
                             </div>
@@ -143,12 +140,12 @@
                     {{-- Status flash --}}
                     @if(session()->has('status'))
                         @php($color = color(session('status')))
-                        <div class="mt-5 bg-{{ $color }}-500/20 border border-{{ $color }}-400/40 rounded-xl px-4 py-3" role="alert">
+                        <div class="mt-5 bg-{{ $color }}-50 border border-{{ $color }}-300 rounded-xl px-4 py-3" role="alert">
                             <div class="flex items-start gap-3">
-                                <svg class="w-5 h-5 text-{{ $color }}-300 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <svg class="w-5 h-5 text-{{ $color }}-500 mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                 </svg>
-                                <p class="text-sm text-white">{!! errorMessageFormat(session('message')) !!}</p>
+                                <p class="text-sm text-{{ $color }}-700 font-medium">{!! errorMessageFormat(session('message')) !!}</p>
                             </div>
                         </div>
                     @endif

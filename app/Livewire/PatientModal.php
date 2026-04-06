@@ -126,9 +126,6 @@ class PatientModal extends Component
         try {
             $details = (object) $sbarData;
 
-            // O SBAR usa 'priority_exams', o modal espera 'prioridade_exames'
-            $details->prioridade_exames = $sbarData['priority_exams'] ?? null;
-
             // Busca apenas os alertas (não vêm no payload do SBAR)
             $details->alerts = [];
             $personId = $sbarData['cd_pessoa_fisica'] ?? null;
@@ -520,7 +517,6 @@ class PatientModal extends Component
                 'dispositivos' => 'Nenhum dispositivo registrado',
                 'alergias' => 'Sem alergias registradas',
                 'antimicrobianos' => 'Nenhum antimicrobiano',
-                'exames_prioritarios' => 'Nenhum exame prioritário',
                 'cirurgias' => [],
                 'avaliacao_enfermagem' => 'Não realizada',
                 'plano_educacional' => 'Não realizado',
@@ -536,7 +532,6 @@ class PatientModal extends Component
             'dispositivos' => $this->patientDetails->dispositivos ?? 'Nenhum dispositivo registrado',
             'alergias' => $this->patientDetails->alergias_detalhadas ?? 'Sem alergias registradas',
             'antimicrobianos' => $this->patientDetails->materiais ?? 'Nenhum antimicrobiano',
-            'exames_prioritarios' => $this->patientDetails->prioridade_exames ?? 'Nenhum exame prioritário',
             'cirurgias' => $this->patientDetails->procedimentos_cirurgicos ?? [],
             'avaliacao_enfermagem' => $this->patientDetails->avaliacao_enf ?? 'Não realizada',
             'plano_educacional' => $this->patientDetails->plano_educ ?? 'Não realizado',

@@ -2,21 +2,19 @@
 
 namespace App\Providers;
 
+use App\Repositories\EMR\PatientAlertsRepository;
+use App\Repositories\EMR\PatientClinicalRepository;
+use App\Repositories\EMR\PatientMultidisciplinaryRepository;
+use App\Repositories\EMR\PatientPrescricoesRepository;
+use App\Repositories\EMR\PatientScalesRepository;
+use App\Repositories\EMR\PatientSurgeryRepository;
+use App\Repositories\EMR\PatientTherapeuticPlanRepository;
+use App\Services\TasyService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Blaze\Blaze;
-use App\Repositories\EMR\{
-    PatientAlertsRepository,
-    PatientClinicalRepository,
-    PatientExamsRepository,
-    PatientMultidisciplinaryRepository,
-    PatientPrescricoesRepository,
-    PatientScalesRepository,
-    PatientSurgeryRepository,
-    PatientTherapeuticPlanRepository
-};
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Services\TasyService::class);
+        $this->app->singleton(TasyService::class);
 
         $this->app->bind(PatientScalesRepository::class, PatientScalesRepository::class);
         $this->app->bind(PatientClinicalRepository::class, PatientClinicalRepository::class);
@@ -33,7 +31,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PatientAlertsRepository::class, PatientAlertsRepository::class);
         $this->app->bind(PatientSurgeryRepository::class, PatientSurgeryRepository::class);
         $this->app->bind(PatientMultidisciplinaryRepository::class, PatientMultidisciplinaryRepository::class);
-        $this->app->bind(PatientExamsRepository::class, PatientExamsRepository::class);
         $this->app->bind(PatientTherapeuticPlanRepository::class, PatientTherapeuticPlanRepository::class);
     }
 

@@ -11,13 +11,13 @@ use Carbon\Carbon;
 class SbarFormatter
 {
     private const DEFAULT_SCALE_DATA = [
-        'score'              => null,
-        'needs_assessment'   => true,
-        'increased'          => false,
-        'classification'     => 'Não classificado',
-        'styling'            => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
-        'shift'              => null,
-        'timestamp'          => null,
+        'score' => null,
+        'needs_assessment' => true,
+        'increased' => false,
+        'classification' => 'Não classificado',
+        'styling' => ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'],
+        'shift' => null,
+        'timestamp' => null,
     ];
 
     /**
@@ -26,64 +26,63 @@ class SbarFormatter
     public function formatPatientForSbar($bed, array $sectorContext, array $batchData): array
     {
         $attendanceNumber = $bed->nr_atendimento;
-        $age              = $bed->age ?? 99;
-        $isPediatric      = $age < 18;
-        $internmentDays   = is_numeric($bed->internment_days ?? null) ? floatval($bed->internment_days) : null;
-        $isNewPatient     = ($internmentDays === null || $internmentDays < 1);
+        $age = $bed->age ?? 99;
+        $isPediatric = $age < 18;
+        $internmentDays = is_numeric($bed->internment_days ?? null) ? floatval($bed->internment_days) : null;
+        $isNewPatient = ($internmentDays === null || $internmentDays < 1);
 
         $clinicalDetails = $batchData['clinical_details'][$attendanceNumber] ?? null;
 
-        $hasAllergy   = $this->checkHasAllergy($clinicalDetails->alergias_detalhadas ?? null);
+        $hasAllergy = $this->checkHasAllergy($clinicalDetails->alergias_detalhadas ?? null);
         $hasIsolation = $this->checkHasIsolation($clinicalDetails->medida_bloqueio ?? null);
 
         $patientData = [
-            'cd_unidade_basica'          => $bed->cd_unidade_basica ?? 'N/A',
-            'bed_sequence'               => $bed->bed_sequence ?? 0,
-            'bed_status'                 => $bed->bed_status ?? 'A',
-            'cd_setor_atendimento'       => $bed->cd_setor_atendimento ?? null,
-            'ds_setor_atendimento'       => $bed->ds_setor_atendimento ?? 'Setor não identificado',
-            'hospital_id'                => $sectorContext['hospital_id'] ?? null,
-            'hospital_name'              => $sectorContext['hospital_name'] ?? 'Hospital não identificado',
-            'nr_atendimento'             => $attendanceNumber,
-            'is_occupied'                => (bool)($bed->is_occupied ?? false),
-            'has_patient'                => (bool)($bed->has_patient ?? false),
-            'cd_pessoa_fisica'           => $bed->cd_pessoa_fisica ?? null,
-            'nm_pessoa_fisica'           => $bed->nm_pessoa_fisica ?? 'Nome não informado',
-            'nr_prontuario'              => $bed->nr_prontuario ?? 'N/A',
-            'birth_date'                 => $bed->birth_date ? Carbon::parse($bed->birth_date)->format('d/m/Y') : null,
-            'age'                        => $age,
-            'age_detailed'               => $this->formatDetailedAgeFromParts($age, $bed->age_months ?? null, $bed->age_days ?? null),
-            'sexo'                       => $bed->sexo ?? 'N/A',
-            'convenio'                   => $bed->convenio ?? 'Não informado',
-            'medico_responsavel'         => $bed->medico_responsavel ?? 'Não informado',
-            'dt_entrada'                 => $bed->dt_entrada ?? null,
-            'internment_days'            => $internmentDays,
-            'is_new_patient'             => $isNewPatient,
-            'is_pediatric'               => $isPediatric,
-            'has_surgery'                => $batchData['surgery'][$attendanceNumber] ?? false,
-            'procedimentos_cirurgicos'   => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
-            'multidisciplinary'          => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
+            'cd_unidade_basica' => $bed->cd_unidade_basica ?? 'N/A',
+            'bed_sequence' => $bed->bed_sequence ?? 0,
+            'bed_status' => $bed->bed_status ?? 'A',
+            'cd_setor_atendimento' => $bed->cd_setor_atendimento ?? null,
+            'ds_setor_atendimento' => $bed->ds_setor_atendimento ?? 'Setor não identificado',
+            'hospital_id' => $sectorContext['hospital_id'] ?? null,
+            'hospital_name' => $sectorContext['hospital_name'] ?? 'Hospital não identificado',
+            'nr_atendimento' => $attendanceNumber,
+            'is_occupied' => (bool) ($bed->is_occupied ?? false),
+            'has_patient' => (bool) ($bed->has_patient ?? false),
+            'cd_pessoa_fisica' => $bed->cd_pessoa_fisica ?? null,
+            'nm_pessoa_fisica' => $bed->nm_pessoa_fisica ?? 'Nome não informado',
+            'nr_prontuario' => $bed->nr_prontuario ?? 'N/A',
+            'birth_date' => $bed->birth_date ? Carbon::parse($bed->birth_date)->format('d/m/Y') : null,
+            'age' => $age,
+            'age_detailed' => $this->formatDetailedAgeFromParts($age, $bed->age_months ?? null, $bed->age_days ?? null),
+            'sexo' => $bed->sexo ?? 'N/A',
+            'convenio' => $bed->convenio ?? 'Não informado',
+            'medico_responsavel' => $bed->medico_responsavel ?? 'Não informado',
+            'dt_entrada' => $bed->dt_entrada ?? null,
+            'internment_days' => $internmentDays,
+            'is_new_patient' => $isNewPatient,
+            'is_pediatric' => $isPediatric,
+            'has_surgery' => $batchData['surgery'][$attendanceNumber] ?? false,
+            'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
+            'multidisciplinary' => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
             'multidisciplinary_requests' => $batchData['multidisciplinary_requests'][$attendanceNumber] ?? [],
-            'priority_exams'             => $batchData['priority_exams'][$attendanceNumber] ?? null,
-            'diagnosticos_comorbidades'  => $clinicalDetails->diagnosticos_comorbidades ?? null,
-            'medida_bloqueio'            => $clinicalDetails->medida_bloqueio ?? 'Não',
-            'motivos_isolamento'         => $clinicalDetails->motivos_isolamento ?? null,
-            'avaliacao_enf'              => $clinicalDetails->avaliacao_enf ?? null,
-            'plano_educ'                => $clinicalDetails->plano_educ ?? null,
-            'pe_data'                   => $clinicalDetails->pe_data ?? null,
-            'ds_queda'                  => $clinicalDetails->ds_queda ?? 'Não',
-            'diag'                      => $clinicalDetails->diag ?? null,
-            'dispositivos'              => $clinicalDetails->dispositivos ?? null,
-            'alergias_detalhadas'       => $clinicalDetails->alergias_detalhadas ?? null,
-            'materiais'                 => $clinicalDetails->materiais ?? null,
-            'alerts'                    => [],
-            'has_allergy'               => $hasAllergy,
-            'has_isolation'             => $hasIsolation,
-            'pending_events'            => $batchData['pending_events'][$attendanceNumber] ?? [],
-            'discharge_info'            => $this->buildDischargeInfoFromBed($bed) ?? ($batchData['discharge_info'][$attendanceNumber] ?? null),
+            'diagnosticos_comorbidades' => $clinicalDetails->diagnosticos_comorbidades ?? null,
+            'medida_bloqueio' => $clinicalDetails->medida_bloqueio ?? 'Não',
+            'motivos_isolamento' => $clinicalDetails->motivos_isolamento ?? null,
+            'avaliacao_enf' => $clinicalDetails->avaliacao_enf ?? null,
+            'plano_educ' => $clinicalDetails->plano_educ ?? null,
+            'pe_data' => $clinicalDetails->pe_data ?? null,
+            'ds_queda' => $clinicalDetails->ds_queda ?? 'Não',
+            'diag' => $clinicalDetails->diag ?? null,
+            'dispositivos' => $clinicalDetails->dispositivos ?? null,
+            'alergias_detalhadas' => $clinicalDetails->alergias_detalhadas ?? null,
+            'materiais' => $clinicalDetails->materiais ?? null,
+            'alerts' => [],
+            'has_allergy' => $hasAllergy,
+            'has_isolation' => $hasIsolation,
+            'pending_events' => $batchData['pending_events'][$attendanceNumber] ?? [],
+            'discharge_info' => $this->buildDischargeInfoFromBed($bed) ?? ($batchData['discharge_info'][$attendanceNumber] ?? null),
         ];
 
-        $rawScales   = $batchData['scales'][$attendanceNumber] ?? null;
+        $rawScales = $batchData['scales'][$attendanceNumber] ?? null;
         $patientData = $this->addScalesToData($patientData, $rawScales, $age);
         $patientData = $this->applyCardStyling($patientData, $isPediatric);
 
@@ -92,28 +91,30 @@ class SbarFormatter
 
     public function buildDischargeInfoFromBed($bed): ?array
     {
-        if (!empty($bed->dt_alta_medico)) {
-            $dtMedico  = is_string($bed->dt_alta_medico) ? $bed->dt_alta_medico : (string)$bed->dt_alta_medico;
+        if (! empty($bed->dt_alta_medico)) {
+            $dtMedico = is_string($bed->dt_alta_medico) ? $bed->dt_alta_medico : (string) $bed->dt_alta_medico;
             $apaPrevisto = $bed->apa_dt_previsto_alta ?? null;
+
             return [
-                'tipo'                       => 'alta_medica',
-                'dt_alta_medico'             => $dtMedico,
-                'dt_alta_medico_formatted'   => date('d/m/Y H:i', strtotime($dtMedico)),
-                'dt_previsto_alta'           => $apaPrevisto,
-                'dt_previsto_alta_formatted' => !empty($apaPrevisto)
+                'tipo' => 'alta_medica',
+                'dt_alta_medico' => $dtMedico,
+                'dt_alta_medico_formatted' => date('d/m/Y H:i', strtotime($dtMedico)),
+                'dt_previsto_alta' => $apaPrevisto,
+                'dt_previsto_alta_formatted' => ! empty($apaPrevisto)
                     ? date('d/m/Y H:i', strtotime($apaPrevisto))
                     : null,
                 'ds_motivo_alta' => $bed->ds_motivo_alta ?? null,
             ];
         }
 
-        if (!empty($bed->apa_dt_previsto_alta)) {
+        if (! empty($bed->apa_dt_previsto_alta)) {
             $dtPrevisto = is_string($bed->apa_dt_previsto_alta)
                 ? $bed->apa_dt_previsto_alta
-                : (string)$bed->apa_dt_previsto_alta;
+                : (string) $bed->apa_dt_previsto_alta;
+
             return [
-                'tipo'                       => 'previsao_alta',
-                'dt_previsto_alta'           => $dtPrevisto,
+                'tipo' => 'previsao_alta',
+                'dt_previsto_alta' => $dtPrevisto,
                 'dt_previsto_alta_formatted' => date('d/m/Y', strtotime($dtPrevisto)),
             ];
         }
@@ -125,41 +126,41 @@ class SbarFormatter
     {
         $isPediatric = $age < 18;
 
-        if (!$isPediatric) {
+        if (! $isPediatric) {
             $mews = $scales['mews'] ?? self::DEFAULT_SCALE_DATA;
-            $data['mews_score']              = $mews['score'];
-            $data['mews_previous_score']     = $mews['previous_score'] ?? null;
+            $data['mews_score'] = $mews['score'];
+            $data['mews_previous_score'] = $mews['previous_score'] ?? null;
             $data['mews_previous_timestamp'] = $mews['previous_timestamp'] ?? null;
-            $data['mews_needs_assessment']   = $mews['needs_assessment'];
-            $data['mews_increased']          = $mews['increased'];
-            $data['mews_classification']     = $mews['classification'];
-            $data['mews_styling']            = $mews['styling'];
-            $data['mews_shift']              = $mews['shift'];
-            $data['mews_timestamp']          = $mews['timestamp'];
+            $data['mews_needs_assessment'] = $mews['needs_assessment'];
+            $data['mews_increased'] = $mews['increased'];
+            $data['mews_classification'] = $mews['classification'];
+            $data['mews_styling'] = $mews['styling'];
+            $data['mews_shift'] = $mews['shift'];
+            $data['mews_timestamp'] = $mews['timestamp'];
         } else {
             $pews = $scales['pews'] ?? self::DEFAULT_SCALE_DATA;
-            $data['pews_score']              = $pews['score'];
-            $data['pews_previous_score']     = $pews['previous_score'] ?? null;
+            $data['pews_score'] = $pews['score'];
+            $data['pews_previous_score'] = $pews['previous_score'] ?? null;
             $data['pews_previous_timestamp'] = $pews['previous_timestamp'] ?? null;
-            $data['pews_needs_assessment']   = $pews['needs_assessment'];
-            $data['pews_increased']          = $pews['increased'];
-            $data['pews_classification']     = $pews['classification'];
-            $data['pews_styling']            = $pews['styling'];
-            $data['pews_shift']              = $pews['shift'];
-            $data['pews_timestamp']          = $pews['timestamp'];
+            $data['pews_needs_assessment'] = $pews['needs_assessment'];
+            $data['pews_increased'] = $pews['increased'];
+            $data['pews_classification'] = $pews['classification'];
+            $data['pews_styling'] = $pews['styling'];
+            $data['pews_shift'] = $pews['shift'];
+            $data['pews_timestamp'] = $pews['timestamp'];
         }
 
         foreach (['braden', 'morse', 'pain', 'vte'] as $scaleName) {
             $scale = $scales[$scaleName] ?? self::DEFAULT_SCALE_DATA;
-            $data["{$scaleName}_score"]              = $scale['score'];
-            $data["{$scaleName}_previous_score"]     = $scale['previous_score'] ?? null;
+            $data["{$scaleName}_score"] = $scale['score'];
+            $data["{$scaleName}_previous_score"] = $scale['previous_score'] ?? null;
             $data["{$scaleName}_previous_timestamp"] = $scale['previous_timestamp'] ?? null;
-            $data["{$scaleName}_needs_assessment"]   = $scale['needs_assessment'];
-            $data["{$scaleName}_increased"]          = $scale['increased'];
-            $data["{$scaleName}_classification"]     = $scale['classification'];
-            $data["{$scaleName}_styling"]            = $scale['styling'];
-            $data["{$scaleName}_shift"]              = $scale['shift'];
-            $data["{$scaleName}_timestamp"]          = $scale['timestamp'];
+            $data["{$scaleName}_needs_assessment"] = $scale['needs_assessment'];
+            $data["{$scaleName}_increased"] = $scale['increased'];
+            $data["{$scaleName}_classification"] = $scale['classification'];
+            $data["{$scaleName}_styling"] = $scale['styling'];
+            $data["{$scaleName}_shift"] = $scale['shift'];
+            $data["{$scaleName}_timestamp"] = $scale['timestamp'];
         }
 
         return $data;
@@ -167,46 +168,47 @@ class SbarFormatter
 
     public function applyCardStyling(array $data, bool $isPediatric): array
     {
-        if (!($data['has_patient'] ?? false)) {
-            $data['gradient_class']    = 'from-gray-200 to-gray-300';
-            $data['border_class']      = 'border border-gray-300';
-            $data['text_color_class']  = 'text-gray-600';
-            $data['gradient_style']    = 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);';
+        if (! ($data['has_patient'] ?? false)) {
+            $data['gradient_class'] = 'from-gray-200 to-gray-300';
+            $data['border_class'] = 'border border-gray-300';
+            $data['text_color_class'] = 'text-gray-600';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);';
+
             return $data;
         }
 
         $isNewPatient = $data['is_new_patient'] ?? false;
-        $score        = !$isPediatric ? ($data['mews_score'] ?? null) : ($data['pews_score'] ?? null);
+        $score = ! $isPediatric ? ($data['mews_score'] ?? null) : ($data['pews_score'] ?? null);
 
         if ($isNewPatient) {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #ecfdf5 0%, #bbf7d0 100%);';
-            $data['gradient_class']   = 'from-green-50 to-green-200';
-            $data['border_class']     = 'border-2 border-green-400';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #ecfdf5 0%, #bbf7d0 100%);';
+            $data['gradient_class'] = 'from-green-50 to-green-200';
+            $data['border_class'] = 'border-2 border-green-400';
             $data['text_color_class'] = 'text-gray-800';
         } elseif ($score === null) {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);';
-            $data['gradient_class']   = 'from-blue-50 to-blue-100';
-            $data['border_class']     = 'border border-gray-300';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);';
+            $data['gradient_class'] = 'from-blue-50 to-blue-100';
+            $data['border_class'] = 'border border-gray-300';
             $data['text_color_class'] = 'text-gray-800';
         } elseif ($score >= 5) {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);';
-            $data['gradient_class']   = 'from-red-50 to-red-100';
-            $data['border_class']     = 'border-2 border-red-400';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);';
+            $data['gradient_class'] = 'from-red-50 to-red-100';
+            $data['border_class'] = 'border-2 border-red-400';
             $data['text_color_class'] = 'text-gray-800';
         } elseif ($score == 4) {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);';
-            $data['gradient_class']   = 'from-orange-50 to-orange-100';
-            $data['border_class']     = 'border-2 border-orange-400';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);';
+            $data['gradient_class'] = 'from-orange-50 to-orange-100';
+            $data['border_class'] = 'border-2 border-orange-400';
             $data['text_color_class'] = 'text-gray-800';
         } elseif ($score == 3) {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);';
-            $data['gradient_class']   = 'from-yellow-50 to-yellow-100';
-            $data['border_class']     = 'border-2 border-yellow-400';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);';
+            $data['gradient_class'] = 'from-yellow-50 to-yellow-100';
+            $data['border_class'] = 'border-2 border-yellow-400';
             $data['text_color_class'] = 'text-gray-800';
         } else {
-            $data['gradient_style']   = 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);';
-            $data['gradient_class']   = 'from-blue-50 to-blue-100';
-            $data['border_class']     = 'border border-gray-300';
+            $data['gradient_style'] = 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);';
+            $data['gradient_class'] = 'from-blue-50 to-blue-100';
+            $data['border_class'] = 'border border-gray-300';
             $data['text_color_class'] = 'text-gray-800';
         }
 
@@ -216,11 +218,11 @@ class SbarFormatter
     public function getDefaultMultidisciplinary(): array
     {
         return [
-            'fisioterapia'       => false,
-            'psicologia'         => false,
-            'nutricao'           => false,
-            'fonoaudiologia'     => false,
-            'servico_social'     => false,
+            'fisioterapia' => false,
+            'psicologia' => false,
+            'nutricao' => false,
+            'fonoaudiologia' => false,
+            'servico_social' => false,
             'acessos_vasculares' => false,
         ];
     }
@@ -268,10 +270,16 @@ class SbarFormatter
         }
 
         $parts = [];
-        if ($years  > 0) $parts[] = $years  . 'a';
-        if ($months > 0) $parts[] = $months . 'm';
-        if ($days   > 0) $parts[] = $days   . 'd';
+        if ($years > 0) {
+            $parts[] = $years.'a';
+        }
+        if ($months > 0) {
+            $parts[] = $months.'m';
+        }
+        if ($days > 0) {
+            $parts[] = $days.'d';
+        }
 
-        return !empty($parts) ? implode(' ', $parts) : 'Recém-nascido';
+        return ! empty($parts) ? implode(' ', $parts) : 'Recém-nascido';
     }
 }

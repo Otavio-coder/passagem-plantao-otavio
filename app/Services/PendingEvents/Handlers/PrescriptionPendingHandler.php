@@ -34,95 +34,86 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
     protected function processChunk(array &$results, array $chunk): void
     {
         $rows = DB::connection('tasy')->select("
+            WITH base AS (
+                SELECT
+                    pm.nr_atendimento,
+                    pm.nr_prescricao,
+                    pp.nr_sequencia                              AS nr_sequencia_pp,
+                    pp.nr_seq_exame,
+                    pp.nr_seq_proc_interno,
+                    pp.dt_prev_execucao                         AS dt_evento,
+                    pp.dt_coleta,
+                    pp.ie_amostra,
+                    pm.dt_prescricao                            AS dt_solicitacao,
+                    pm.dt_liberacao                             AS dt_autorizacao,
+                    NVL(pf.nm_pessoa_fisica, pm.nm_usuario)     AS nm_prescritor,
+                    pp.ie_status_execucao,
+                    NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
+                    dv.ds_valor_dominio                         AS ds_subtipo,
+                    COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
+                    -- Computed once; reused in outer JOIN (eliminates duplicate function call)
+                    NVL(
+                        tasy.AGEINT_OBTER_SETOR_PROC_INT(
+                            pp.nr_seq_proc_interno,
+                            NULL, NULL, NULL, NULL, NULL,
+                            pm.cd_estabelecimento
+                        ),
+                        NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
+                    ) AS cd_setor_execucao
+                FROM tasy.prescr_medica pm
+                JOIN tasy.prescr_procedimento pp
+                    ON pp.nr_prescricao = pm.nr_prescricao
+                LEFT JOIN tasy.result_laboratorio rl
+                    ON  rl.nr_prescricao     = pm.nr_prescricao
+                    AND rl.nr_seq_prescricao = pp.nr_sequencia
+                    AND rl.dt_coleta         IS NOT NULL
+                LEFT JOIN tasy.pessoa_fisica pf
+                    ON pf.cd_pessoa_fisica = pm.cd_prescritor
+                LEFT JOIN tasy.proc_interno pi
+                    ON pi.nr_sequencia = pp.nr_seq_proc_interno
+                LEFT JOIN tasy.proc_interno_classif pic
+                    ON pic.nr_sequencia = pi.nr_seq_classif
+                LEFT JOIN tasy.cih_tipo_cirurgia cih
+                    ON cih.cd_tipo_cirurgia = pi.cd_tipo_cirurgia
+                LEFT JOIN tasy.exame_laboratorio el
+                    ON el.nr_seq_exame = pp.nr_seq_exame
+                LEFT JOIN tasy.grupo_exame_lab gel
+                    ON gel.nr_sequencia = el.nr_seq_grupo
+                LEFT JOIN (
+                    SELECT cd_procedimento,
+                           MIN(ds_procedimento)      AS ds_procedimento,
+                           MIN(cd_tipo_procedimento) AS cd_tipo_procedimento,
+                           MIN(cd_setor_exclusivo)   AS cd_setor_exclusivo
+                    FROM tasy.procedimento
+                    GROUP BY cd_procedimento
+                ) proced ON proced.cd_procedimento = pp.cd_procedimento
+                         AND pp.nr_seq_proc_interno IS NULL
+                LEFT JOIN tasy.valor_dominio dv
+                    ON dv.cd_dominio = 95
+                   AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
+                WHERE pm.nr_atendimento IN ({$this->placeholders($chunk)})
+                    AND pp.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
+                    AND pp.dt_baixa        IS NULL
+                    AND pp.dt_cancelamento IS NULL
+                    AND pp.ie_suspenso     <> 'S'
+                    AND pp.ie_status_atend < 35
+                    AND pm.dt_liberacao    IS NOT NULL
+                    AND pm.dt_suspensao    IS NULL
+                    AND pp.ie_origem_proced <> 4
+                    AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
+                    AND rl.nr_prescricao IS NULL  -- anti-join replaces NOT EXISTS
+            )
             SELECT
-                pm.nr_atendimento,
-                pm.nr_prescricao,
-                pp.nr_seq_exame,
-                pp.nr_seq_proc_interno,
-                pp.dt_prev_execucao                      AS dt_evento,
-                pp.dt_coleta,
-                pp.ie_amostra,
-                pm.dt_prescricao                         AS dt_solicitacao,
-                pm.dt_liberacao                          AS dt_autorizacao,
-                NVL(pf.nm_pessoa_fisica, pm.nm_usuario)  AS nm_prescritor,
-                pp.ie_status_execucao,
-                NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
-                dv.ds_valor_dominio                      AS ds_subtipo,
-                COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
-                NVL(
-                    tasy.AGEINT_OBTER_SETOR_PROC_INT(
-                        pp.nr_seq_proc_interno,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        pm.cd_estabelecimento
-                    ),
-                    NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
-                )                                         AS cd_setor_execucao,
-                sa.ds_setor_atendimento                   AS setor_desc_raw,
+                b.*,
+                sa.ds_setor_atendimento AS setor_desc_raw,
                 (SELECT tasy.obter_status_laudo(MAX(pp_pac.nr_laudo))
                  FROM tasy.procedimento_paciente pp_pac
-                 WHERE pp_pac.nr_prescricao          = pm.nr_prescricao
-                   AND pp_pac.nr_sequencia_prescricao = pp.nr_sequencia) AS ds_status_laudo
-            FROM tasy.prescr_medica pm
-            JOIN tasy.prescr_procedimento pp
-                ON pp.nr_prescricao = pm.nr_prescricao
-            LEFT JOIN tasy.pessoa_fisica pf
-                ON pf.cd_pessoa_fisica = pm.cd_prescritor
-            LEFT JOIN tasy.proc_interno pi
-                ON pi.nr_sequencia = pp.nr_seq_proc_interno
-            LEFT JOIN tasy.proc_interno_classif pic
-                ON pic.nr_sequencia = pi.nr_seq_classif
-            LEFT JOIN tasy.cih_tipo_cirurgia cih
-                ON cih.cd_tipo_cirurgia = pi.cd_tipo_cirurgia
-            LEFT JOIN tasy.exame_laboratorio el
-                ON el.nr_seq_exame = pp.nr_seq_exame
-            LEFT JOIN tasy.grupo_exame_lab gel
-                ON gel.nr_sequencia = el.nr_seq_grupo
-            LEFT JOIN (
-                SELECT cd_procedimento,
-                       MIN(ds_procedimento)        AS ds_procedimento,
-                       MIN(cd_tipo_procedimento)   AS cd_tipo_procedimento,
-                       MIN(cd_setor_exclusivo)     AS cd_setor_exclusivo
-                FROM tasy.procedimento
-                GROUP BY cd_procedimento
-            ) proced ON proced.cd_procedimento = pp.cd_procedimento
-                     AND pp.nr_seq_proc_interno IS NULL
-            LEFT JOIN tasy.valor_dominio dv
-                ON dv.cd_dominio = 95
-               AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
+                 WHERE pp_pac.nr_prescricao          = b.nr_prescricao
+                   AND pp_pac.nr_sequencia_prescricao = b.nr_sequencia_pp) AS ds_status_laudo
+            FROM base b
             LEFT JOIN tasy.setor_atendimento sa
-                ON sa.cd_setor_atendimento = NVL(
-                    tasy.AGEINT_OBTER_SETOR_PROC_INT(
-                        pp.nr_seq_proc_interno,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        NULL,
-                        pm.cd_estabelecimento
-                    ),
-                    NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
-                )
-            WHERE pm.nr_atendimento IN ({$this->placeholders($chunk)})
-                AND pp.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
-                AND pp.dt_baixa        IS NULL
-                AND pp.dt_cancelamento IS NULL
-                AND pp.ie_suspenso     <> 'S'
-                AND pp.ie_status_atend < 35
-                AND pm.dt_liberacao    IS NOT NULL
-                AND pm.dt_suspensao    IS NULL
-                AND pp.ie_origem_proced <> 4
-                AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
-                AND NOT EXISTS (
-                    SELECT 1 FROM tasy.result_laboratorio rl
-                    WHERE rl.nr_prescricao     = pm.nr_prescricao
-                      AND rl.nr_seq_prescricao = pp.nr_sequencia
-                      AND rl.dt_coleta         IS NOT NULL
-                )
-            ORDER BY pm.nr_atendimento, pp.dt_prev_execucao NULLS LAST
+                ON sa.cd_setor_atendimento = b.cd_setor_execucao
+            ORDER BY b.nr_atendimento, b.dt_evento NULLS LAST
         ", $chunk);
 
         $now = time();

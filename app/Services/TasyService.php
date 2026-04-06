@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Spatie\Fork\Fork;
 
 class TasyService
 {
@@ -357,23 +358,89 @@ class TasyService
     private function fetchBatchData(int $sectorId, array $attendanceNumbers): array
     {
         $ta = microtime(true);
-        $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
+        $mode = 'sequential';
+        $clinicalMs = 0;
+        $scalesMs = 0;
+        $pendingMs = 0;
+
+        if (function_exists('pcntl_fork')) {
+            $mode = 'parallel_fork';
+
+            [$clinicalPayload, $scalesPayload, $pendingPayload] = Fork::new()
+                ->after(child: function () {
+                    DB::connection('tasy')->reconnect();
+                    DB::connection('mysql')->reconnect();
+                    try {
+                        app('redis')->connection('default')->client()->close();
+                    } catch (\Throwable) {
+                    }
+                })
+                ->run(
+                    function () use ($attendanceNumbers) {
+                        $tStart = microtime(true);
+                        $data = $this->fetchBatchClinicalData($attendanceNumbers);
+
+                        return [
+                            'data' => $data,
+                            'ms' => round((microtime(true) - $tStart) * 1000),
+                        ];
+                    },
+                    function () use ($attendanceNumbers) {
+                        $tStart = microtime(true);
+                        $data = $this->fetchBatchScales($attendanceNumbers);
+
+                        return [
+                            'data' => $data,
+                            'ms' => round((microtime(true) - $tStart) * 1000),
+                        ];
+                    },
+                    function () use ($sectorId) {
+                        $tStart = microtime(true);
+                        $data = (new PatientPendingEventsService)->getPendingEventsForSector($sectorId);
+
+                        return [
+                            'data' => $data,
+                            'ms' => round((microtime(true) - $tStart) * 1000),
+                        ];
+                    },
+                );
+
+            $clinicalBatch = $clinicalPayload['data'] ?? [];
+            $scales = $scalesPayload['data'] ?? [];
+            $pendingRaw = $pendingPayload['data'] ?? [];
+
+            $clinicalMs = (int) ($clinicalPayload['ms'] ?? 0);
+            $scalesMs = (int) ($scalesPayload['ms'] ?? 0);
+            $pendingMs = (int) ($pendingPayload['ms'] ?? 0);
+        } else {
+            $tClinical = microtime(true);
+            $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
+            $clinicalMs = (int) round((microtime(true) - $tClinical) * 1000);
+
+            $tScales = microtime(true);
+            $scales = $this->fetchBatchScales($attendanceNumbers);
+            $scalesMs = (int) round((microtime(true) - $tScales) * 1000);
+
+            $tPending = microtime(true);
+            $pendingRaw = (new PatientPendingEventsService)->getPendingEventsForSector($sectorId);
+            $pendingMs = (int) round((microtime(true) - $tPending) * 1000);
+        }
+
         $tb = microtime(true);
-
-        $scales = $this->fetchBatchScales($attendanceNumbers);
-        $tc = microtime(true);
-
-        $pendingEventsService = new PatientPendingEventsService;
-        $pendingRaw = $pendingEventsService->getPendingEventsForSector($sectorId);
-        $td = microtime(true);
+        $parallelMs = (int) round(($tb - $ta) * 1000);
+        $maxBranchMs = max($clinicalMs, $scalesMs, $pendingMs);
 
         try {
             Log::debug('[TasyService] fetchBatchData breakdown', [
                 'sector_id' => $sectorId,
                 'nr_count' => count($attendanceNumbers),
-                'clinical_ms' => round(($tb - $ta) * 1000),
-                'scales_ms' => round(($tc - $tb) * 1000),
-                'pending_ms' => round(($td - $tc) * 1000),
+                'mode' => $mode,
+                'parallel_ms' => $parallelMs,
+                'clinical_branch_ms' => $clinicalMs,
+                'scales_branch_ms' => $scalesMs,
+                'pending_branch_ms' => $pendingMs,
+                'max_branch_ms' => $maxBranchMs,
+                'estimated_overhead_ms' => max(0, $parallelMs - $maxBranchMs),
             ]);
         } catch (\Throwable) {
         }
@@ -391,7 +458,6 @@ class TasyService
             'surgery_detailed' => $clinicalBatch['surgery_detailed'] ?? [],
             'multidisciplinary' => $clinicalBatch['multidisciplinary'] ?? [],
             'multidisciplinary_requests' => $clinicalBatch['multidisciplinary_requests'] ?? [],
-            'priority_exams' => $clinicalBatch['priority_exams'] ?? [],
             'scales' => $scales,
             'pending_events' => $pendingEventsMap,
             'discharge_info' => $dischargeInfoMap,
@@ -406,7 +472,6 @@ class TasyService
                 'surgery_detailed' => [],
                 'multidisciplinary' => [],
                 'multidisciplinary_requests' => [],
-                'priority_exams' => [],
                 'clinical_details' => [],
             ];
         }
@@ -420,8 +485,6 @@ class TasyService
         $t4 = microtime(true);
         $multidisciplinaryReqs = $this->multidisciplinary()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
         $t5 = microtime(true);
-        $priorityExams = $this->exams()->getPriorityExamsForAttendances($attendanceNumbers);
-        $t6 = microtime(true);
 
         try {
             Log::debug('[TasyService] fetchBatchClinicalData breakdown', [
@@ -429,7 +492,6 @@ class TasyService
                 'surgeries_ms' => round(($t3 - $t2) * 1000),
                 'multi_teams_ms' => round(($t4 - $t3) * 1000),
                 'multi_requests_ms' => round(($t5 - $t4) * 1000),
-                'priority_exams_ms' => round(($t6 - $t5) * 1000),
             ]);
         } catch (\Throwable) {
         }
@@ -439,7 +501,6 @@ class TasyService
             'surgery_detailed' => $surgeries['surgery_detailed'] ?? [],
             'multidisciplinary' => $multidisciplinary,
             'multidisciplinary_requests' => $multidisciplinaryReqs,
-            'priority_exams' => $priorityExams,
             'clinical_details' => $clinicalDetails,
         ];
     }
@@ -470,7 +531,6 @@ class TasyService
                 'dispositivos' => null,
                 'alergias_detalhadas' => null,
                 'materiais' => null,
-                'prioridade_exames' => null,
                 'procedimentos_cirurgicos' => [],
                 'alerts' => [],
                 'multidisciplinary' => $this->formatter->getDefaultMultidisciplinary(),
@@ -519,7 +579,6 @@ class TasyService
             'dispositivos' => $details->dispositivos ?? null,
             'alergias_detalhadas' => $details->alergias_detalhadas ?? null,
             'materiais' => $details->materiais ?? null,
-            'prioridade_exames' => $batchData['priority_exams'][$attendanceNumber] ?? null,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'alerts' => $alerts,
             'multidisciplinary' => $multidisciplinaryEval ?? $this->formatter->getDefaultMultidisciplinary(),
@@ -655,7 +714,6 @@ class TasyService
                 'dispositivos' => $clinicalData->dispositivos,
                 'alergias_detalhadas' => $clinicalData->alergias_detalhadas,
                 'materiais' => $clinicalData->materiais,
-                'prioridade_exames' => $clinicalData->prioridade_exames,
                 'procedimentos_cirurgicos' => $clinicalData->procedimentos_cirurgicos,
                 'alerts' => $clinicalData->alerts,
                 'multidisciplinary' => $clinicalData->multidisciplinary,

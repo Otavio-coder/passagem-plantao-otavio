@@ -2,8 +2,8 @@
 
 namespace App\Repositories\EMR;
 
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class PatientPrescricoesRepository
 {
@@ -76,7 +76,7 @@ class PatientPrescricoesRepository
                 cm.NR_SEQUENCIA
         ", ['attendance' => $attendanceNumber]);
 
-        $items = collect($rows)->map(fn($r) => $this->formatMedicamento($r))->values()->toArray();
+        $items = collect($rows)->map(fn ($r) => $this->formatMedicamento($r))->values()->toArray();
 
         return ['total_count' => count($items), 'items' => $items];
     }
@@ -88,7 +88,6 @@ class PatientPrescricoesRepository
      * Exames agendados:         agenda_paciente (próximos 30 dias, excluindo cirurgias)
      *
      * Bate com os dados que aparecem no card do paciente:
-     *   - prioridade_exames  → prescr_procedimento (mesma fonte)
      *   - procedimentos_cirurgicos → agenda_paciente com ie_carater_cirurgia (excluído aqui)
      */
     public function getProcedimentos($attendanceNumber): array
@@ -160,7 +159,7 @@ class PatientPrescricoesRepository
         ", ['attendance' => $attendanceNumber]);
 
         $items = collect(array_merge($prescricoes, $agendamentos))
-            ->map(fn($r) => $this->formatProcedimento($r))
+            ->map(fn ($r) => $this->formatProcedimento($r))
             ->values()->toArray();
 
         return ['total_count' => count($items), 'items' => $items];
@@ -226,7 +225,7 @@ class PatientPrescricoesRepository
      */
     public function getRecomendacoes($attendanceNumber): array
     {
-        $rows = DB::connection('tasy')->select("
+        $rows = DB::connection('tasy')->select('
             SELECT
                 cr.NR_SEQUENCIA,
                 cr.CD_RECOMENDACAO,
@@ -246,9 +245,9 @@ class PatientPrescricoesRepository
               AND cr.DT_SUSPENSAO   IS NULL
               AND TRUNC(SYSDATE) BETWEEN TRUNC(cr.DT_INICIO) AND NVL(TRUNC(cr.DT_FIM), TRUNC(SYSDATE))
             ORDER BY cr.DT_INICIO, cr.NR_SEQUENCIA
-        ", ['attendance' => $attendanceNumber]);
+        ', ['attendance' => $attendanceNumber]);
 
-        $items = collect($rows)->map(fn($r) => $this->formatRecomendacao($r))->values()->toArray();
+        $items = collect($rows)->map(fn ($r) => $this->formatRecomendacao($r))->values()->toArray();
 
         return ['total_count' => count($items), 'items' => $items];
     }
@@ -259,7 +258,7 @@ class PatientPrescricoesRepository
      */
     public function getIntervencoes($attendanceNumber): array
     {
-        $rows = DB::connection('tasy')->select("
+        $rows = DB::connection('tasy')->select('
             SELECT
                 ci.NR_SEQUENCIA,
                 ci.NR_SEQ_PROC,
@@ -287,9 +286,9 @@ class PatientPrescricoesRepository
               AND ci.DT_SUSPENSAO   IS NULL
               AND TRUNC(SYSDATE) BETWEEN TRUNC(ci.DT_INICIO) AND NVL(TRUNC(ci.DT_FIM), TRUNC(SYSDATE))
             ORDER BY ci.DT_INICIO, ci.NR_SEQUENCIA
-        ", ['attendance' => $attendanceNumber]);
+        ', ['attendance' => $attendanceNumber]);
 
-        $items = collect($rows)->map(fn($r) => $this->formatIntervencao($r))->values()->toArray();
+        $items = collect($rows)->map(fn ($r) => $this->formatIntervencao($r))->values()->toArray();
 
         return ['total_count' => count($items), 'items' => $items];
     }
@@ -298,14 +297,14 @@ class PatientPrescricoesRepository
 
     private function formatMedicamento($item): array
     {
-        $totalDoses   = (int) ($item->total_doses_hoje ?? 0);
+        $totalDoses = (int) ($item->total_doses_hoje ?? 0);
         $dosesChecadas = (int) ($item->doses_checadas ?? 0);
 
         // Status em 4 níveis:
         // suspenso   → ordem médica suspensa (DT_SUSPENSAO em CPOE_MATERIAL)
         // administrado → todas as doses de hoje confirmadas pelo enfermeiro (DT_CHECAGEM)
         // ativo      → tem doses hoje mas nenhuma/parcialmente checada; ou sem doses agendadas (SOS/PRN)
-        if (!empty($item->dt_suspensao)) {
+        if (! empty($item->dt_suspensao)) {
             $status = 'suspenso';
         } elseif ($totalDoses > 0 && $dosesChecadas >= $totalDoses) {
             $status = 'administrado';
@@ -321,21 +320,21 @@ class PatientPrescricoesRepository
         ];
 
         return [
-            'nome'             => $item->ds_material ?? 'Medicamento não identificado',
-            'dose'             => trim(($item->qt_dose ?? '') . ' ' . ($item->cd_unidade_medida ?? '')),
-            'via_aplicacao'    => $item->via_aplicacao ?? '',
-            'horarios'         => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
-            'dt_inicio'        => $item->dt_inicio_fmt ?? '',
-            'dt_fim'           => $item->dt_fim_fmt ?? null,
+            'nome' => $item->ds_material ?? 'Medicamento não identificado',
+            'dose' => trim(($item->qt_dose ?? '').' '.($item->cd_unidade_medida ?? '')),
+            'via_aplicacao' => $item->via_aplicacao ?? '',
+            'horarios' => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
+            'dt_inicio' => $item->dt_inicio_fmt ?? '',
+            'dt_fim' => $item->dt_fim_fmt ?? null,
             'ie_administracao' => $item->ie_administracao ?? null,
-            'administracao'    => $adminMap[$item->ie_administracao ?? ''] ?? ($item->ie_administracao ?? ''),
-            'observacao'       => !empty($item->ds_observacao) ? $item->ds_observacao : null,
-            'justificativa'    => !empty($item->ds_justificativa) ? $item->ds_justificativa : null,
-            'nome_prescritor'  => $item->nome_prescritor ?? null,
-            'status'           => $status,
+            'administracao' => $adminMap[$item->ie_administracao ?? ''] ?? ($item->ie_administracao ?? ''),
+            'observacao' => ! empty($item->ds_observacao) ? $item->ds_observacao : null,
+            'justificativa' => ! empty($item->ds_justificativa) ? $item->ds_justificativa : null,
+            'nome_prescritor' => $item->nome_prescritor ?? null,
+            'status' => $status,
             'total_doses_hoje' => $totalDoses,
-            'doses_checadas'   => $dosesChecadas,
-            'has_details'      => !empty($item->ds_observacao) || !empty($item->ds_justificativa),
+            'doses_checadas' => $dosesChecadas,
+            'has_details' => ! empty($item->ds_observacao) || ! empty($item->ds_justificativa),
         ];
     }
 
@@ -346,59 +345,59 @@ class PatientPrescricoesRepository
             '20' => 'Coletado',
             '30' => 'Em análise',
             '40' => 'Concluído',
-            'A'  => 'Agendado',
-            'R'  => 'Realizado',
+            'A' => 'Agendado',
+            'R' => 'Realizado',
         ];
 
         $status = 'Pendente';
-        if (!empty($item->dt_baixa)) {
+        if (! empty($item->dt_baixa)) {
             $status = 'Realizado';
-        } elseif (!empty($item->ie_status_execucao)) {
+        } elseif (! empty($item->ie_status_execucao)) {
             $status = $statusMap[$item->ie_status_execucao] ?? 'Pendente';
         }
 
         $dtFormatada = $item->dt_prevista_fmt ?? null;
-        if ($dtFormatada && !empty($item->hr_prevista)) {
-            $dtFormatada .= ' ' . $item->hr_prevista;
+        if ($dtFormatada && ! empty($item->hr_prevista)) {
+            $dtFormatada .= ' '.$item->hr_prevista;
         }
 
         return [
-            'descricao'   => $item->ds_descricao ?? 'Procedimento não identificado',
-            'origem'      => $item->origem,
+            'descricao' => $item->ds_descricao ?? 'Procedimento não identificado',
+            'origem' => $item->origem,
             'dt_prevista' => $dtFormatada,
-            'status'      => $status,
-            'realizado'   => !empty($item->dt_baixa),
+            'status' => $status,
+            'realizado' => ! empty($item->dt_baixa),
         ];
     }
 
     private function formatNutricao($item): array
     {
-        $isPejeJejum  = $item->ie_tipo_dieta === 'J';
+        $isPejeJejum = $item->ie_tipo_dieta === 'J';
         $tipoNutricao = $isPejeJejum ? 'Jejum' :
             ($item->ie_dieta_enteral === 'S' ? 'Enteral' :
             ($item->ie_dieta_especial === 'S' ? 'Especial' : 'Dieta'));
 
         return [
-            'prescricao'           => $isPejeJejum
-                ? 'JEJUM' . ($item->ds_tipo_jejum ? ' - ' . $item->ds_tipo_jejum : '')
+            'prescricao' => $isPejeJejum
+                ? 'JEJUM'.($item->ds_tipo_jejum ? ' - '.$item->ds_tipo_jejum : '')
                 : ($item->ds_dieta ?? $item->ds_material ?? 'Prescrição nutricional'),
-            'tipo_nutricao'        => $tipoNutricao,
-            'is_jejum'             => $isPejeJejum,
-            'tipo_jejum'           => $item->ds_tipo_jejum ?? null,
-            'objetivo_jejum'       => $item->ds_objetivo_jejum ?? null,
-            'observacoes'          => $item->ds_observacao ?? '',
-            'horarios'             => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
-            'volume'               => $item->qt_volume ?? null,
-            'volume_total'         => $item->qt_volume_total ?? null,
-            'kcal_total'           => $item->qt_kcal_total ?? null,
-            'turno'                => $item->turno,
+            'tipo_nutricao' => $tipoNutricao,
+            'is_jejum' => $isPejeJejum,
+            'tipo_jejum' => $item->ds_tipo_jejum ?? null,
+            'objetivo_jejum' => $item->ds_objetivo_jejum ?? null,
+            'observacoes' => $item->ds_observacao ?? '',
+            'horarios' => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
+            'volume' => $item->qt_volume ?? null,
+            'volume_total' => $item->qt_volume_total ?? null,
+            'kcal_total' => $item->qt_kcal_total ?? null,
+            'turno' => $item->turno,
             'alergias_alimentares' => $item->ds_alergias_alimentares ?? null,
-            'is_enteral'           => ($item->ie_dieta_enteral ?? '') === 'S',
-            'is_especial'          => ($item->ie_dieta_especial ?? '') === 'S',
-            'nome_nutricionista'   => $item->nome_nutricionista ?? null,
-            'dt_inicio'            => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : null,
-            'dt_fim'               => $item->dt_fim    ? Carbon::parse($item->dt_fim)->format('d/m/Y')    : null,
-            'has_details'          => true,
+            'is_enteral' => ($item->ie_dieta_enteral ?? '') === 'S',
+            'is_especial' => ($item->ie_dieta_especial ?? '') === 'S',
+            'nome_nutricionista' => $item->nome_nutricionista ?? null,
+            'dt_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : null,
+            'dt_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
+            'has_details' => true,
         ];
     }
 
@@ -407,39 +406,46 @@ class PatientPrescricoesRepository
         $texto = $item->ds_recomendacao ?? '';
         // Se não há texto livre, o tipo já é a recomendação em si
         $textoExibicao = $texto ?: ($item->ds_tipo_recomendacao ?? 'Recomendação não especificada');
+
         return [
-            'recomendacao'      => $textoExibicao,
+            'recomendacao' => $textoExibicao,
             'tipo_recomendacao' => $item->ds_tipo_recomendacao ?? '',
-            'observacoes'       => $item->ds_observacao ?? '',
-            'horarios'          => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
+            'observacoes' => $item->ds_observacao ?? '',
+            'horarios' => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
             'nome_profissional' => $item->nome_profissional ?? '',
-            'dt_inicio'         => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
-            'dt_fim'            => $item->dt_fim    ? Carbon::parse($item->dt_fim)->format('d/m/Y')    : null,
-            'has_details'       => !empty($item->ds_observacao) || mb_strlen($textoExibicao) > 100,
+            'dt_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
+            'dt_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
+            'has_details' => ! empty($item->ds_observacao) || mb_strlen($textoExibicao) > 100,
         ];
     }
 
     private function formatIntervencao($item): array
     {
         $labels = [];
-        if (($item->ie_urgencia ?? '') === '1') $labels[] = 'Urgente';
-        if (($item->ie_se_necessario ?? '') === 'S') $labels[] = 'Se Necessário';
-        if (($item->ie_acm ?? '') === 'S') $labels[] = 'ACM';
-        if (!empty($item->ie_lado)) {
+        if (($item->ie_urgencia ?? '') === '1') {
+            $labels[] = 'Urgente';
+        }
+        if (($item->ie_se_necessario ?? '') === 'S') {
+            $labels[] = 'Se Necessário';
+        }
+        if (($item->ie_acm ?? '') === 'S') {
+            $labels[] = 'ACM';
+        }
+        if (! empty($item->ie_lado)) {
             $lado_map = ['D' => 'Direito', 'E' => 'Esquerdo', 'B' => 'Bilateral'];
-            $labels[] = 'Lado: ' . ($lado_map[$item->ie_lado] ?? $item->ie_lado);
+            $labels[] = 'Lado: '.($lado_map[$item->ie_lado] ?? $item->ie_lado);
         }
 
         return [
-            'procedimento'     => $item->ds_procedimento ?? 'Procedimento não especificado',
-            'observacoes'      => $item->ds_observacao ?? '',
-            'horarios'         => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
-            'nome_profissional'=> $item->nome_profissional ?? '',
-            'nome_prescritor'  => $item->nome_prescritor ?? '',
-            'labels'           => $labels,
-            'dt_inicio'        => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
-            'dt_fim'           => $item->dt_fim    ? Carbon::parse($item->dt_fim)->format('d/m/Y')    : null,
-            'has_details'      => !empty($item->ds_observacao) || !empty($labels),
+            'procedimento' => $item->ds_procedimento ?? 'Procedimento não especificado',
+            'observacoes' => $item->ds_observacao ?? '',
+            'horarios' => $item->ds_horarios ?? ($item->hr_prim_horario ?? ''),
+            'nome_profissional' => $item->nome_profissional ?? '',
+            'nome_prescritor' => $item->nome_prescritor ?? '',
+            'labels' => $labels,
+            'dt_inicio' => $item->dt_inicio ? Carbon::parse($item->dt_inicio)->format('d/m/Y') : '',
+            'dt_fim' => $item->dt_fim ? Carbon::parse($item->dt_fim)->format('d/m/Y') : null,
+            'has_details' => ! empty($item->ds_observacao) || ! empty($labels),
         ];
     }
 
@@ -448,8 +454,8 @@ class PatientPrescricoesRepository
     private function organizarPorTurno(array $data, string $tipo): array
     {
         $dataByShift = collect($data)->groupBy('turno');
-        $chaveMap    = ['nutricao' => 'prescriptions'];
-        $chave       = $chaveMap[$tipo] ?? $tipo;
+        $chaveMap = ['nutricao' => 'prescriptions'];
+        $chave = $chaveMap[$tipo] ?? $tipo;
 
         $result = ['total_count' => count($data), 'shifts' => []];
 
@@ -457,7 +463,7 @@ class PatientPrescricoesRepository
             $turnoData = $dataByShift->get($turno, collect());
             $result['shifts'][$turno] = [
                 'count' => $turnoData->count(),
-                $chave  => $turnoData->map(fn($item) => $this->formatNutricao($item))->values()->toArray(),
+                $chave => $turnoData->map(fn ($item) => $this->formatNutricao($item))->values()->toArray(),
             ];
         }
 

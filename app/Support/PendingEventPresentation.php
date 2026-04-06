@@ -94,6 +94,44 @@ class PendingEventPresentation
     }
 
     /**
+     * Retorna a explicação humana de por que o evento ainda está pendente.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    public static function motivoPendente(array $event): string
+    {
+        // Flags vindas do PrescriptionPendingHandler
+        if ($event['foi_executado_sem_baixa'] ?? false) {
+            return 'Realizado — prescrição não baixada no sistema';
+        }
+
+        if ($event['exame_coletado_em_prescricao_mais_nova'] ?? false) {
+            return 'Exame realizado em solicitação mais recente';
+        }
+
+        $tipo = PendingEventTypeClassifier::fromPendingEvent($event);
+        $urgente = (bool) ($event['urgente'] ?? false);
+
+        // ds_status_laudo tem precedência sobre status_laudo para exames
+        $statusLaudo = trim((string) ($event['ds_status_laudo'] ?? ''));
+        $statusExec = trim((string) ($event['status_laudo'] ?? ''));
+        $status = $statusLaudo !== '' ? $statusLaudo : $statusExec;
+
+        return match ($tipo) {
+            PendingEventTypeClassifier::EXAM => match ($status) {
+                'Coletado' => 'Aguardando laudo',
+                default => $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta',
+            },
+            PendingEventTypeClassifier::PROCEDURE => 'Aguardando execução',
+            PendingEventTypeClassifier::SURGERY => 'Aguardando cirurgia',
+            PendingEventTypeClassifier::HEMOTHERAPY => $urgente ? 'Urgente — aguardando transfusão' : 'Aguardando transfusão',
+            PendingEventTypeClassifier::CHEMOTHERAPY => 'Aguardando quimioterapia',
+            PendingEventTypeClassifier::ANTIBIOTIC => 'Antimicrobiano em uso',
+            default => 'Aguardando',
+        };
+    }
+
+    /**
      * @param  array<string, mixed>  $event
      */
     public static function hemotherapyDescription(array $event): string

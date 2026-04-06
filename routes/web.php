@@ -66,7 +66,6 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
 
         // Relatório de Pendências
         Route::get('/pendencias', [PendingEventsReportController::class, 'index'])
-            ->middleware('can:ver relatorio pendencias')
             ->name('pending.report');
 
         // Histórico de anotações arquivadas

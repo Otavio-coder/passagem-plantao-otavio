@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\DB;
  * Performance:
  *   - Substitui chamadas por linha a obter_desc_proc_interno(), obter_descricao_procedimento()
  *     e obter_valor_dominio() por LEFT JOINs estáticos avaliados uma única vez pelo otimizador.
- *   - Exclui procedimentos de visita hospitalar e cultura automatizada (ruído clínico).
  *   - Exclui nr_seq_proc_interno 5970/1341/5927 (procedimentos internos de sistema).
  */
 class PrescriptionPendingHandler extends AbstractPendingHandler
@@ -99,7 +98,8 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     AND pp.ie_status_atend < 35
                     AND pm.dt_liberacao    IS NOT NULL
                     AND pm.dt_suspensao    IS NULL
-                    AND pp.ie_origem_proced <> 4
+                    -- ie_origem_proced=4 (CPOE): exclui apenas procedimentos sem exame de lab; exames de lab com origem 4 são legítimos
+                    AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                     AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
                     AND rl.nr_prescricao IS NULL  -- anti-join replaces NOT EXISTS
             )
@@ -109,7 +109,20 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 (SELECT tasy.obter_status_laudo(MAX(pp_pac.nr_laudo))
                  FROM tasy.procedimento_paciente pp_pac
                  WHERE pp_pac.nr_prescricao          = b.nr_prescricao
-                   AND pp_pac.nr_sequencia_prescricao = b.nr_sequencia_pp) AS ds_status_laudo
+                   AND pp_pac.nr_sequencia_prescricao = b.nr_sequencia_pp) AS ds_status_laudo,
+                -- Flag: procedimento registrado como executado em procedimento_paciente (prescrição não foi baixada)
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM tasy.procedimento_paciente pp_exec
+                    WHERE pp_exec.nr_prescricao           = b.nr_prescricao
+                      AND pp_exec.nr_sequencia_prescricao = b.nr_sequencia_pp
+                ) THEN 1 ELSE 0 END AS foi_executado_sem_baixa,
+                -- Flag: existe prescrição mais recente do mesmo exame já executada no mesmo atendimento
+                CASE WHEN b.nr_seq_exame IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM tasy.procedimento_paciente pp_dup
+                    WHERE pp_dup.nr_atendimento = b.nr_atendimento
+                      AND pp_dup.nr_seq_exame   = b.nr_seq_exame
+                      AND pp_dup.nr_prescricao  > b.nr_prescricao
+                ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova
             FROM base b
             LEFT JOIN tasy.setor_atendimento sa
                 ON sa.cd_setor_atendimento = b.cd_setor_execucao
@@ -120,13 +133,6 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
 
         foreach ($rows as $row) {
             if (! isset($results[$row->nr_atendimento])) {
-                continue;
-            }
-
-            $descricaoUp = strtoupper($row->descricao ?? '');
-            if (str_contains($descricaoUp, 'VISITA HOSPITALAR')
-                || str_contains($descricaoUp, 'CULTURA AUTOMATIZADA')
-                || str_contains($descricaoUp, 'ASSISTENCIA FISIATRICA RESPIRATORIA EM PAC INTER C/ VENTILACAO MECANICA')) {
                 continue;
             }
 
@@ -176,6 +182,8 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 'tempo_pendente' => $tempo,
                 'status_laudo' => self::STATUS_MAP[$row->ie_status_execucao] ?? 'Pendente',
                 'ds_status_laudo' => $row->ds_status_laudo ?? null,
+                'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1,
+                'exame_coletado_em_prescricao_mais_nova' => (int) ($row->exame_coletado_em_prescricao_mais_nova ?? 0) === 1,
                 'urgente' => false,
             ];
         }

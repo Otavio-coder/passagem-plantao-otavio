@@ -120,8 +120,7 @@
                     </div>
                     @endcan
 
-                    {{-- Relatório de Pendências — Coordenador + Administrador --}}
-                    @can('ver relatorio pendencias')
+                    {{-- Relatório de Pendências --}}
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
                         <a href="{{ route('pending.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
@@ -133,7 +132,6 @@
                             </div>
                         </a>
                     </div>
-                    @endcan
 
                     {{-- Usuários — Coordenador + Administrador --}}
                     @can('ver usuarios')

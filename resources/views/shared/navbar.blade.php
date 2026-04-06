@@ -57,7 +57,7 @@
                             <span class="hidden lg:inline">Feedback</span>
                         </a>
 
-                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
+                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
                             <div class="relative">
                                 <button type="button"
                                         id="admin-dropdown-btn"
@@ -104,15 +104,16 @@
                                             <span class="ml-2">Histórico de Avaliações</span>
                                         </a>
                                     @endcan
-                                    @can('ver relatorio pendencias')
-                                        <a href="{{ route('pending.report') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('pending.report') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
-                                            <i class="fas fa-list-check w-4 text-sky-600 text-sm flex-shrink-0"></i>
-                                            <span class="ml-2">Relatório de Pendências</span>
-                                        </a>
-                                    @endcan
                                 </div>
                             </div>
                         @endcanany
+
+                        <a href="{{ route('pending.report') }}"
+                           title="Relatório de Pendências"
+                           class="nav-link {{ request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}">
+                            <i class="fas fa-list-check"></i>
+                            <span class="hidden xl:inline">Pendências</span>
+                        </a>
 
                         <a href="{{ route('manual.index') }}"
                            title="Manual do Sistema"
@@ -216,7 +217,7 @@
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
 
-            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
+            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
                 <div class="flex flex-col">
                     <button type="button" class="flex justify-between items-center text-sm text-gray-700 w-full" onclick="toggleNavbar('mobile-admin-menu')">
                         <div class="px-2 pt-2 pb-3 flex flex-col text-left">
@@ -250,15 +251,17 @@
                                 <span>Histórico de Avaliações</span>
                             </a>
                         @endcan
-                        @can('ver relatorio pendencias')
-                            <a href="{{ route('pending.report') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
-                                <i class="fas fa-list-check text-sky-600 w-5"></i>
-                                <span>Relatório de Pendências</span>
-                            </a>
-                        @endcan
                     </div>
                 </div>
             @endcanany
+
+            <a href="{{ route('pending.report') }}" class="flex justify-between items-center text-sm text-gray-700">
+                <div class="px-2 pt-2 pb-3 flex flex-col">
+                    <span class="font-semibold">Relatório de Pendências</span>
+                    <span class="text-xs text-gray-400">Pendências clínicas por setor</span>
+                </div>
+                <i class="fas fa-chevron-right text-sm text-gray-400"></i>
+            </a>
 
             <a href="{{ route('manual.index') }}" class="flex justify-between items-center text-sm text-gray-700">
                 <div class="px-2 pt-2 pb-3 flex flex-col">

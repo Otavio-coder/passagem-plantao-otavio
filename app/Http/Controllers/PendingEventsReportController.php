@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\System\UserSectorPreference;
 use App\Services\PatientPendingEventsService;
 use App\Services\TasyService;
 use App\Support\PendingEventPresentation;
@@ -9,19 +10,18 @@ use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
 {
     public function index(Request $request): View
     {
-        $user = Auth::user();
+        $allSectors = UserSectorPreference::query()
+            ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
+            ->distinct()
+            ->get();
 
-        $preferences = $user->sectorPreferences()
-            ->get(['hospital_code', 'hospital_name', 'sector_code', 'sector_name']);
-
-        if ($preferences->isEmpty()) {
+        if ($allSectors->isEmpty()) {
             return view('pendencias.index', [
                 'hospitals' => collect(),
                 'sectors' => collect(),
@@ -30,11 +30,11 @@ class PendingEventsReportController extends Controller
                 'selectedSector' => null,
                 'sectorName' => null,
                 'totalRows' => 0,
-                'errorMessage' => 'Nenhum setor configurado para o seu usuário. Configure em Minhas Preferências.',
+                'errorMessage' => 'Nenhum setor configurado no sistema. Solicite ao administrador.',
             ]);
         }
 
-        $hospitals = $preferences
+        $hospitals = $allSectors
             ->map(fn ($p) => [
                 'hospital_id' => (int) $p->hospital_code,
                 'hospital_name' => $p->hospital_name,
@@ -48,7 +48,7 @@ class PendingEventsReportController extends Controller
             $selectedHospital = (int) ($hospitals->first()['hospital_id'] ?? 0);
         }
 
-        $sectors = $preferences
+        $sectors = $allSectors
             ->filter(fn ($p) => (int) $p->hospital_code === $selectedHospital)
             ->map(fn ($p) => [
                 'sector_code' => (int) $p->sector_code,
@@ -137,6 +137,10 @@ class PendingEventsReportController extends Controller
 
                 $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
 
+                $prevExecDate = $event['dt_evento'] ?? null;
+                $venceHoje = $prevExecDate !== null
+                    && Carbon::parse($prevExecDate)->isToday();
+
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
@@ -145,11 +149,14 @@ class PendingEventsReportController extends Controller
                     'classificacao' => PendingEventPresentation::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
                     'data_prev_execucao' => $event['dt_evento_formatted'] ?? '-',
+                    'vence_hoje' => $venceHoje,
                     'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
+                    'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status' => $status,
+                    'motivo_pendente' => $this->computeMotivoPendente($normalizedType, $event, $status),
                     'laudo' => $normalizedType === PendingEventTypeClassifier::SURGERY
                         ? '-'
                         : ($statusLaudoExame !== '' ? $statusLaudoExame : '-'),
@@ -172,10 +179,13 @@ class PendingEventsReportController extends Controller
                     'tipo_label' => 'Consultoria',
                     'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
                     'classificacao' => null,
+                    'setor_execucao' => '-',
                     'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
                     'data_prev_execucao' => '-',
                     'tempo_pendente' => $this->formatTempoPendente($req['dt_registro'] ?? null),
+                    'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status' => $status,
+                    'motivo_pendente' => 'Aguardando resposta',
                     'laudo' => ! empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',
                     'sort_ts' => $sortTs,
                 ]));
@@ -221,6 +231,11 @@ class PendingEventsReportController extends Controller
         }
 
         return 'Pendência';
+    }
+
+    private function computeMotivoPendente(string $normalizedType, array $event, string $status): string
+    {
+        return PendingEventPresentation::motivoPendente($event);
     }
 
     private function parseDateToTs(?string $date): ?int

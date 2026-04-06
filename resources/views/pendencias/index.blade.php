@@ -14,11 +14,102 @@
                 </span>
             @endif
         </div>
-        <a href="{{ route('sbar.report') }}"
-           class="inline-flex items-center px-3 py-2 text-santacasa-100 hover:text-santacasa-200 transition text-sm font-medium">
-            <i class="fas fa-arrow-left mr-1"></i>
-            <span class="hidden md:inline">Voltar</span>
-        </a>
+        <div class="flex items-center gap-2">
+            <button type="button" onclick="document.getElementById('modal-criterios').classList.remove('hidden')"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition">
+                <i class="fas fa-circle-question"></i>
+                <span class="hidden sm:inline">Critérios de pendência</span>
+            </button>
+            <a href="{{ route('sbar.report') }}"
+               class="inline-flex items-center px-3 py-2 text-santacasa-100 hover:text-santacasa-200 transition text-sm font-medium">
+                <i class="fas fa-arrow-left mr-1"></i>
+                <span class="hidden md:inline">Voltar</span>
+            </a>
+        </div>
+    </div>
+
+    {{-- Modal: Critérios de pendência --}}
+    <div id="modal-criterios" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.4)">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h2 class="text-sm font-semibold text-gray-800">
+                    <i class="fas fa-circle-question text-santacasa-100 mr-1.5"></i>
+                    Critérios para definição de pendências
+                </h2>
+                <button type="button" onclick="document.getElementById('modal-criterios').classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
+            </div>
+            <div class="overflow-y-auto px-5 py-4 text-xs text-gray-600 space-y-4">
+
+                <p class="text-gray-500">Um item é considerado <strong class="text-gray-700">pendente</strong> quando atende a <em>todos</em> os critérios abaixo ao mesmo tempo.</p>
+
+                <div>
+                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">Exames e procedimentos prescritos</h3>
+                    <ul class="space-y-1.5">
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Status de execução diferente de <em>Executado</em>, <em>Cancelado</em>, <em>Rejeitado</em> ou <em>Baixa especial</em></span></li>
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Sem data de baixa (<code class="bg-gray-100 px-1 rounded">dt_baixa</code>) registrada na prescrição</span></li>
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Prescrição não cancelada e não suspensa</span></li>
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Prescrição médica já liberada e não suspensa pelo médico</span></li>
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Sem resultado de laboratório coletado vinculado a esta linha de prescrição</span></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">Consultorias multidisciplinares</h3>
+                    <ul class="space-y-1.5">
+                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Solicitação com status diferente de <em>Respondido</em></span></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">O que cada motivo significa</h3>
+                    <div class="space-y-2">
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando coleta</span>
+                            <span>Exame prescrito e liberado, mas ainda não foi coletado pelo laboratório.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando laudo</span>
+                            <span>Material já coletado, mas o laudo ainda não foi liberado pelo laboratório.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando execução</span>
+                            <span>Procedimento prescrito ainda não realizado.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando cirurgia</span>
+                            <span>Cirurgia agendada nos próximos 30 dias ainda não realizada.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando transfusão</span>
+                            <span>Hemocomponente programado nas próximas 48h ainda não administrado.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando quimioterapia</span>
+                            <span>Sessão de quimioterapia agendada nos próximos 30 dias.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Aguardando resposta</span>
+                            <span>Consultoria solicitada sem parecer registrado até o momento.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
+                            <span class="shrink-0 font-medium text-gray-700 w-52">Antimicrobiano em uso</span>
+                            <span>Antibiótico ativo no dia — registrado para acompanhamento, não requer ação imediata.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                            <span class="shrink-0 font-medium text-amber-800 w-52">Realizado — prescrição não baixada</span>
+                            <span class="text-amber-700">O procedimento consta como executado no sistema, mas a linha de prescrição não recebeu baixa. Requer correção no Tasy.</span>
+                        </div>
+                        <div class="flex gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                            <span class="shrink-0 font-medium text-amber-800 w-52">Exame realizado em solicitação mais recente</span>
+                            <span class="text-amber-700">O exame foi coletado via uma prescrição posterior. A solicitação original ficou em aberto sem ser encerrada. Requer baixa manual no Tasy.</span>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
     </div>
 
     @if(!empty($errorMessage))
@@ -84,16 +175,16 @@
                 </select>
             </div>
 
-            <div class="flex flex-col gap-1 w-44">
+            <div class="flex flex-col gap-1 w-48">
                 <label class="text-xs text-gray-500 font-medium">Tempo pendente</label>
                 <select id="filter-tempo"
                     class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
                     <option value="">Qualquer período</option>
-                    <option value="0-6">Até 6h</option>
-                    <option value="6-24">6h a 24h</option>
-                    <option value="24-72">1 a 3 dias</option>
-                    <option value="72-168">3 a 7 dias</option>
-                    <option value="168-">Mais de 7 dias</option>
+                    <option value="0-24">Pendente hoje (até 24h)</option>
+                    <option value="24-48">Desde ontem (24h – 48h)</option>
+                    <option value="48-168">2 a 7 dias</option>
+                    <option value="168-720">8 a 30 dias</option>
+                    <option value="720-">Mais de 30 dias</option>
                 </select>
             </div>
 
@@ -122,6 +213,7 @@
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Solicitação</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Data Prev. Execução</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Pendente há</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Motivo</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Desc.</th>
                             <th class="hidden">Tipo bruto</th>
                         </tr>
@@ -138,8 +230,17 @@
                                 <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['classificacao'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[220px] truncate" title="{{ $row['item'] }}">{{ $row['item'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_solicitacao'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap">{{ $row['data_prev_execucao'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
+                                <td class="px-2 py-1.5 text-[11px] whitespace-nowrap">
+                                    @if($row['vence_hoje'] ?? false)
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+                                            <i class="fas fa-circle-exclamation"></i> Hoje
+                                        </span>
+                                    @else
+                                        <span class="text-gray-600">{{ $row['data_prev_execucao'] }}</span>
+                                    @endif
+                                </td>
+                                <td data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}" class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['motivo_pendente'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[180px] truncate" title="{{ $row['laudo'] ?? '-' }}">{{ $row['laudo'] ?? '-' }}</td>
                                 <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>
                             </tr>
@@ -220,7 +321,7 @@ $(document).ready(function () {
 
             // Popula o filtro de Tipo com o tipo bruto da consulta
             var tiposSet = {};
-            api.column(12).data().each(function (val) {
+            api.column(13).data().each(function (val) {
                 var label = String(val || '').trim();
                 if (label) tiposSet[label] = true;
             });
@@ -246,7 +347,7 @@ $(document).ready(function () {
         if (settings.nTable.id !== 'pendencias-table') { return true; }
         var range = $('#filter-tempo').val();
         if (range) {
-            var hours = cellDateToHoursAgo(data[6]);
+            var hours = cellDateToHoursAgo(data[8]);
             if (hours !== null) {
                 var parts = range.split('-');
                 var min = parseFloat(parts[0]);
@@ -261,7 +362,7 @@ $(document).ready(function () {
             return true;
         }
 
-        var tipo = String(data[12] || '').toLowerCase();
+        var tipo = String(data[13] || '').toLowerCase();
         if (activePendingTypeTab === 'exame') {
             return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1;
         }
@@ -284,7 +385,7 @@ $(document).ready(function () {
 
     // Filtro por Tipo (prefixo da coluna Pendência)
     $('#filter-tipo').on('change', function () {
-        table.column(12).search(
+        table.column(13).search(
             this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '',
             true, false
         ).draw();
@@ -301,7 +402,7 @@ $(document).ready(function () {
     $('#filter-limpar').on('click', function () {
         $('#filter-tipo').val('');
         $('#filter-tempo').val('');
-        table.column(12).search('', false, false).draw();
+        table.column(13).search('', false, false).draw();
         updateLimparBtn();
     });
 

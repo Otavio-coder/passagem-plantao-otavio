@@ -8,6 +8,7 @@ use App\Services\PendingEvents\Handlers\AntibioticPendingHandler;
 use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\HemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\PrescriptionPendingHandler;
+use App\Support\PendingEventPresentation;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -149,6 +150,15 @@ class PatientPendingEventsService
 
                 return abs(strtotime($da) - $now) - abs(strtotime($db) - $now);
             });
+        }
+        unset($data);
+
+        // Adiciona motivo_pendente a todos os eventos (fonte única: PendingEventPresentation)
+        foreach ($results as &$data) {
+            foreach ($data['events'] as &$event) {
+                $event['motivo_pendente'] = PendingEventPresentation::motivoPendente($event);
+            }
+            unset($event);
         }
         unset($data);
 

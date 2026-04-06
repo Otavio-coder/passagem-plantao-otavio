@@ -1163,7 +1163,7 @@
                                     @endif
                                 </span>
                                 <div class="flex items-center gap-1.5">
-                                    @if($hasPendingCard)
+                                    @if($hasAnyPending)
                                         <button
                                             @click="showPendingModal = true; document.body.style.overflow = 'hidden'; $dispatch('pending-filter', { v: false })"
                                             class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D]

@@ -251,10 +251,25 @@ class PendingEventPresentation
 
     private static function motivoAntibiotico(array $event): string
     {
+        $hora = '';
+        if (! empty($event['dt_evento'])) {
+            try {
+                $hora = date('H:i', strtotime((string) $event['dt_evento']));
+            } catch (\Throwable) {
+            }
+        }
+
+        $acao = match (trim((string) ($event['status_laudo'] ?? ''))) {
+            'Reaprazado' => 'reaprazada',
+            'Recusado' => 'recusada',
+            'Desfeito' => 'desfeita',
+            default => 'não administrada',
+        };
+
+        $base = $hora !== '' ? "Dose das {$hora} {$acao}" : "Dose {$acao}";
+
         $complement = trim((string) ($event['ds_complemento'] ?? ''));
 
-        return $complement !== ''
-            ? "Antimicrobiano em uso — {$complement}"
-            : 'Antimicrobiano em uso';
+        return $complement !== '' ? "{$base} — {$complement}" : $base;
     }
 }

@@ -395,7 +395,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         meds, schedule, timeCols, currentHour,
         q: '', antibioticoF: false,
         expandedMed: null,
-        medPage: 1, medPerPage: 5, medSortDir: 'asc',
+        medPage: 1, medPerPage: 10, medSortDir: 'asc',
         marShadowLeft: false,
         marShadowRight: false,
 
@@ -403,7 +403,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         procType: 'all',
         examQ: '',
         examPage: 1,
-        examPerPage: 10,
+        examPerPage: 5,
         nut: listState(nuts),
         ord:  listState(ords),
         int:  listState(ints),
@@ -431,6 +431,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
             .map(p => p.type || 'Sem tipo'))].sort(),
 
         init() {
+            this.proc.perPage = 5;
             this.$nextTick(() => this.initMarScroll());
         },
 
@@ -709,6 +710,34 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         },
         examBadge(s) {
             return this.procBadge(s);
+        },
+        frequencyPt(freq) {
+            if (!freq) return '';
+            const raw = String(freq).trim();
+            const f = raw.toUpperCase();
+            if (f === 'SN') return 'Se necessário';
+            if (f === 'ACM') return 'A critério médico';
+            if (f === 'CONT' || f === 'CONTINUO' || f === 'CONTÍNUO') return 'Contínuo';
+            // "6/6H" or "12/12H"
+            let m = f.match(/^(\d+)\/(\d+)H$/);
+            if (m) {
+                const hours = parseInt(m[2], 10);
+                if (hours > 0 && hours <= 24 && 24 % hours === 0) return (24 / hours) + '× ao dia';
+                if (hours > 0) return 'A cada ' + hours + 'h';
+            }
+            // "6H" or "06H"
+            m = f.match(/^0?(\d+)H$/);
+            if (m) {
+                const hours = parseInt(m[1], 10);
+                if (hours > 0 && hours <= 24 && 24 % hours === 0) return (24 / hours) + '× ao dia';
+                if (hours === 48) return 'A cada 2 dias';
+                if (hours === 72) return 'A cada 3 dias';
+                if (hours > 0) return 'A cada ' + hours + 'h';
+            }
+            // "2X", "3XD", "4X/DIA"
+            m = f.match(/^(\d+)[Xx](?:\/DIA|D)?$/);
+            if (m) return parseInt(m[1], 10) + '× ao dia';
+            return raw;
         },
         labelPt(l) { return { Urgent:'Urgente', PRN:'Se Necessário', ACM:'A Crit. Médico' }[l] || l; },
     };

@@ -44,32 +44,17 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
                 ch.ie_via_aplicacao,
                 va.ds_via_aplicacao AS via_aplicacao,
                 ch.ie_urgencia,
-                ch.cd_setor_atendimento
+                sa.ds_setor_atendimento AS setor_execucao
             FROM tasy.cpoe_hemoterapia ch
             LEFT JOIN tasy.via_aplicacao va
                 ON va.ie_via_aplicacao = ch.ie_via_aplicacao
                AND va.ie_situacao = 'A'
+            LEFT JOIN tasy.setor_atendimento sa
+                ON sa.cd_setor_atendimento = ch.cd_setor_atendimento
             WHERE ch.nr_atendimento IN ({$this->placeholders($chunk)})
               AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
               AND ch.dt_suspensao IS NULL
         ", $chunk);
-
-        $sectorLabels = [];
-        $sectorCodes = array_values(array_unique(array_filter(array_map(
-            static fn ($row) => (int) ($row->cd_setor_atendimento ?? 0),
-            $rows
-        ))));
-
-        if (! empty($sectorCodes)) {
-            $sectorRows = DB::connection('tasy')->select(
-                'SELECT cd_setor_atendimento, ds_setor_atendimento FROM tasy.setor_atendimento WHERE cd_setor_atendimento IN ('.implode(',', array_fill(0, count($sectorCodes), '?')).')',
-                $sectorCodes
-            );
-
-            foreach ($sectorRows as $sectorRow) {
-                $sectorLabels[(int) $sectorRow->cd_setor_atendimento] = $sectorRow->ds_setor_atendimento;
-            }
-        }
 
         foreach ($rows as $row) {
             if (! isset($results[$row->nr_atendimento])) {
@@ -96,7 +81,7 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
                 'tipo_label' => $tipo,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
-                'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),
+                'setor_execucao' => $row->setor_execucao ?? null,
                 'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
             ];
         }

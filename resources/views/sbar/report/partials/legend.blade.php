@@ -208,7 +208,7 @@
                         </h3>
                         <div class="space-y-2 text-xs">
                             <p class="text-[11px] text-gray-600 bg-purple-50 border border-purple-100 rounded px-2 py-1.5">
-                                O card frontal prioriza pendências próximas. Para ver a lista completa, use <span class="font-semibold">Ver todas as pendências</span>.
+                                O card frontal prioriza pendências próximas. Para ver a lista completa, use <span class="font-semibold">Ver todas</span>.
                             </p>
                             {{-- Pendências no card --}}
                             <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1">Ícones de Pendência</p>

@@ -95,7 +95,8 @@
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Antimicrobianos</p>
                             <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Em uso:</span> antibiótico ativo hoje.</li>
+                                <li><span class="font-semibold text-gray-700">Dose não administrada:</span> horário aprazado hoje sem registro de administração.</li>
+                                <li><span class="font-semibold text-gray-700">Dose reaprazada:</span> horário reagendado e ainda não administrado.</li>
                             </ul>
                         </div>
 
@@ -184,16 +185,26 @@
                 </select>
             </div>
 
-            <div class="flex flex-col gap-1 w-48">
-                <label class="text-xs text-gray-500 font-medium">Tempo pendente</label>
+            <div class="flex flex-col gap-1 w-56">
+                <label class="text-xs text-gray-500 font-medium">Período / Turno</label>
                 <select id="filter-tempo"
                     class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
                     <option value="">Qualquer período</option>
-                    <option value="0-24">Pendente hoje (até 24h)</option>
-                    <option value="24-48">Desde ontem (24h – 48h)</option>
-                    <option value="48-168">2 a 7 dias</option>
-                    <option value="168-720">8 a 30 dias</option>
-                    <option value="720-">Mais de 30 dias</option>
+                    <optgroup label="Por turno — Prev. exec. hoje">
+                        <option value="turno:manha">Manhã · 07h–13h</option>
+                        <option value="turno:tarde">Tarde · 13h–19h</option>
+                        <option value="turno:noite">Noite · 19h–07h</option>
+                    </optgroup>
+                    <optgroup label="Por data — Prev. exec.">
+                        <option value="data:hoje">Hoje (qualquer turno)</option>
+                    </optgroup>
+                    <optgroup label="Tempo pendente (Pend. há)">
+                        <option value="pendente:0:24">Menos de 24h</option>
+                        <option value="pendente:24:">Mais de 24h</option>
+                        <option value="pendente:48:">Mais de 2 dias</option>
+                        <option value="pendente:168:">Mais de 7 dias</option>
+                        <option value="pendente:720:">Mais de 30 dias</option>
+                    </optgroup>
                 </select>
             </div>
 
@@ -213,8 +224,8 @@
                         <tr class="bg-gray-50 border-b border-gray-200">
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[68px]">Atend.</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[130px]">Paciente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[52px] hidden lg:table-cell">UGB</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px] hidden md:table-cell">UGA</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[52px] hidden lg:table-cell">Leito</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px] hidden md:table-cell">Setor</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[90px]">Tipo</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px] hidden xl:table-cell">Setor exec.</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap hidden xl:table-cell">Classif.</th>
@@ -239,15 +250,8 @@
                                 <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap hidden xl:table-cell">{{ $row['classificacao'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[200px] truncate" title="{{ $row['item'] }}">{{ $row['item'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap hidden lg:table-cell">{{ $row['data_solicitacao'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] whitespace-nowrap">
-                                    @if($row['vence_hoje'] ?? false)
-                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-300">
-                                            <i class="fas fa-circle-exclamation"></i> Hoje
-                                        </span>
-                                    @else
-                                        <span class="text-gray-600">{{ $row['data_prev_execucao'] }}</span>
-                                    @endif
-                                </td>
+                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap"
+                                    data-date="{{ $row['data_prev_execucao'] }}">{{ $row['data_prev_execucao'] }}</td>
                                 <td data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}" class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[200px] truncate" title="{{ $row['motivo_pendente'] ?? '-' }}">{{ $row['motivo_pendente'] ?? '-' }}</td>
                                 <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[100px] truncate hidden xl:table-cell" title="{{ $row['laudo'] ?? '-' }}">{{ $row['laudo'] ?? '-' }}</td>
@@ -342,64 +346,81 @@ $(document).ready(function () {
         }
     });
 
-    // Converte dd/mm/yyyy HH:mm → horas decorridas desde agora (positivo = no passado)
-    function cellDateToHoursAgo(val) {
+    // Parseia "dd/mm/yyyy HH:mm" → Date (ou null)
+    function parseRowDate(val) {
         if (!val || val === '-') { return null; }
-        var m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}))?/);
+        var m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
         if (!m) { return null; }
-        var ts = new Date(m[3], m[2] - 1, m[1], m[4] || 0, m[5] || 0).getTime();
-        return (Date.now() - ts) / 3600000;
+        return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
     }
 
-    // Filtro customizado por tempo pendente:
-    // prioriza o valor numérico de data-order na coluna "Pendente há" (col 10)
+    function isDateToday(d) {
+        var now = new Date();
+        return d.getFullYear() === now.getFullYear()
+            && d.getMonth() === now.getMonth()
+            && d.getDate() === now.getDate();
+    }
+
+    // Lê o data-date da célula "Prev. exec." (col 9) via DOM — sempre disponível
+    // mesmo quando a célula exibe o badge "Hoje" em vez do texto da data.
+    function getPrevExecDate(row) {
+        var cell = row && row.anCells && row.anCells[9] ? row.anCells[9] : null;
+        if (!cell) { return null; }
+        return parseRowDate(cell.getAttribute('data-date') || '');
+    }
+
+    // Lê os segundos pendentes do data-order da coluna "Pend. há" (col 10)
+    function getPendingSeconds(row) {
+        var cell = row && row.anCells && row.anCells[10] ? row.anCells[10] : null;
+        if (!cell) { return null; }
+        var v = parseFloat(cell.getAttribute('data-order') || '');
+        return isNaN(v) || v < 0 ? null : v;
+    }
+
+    // Filtro principal — lida com turno, data e duração pendente
     $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
         if (settings.nTable.id !== 'pendencias-table') { return true; }
-        var range = $('#filter-tempo').val();
-        if (range) {
-            var hours = null;
 
-            var row = settings.aoData[dataIndex];
-            var pendingCell = row && row.anCells && row.anCells[10] ? row.anCells[10] : null;
-            if (pendingCell) {
-                var pendingSeconds = parseFloat(pendingCell.getAttribute('data-order') || '');
-                if (!isNaN(pendingSeconds) && pendingSeconds >= 0) {
-                    hours = pendingSeconds / 3600;
+        var filter = $('#filter-tempo').val();
+        var row = settings.aoData[dataIndex];
+
+        if (filter) {
+            var passed = false;
+
+            if (filter.indexOf('turno:') === 0 || filter === 'data:hoje') {
+                // Filtra pelo datetime agendado (Prev. exec.)
+                var d = getPrevExecDate(row);
+                if (!d) { return false; }
+
+                if (filter === 'data:hoje') {
+                    passed = isDateToday(d);
+                } else {
+                    var h = d.getHours();
+                    if (filter === 'turno:manha') { passed = isDateToday(d) && h >= 7 && h < 13; }
+                    else if (filter === 'turno:tarde') { passed = isDateToday(d) && h >= 13 && h < 19; }
+                    else if (filter === 'turno:noite') { passed = isDateToday(d) && (h >= 19 || h < 7); }
                 }
+            } else if (filter.indexOf('pendente:') === 0) {
+                // Filtra pelo tempo decorrido desde a criação (Pend. há)
+                var secs = getPendingSeconds(row);
+                if (secs === null) { return false; }
+                var parts = filter.split(':');
+                var minH = parseFloat(parts[1]);
+                var maxH = (parts[2] !== '' && parts[2] !== undefined) ? parseFloat(parts[2]) : Infinity;
+                passed = (secs / 3600) >= minH && (secs / 3600) < maxH;
             }
 
-            if (hours === null) {
-                hours = cellDateToHoursAgo(data[8]);
-            }
-
-            if (hours === null) {
-                return false;
-            }
-
-            var parts = range.split('-');
-            var min = parseFloat(parts[0]);
-            var max = parts[1] !== '' ? parseFloat(parts[1]) : Infinity;
-            if (!(hours >= min && hours < max)) {
-                return false;
-            }
+            if (!passed) { return false; }
         }
 
-        if (activePendingTypeTab === 'all') {
-            return true;
-        }
+        if (activePendingTypeTab === 'all') { return true; }
 
         var tipo = String(data[13] || '').toLowerCase();
         if (activePendingTypeTab === 'exame') {
             return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1;
         }
-
-        if (activePendingTypeTab === 'procedimento') {
-            return tipo === 'procedimento';
-        }
-
-        if (activePendingTypeTab === 'cirurgia') {
-            return tipo === 'cirurgia';
-        }
+        if (activePendingTypeTab === 'procedimento') { return tipo === 'procedimento'; }
+        if (activePendingTypeTab === 'cirurgia') { return tipo === 'cirurgia'; }
 
         return true;
     });

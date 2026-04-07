@@ -21,40 +21,38 @@
             <div class="bg-white rounded-lg border border-blue-200 px-3 py-2.5 shadow-sm transition-colors">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-gray-800 leading-snug">
-                            <span x-text="exam.name || 'Exame não identificado'"></span>
-                            <span x-show="exam.nr_prescricao" class="text-gray-500 font-medium">
-                                - Prescrição #<span x-text="exam.nr_prescricao"></span>
-                            </span>
-                        </p>
+                        <div class="flex flex-wrap items-baseline gap-1.5">
+                            <p class="text-xs font-semibold text-gray-800 leading-snug"
+                               x-text="exam.name || 'Exame não identificado'"></p>
+                            <span x-show="exam.classificacao"
+                                  class="text-[10px] text-gray-500 font-medium leading-none"
+                                  x-text="exam.classificacao"></span>
+                        </div>
                         <p class="mt-1 text-[10px] text-gray-500 leading-snug">
                             <span x-show="exam.material">
                                 Material: <span x-text="exam.material"></span>
                             </span>
                             <span x-show="exam.checklist_amostra !== null && exam.checklist_amostra !== undefined && exam.checklist_amostra !== ''">
-                                - Amostra:
+                                · Amostra:
                                 <span x-text="['S', '1', 'SIM'].includes(String(exam.checklist_amostra).toUpperCase()) ? 'Sim' : 'Não'"></span>
                             </span>
-                            <span x-show="exam.classificacao">
-                                - Classificação: <span x-text="exam.classificacao"></span>
-                            </span>
                             <span x-show="exam.dt_solicitacao">
-                                - Solicitação: <span x-text="exam.dt_solicitacao"></span>
-                            </span>
-                            <span x-show="exam.dt_liberacao">
-                                - Liberação: <span x-text="exam.dt_liberacao"></span>
+                                · Solicitação: <span x-text="exam.dt_solicitacao"></span>
                             </span>
                             <span x-show="exam.scheduled">
-                                - Data de realização: <span x-text="exam.scheduled"></span>
+                                · Realização: <span x-text="exam.scheduled"></span>
                             </span>
                             <span x-show="exam.dt_coleta">
-                                - Coleta: <span x-text="exam.dt_coleta"></span>
+                                · Coleta: <span x-text="exam.dt_coleta"></span>
                             </span>
                             <span x-show="exam.tempo_pendente">
-                                - Pendente há: <span x-text="exam.tempo_pendente"></span>
+                                · Pendente há: <span x-text="exam.tempo_pendente"></span>
                             </span>
                             <span x-show="exam.status_laudo">
-                                - Laudo: <span x-text="exam.status_laudo"></span>
+                                · Laudo: <span x-text="exam.status_laudo"></span>
+                            </span>
+                            <span x-show="exam.nr_prescricao" class="text-gray-400 font-mono">
+                                · #<span x-text="exam.nr_prescricao"></span>
                             </span>
                         </p>
                         <p x-show="exam.prescriber" class="text-[10px] text-gray-400 mt-0.5"><i class="fa-regular fa-user mr-1"></i><span x-text="exam.prescriber"></span></p>

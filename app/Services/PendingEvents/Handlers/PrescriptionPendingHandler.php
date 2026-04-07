@@ -55,12 +55,9 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     dv.ds_valor_dominio                         AS ds_subtipo,
                     COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
                     -- Computed once; reused in outer JOIN (eliminates duplicate function call)
+                    -- PROC_INTERNO_SETOR replaces per-row AGEINT_OBTER_SETOR_PROC_INT() call
                     NVL(
-                        tasy.AGEINT_OBTER_SETOR_PROC_INT(
-                            pp.nr_seq_proc_interno,
-                            NULL, NULL, NULL, NULL, NULL,
-                            pm.cd_estabelecimento
-                        ),
+                        pis.cd_setor_atendimento,
                         NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
                     ) AS cd_setor_execucao
                 FROM tasy.prescr_medica pm
@@ -94,6 +91,19 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 LEFT JOIN tasy.valor_dominio dv
                     ON dv.cd_dominio = 95
                    AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
+                -- Lowest-priority setor for this proc_interno+estabelecimento (replaces AGEINT function)
+                LEFT JOIN (
+                    SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento
+                    FROM (
+                        SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY nr_seq_proc_interno, cd_estabelecimento
+                                   ORDER BY nr_prioridade
+                               ) AS rn
+                        FROM tasy.proc_interno_setor
+                    ) WHERE rn = 1
+                ) pis ON pis.nr_seq_proc_interno = pp.nr_seq_proc_interno
+                      AND pis.cd_estabelecimento  = pm.cd_estabelecimento
                 WHERE pm.nr_atendimento IN ({$this->placeholders($chunk)})
                     AND pp.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
                     AND pp.dt_baixa        IS NULL
@@ -118,10 +128,8 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             SELECT
                 b.*,
                 sa.ds_setor_atendimento AS setor_desc_raw,
-                (SELECT tasy.obter_status_laudo(MAX(pp_pac.nr_laudo))
-                 FROM tasy.procedimento_paciente pp_pac
-                 WHERE pp_pac.nr_prescricao          = b.nr_prescricao
-                   AND pp_pac.nr_sequencia_prescricao = b.nr_sequencia_pp) AS ds_status_laudo,
+                -- NULL: NOT EXISTS (nr_laudo IS NOT NULL) in base guarantees this is always NULL
+                NULL AS ds_status_laudo,
                 -- Flag: procedimento registrado como executado em procedimento_paciente (prescrição não foi baixada)
                 CASE WHEN EXISTS (
                     SELECT 1 FROM tasy.procedimento_paciente pp_exec

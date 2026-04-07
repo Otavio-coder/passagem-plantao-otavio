@@ -56,19 +56,15 @@
             <div class="bg-white rounded-lg border border-indigo-200 px-3 py-2.5 shadow-sm transition-colors">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-gray-800 leading-snug"
-                           x-text="p.name || 'Procedimento não identificado'"></p>
-                        <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                            <span x-show="p.is_today"
-                                  class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Hoje</span>
-                            <span x-show="p.is_yesterday && !p.is_today"
-                                  class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-400 text-white">Ontem</span>
-                            <span x-show="p.is_tomorrow && !p.is_today"
-                                  class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white">Amanhã</span>
+                        <div class="flex flex-wrap items-baseline gap-1.5">
+                            <p class="text-xs font-semibold text-gray-800 leading-snug"
+                               x-text="p.name || 'Procedimento não identificado'"></p>
                             <template x-if="p.origem === 'AGENDAMENTO'">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 ring-1 ring-orange-200">Cirurgia</span>
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 ring-1 ring-orange-200 leading-none">Cirurgia</span>
                             </template>
-                            <span x-show="p.type" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium" x-text="p.type"></span>
+                            <span x-show="p.type" class="text-[10px] text-gray-500 font-medium leading-none" x-text="p.type"></span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5 mt-1">
                             <span x-show="p.sector_name || p.sector_code" class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
                                 <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
                                 <span x-text="p.sector_name || ('Setor ' + p.sector_code)"></span>

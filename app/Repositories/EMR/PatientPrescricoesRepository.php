@@ -211,7 +211,8 @@ class PatientPrescricoesRepository
             WHERE cd.NR_ATENDIMENTO = :attendance
               AND cd.DT_LIBERACAO   IS NOT NULL
               AND cd.DT_SUSPENSAO   IS NULL
-              AND TRUNC(SYSDATE) BETWEEN TRUNC(cd.DT_INICIO) AND NVL(TRUNC(cd.DT_FIM), TRUNC(SYSDATE))
+                            AND TRUNC(cd.DT_INICIO) <= TRUNC(SYSDATE)
+                            AND (cd.DT_FIM >= SYSDATE OR (cd.DT_FIM IS NULL AND cd.DT_LIBERACAO >= TRUNC(SYSDATE) - 1))
             ORDER BY cd.DT_INICIO, cd.NR_SEQUENCIA
         ", ['attendance' => $attendanceNumber]);
 
@@ -243,7 +244,8 @@ class PatientPrescricoesRepository
             WHERE cr.NR_ATENDIMENTO = :attendance
               AND cr.DT_LIBERACAO   IS NOT NULL
               AND cr.DT_SUSPENSAO   IS NULL
-              AND TRUNC(SYSDATE) BETWEEN TRUNC(cr.DT_INICIO) AND NVL(TRUNC(cr.DT_FIM), TRUNC(SYSDATE))
+                            AND TRUNC(cr.DT_INICIO) <= TRUNC(SYSDATE)
+                            AND (cr.DT_FIM >= SYSDATE OR (cr.DT_FIM IS NULL AND cr.DT_LIBERACAO >= TRUNC(SYSDATE) - 1))
             ORDER BY cr.DT_INICIO, cr.NR_SEQUENCIA
         ', ['attendance' => $attendanceNumber]);
 

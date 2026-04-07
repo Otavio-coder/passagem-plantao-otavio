@@ -1184,7 +1184,7 @@
                                                    text-[10px] font-medium text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
                                             title="Ver todas as pendências"
                                         >
-                                            Ver todas as pendências
+                                            Ver todas
                                         </button>
                                     @endif
 
@@ -1285,13 +1285,13 @@
                             <div class="text-center py-2">
                                 <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
                                 <p class="text-xs text-gray-500 font-medium">Sem pendências para hoje</p>
-                                <p class="text-[9px] text-gray-400 mt-0.5">O card prioriza pendências próximas; em Ver todas as pendências você vê a lista completa.</p>
+                                <p class="text-[9px] text-gray-400 mt-0.5">O card prioriza pendências próximas; em Ver todas você vê a lista completa.</p>
                                 @if($hasAnyPending)
                                     <button
                                         @click="showPendingModal = true; pendingShowAll = true; document.body.style.overflow = 'hidden'"
                                         class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#004D9D] hover:text-[#003d7a] transition-colors"
                                     >
-                                        Ver todas as pendências
+                                        Ver todas
                                     </button>
                                 @endif
                             </div>
@@ -1537,7 +1537,7 @@
                                                 <p class="text-[11px] text-gray-400">Nenhum item nos próximos 3 dias.</p>
                                                 <button @click="$dispatch('pending-filter', { v: true })"
                                                         class="text-[11px] text-[#004D9D] font-semibold underline mt-1">
-                                                    Ver todas as pendências
+                                                    Ver todas
                                                 </button>
                                             </div>
                                         </div>

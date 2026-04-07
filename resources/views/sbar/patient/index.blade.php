@@ -1180,11 +1180,11 @@
                                     @if($hasAnyPending)
                                         <button
                                             @click="showPendingModal = true; document.body.style.overflow = 'hidden'; $dispatch('pending-filter', { v: false })"
-                                            class="w-5 h-5 flex items-center justify-center rounded-full bg-[#004D9D]/10 text-[#004D9D]
-                                                   hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
+                                            class="inline-flex items-center rounded-md border border-[#004D9D]/25 bg-[#004D9D]/10 px-2 py-0.5
+                                                   text-[10px] font-medium text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
                                             title="Ver todas as pendências"
                                         >
-                                            <x-iconoir-expand class="h-3.5 w-3.5 flex-shrink-0" />
+                                            Ver todas as pendências
                                         </button>
                                     @endif
 
@@ -1240,7 +1240,7 @@
                             @endif
 
                             @if(!$hasPendingCard && $hasAnyPending)
-                            <div class="mb-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] text-blue-800 leading-tight">
+                            <div class="mb-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[9px] text-blue-800 leading-tight">
                                 Sem pendências próximas no card. Veja em <span class="font-semibold">Ver todas as pendências</span>.
                             </div>
                             @endif
@@ -1285,7 +1285,7 @@
                             <div class="text-center py-2">
                                 <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
                                 <p class="text-xs text-gray-500 font-medium">Sem pendências para hoje</p>
-                                <p class="text-[10px] text-gray-400 mt-0.5">O card prioriza pendências próximas; em Ver todas as pendências você vê a lista completa.</p>
+                                <p class="text-[9px] text-gray-400 mt-0.5">O card prioriza pendências próximas; em Ver todas as pendências você vê a lista completa.</p>
                                 @if($hasAnyPending)
                                     <button
                                         @click="showPendingModal = true; pendingShowAll = true; document.body.style.overflow = 'hidden'"

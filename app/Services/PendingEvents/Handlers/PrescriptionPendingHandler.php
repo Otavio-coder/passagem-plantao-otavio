@@ -105,7 +105,15 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     -- ie_origem_proced=4 (CPOE): exclui apenas procedimentos sem exame de lab; exames de lab com origem 4 são legítimos
                     AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                     AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
-                    AND rl.nr_prescricao IS NULL  -- anti-join replaces NOT EXISTS
+                    AND rl.nr_prescricao IS NULL  -- anti-join: exclui exames de lab já coletados em result_laboratorio
+                    -- Exclui exames de imagem (Raio X, etc.) que já têm laudo em procedimento_paciente,
+                    -- mesmo que a prescrição não tenha sido formalmente baixada no Tasy.
+                    AND NOT EXISTS (
+                        SELECT 1 FROM tasy.procedimento_paciente pp_laudo
+                        WHERE pp_laudo.nr_prescricao          = pm.nr_prescricao
+                          AND pp_laudo.nr_sequencia_prescricao = pp.nr_sequencia
+                          AND pp_laudo.nr_laudo               IS NOT NULL
+                    )
             )
             SELECT
                 b.*,

@@ -170,7 +170,9 @@ class PendingEventsReportController extends Controller
 
             foreach (($patient['multidisciplinary_requests'] ?? []) as $req) {
                 $status = (string) ($req['ds_status'] ?? $req['ie_status'] ?? 'Aberto');
-                if (in_array(mb_strtolower($status), ['respondido', 'liberado', 'cancelado'], true)) {
+                $jaRespondido = in_array(mb_strtolower($status), ['respondido', 'liberado', 'cancelado'], true)
+                    || ! empty($req['dt_resposta']); // ie_situacao pode continuar 'A' mesmo com resposta registrada no Tasy
+                if ($jaRespondido) {
                     continue;
                 }
 

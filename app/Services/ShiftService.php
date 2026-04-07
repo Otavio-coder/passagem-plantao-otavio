@@ -22,8 +22,13 @@ class ShiftService
         // Manhã: 07:15 - 13:14 (435 - 794)
         // Tarde: 13:15 - 19:14 (795 - 1154)
         // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
-        if ($minutes >= 435 && $minutes <= 794) return 'M';
-        if ($minutes >= 795 && $minutes <= 1154) return 'T';
+        if ($minutes >= 435 && $minutes <= 794) {
+            return 'M';
+        }
+        if ($minutes >= 795 && $minutes <= 1154) {
+            return 'T';
+        }
+
         return 'N';
     }
 
@@ -48,9 +53,12 @@ class ShiftService
      *
      * @return array ['shift' => string, 'date' => string]
      */
-    public static function getShiftInfo($dateTime = null): array
+    public static function getShiftInfo($dateTime = null, int $graceMinutes = 0): array
     {
         $dt = $dateTime ? Carbon::parse($dateTime) : now();
+        if ($graceMinutes > 0) {
+            $dt = $dt->copy()->subMinutes($graceMinutes);
+        }
         $hour = $dt->hour;
 
         if ($hour >= 7 && $hour < 13) {
@@ -81,9 +89,16 @@ class ShiftService
         }
 
         $minutes = $dt->hour * 60 + $dt->minute;
-        if ($minutes >= 435 && $minutes <= 794) return 'M';
-        if ($minutes >= 795 && $minutes <= 1154) return 'T';
-        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) return 'N';
+        if ($minutes >= 435 && $minutes <= 794) {
+            return 'M';
+        }
+        if ($minutes >= 795 && $minutes <= 1154) {
+            return 'T';
+        }
+        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) {
+            return 'N';
+        }
+
         return null;
     }
 
@@ -95,8 +110,8 @@ class ShiftService
      */
     public static function getShiftWindow($now = null): array
     {
-        $dt    = $now ? Carbon::parse($now) : now();
-        $hour  = $dt->hour;
+        $dt = $now ? Carbon::parse($now) : now();
+        $hour = $dt->hour;
         $today = $dt->toDateString();
 
         if ($hour >= 7 && $hour < 13) {
@@ -116,6 +131,7 @@ class ShiftService
         // Noite: 19h do dia lógico até 06:59 do dia seguinte
         if ($hour >= 19) {
             $tomorrow = $dt->copy()->addDay()->toDateString();
+
             return [
                 Carbon::parse("{$today} 19:00:00"),
                 Carbon::parse("{$tomorrow} 06:59:59"),
@@ -124,6 +140,7 @@ class ShiftService
 
         // 00:00–06:59 → noite que começou ontem
         $yesterday = $dt->copy()->subDay()->toDateString();
+
         return [
             Carbon::parse("{$yesterday} 19:00:00"),
             Carbon::parse("{$today} 06:59:59"),
@@ -132,7 +149,7 @@ class ShiftService
 
     public static function getShiftLabel(string $shift): string
     {
-        return match($shift) {
+        return match ($shift) {
             'morning' => 'Manhã (07-13h)',
             'afternoon' => 'Tarde (13-19h)',
             'night' => 'Noite (19-07h)',
@@ -142,36 +159,35 @@ class ShiftService
 
     public static function getShiftColors(string $shift): array
     {
-        return match($shift) {
+        return match ($shift) {
             'morning' => [
                 'headerBg' => 'from-amber-400 via-orange-400 to-red-400',
                 'accentColor' => 'orange-500',
                 'lightAccent' => 'orange-100',
                 'darkAccent' => 'orange-600',
-                'shadowColor' => 'shadow-orange-200/50'
+                'shadowColor' => 'shadow-orange-200/50',
             ],
             'afternoon' => [
                 'headerBg' => 'from-sky-400 via-blue-400 to-cyan-400',
                 'accentColor' => 'sky-500',
                 'lightAccent' => 'sky-100',
                 'darkAccent' => 'sky-600',
-                'shadowColor' => 'shadow-sky-200/50'
+                'shadowColor' => 'shadow-sky-200/50',
             ],
             'night' => [
                 'headerBg' => 'from-indigo-500 via-purple-500 to-violet-600',
                 'accentColor' => 'indigo-500',
                 'lightAccent' => 'indigo-100',
                 'darkAccent' => 'indigo-600',
-                'shadowColor' => 'shadow-indigo-200/50'
+                'shadowColor' => 'shadow-indigo-200/50',
             ],
             default => [
                 'headerBg' => 'from-gray-400 to-gray-500',
                 'accentColor' => 'gray-500',
                 'lightAccent' => 'gray-100',
                 'darkAccent' => 'gray-600',
-                'shadowColor' => 'shadow-gray-200/50'
+                'shadowColor' => 'shadow-gray-200/50',
             ]
         };
     }
-
 }

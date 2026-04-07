@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\System\Chat\ChatMessage;
 use App\Models\System\User;
 use App\Repositories\MySQL\Chat\ChatRepository;
+use App\Services\ShiftService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -402,37 +403,17 @@ class ChatComponent extends Component
     private function getShiftKey($createdAt): string
     {
         $dt = $this->parseDateTime($createdAt);
-        $hour = (int) $dt->format('H');
+        $shiftInfo = ShiftService::getShiftInfo($dt, 30);
 
-        if ($hour >= 7 && $hour < 13) {
-            return $dt->format('Y-m-d').'_morning';
-        }
-        if ($hour >= 13 && $hour < 19) {
-            return $dt->format('Y-m-d').'_afternoon';
-        }
-        // Night: 19h-06:59 — messages between 00:00-06:59 belong to the previous day's night shift
-        $logicalDate = ($hour < 7) ? $dt->copy()->subDay()->format('Y-m-d') : $dt->format('Y-m-d');
-
-        return $logicalDate.'_night';
+        return $shiftInfo['date'].'_'.$shiftInfo['shift'];
     }
 
     private function buildSeparator($createdAt): array
     {
         $dt = $this->parseDateTime($createdAt);
-        $hour = (int) $dt->format('H');
-
-        if ($hour >= 7 && $hour < 13) {
-            $shift = 'morning';
-            $logicalDate = $dt->copy()->startOfDay();
-        } elseif ($hour >= 13 && $hour < 19) {
-            $shift = 'afternoon';
-            $logicalDate = $dt->copy()->startOfDay();
-        } else {
-            $shift = 'night';
-            $logicalDate = ($hour < 7)
-                ? $dt->copy()->subDay()->startOfDay()
-                : $dt->copy()->startOfDay();
-        }
+        $shiftInfo = ShiftService::getShiftInfo($dt, 30);
+        $shift = $shiftInfo['shift'];
+        $logicalDate = Carbon::parse($shiftInfo['date'])->startOfDay();
 
         $shiftLabel = match ($shift) {
             'morning' => 'Manhã  07h–13h',

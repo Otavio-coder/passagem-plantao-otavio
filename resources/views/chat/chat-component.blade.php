@@ -104,7 +104,7 @@
     @else
         @php
             // Derive current shift from the clock (no longer stored on the component)
-            $currentShift = getShiftInfo()['shift'];
+            $currentShift = getShiftInfo(now(), 30)['shift'];
 
             $shiftColors = \App\Services\ShiftService::getShiftColors($currentShift);
             $shiftLabel  = \App\Services\ShiftService::getShiftLabel($currentShift);

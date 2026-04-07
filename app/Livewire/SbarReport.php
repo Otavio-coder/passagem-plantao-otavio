@@ -457,6 +457,10 @@ class SbarReport extends Component
 
         [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
 
+        // Tolerância de borda do turno para não perder anotações na virada.
+        $shiftStart = $shiftStart->copy()->subMinutes(30);
+        $shiftEnd = $shiftEnd->copy()->addMinutes(30);
+
         $rows = DB::table('chat_messages')
             ->whereIn('nr_atendimento', $nrs)
             ->whereBetween('created_at', [$shiftStart, $shiftEnd])

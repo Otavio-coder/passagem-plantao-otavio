@@ -39,7 +39,17 @@
 
                                 {{-- Title row --}}
                                 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 font-montserrat">
-                                    <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white font-montserrat text-center lg:text-left lg:flex-1 lg:min-w-0">SBAR - Passagem de Plantão</h1>
+                                    <div class="flex items-center justify-center lg:justify-start gap-2 lg:flex-1 lg:min-w-0">
+                                        <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white font-montserrat text-center lg:text-left">SBAR - Passagem de Plantão</h1>
+                                        <button 
+                                            onclick="document.getElementById('sbar-legend').scrollIntoView({ behavior: 'smooth' }); setTimeout(() => document.querySelector('#sbar-legend button').click(), 300);"
+                                            class="px-2 sm:px-3 py-1.5 sm:py-2 text-white text-lg sm:text-sm font-bold rounded hover:bg-white/20 transition-colors flex-shrink-0"
+                                            title="Legenda e orientações"
+                                        >
+                                            <span class="hidden sm:inline">Legenda e orientações</span>
+                                            <span class="sm:hidden">?</span>
+                                        </button>
+                                    </div>
 
                                     <div class="flex items-center justify-center lg:justify-end gap-1 flex-shrink-0 font-montserrat">
                                         @if($lastRefresh)

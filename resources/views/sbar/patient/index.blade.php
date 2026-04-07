@@ -1241,7 +1241,7 @@
 
                             @if(!$hasPendingCard && $hasAnyPending)
                             <div class="mb-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[9px] text-blue-800 leading-tight">
-                                Sem pendências próximas no card. Veja em <span class="font-semibold">Ver todas as pendências</span>.
+                                Sem pendências próximas no card. 
                             </div>
                             @endif
 

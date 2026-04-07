@@ -113,10 +113,16 @@ class AgendaPendingHandler extends AbstractPendingHandler
 
                 if ($row->tipo === 'cirurgia') {
                     $carater = match ($row->ie_carater_cirurgia) {
+                        'A' => 'Ambulatorial',
                         'E' => 'Eletiva',
+                        'M' => 'Mutirão',
+                        'R' => 'Rotina',
                         'U' => 'Urgência',
                         'G' => 'Emergência',
-                        default => 'Não informado',
+                        'N' => 'Não informado',
+                        default => trim((string) ($row->ie_carater_cirurgia ?? '')) !== ''
+                            ? 'Código '.$row->ie_carater_cirurgia
+                            : 'Não informado',
                     };
 
                     $parts = [];

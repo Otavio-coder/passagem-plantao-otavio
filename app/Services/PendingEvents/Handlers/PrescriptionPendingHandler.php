@@ -20,7 +20,11 @@ use Illuminate\Support\Facades\DB;
 class PrescriptionPendingHandler extends AbstractPendingHandler
 {
     private const STATUS_MAP = [
+        // Mapeamento observável no banco Tasy para pendências de prescrição.
         '10' => 'Pendente',
+        '11' => 'Agendado',
+        '14' => 'Aguardando execução',
+        '15' => 'Coletado',
         '20' => 'Coletado',
         '30' => 'Em análise',
     ];

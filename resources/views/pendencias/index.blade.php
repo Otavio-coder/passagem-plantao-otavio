@@ -29,140 +29,89 @@
     </div>
 
     {{-- Modal: Critérios de pendência --}}
-    <div id="modal-criterios" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.4)">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h2 class="text-sm font-semibold text-gray-800">
+    <div id="modal-criterios" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3" style="background:rgba(0,0,0,0.4)">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[84vh] flex flex-col">
+            <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-100">
+                <h2 class="text-[13px] font-semibold text-gray-800">
                     <i class="fas fa-circle-question text-santacasa-100 mr-1.5"></i>
                     Critérios para definição de pendências
                 </h2>
                 <button type="button" onclick="document.getElementById('modal-criterios').classList.add('hidden')"
                     class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
             </div>
-            <div class="overflow-y-auto px-5 py-4 text-xs text-gray-600 space-y-4">
+            <div class="overflow-y-auto px-3 py-2.5 text-[11px] text-gray-600 space-y-2.5">
 
-                <p class="text-gray-500">Um item é considerado <strong class="text-gray-700">pendente</strong> quando atende a <em>todos</em> os critérios abaixo ao mesmo tempo.</p>
-
-                <div>
-                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">Exames e procedimentos prescritos</h3>
-                    <ul class="space-y-1.5">
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Status de execução diferente de <em>Executado</em>, <em>Cancelado</em>, <em>Rejeitado</em> ou <em>Baixa especial</em></span></li>
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Sem data de baixa (<code class="bg-gray-100 px-1 rounded">dt_baixa</code>) registrada na prescrição</span></li>
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Prescrição não cancelada e não suspensa</span></li>
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Prescrição médica já liberada e não suspensa pelo médico</span></li>
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Sem resultado de laboratório coletado vinculado a esta linha de prescrição</span></li>
-                    </ul>
-                </div>
+                <p class="text-gray-500">
+                    Um item aparece como <strong class="text-gray-700">pendente</strong> quando existe uma ação assistencial ainda não concluída.
+                    Abaixo estão os critérios de forma simples, por tipo de pendência.
+                </p>
 
                 <div>
-                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">Consultorias multidisciplinares</h3>
-                    <ul class="space-y-1.5">
-                        <li class="flex gap-2"><span class="text-santacasa-100 mt-0.5">•</span><span>Solicitação com status diferente de <em>Respondido</em></span></li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 class="text-[11px] font-semibold text-gray-700 uppercase tracking-wide mb-2">O que cada motivo significa</h3>
-                    <div class="space-y-2">
-
-                        {{-- Exames --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Exames</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Aguardando coleta</span>
-                            <span>Exame prescrito e liberado, mas ainda não foi coletado pelo laboratório.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Urgente — aguardando coleta</span>
-                            <span>Mesmo que acima, porém marcado como urgente pelo médico.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Aguardando laudo</span>
-                            <span>Material já coletado, mas o laudo ainda não foi liberado pelo laboratório.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Material em análise — aguardando laudo</span>
-                            <span>Amostra em processamento no laboratório. Aguardar liberação do resultado.</span>
+                    <h3 class="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-1">Critérios por tipo de pendência</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[10px] leading-tight">
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Exames</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Aguardando coleta:</span> exame pendente sem coleta vinculada.</li>
+                                <li><span class="font-semibold text-gray-700">Aguardando laudo:</span> exame coletado sem resultado liberado.</li>
+                                <li><span class="font-semibold text-gray-700">Material em análise:</span> exame em processamento.</li>
+                            </ul>
                         </div>
 
-                        {{-- Procedimentos --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Procedimentos</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Aguardando execução</span>
-                            <span>Procedimento prescrito e autorizado, mas ainda não realizado.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Urgente — aguardando execução</span>
-                            <span>Mesmo que acima, porém com flag de urgência na prescrição.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Procedimentos</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Aguardando execução:</span> procedimento prescrito e ainda não realizado.</li>
+                            </ul>
                         </div>
 
-                        {{-- Cirurgias --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Cirurgias</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Cirurgia eletiva — aguardando realização</span>
-                            <span>Cirurgia eletiva agendada nos próximos 30 dias ainda não realizada.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Cirurgia de urgência — aguardando realização</span>
-                            <span>Cirurgia de urgência ou emergência agendada — atenção à priorização.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Cirurgia eletiva confirmada</span>
-                            <span>Agendamento confirmado pelo centro cirúrgico.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Cirurgia em preparo</span>
-                            <span>Paciente em fase de preparo pré-operatório — verificar checklist de preparo.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Paciente em sala — cirurgia em andamento</span>
-                            <span>Paciente já foi encaminhado ao centro cirúrgico.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Cirurgia aguardando remarcação</span>
-                            <span>Cirurgia foi desmarcada e precisa ser reagendada.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cirurgias</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Eletiva pendente:</span> caráter eletivo com agenda pendente.</li>
+                                <li><span class="font-semibold text-gray-700">Urgência pendente:</span> urgência/emergência ainda não executada.</li>
+                                <li><span class="font-semibold text-gray-700">Eletiva confirmada:</span> confirmada e aguardando execução.</li>
+                                <li><span class="font-semibold text-gray-700">Em preparo:</span> paciente em preparo pré-operatório.</li>
+                                <li><span class="font-semibold text-gray-700">Paciente em sala:</span> paciente já no centro cirúrgico.</li>
+                                <li><span class="font-semibold text-gray-700">Aguardando remarcação:</span> cirurgia desmarcada.</li>
+                            </ul>
                         </div>
 
-                        {{-- Hemoterapia --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Hemoterapia</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Aguardando transfusão de …</span>
-                            <span>Hemocomponente específico programado nas próximas 48h ainda não administrado. O tipo aparece no motivo (ex: Concentrado de Hemácias).</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Urgente — aguardando transfusão de …</span>
-                            <span>Mesma situação acima com flag de urgência — priorizar preparo e administração imediata.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Hemoterapia</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Aguardando transfusão:</span> programada nas próximas 48h e não administrada.</li>
+                                <li><span class="font-semibold text-gray-700">Urgente:</span> mesma situação com prioridade imediata.</li>
+                            </ul>
                         </div>
 
-                        {{-- Quimioterapia --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Quimioterapia</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Sessão de quimioterapia agendada</span>
-                            <span>Sessão agendada nos próximos 30 dias. Quando disponível, o ciclo é informado no motivo.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quimioterapia</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Sessão agendada:</span> sessão nos próximos 30 dias.</li>
+                            </ul>
                         </div>
 
-                        {{-- Antimicrobianos --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Antimicrobianos</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Antimicrobiano em uso — Dia N · dose · via</span>
-                            <span>Antibiótico em uso ativo hoje. O motivo detalha o dia de uso, dose, via e frequência. Registrado para acompanhamento — não requer ação imediata.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Antimicrobianos</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Em uso:</span> antibiótico ativo hoje.</li>
+                            </ul>
                         </div>
 
-                        {{-- Consultorias --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Consultorias</p>
-                        <div class="flex gap-2 p-2 bg-gray-50 rounded-lg">
-                            <span class="shrink-0 font-medium text-gray-700 w-56">Aguardando resposta</span>
-                            <span>Consultoria multidisciplinar solicitada sem parecer registrado até o momento.</span>
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
+                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Consultorias</p>
+                            <ul class="space-y-0.5 text-gray-600">
+                                <li><span class="font-semibold text-gray-700">Aguardando resposta:</span> solicitação sem parecer registrado.</li>
+                            </ul>
                         </div>
 
-                        {{-- Diagnósticos de consistência --}}
-                        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Inconsistências no sistema</p>
-                        <div class="flex gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
-                            <span class="shrink-0 font-medium text-amber-800 w-56">Realizado — prescrição não baixada</span>
-                            <span class="text-amber-700">O procedimento consta como executado no sistema, mas a linha de prescrição não recebeu baixa. Requer correção no Tasy.</span>
-                        </div>
-                        <div class="flex gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
-                            <span class="shrink-0 font-medium text-amber-800 w-56">Exame realizado em solicitação mais recente</span>
-                            <span class="text-amber-700">O exame foi coletado via uma prescrição posterior. A solicitação original ficou em aberto sem ser encerrada. Requer baixa manual no Tasy.</span>
+                        <div class="rounded-lg border border-amber-100 bg-amber-50 p-1.5 md:col-span-2">
+                            <p class="text-[9px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Inconsistências no sistema</p>
+                            <ul class="space-y-0.5 text-amber-700">
+                                <li><span class="font-semibold text-amber-800">Realizado sem baixa:</span> item realizado e ainda em aberto.</li>
+                                <li><span class="font-semibold text-amber-800">Realizado em solicitação mais recente:</span> exame feito em solicitação nova e anterior ficou aberta.</li>
+                            </ul>
                         </div>
                     </div>
                 </div>

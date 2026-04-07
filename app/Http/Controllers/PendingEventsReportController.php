@@ -170,7 +170,7 @@ class PendingEventsReportController extends Controller
 
             foreach (($patient['multidisciplinary_requests'] ?? []) as $req) {
                 $status = (string) ($req['ds_status'] ?? $req['ie_status'] ?? 'Aberto');
-                if (mb_strtolower($status) === 'respondido') {
+                if (in_array(mb_strtolower($status), ['respondido', 'liberado', 'cancelado'], true)) {
                     continue;
                 }
 

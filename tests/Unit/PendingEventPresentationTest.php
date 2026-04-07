@@ -316,6 +316,32 @@ class PendingEventPresentationTest extends TestCase
         $this->assertSame('Cirurgia aguardando remarcação', $motivo);
     }
 
+    #[Test]
+    public function motivo_cirurgia_ambulatorial_aguardando(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Ambulatorial',
+            'status_laudo' => 'Aguardando',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia ambulatorial — aguardando realização', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_rotina_aguardando(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Rotina',
+            'status_laudo' => 'Aguardando',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia rotina — aguardando realização', $motivo);
+    }
+
     // ── motivoPendente — Hemoterapia ──────────────────────────────────────────
 
     #[Test]

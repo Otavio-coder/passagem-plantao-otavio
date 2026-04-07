@@ -1054,15 +1054,27 @@
                     $now = \Carbon\Carbon::now();
 
                     $todayStart = $now->copy()->startOfDay();
+                    $tomorrowEnd = $todayStart->copy()->addDay()->endOfDay();
+                    $frontNearTypes = ['procedimento', 'exame', 'proc_exame'];
 
-                    $futurePendingEvents = array_values(array_filter($pendingEvents, function ($ev) use ($todayStart) {
+                    $futurePendingEvents = array_values(array_filter($pendingEvents, function ($ev) use ($todayStart, $tomorrowEnd, $frontNearTypes) {
                         $dtEvento = $ev['dt_evento'] ?? null;
                         if (empty($dtEvento)) {
                             return false;
                         }
 
                         try {
-                            return \Carbon\Carbon::parse($dtEvento)->greaterThanOrEqualTo($todayStart);
+                            $dt = \Carbon\Carbon::parse($dtEvento);
+                            if ($dt->lt($todayStart)) {
+                                return false;
+                            }
+
+                            $tipo = $ev['tipo'] ?? null;
+                            if (in_array($tipo, $frontNearTypes, true)) {
+                                return $dt->lte($tomorrowEnd);
+                            }
+
+                            return true;
                         } catch (\Exception $e) {
                             return false;
                         }
@@ -1224,6 +1236,12 @@
                                 @if($showPulse)
                                     <span class="w-2 h-2 rounded-full {{ $fPulseColor }} animate-pulse flex-shrink-0 mt-1"></span>
                                 @endif
+                            </div>
+                            @endif
+
+                            @if(!$hasPendingCard && $hasAnyPending)
+                            <div class="mb-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[10px] text-blue-800 leading-tight">
+                                Sem pendências hoje. Veja em <span class="font-semibold">Ver todas as pendências</span>.
                             </div>
                             @endif
 
@@ -1492,7 +1510,7 @@
                                                                                                                         <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
                                                                                                                         <span x-text="ev.setor_execucao || '{{ $patient['ds_setor_atendimento'] ?? ('Setor ' . $patient['cd_setor_atendimento']) }}'"></span>
                                                                                                                 </span>
-                                                        <span x-show="ev.ds_complemento"
+                                                          <span x-show="ev.ds_complemento && ev.tipo !== 'antibiotico'"
                                                               x-text="ev.ds_complemento"
                                                               class="text-gray-500 italic"></span>
                                                     </div>

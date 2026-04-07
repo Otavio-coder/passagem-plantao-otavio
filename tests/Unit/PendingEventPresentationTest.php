@@ -118,4 +118,296 @@ class PendingEventPresentationTest extends TestCase
 
         $this->assertSame('Status agenda: PS - Paciente em sala', $diagnostic);
     }
+
+    // ── motivoPendente — Exames ───────────────────────────────────────────────
+
+    #[Test]
+    public function motivo_exame_aguardando_coleta(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'exame',
+            'status_laudo' => 'Pendente',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando coleta', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_urgente_aguardando_coleta(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'exame',
+            'status_laudo' => 'Pendente',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Urgente — aguardando coleta', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_aguardando_laudo_por_status(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'exame',
+            'status_laudo' => 'Coletado',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_aguardando_laudo_por_dt_coleta(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'exame',
+            'status_laudo' => 'Pendente',
+            'dt_coleta' => '2026-04-06 10:00:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_em_analise(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'exame',
+            'status_laudo' => 'Em análise',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Material em análise — aguardando laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_flags_diagnosticas_tem_prioridade(): void
+    {
+        $this->assertSame(
+            'Realizado — prescrição não baixada no sistema',
+            PendingEventPresentation::motivoPendente([
+                'tipo' => 'exame',
+                'foi_executado_sem_baixa' => true,
+                'urgente' => true,
+            ])
+        );
+
+        $this->assertSame(
+            'Exame realizado em solicitação mais recente',
+            PendingEventPresentation::motivoPendente([
+                'tipo' => 'exame',
+                'exame_coletado_em_prescricao_mais_nova' => true,
+            ])
+        );
+    }
+
+    // ── motivoPendente — Procedimentos ───────────────────────────────────────
+
+    #[Test]
+    public function motivo_procedimento_aguardando_execucao(): void
+    {
+        $this->assertSame(
+            'Aguardando execução',
+            PendingEventPresentation::motivoPendente(['tipo' => 'procedimento', 'urgente' => false])
+        );
+    }
+
+    #[Test]
+    public function motivo_procedimento_urgente(): void
+    {
+        $this->assertSame(
+            'Urgente — aguardando execução',
+            PendingEventPresentation::motivoPendente(['tipo' => 'procedimento', 'urgente' => true])
+        );
+    }
+
+    // ── motivoPendente — Cirurgias ────────────────────────────────────────────
+
+    #[Test]
+    public function motivo_cirurgia_eletiva_aguardando(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Eletiva',
+            'status_laudo' => 'Aguardando',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia eletiva — aguardando realização', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_eletiva_confirmada(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Eletiva',
+            'status_laudo' => 'Confirmada',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia eletiva confirmada', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_urgencia_aguardando(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Urgência',
+            'status_laudo' => 'Aguardando',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Cirurgia de urgência — aguardando realização', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_urgencia_confirmada(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Emergência',
+            'status_laudo' => 'Confirmada',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Cirurgia de emergência — confirmada', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_em_preparo(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Eletiva',
+            'status_laudo' => 'Em preparo',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia em preparo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_paciente_em_sala(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Eletiva',
+            'status_laudo' => 'Paciente em sala',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Paciente em sala — cirurgia em andamento', $motivo);
+    }
+
+    #[Test]
+    public function motivo_cirurgia_aguardando_remarcacao(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'cirurgia',
+            'carater' => 'Eletiva',
+            'status_laudo' => 'Aguardando remarcação',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Cirurgia aguardando remarcação', $motivo);
+    }
+
+    // ── motivoPendente — Hemoterapia ──────────────────────────────────────────
+
+    #[Test]
+    public function motivo_hemoterapia_com_tipo_especifico(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'hemoterapia',
+            'ie_tipo_hemoterap' => '1',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando transfusão de Concentrado de Hemácias', $motivo);
+    }
+
+    #[Test]
+    public function motivo_hemoterapia_urgente_com_tipo(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'hemoterapia',
+            'ie_tipo_hemoterap' => '3',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Urgente — aguardando transfusão de Plasma Fresco Congelado', $motivo);
+    }
+
+    #[Test]
+    public function motivo_hemoterapia_sem_tipo_usa_hemocomponente(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'hemoterapia',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando transfusão de hemocomponente', $motivo);
+    }
+
+    #[Test]
+    public function motivo_hemoterapia_usa_tipo_label_quando_disponivel(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'hemoterapia',
+            'tipo_label' => 'Crioprecipitado',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando transfusão de Crioprecipitado', $motivo);
+    }
+
+    // ── motivoPendente — Quimioterapia ────────────────────────────────────────
+
+    #[Test]
+    public function motivo_quimioterapia_sem_ciclo(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'quimioterapia',
+        ]);
+
+        $this->assertSame('Sessão de quimioterapia agendada', $motivo);
+    }
+
+    #[Test]
+    public function motivo_quimioterapia_com_ciclo(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'quimioterapia',
+            'ciclo' => '3',
+        ]);
+
+        $this->assertSame('Sessão de quimioterapia agendada — Ciclo 3', $motivo);
+    }
+
+    // ── motivoPendente — Antimicrobianos ──────────────────────────────────────
+
+    #[Test]
+    public function motivo_antibiotico_sem_complemento(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'antibiotico',
+        ]);
+
+        $this->assertSame('Antimicrobiano em uso', $motivo);
+    }
+
+    #[Test]
+    public function motivo_antibiotico_com_complemento(): void
+    {
+        $motivo = PendingEventPresentation::motivoPendente([
+            'tipo' => 'antibiotico',
+            'ds_complemento' => 'Dia 3 · 500mg · IV · 8/8h',
+        ]);
+
+        $this->assertSame('Antimicrobiano em uso — Dia 3 · 500mg · IV · 8/8h', $motivo);
+    }
 }

@@ -94,13 +94,14 @@ class PendingEventPresentation
     }
 
     /**
-     * Retorna a explicação humana de por que o evento ainda está pendente.
+     * Retorna a explicação humana de por que o evento ainda está pendente,
+     * com contexto suficiente para orientar enfermeiros sobre a ação necessária.
      *
      * @param  array<string, mixed>  $event
      */
     public static function motivoPendente(array $event): string
     {
-        // Flags vindas do PrescriptionPendingHandler
+        // Flags diagnósticas do PrescriptionPendingHandler — têm prioridade absoluta
         if ($event['foi_executado_sem_baixa'] ?? false) {
             return 'Realizado — prescrição não baixada no sistema';
         }
@@ -112,21 +113,18 @@ class PendingEventPresentation
         $tipo = PendingEventTypeClassifier::fromPendingEvent($event);
         $urgente = (bool) ($event['urgente'] ?? false);
 
-        // ds_status_laudo tem precedência sobre status_laudo para exames
+        // ds_status_laudo (obter_status_laudo Oracle) tem precedência sobre status_laudo
         $statusLaudo = trim((string) ($event['ds_status_laudo'] ?? ''));
         $statusExec = trim((string) ($event['status_laudo'] ?? ''));
         $status = $statusLaudo !== '' ? $statusLaudo : $statusExec;
 
         return match ($tipo) {
-            PendingEventTypeClassifier::EXAM => match ($status) {
-                'Coletado' => 'Aguardando laudo',
-                default => $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta',
-            },
-            PendingEventTypeClassifier::PROCEDURE => 'Aguardando execução',
-            PendingEventTypeClassifier::SURGERY => 'Aguardando cirurgia',
-            PendingEventTypeClassifier::HEMOTHERAPY => $urgente ? 'Urgente — aguardando transfusão' : 'Aguardando transfusão',
-            PendingEventTypeClassifier::CHEMOTHERAPY => 'Aguardando quimioterapia',
-            PendingEventTypeClassifier::ANTIBIOTIC => 'Antimicrobiano em uso',
+            PendingEventTypeClassifier::EXAM => self::motivoExame($status, $urgente, $event),
+            PendingEventTypeClassifier::PROCEDURE => self::motivoProcedimento($urgente),
+            PendingEventTypeClassifier::SURGERY => self::motivoCirurgia($event),
+            PendingEventTypeClassifier::HEMOTHERAPY => self::motivoHemoterapia($event, $urgente),
+            PendingEventTypeClassifier::CHEMOTHERAPY => self::motivoQuimioterapia($event),
+            PendingEventTypeClassifier::ANTIBIOTIC => self::motivoAntibiotico($event),
             default => 'Aguardando',
         };
     }
@@ -175,5 +173,88 @@ class PendingEventPresentation
         }
 
         return implode(' - ', array_filter($parts, static fn (string $value): bool => $value !== ''));
+    }
+
+    // ── Helpers privados por tipo ─────────────────────────────────────────────
+
+    private static function motivoExame(string $status, bool $urgente, array $event): string
+    {
+        $statusNorm = mb_strtolower($status);
+
+        if (in_array($statusNorm, ['coletado'], true) || ! empty($event['dt_coleta'])) {
+            return 'Aguardando laudo';
+        }
+
+        if (in_array($statusNorm, ['em análise', 'em analise'], true)) {
+            return 'Material em análise — aguardando laudo';
+        }
+
+        return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
+    }
+
+    private static function motivoProcedimento(bool $urgente): string
+    {
+        return $urgente ? 'Urgente — aguardando execução' : 'Aguardando execução';
+    }
+
+    private static function motivoCirurgia(array $event): string
+    {
+        $carater = trim((string) ($event['carater'] ?? $event['carater_cirurgia'] ?? ''));
+        $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+        $urgente = (bool) ($event['urgente'] ?? false);
+
+        $tipo = $carater !== '' ? strtolower($carater) : null;
+
+        if ($urgente) {
+            $tipoLabel = $tipo ?? 'urgência';
+
+            return match ($statusLabel) {
+                'Confirmada' => "Cirurgia de {$tipoLabel} — confirmada",
+                'Paciente em sala' => "Cirurgia de {$tipoLabel} — paciente em sala",
+                'Em preparo' => "Cirurgia de {$tipoLabel} — em preparo",
+                default => "Cirurgia de {$tipoLabel} — aguardando realização",
+            };
+        }
+
+        return match ($statusLabel) {
+            'Confirmada' => $tipo !== null ? "Cirurgia {$tipo} confirmada" : 'Cirurgia confirmada',
+            'Paciente em sala' => 'Paciente em sala — cirurgia em andamento',
+            'Em preparo' => 'Cirurgia em preparo',
+            'Aguardando remarcação' => 'Cirurgia aguardando remarcação',
+            'Pré-agenda' => 'Cirurgia em pré-agenda',
+            default => $tipo !== null ? "Cirurgia {$tipo} — aguardando realização" : 'Aguardando cirurgia',
+        };
+    }
+
+    private static function motivoHemoterapia(array $event, bool $urgente): string
+    {
+        $tipoCode = trim((string) ($event['ie_tipo_hemoterap'] ?? ''));
+        $tipoLabel = trim((string) ($event['tipo_label'] ?? self::HEMOTHERAPY_TYPES[$tipoCode] ?? ''));
+
+        $produto = ($tipoLabel !== '' && mb_strtolower($tipoLabel) !== 'hemocomponente')
+            ? $tipoLabel
+            : 'hemocomponente';
+
+        $base = "Aguardando transfusão de {$produto}";
+
+        return $urgente ? 'Urgente — '.lcfirst($base) : $base;
+    }
+
+    private static function motivoQuimioterapia(array $event): string
+    {
+        $ciclo = trim((string) ($event['ciclo'] ?? ''));
+
+        return $ciclo !== ''
+            ? "Sessão de quimioterapia agendada — Ciclo {$ciclo}"
+            : 'Sessão de quimioterapia agendada';
+    }
+
+    private static function motivoAntibiotico(array $event): string
+    {
+        $complement = trim((string) ($event['ds_complemento'] ?? ''));
+
+        return $complement !== ''
+            ? "Antimicrobiano em uso — {$complement}"
+            : 'Antimicrobiano em uso';
     }
 }

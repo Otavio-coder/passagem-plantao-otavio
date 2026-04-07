@@ -92,6 +92,8 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
                     'via_aplicacao' => $row->via_aplicacao ?? null,
                     'ie_via_aplicacao' => $row->ie_via_aplicacao ?? null,
                 ]),
+                'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
+                'tipo_label' => $tipo,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
                 'setor_execucao' => $sectorLabels[(int) ($row->cd_setor_atendimento ?? 0)] ?? ($row->cd_setor_atendimento ?? null),

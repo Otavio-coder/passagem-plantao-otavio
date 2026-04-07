@@ -1075,8 +1075,14 @@
                     $hasCarousel = $hasPendingCard && $hasEvaluationCard;
 
                     // Adiciona is_near a cada evento (ontem, hoje ou amanhã)
+                    // Tipos sem data futura são sempre visíveis no filtro padrão
                     $today = \Carbon\Carbon::today();
-                    $pendingEvents = array_map(function($ev) use ($today) {
+                    $alwaysNearTypes = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
+                    $pendingEvents = array_map(function($ev) use ($today, $alwaysNearTypes) {
+                        if (in_array($ev['tipo'] ?? '', $alwaysNearTypes, true)) {
+                            $ev['is_near'] = true;
+                            return $ev;
+                        }
                         $dtEvento = $ev['dt_evento'] ?? null;
                         $isNear = true; // sem data = sempre visível
                         if ($dtEvento) {
@@ -1205,6 +1211,15 @@
                                             </span>
                                         @endif
                                     </div>
+                                    @if(!empty($firstEvent['motivo_pendente']))
+                                        <div class="flex items-center gap-1 mt-0.5 text-[9px] text-gray-400 leading-tight">
+                                            <svg class="w-2.5 h-2.5 flex-shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                            <span>{{ $firstEvent['motivo_pendente'] }}</span>
+                                        </div>
+                                    @endif
                                 </div>
                                 @if($showPulse)
                                     <span class="w-2 h-2 rounded-full {{ $fPulseColor }} animate-pulse flex-shrink-0 mt-1"></span>

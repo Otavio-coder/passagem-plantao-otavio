@@ -5,7 +5,7 @@
  * Versão: atualizar APP_CACHE_VERSION a cada deploy para invalidar caches
  */
 
-const APP_CACHE_VERSION = '2.2.0';
+const APP_CACHE_VERSION = '2.3.0';
 const CACHE_STATIC  = `plantao-static-${APP_CACHE_VERSION}`;
 const CACHE_PAGES   = `plantao-pages-${APP_CACHE_VERSION}`;
 const CACHE_FONTS   = `plantao-fonts-${APP_CACHE_VERSION}`;

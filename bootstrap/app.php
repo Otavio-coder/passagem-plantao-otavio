@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\PwaHeadersMiddleware;
 use App\Http\Middleware\VerifyAuthorization;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'verify.authorization' => VerifyAuthorization::class,
         ]);
+        $middleware->append(PwaHeadersMiddleware::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
@@ -25,4 +27,3 @@ return Application::configure(basePath: dirname(__DIR__))
         Oci8ServiceProvider::class,
     ])
     ->create();
-

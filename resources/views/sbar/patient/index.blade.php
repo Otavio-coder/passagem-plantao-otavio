@@ -1146,7 +1146,7 @@
                                     $fTipo === 'cirurgia'
                                         => ['bg-[#7712C7]/10 border border-[#7712C7]/50', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]/70'],
                                     $fTipo === 'hemoterapia'
-                                        => ['bg-red-50/70 border border-red-300', 'text-red-700 font-semibold', 'text-red-600 font-medium', 'bg-red-500'],
+                                        => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]'],
                                     $fTipo === 'quimioterapia'
                                         => ['bg-[#0A4700]/10 border border-[#0A4700]/40', 'text-[#0A4700] font-semibold', 'text-[#0A4700]/80 font-medium', 'bg-[#0A4700]'],
                                     $fTipo === 'antibiotico'
@@ -1156,7 +1156,7 @@
                                     $fTipo === 'procedimento'
                                         => ['bg-indigo-50/60 border border-indigo-200', 'text-indigo-700 font-semibold', 'text-indigo-600 font-medium', 'bg-indigo-400'],
                                     $fUrgent
-                                        => ['bg-red-50/90 border border-red-300', 'text-red-700 font-bold', 'text-red-600 font-semibold', 'bg-red-500'],
+                                        => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-bold', 'text-[#7712C7]/80 font-semibold', 'bg-[#7712C7]'],
                                     default
                                         => ['bg-white/30 border border-white/50', 'text-[#062047] font-semibold', 'text-[#004D9D] font-medium', 'bg-gray-400'],
                                 };
@@ -1395,7 +1395,7 @@
                                                             => ['border-gray-300',     'bg-[#E8E8E8]',    'text-gray-700',  'border-gray-200',    'bg-[#E8E8E8]/80'],
                                             'previsao_alta' => ['border-gray-300',     'bg-[#E8E8E8]',    'text-gray-600',  'border-gray-200',    'bg-[#E8E8E8]/80'],
                                             'cirurgia'      => ['border-[#7712C7]/30', 'bg-[#7712C7]/10', 'text-[#7712C7]', 'border-[#7712C7]/20','bg-[#7712C7]/5'],
-                                            'hemoterapia'   => ['border-red-300',      'bg-red-50/70',    'text-red-700',   'border-red-200',     'bg-red-50/40'],
+                                            'hemoterapia'   => ['border-[#7712C7]/30', 'bg-[#7712C7]/10', 'text-[#7712C7]', 'border-[#7712C7]/20','bg-[#7712C7]/5'],
                                             'quimioterapia' => ['border-[#0A4700]/30', 'bg-[#0A4700]/10', 'text-[#0A4700]', 'border-[#0A4700]/20','bg-[#0A4700]/5'],
                                             'antibiotico'   => ['border-[#BDAD02]/50', 'bg-[#BDAD02]/10', 'text-[#5C5300]', 'border-[#BDAD02]/30','bg-[#BDAD02]/5'],
                                             'exame','proc_exame'
@@ -1448,15 +1448,15 @@
                                         {{-- Itens (Alpine x-for) --}}
                                         <div class="divide-y divide-gray-100/80">
                                             <template x-for="(ev, idx) in paged" :key="idx">
-                                                <div class="px-3 py-2.5 hover:brightness-95 transition-all {{ $gBgCard }}"
-                                                     :class="{ 'bg-red-50/60': ev.urgente }">
+                                                   <div class="px-3 py-2.5 hover:brightness-95 transition-all {{ $gBgCard }}"
+                                                       :class="{ 'bg-[#7712C7]/10': ev.urgente }">
                                                     {{-- Ícone + descrição + badge --}}
                                                     <div class="flex items-start gap-2">
                                                         <img :src="'/images/icons/patient-card/' + (ev.icone || 'alert-circle.svg')"
                                                              class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" alt="">
                                                         <div class="flex-1 min-w-0">
                                                             <div class="text-xs font-semibold leading-snug"
-                                                                 :class="ev.urgente ? 'text-red-700' : 'text-[#062047]'"
+                                                                :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#062047]'"
                                                                  x-text="ev.descricao || 'Sem descrição'"></div>
                                                             <div x-show="ev.ds_subtipo || ev.nm_prescritor"
                                                                  class="text-[10px] text-gray-500 mt-0.5 flex flex-wrap gap-x-2">
@@ -1467,7 +1467,7 @@
                                                         <span x-show="ev.status_laudo"
                                                               x-text="ev.status_laudo"
                                                               class="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap"
-                                                              :class="ev.urgente ? 'bg-red-500 text-white' : 'bg-[#004D9D]/10 text-[#004D9D]'"></span>
+                                                              :class="ev.urgente ? 'bg-[#7712C7] text-white' : 'bg-[#004D9D]/10 text-[#004D9D]'"></span>
                                                     </div>
                                                     {{-- Datas e tempo --}}
                                                     <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-gray-500">
@@ -1504,7 +1504,7 @@
                                                         <span x-show="ev.tempo_pendente"
                                                               x-text="ev.tempo_pendente"
                                                               class="font-semibold"
-                                                              :class="ev.urgente ? 'text-red-600' : 'text-[#0071B9]'"></span>
+                                                              :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#0071B9]'"></span>
                                                                                                                 <span x-show="['cirurgia','hemoterapia','quimioterapia'].includes(ev.tipo) && (ev.setor_execucao || {{ !empty($patient['ds_setor_atendimento']) || !empty($patient['cd_setor_atendimento']) ? 'true' : 'false' }})"
                                                                                                                             class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
                                                                                                                         <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>

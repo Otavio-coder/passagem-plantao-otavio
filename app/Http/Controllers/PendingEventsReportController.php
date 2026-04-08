@@ -141,10 +141,6 @@ class PendingEventsReportController extends Controller
 
                 $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
 
-                $prevExecDate = $event['dt_evento'] ?? null;
-                $venceHoje = $prevExecDate !== null
-                    && Carbon::parse($prevExecDate)->isToday();
-
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
@@ -153,7 +149,6 @@ class PendingEventsReportController extends Controller
                     'classificacao' => PendingEventPresentation::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
                     'data_prev_execucao' => $event['dt_evento_formatted'] ?? '-',
-                    'vence_hoje' => $venceHoje,
                     'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)

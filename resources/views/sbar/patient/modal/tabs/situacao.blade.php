@@ -160,7 +160,7 @@
                     </div>
 
                     @php
-                        $isPediatricPatient = isset($patientDetails->age) && intval($patientDetails->age) < 16;
+                        $isPediatricPatient = isset($patientDetails->age) && intval($patientDetails->age) < 18;
                     @endphp
 
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">

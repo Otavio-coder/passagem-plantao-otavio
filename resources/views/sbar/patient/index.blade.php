@@ -726,19 +726,24 @@
                             @endif
 
                         </div>
-                        {{-- MEWS Badge --}}
+                        {{-- MEWS/PEWS Badge --}}
                         <div class="flex-shrink-0">
+                            @php
+                                $isPediatricPatient = (bool) ($patient['is_pediatric'] ?? false);
+                                $ewsPrefix = $isPediatricPatient ? 'pews' : 'mews';
+                                $ewsLabel = $isPediatricPatient ? 'PEWS' : 'MEWS';
+                            @endphp
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap relative border
-                                {{ $patient['mews_styling']['bg'] ?? 'bg-white/90' }}
-                                {{ $patient['mews_styling']['text'] ?? 'text-gray-700' }}
-                                {{ $patient['mews_styling']['border'] ?? 'border-gray-300' }}
-                                {{ ($patient['mews_needs_assessment'] ?? false) ? 'border-b-2 border-b-red-500' : '' }}">
-                                <strong>MEWS:</strong>
-                                <span class="ml-1">{{ $patient['mews_score'] ?? '-' }}</span>
-                                @if($patient['mews_shift'] ?? null)
-                                    <span class="ml-0.5 text-[10px] font-normal">({{ $patient['mews_shift'] }})</span>
+                                {{ data_get($patient, $ewsPrefix . '_styling.bg', 'bg-white/90') }}
+                                {{ data_get($patient, $ewsPrefix . '_styling.text', 'text-gray-700') }}
+                                {{ data_get($patient, $ewsPrefix . '_styling.border', 'border-gray-300') }}
+                                {{ data_get($patient, $ewsPrefix . '_needs_assessment', false) ? 'border-b-2 border-b-red-500' : '' }}">
+                                <strong>{{ $ewsLabel }}:</strong>
+                                <span class="ml-1">{{ data_get($patient, $ewsPrefix . '_score', '-') }}</span>
+                                @if(data_get($patient, $ewsPrefix . '_shift'))
+                                    <span class="ml-0.5 text-[10px] font-normal">({{ data_get($patient, $ewsPrefix . '_shift') }})</span>
                                 @endif
-                                @if(($patient['mews_increased'] ?? false) && !($patient['is_new_patient'] ?? false))
+                                @if(data_get($patient, $ewsPrefix . '_increased', false) && !($patient['is_new_patient'] ?? false))
                                     <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                                 @endif
                             </span>

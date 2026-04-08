@@ -449,7 +449,7 @@ class PatientModal extends Component
             return null;
         }
 
-        $isPediatric = isset($this->patientDetails->age) && intval($this->patientDetails->age) < 16;
+        $isPediatric = isset($this->patientDetails->age) && intval($this->patientDetails->age) < 18;
         $scales = [];
 
         // MEWS (adultos) ou PEWS (pediátricos)

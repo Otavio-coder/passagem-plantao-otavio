@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace App\Livewire;
 
-use App\Models\EMR\Core\Bed;
-use App\Models\EMR\Core\Hospital;
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
@@ -22,8 +19,6 @@ class SectorSelectorModal extends Component
     public string $activeHospital = '';
 
     public array $selectedSectors = [];
-
-    private const ALLOWED_HOSPITAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
 
     public function mount(): void
     {
@@ -86,45 +81,7 @@ class SectorSelectorModal extends Component
 
     private function getSectorsByHospital(): array
     {
-        $cacheKey = 'sectors_for_modal_v1';
-
-        return Cache::remember($cacheKey, 3600, function () {
-            // Obtém hospitais
-            $hospitals = Hospital::whereIn('nr_sequencia', self::ALLOWED_HOSPITAL_IDS)
-                ->where('ie_situacao', 'A')
-                ->get()
-                ->mapWithKeys(function ($h) {
-                    return [(string) $h->nr_sequencia => $h->ds_agrupamento];
-                });
-
-            // Obtém setores apenas cd_classif_setor = 3 ou 4
-            $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
-                ->whereIn('cd_classif_setor', [3, 4])
-                ->where('ie_situacao', 'A')
-                ->orderBy('ds_setor_atendimento')
-                ->get();
-
-            // Batch query — 1 query instead of N (one per sector)
-            $codesWithBeds = Bed::whereIn('cd_setor_atendimento', $sectors->pluck('cd_setor_atendimento')->toArray())
-                ->where('ie_situacao', 'A')
-                ->distinct()
-                ->pluck('cd_setor_atendimento')
-                ->flip()
-                ->toArray();
-
-            return $sectors
-                ->filter(fn ($s) => isset($codesWithBeds[$s->cd_setor_atendimento]))
-                ->map(function ($s) use ($hospitals) {
-                    return [
-                        'sector_code' => (string) $s->cd_setor_atendimento,
-                        'sector_name' => $s->ds_setor_atendimento,
-                        'hospital_code' => (string) $s->nr_seq_agrupamento,
-                        'hospital_name' => $hospitals->get((string) $s->nr_seq_agrupamento, 'Hospital'),
-                    ];
-                })
-                ->groupBy('hospital_code')
-                ->toArray();
-        });
+        return Sector::allowedForPreferencesGroupedByHospital();
     }
 
     public function toggleSector(string $sectorCode): void

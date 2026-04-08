@@ -8,7 +8,9 @@ use App\Services\PendingEvents\Handlers\AntibioticPendingHandler;
 use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\HemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\PrescriptionPendingHandler;
+use App\Services\Tasy\TasyFormatter;
 use App\Support\PendingEventPresentation;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -111,7 +113,7 @@ class PatientPendingEventsService
                     'descricao' => 'Óbito registrado',
                     'urgente' => true,
                     'dt_evento' => $row->dt_obito,
-                    'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_obito)),
+                    'dt_evento_formatted' => Carbon::parse($row->dt_obito)->format('d/m/Y H:i'),
                 ];
             }
 
@@ -127,7 +129,7 @@ class PatientPendingEventsService
         }
 
         // Ordena eventos: urgentes primeiro, depois por proximidade ao momento atual
-        $now = time();
+        $now = now()->timestamp;
         foreach ($results as &$data) {
             usort($data['events'], function ($a, $b) use ($now) {
                 $urgA = $a['urgente'] ?? false;
@@ -148,7 +150,7 @@ class PatientPendingEventsService
                     return -1;
                 }
 
-                return abs(strtotime($da) - $now) - abs(strtotime($db) - $now);
+                return abs(Carbon::parse($da)->timestamp - $now) - abs(Carbon::parse($db)->timestamp - $now);
             });
         }
         unset($data);
@@ -199,22 +201,22 @@ class PatientPendingEventsService
                 'descricao' => 'Alta Efetivada'.(! empty($row->ds_motivo_alta) ? ' - '.$row->ds_motivo_alta : ''),
                 'ds_subtipo' => 'Alta',
                 'dt_evento' => $row->dt_alta,
-                'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta)),
+                'dt_evento_formatted' => Carbon::parse($row->dt_alta)->format('d/m/Y H:i'),
                 'urgente' => true,
             ];
 
-            return [
-                'tipo' => 'alta',
-                'dt_alta' => $row->dt_alta,
-                'dt_alta_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta)),
-                'ds_motivo_alta' => $row->ds_motivo_alta ?? null,
-            ];
+            return TasyFormatter::buildDischargeInfo(
+                (string) $row->dt_alta,
+                null,
+                null,
+                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
+            );
         }
 
         if (! empty($row->dt_alta_medico)) {
             $descAltaMedica = 'Alta Médica';
             if (! empty($row->apa_dt_previsto_alta)) {
-                $descAltaMedica .= ' | Prev. Alta: '.date('d/m/Y', strtotime($row->apa_dt_previsto_alta));
+                $descAltaMedica .= ' | Prev. Alta: '.Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
             }
             $events[] = [
                 'tipo' => 'alta_medica',
@@ -222,18 +224,16 @@ class PatientPendingEventsService
                 'descricao' => $descAltaMedica,
                 'ds_subtipo' => 'Alta Médica',
                 'dt_evento' => $row->dt_alta_medico,
-                'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
+                'dt_evento_formatted' => Carbon::parse($row->dt_alta_medico)->format('d/m/Y H:i'),
                 'urgente' => true,
             ];
 
-            return [
-                'tipo' => 'alta_medica',
-                'dt_alta_medico' => $row->dt_alta_medico,
-                'dt_alta_medico_formatted' => date('d/m/Y H:i', strtotime($row->dt_alta_medico)),
-                'dt_previsto_alta' => $row->apa_dt_previsto_alta ?? null,
-                'dt_previsto_alta_formatted' => ! empty($row->apa_dt_previsto_alta)
-                    ? date('d/m/Y H:i', strtotime($row->apa_dt_previsto_alta)) : null,
-            ];
+            return TasyFormatter::buildDischargeInfo(
+                null,
+                (string) $row->dt_alta_medico,
+                ! empty($row->apa_dt_previsto_alta) ? (string) $row->apa_dt_previsto_alta : null,
+                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
+            );
         }
 
         return null;

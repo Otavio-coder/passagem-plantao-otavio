@@ -14,22 +14,18 @@ class SectorSelectorModalTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @var array<string, array<int, array<string, string>>> */
+    /** @var array<int, array<string, string>> */
     private array $fakeSectors = [
-        '1' => [
-            ['sector_code' => '101', 'sector_name' => 'UTI Adulto', 'hospital_code' => '1', 'hospital_name' => 'Hospital Central'],
-            ['sector_code' => '102', 'sector_name' => 'Clínica Médica', 'hospital_code' => '1', 'hospital_name' => 'Hospital Central'],
-        ],
-        '2' => [
-            ['sector_code' => '201', 'sector_name' => 'Pediatria', 'hospital_code' => '2', 'hospital_name' => 'Hospital Norte'],
-        ],
+        ['sector_code' => '101', 'sector_name' => 'UTI Adulto', 'hospital_code' => '1', 'hospital_name' => 'Hospital Central'],
+        ['sector_code' => '102', 'sector_name' => 'Clínica Médica', 'hospital_code' => '1', 'hospital_name' => 'Hospital Central'],
+        ['sector_code' => '201', 'sector_name' => 'Pediatria', 'hospital_code' => '2', 'hospital_name' => 'Hospital Norte'],
     ];
 
     protected function setUp(): void
     {
         parent::setUp();
         // Pre-fill cache so getSectorsByHospital() skips Oracle queries entirely
-        Cache::put('sectors_for_modal_v1', $this->fakeSectors, 3600);
+        Cache::put('allowed_sectors_for_preferences_v1', $this->fakeSectors, 3600);
     }
 
     public function test_modal_shows_automatically_when_user_has_no_preferences(): void

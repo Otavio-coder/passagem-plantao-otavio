@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
+use App\Services\ShiftService;
 use App\Services\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -56,24 +57,8 @@ class PatientModal extends Component
 
     public function mount()
     {
-        $this->currentShift = $this->getCurrentShift();
+        $this->currentShift = ShiftService::getShiftInfo()['shift'];
         $this->scheduleDate = now()->format('Y-m-d');
-    }
-
-    private function getCurrentShift()
-    {
-        $now = now();
-        $hour = $now->hour;
-        $minute = $now->minute;
-        $time = $hour * 60 + $minute;
-
-        if ($time >= 435 && $time < 795) {
-            return 'morning';
-        } elseif ($time >= 795 && $time < 1155) {
-            return 'afternoon';
-        } else {
-            return 'night';
-        }
     }
 
     #[On('openModal')]

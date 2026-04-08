@@ -5,11 +5,50 @@ namespace App\Services\Tasy;
 use Carbon\Carbon;
 
 /**
- * Responsável pela formatação dos dados SBAR.
+ * Responsável pela formatação dos dados Tasy para o frontend.
  * Sem acesso a banco de dados — recebe dados brutos e monta arrays para o frontend.
  */
-class SbarFormatter
+class TasyFormatter
 {
+    public static function buildDischargeInfo(
+        ?string $dtAlta,
+        ?string $dtAltaMedico,
+        ?string $dtPrevistoAlta,
+        ?string $motivoAlta = null
+    ): ?array {
+        if (! empty($dtAlta)) {
+            return [
+                'tipo' => 'alta',
+                'dt_alta' => $dtAlta,
+                'dt_alta_formatted' => Carbon::parse($dtAlta)->format('d/m/Y H:i'),
+                'ds_motivo_alta' => $motivoAlta,
+            ];
+        }
+
+        if (! empty($dtAltaMedico)) {
+            return [
+                'tipo' => 'alta_medica',
+                'dt_alta_medico' => $dtAltaMedico,
+                'dt_alta_medico_formatted' => Carbon::parse($dtAltaMedico)->format('d/m/Y H:i'),
+                'dt_previsto_alta' => $dtPrevistoAlta,
+                'dt_previsto_alta_formatted' => ! empty($dtPrevistoAlta)
+                    ? Carbon::parse($dtPrevistoAlta)->format('d/m/Y H:i')
+                    : null,
+                'ds_motivo_alta' => $motivoAlta,
+            ];
+        }
+
+        if (! empty($dtPrevistoAlta)) {
+            return [
+                'tipo' => 'previsao_alta',
+                'dt_previsto_alta' => $dtPrevistoAlta,
+                'dt_previsto_alta_formatted' => Carbon::parse($dtPrevistoAlta)->format('d/m/Y H:i'),
+            ];
+        }
+
+        return null;
+    }
+
     private const DEFAULT_SCALE_DATA = [
         'score' => null,
         'needs_assessment' => true,
@@ -91,35 +130,12 @@ class SbarFormatter
 
     public function buildDischargeInfoFromBed($bed): ?array
     {
-        if (! empty($bed->dt_alta_medico)) {
-            $dtMedico = is_string($bed->dt_alta_medico) ? $bed->dt_alta_medico : (string) $bed->dt_alta_medico;
-            $apaPrevisto = $bed->apa_dt_previsto_alta ?? null;
-
-            return [
-                'tipo' => 'alta_medica',
-                'dt_alta_medico' => $dtMedico,
-                'dt_alta_medico_formatted' => date('d/m/Y H:i', strtotime($dtMedico)),
-                'dt_previsto_alta' => $apaPrevisto,
-                'dt_previsto_alta_formatted' => ! empty($apaPrevisto)
-                    ? date('d/m/Y H:i', strtotime($apaPrevisto))
-                    : null,
-                'ds_motivo_alta' => $bed->ds_motivo_alta ?? null,
-            ];
-        }
-
-        if (! empty($bed->apa_dt_previsto_alta)) {
-            $dtPrevisto = is_string($bed->apa_dt_previsto_alta)
-                ? $bed->apa_dt_previsto_alta
-                : (string) $bed->apa_dt_previsto_alta;
-
-            return [
-                'tipo' => 'previsao_alta',
-                'dt_previsto_alta' => $dtPrevisto,
-                'dt_previsto_alta_formatted' => date('d/m/Y', strtotime($dtPrevisto)),
-            ];
-        }
-
-        return null;
+        return self::buildDischargeInfo(
+            null,
+            ! empty($bed->dt_alta_medico) ? (string) $bed->dt_alta_medico : null,
+            ! empty($bed->apa_dt_previsto_alta) ? (string) $bed->apa_dt_previsto_alta : null,
+            ! empty($bed->ds_motivo_alta) ? (string) $bed->ds_motivo_alta : null
+        );
     }
 
     public function addScalesToData(array $data, ?array $scales, int $age): array

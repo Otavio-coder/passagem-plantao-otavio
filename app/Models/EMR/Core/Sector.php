@@ -10,10 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class Sector extends Model
 {
+    private const ALLOWED_FOR_PREFERENCES_CACHE_KEY = 'allowed_sectors_for_preferences_v1';
+
+    private const ALLOWED_FOR_PREFERENCES_CACHE_TTL = 3600;
+
     protected $connection = 'tasy';
 
     protected $table = 'TASY.SETOR_ATENDIMENTO';
@@ -177,5 +182,75 @@ class Sector extends Model
         });
 
         return $appointments;
+    }
+
+    /**
+     * Retorna setores permitidos para configuração de preferências.
+     *
+     * Estrutura de retorno:
+     * [
+     *   ['sector_code' => string, 'sector_name' => string,
+     *    'hospital_code' => string, 'hospital_name' => string],
+     *   ...
+     * ]
+     *
+     * @return array<int, array{sector_code: string, sector_name: string, hospital_code: string, hospital_name: string}>
+     */
+    public static function allowedForPreferences(): array
+    {
+        return Cache::remember(self::ALLOWED_FOR_PREFERENCES_CACHE_KEY, self::ALLOWED_FOR_PREFERENCES_CACHE_TTL, function (): array {
+            $allowedHospitalIds = array_map('intval', (array) config('hospitals.allowed_ids', []));
+
+            if (empty($allowedHospitalIds)) {
+                return [];
+            }
+
+            $hospitals = Hospital::query()
+                ->whereIn('nr_sequencia', $allowedHospitalIds)
+                ->where('ie_situacao', 'A')
+                ->get()
+                ->mapWithKeys(fn (Hospital $hospital) => [(string) $hospital->nr_sequencia => $hospital->ds_agrupamento]);
+
+            $sectors = self::query()
+                ->whereIn('nr_seq_agrupamento', $allowedHospitalIds)
+                ->whereIn('cd_classif_setor', [1, 3, 4])
+                ->where('ie_situacao', 'A')
+                ->orderBy('ds_setor_atendimento')
+                ->get();
+
+            if ($sectors->isEmpty()) {
+                return [];
+            }
+
+            $codesWithBeds = Bed::query()
+                ->whereIn('cd_setor_atendimento', $sectors->pluck('cd_setor_atendimento')->all())
+                ->where('ie_situacao', 'A')
+                ->distinct()
+                ->pluck('cd_setor_atendimento')
+                ->flip()
+                ->toArray();
+
+            return $sectors
+                ->filter(fn (Sector $sector) => isset($codesWithBeds[$sector->cd_setor_atendimento]))
+                ->map(fn (Sector $sector) => [
+                    'sector_code' => (string) $sector->cd_setor_atendimento,
+                    'sector_name' => (string) $sector->ds_setor_atendimento,
+                    'hospital_code' => (string) $sector->nr_seq_agrupamento,
+                    'hospital_name' => (string) $hospitals->get((string) $sector->nr_seq_agrupamento, 'Hospital'),
+                ])
+                ->values()
+                ->toArray();
+        });
+    }
+
+    /**
+     * @return array<string, array<int, array{sector_code: string, sector_name: string, hospital_code: string, hospital_name: string}>>
+     */
+    public static function allowedForPreferencesGroupedByHospital(): array
+    {
+        return collect(self::allowedForPreferences())
+            ->groupBy('hospital_code')
+            ->map(fn (Collection $rows) => $rows->values()->toArray())
+            ->toArray();
     }
 }

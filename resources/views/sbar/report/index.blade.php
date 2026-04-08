@@ -429,7 +429,11 @@
                                              data-internment="{{ $patient['internment_days'] ?? -1 }}"
                                              data-age="{{ $patient['age'] ?? 0 }}"
                                              data-name="{{ strtolower($patient['nm_pessoa_fisica'] ?? 'zzz') }}">
-                                            @include('sbar.patient.index', ['patient' => $patient, 'currentHospitalName' => $currentHospitalName])
+                                            @include('sbar.patient.index', [
+                                                'patient' => $patient,
+                                                'currentHospitalName' => $currentHospitalName,
+                                                'currentShiftName' => $currentShiftName,
+                                            ])
                                         </div>
                                     @endforeach
                                 </div>

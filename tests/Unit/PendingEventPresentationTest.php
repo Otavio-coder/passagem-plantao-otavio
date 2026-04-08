@@ -423,7 +423,7 @@ class PendingEventPresentationTest extends TestCase
             'tipo' => 'antibiotico',
         ]);
 
-        $this->assertSame('Antimicrobiano em uso', $motivo);
+        $this->assertSame('Dose não administrada', $motivo);
     }
 
     #[Test]
@@ -434,6 +434,49 @@ class PendingEventPresentationTest extends TestCase
             'ds_complemento' => 'Dia 3 · 500mg · IV · 8/8h',
         ]);
 
-        $this->assertSame('Antimicrobiano em uso — Dia 3 · 500mg · IV · 8/8h', $motivo);
+        $this->assertSame('Dose não administrada — Dia 3 · 500mg · IV · 8/8h', $motivo);
+    }
+
+    #[Test]
+    public function builds_pending_modal_data_with_sorted_groups_and_near_flag(): void
+    {
+        $data = PendingEventPresentation::buildPendingModalData([
+            [
+                'tipo' => 'procedimento',
+                'descricao' => 'ECG',
+                'dt_evento' => now()->addDays(2)->format('Y-m-d H:i:s'),
+            ],
+            [
+                'tipo' => 'alta',
+                'descricao' => 'Alta efetivada',
+                'dt_evento' => now()->format('Y-m-d H:i:s'),
+            ],
+        ]);
+
+        $this->assertCount(2, $data['events']);
+        $this->assertSame('alta', $data['groups'][0]['type']);
+        $this->assertSame('Alta Efetivada', $data['groups'][0]['label']);
+        $this->assertTrue((bool) $data['events'][1]['is_near']);
+        $this->assertFalse((bool) $data['events'][0]['is_near']);
+    }
+
+    #[Test]
+    public function resolves_first_event_respecting_front_window_for_exam_and_procedure(): void
+    {
+        $data = PendingEventPresentation::buildPendingModalData([
+            [
+                'tipo' => 'exame',
+                'descricao' => 'Exame distante',
+                'dt_evento' => now()->addDays(4)->format('Y-m-d H:i:s'),
+            ],
+            [
+                'tipo' => 'quimioterapia',
+                'descricao' => 'Quimio válida',
+                'dt_evento' => now()->addDays(3)->format('Y-m-d H:i:s'),
+            ],
+        ]);
+
+        $this->assertNotNull($data['first_event']);
+        $this->assertSame('quimioterapia', $data['first_event']['tipo']);
     }
 }

@@ -2,11 +2,11 @@
 
 namespace App\Livewire;
 
-use App\Models\EMR\Core\Hospital;
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use App\Services\ShiftService;
 use App\Services\TasyService;
+use App\Support\PendingEventPresentation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -108,7 +108,7 @@ class SbarReport extends Component
         try {
             $patients = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
 
-            return $this->injectHandoverStatus($patients);
+            return $this->preparePatientsForView($this->injectHandoverStatus($patients));
         } catch (\Exception $e) {
             Log::error('Error loading patients', [
                 'exception' => $e,
@@ -133,23 +133,7 @@ class SbarReport extends Component
         }
 
         try {
-            $allowedHospitalIds = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
-
-            $sectors = Sector::whereIn('nr_seq_agrupamento', $allowedHospitalIds)
-                ->where('ie_situacao', 'A')
-                ->select(['cd_setor_atendimento', 'ds_setor_atendimento', 'nr_seq_agrupamento'])
-                ->get();
-
-            $hospitalIds = $sectors->pluck('nr_seq_agrupamento')->unique()->filter();
-            $hospitalNames = Hospital::whereIn('nr_sequencia', $hospitalIds)
-                ->pluck('ds_agrupamento', 'nr_sequencia');
-
-            return $sectors->map(fn ($s) => [
-                'sector_code' => $s->cd_setor_atendimento,
-                'sector_name' => $s->ds_setor_atendimento,
-                'hospital_code' => $s->nr_seq_agrupamento,
-                'hospital_name' => $hospitalNames->get($s->nr_seq_agrupamento, 'Hospital'),
-            ])->toArray();
+            return Sector::allowedForPreferences();
         } catch (\Exception $e) {
             Log::error('Error loading available sectors for onboarding', [
                 'exception' => $e,
@@ -173,6 +157,12 @@ class SbarReport extends Component
         $hospital = collect($this->hospitals)->firstWhere('hospital_id', (int) $this->selectedHospital);
 
         return $hospital['hospital_name'] ?? 'Hospital';
+    }
+
+    #[Computed]
+    public function currentShiftName(): string
+    {
+        return ShiftService::getShiftInfo()['shift'];
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -411,6 +401,7 @@ class SbarReport extends Component
             'selectedHospital' => $this->selectedHospital,
             'selectedSector' => $this->selectedSector,
             'currentHospitalName' => $this->currentHospitalName,
+            'currentShiftName' => $this->currentShiftName,
             'lastRefresh' => $this->lastRefresh,
         ]);
     }
@@ -565,6 +556,24 @@ class SbarReport extends Component
             // Priority: pinned evaluation; fallback: latest evaluation
             $patient['pinned_evaluation'] = $latestPinnedByAttendance[(int) $nr] ?? null;
             $patient['latest_evaluation'] = $latestEvaluationByAttendance[(int) $nr] ?? null;
+
+            return $patient;
+        }, $patients);
+    }
+
+    private function preparePatientsForView(array $patients): array
+    {
+        return array_map(function (array $patient): array {
+            $pendingEvents = $patient['pending_events'] ?? [];
+
+            if (! is_array($pendingEvents)) {
+                $pendingEvents = [];
+            }
+
+            $structured = PendingEventPresentation::buildPendingModalData($pendingEvents);
+            $patient['pending_events'] = $structured['events'];
+            $patient['pending_groups'] = $structured['groups'];
+            $patient['first_pending_event'] = $structured['first_event'];
 
             return $patient;
         }, $patients);

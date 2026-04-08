@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\EMR\Core\Patient;
 use App\Models\EMR\Core\Sector;
-use App\Services\Tasy\SbarFormatter;
+use App\Services\Tasy\TasyFormatter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -24,11 +24,11 @@ class TasyService
 
     private const THERAPEUTIC_PLAN_CACHE_VERSION = 4;
 
-    private SbarFormatter $formatter;
+    private TasyFormatter $formatter;
 
     public function __construct()
     {
-        $this->formatter = new SbarFormatter;
+        $this->formatter = new TasyFormatter;
     }
 
     // ==================== MÉTODOS PÚBLICOS PRINCIPAIS ====================
@@ -177,47 +177,6 @@ class TasyService
     }
 
     /**
-     * Busca dados de recomendações/prescrições do paciente
-     *
-     * @deprecated Use getTherapeuticPlan() instead.
-     */
-    public function getPatientRecomendacoesData(int $attendanceNumber): ?object
-    {
-        if (! $attendanceNumber) {
-            return null;
-        }
-
-        $cacheKey = "patient_recomendacoes_{$attendanceNumber}";
-
-        return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
-            return $this->fetchRecomendacoesData($attendanceNumber);
-        });
-    }
-
-    /**
-     * Busca dados completos do paciente (básico + recomendações)
-     */
-    public function getFullPatientData(int $attendanceNumber): ?object
-    {
-        if (! $attendanceNumber) {
-            return null;
-        }
-
-        $cacheKey = "patient_full_data_{$attendanceNumber}";
-
-        return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
-            $basicData = $this->getPatientBasicData($attendanceNumber);
-            if (! $basicData) {
-                return null;
-            }
-
-            $recomendacoesData = $this->fetchRecomendacoesData($attendanceNumber);
-
-            return $this->mergeRecomendacoesWithBasicData($basicData, $recomendacoesData);
-        });
-    }
-
-    /**
      * Pre-warms the sector patients cache in the background.
      * Skips sectors whose cache is already populated.
      */
@@ -254,9 +213,7 @@ class TasyService
     public function clearPatientCache(int $attendanceNumber): void
     {
         $keys = [
-            "patient_full_data_{$attendanceNumber}",
             "patient_basic_modal_{$attendanceNumber}",
-            "patient_recomendacoes_{$attendanceNumber}",
             $this->therapeuticPlanCacheKey($attendanceNumber),
             "patient_therapeutic_plan_{$attendanceNumber}", // backward compatibility (old key)
         ];
@@ -605,17 +562,6 @@ class TasyService
         return $map[$attendanceNumber] ?? null;
     }
 
-    private function fetchRecomendacoesData(int $attendanceNumber): object
-    {
-        return (object) [
-            'procedimentos' => $this->prescricoes()->getProcedimentos($attendanceNumber),
-            'medicamentos' => $this->prescricoes()->getMedicamentos($attendanceNumber),
-            'nutricao' => $this->prescricoes()->getNutricao($attendanceNumber),
-            'recomendacoes' => $this->prescricoes()->getRecomendacoes($attendanceNumber),
-            'intervencoes' => $this->prescricoes()->getIntervencoes($attendanceNumber),
-        ];
-    }
-
     // ==================== MÉTODOS PRIVADOS - DATA ASSEMBLY ====================
 
     private function buildBasicDataFromEloquent(Patient $patient): object
@@ -730,18 +676,6 @@ class TasyService
         $data = $this->formatter->addScalesToData($data, $scalesData, $basicData->age ?? 99);
 
         return (object) $data;
-    }
-
-    private function mergeRecomendacoesWithBasicData(object $basicData, object $recomendacoesData): object
-    {
-        $combined = (array) $basicData;
-        $combined['procedimentos'] = $recomendacoesData->procedimentos;
-        $combined['medicamentos'] = $recomendacoesData->medicamentos;
-        $combined['nutricao'] = $recomendacoesData->nutricao;
-        $combined['recomendacoes'] = $recomendacoesData->recomendacoes;
-        $combined['intervencoes'] = $recomendacoesData->intervencoes;
-
-        return (object) $combined;
     }
 
     // ==================== MÉTODOS PRIVADOS - HELPERS ====================

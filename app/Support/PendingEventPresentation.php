@@ -2,8 +2,174 @@
 
 namespace App\Support;
 
+use Carbon\Carbon;
+
 class PendingEventPresentation
 {
+    private const ALWAYS_NEAR_TYPES = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
+
+    private const FRONT_NEAR_TYPES = ['procedimento', 'exame', 'proc_exame'];
+
+    private const GROUP_ORDER = ['alta', 'alta_medica', 'aviso', 'exame', 'procedimento', 'cirurgia', 'hemoterapia', 'quimioterapia', 'antibiotico', 'previsao_alta', 'outros'];
+
+    private const GROUP_LABELS = [
+        'exame' => 'Exames/Laboratório',
+        'procedimento' => 'Procedimentos',
+        'cirurgia' => 'Cirurgias Agendadas',
+        'hemoterapia' => 'Hemoterapia',
+        'quimioterapia' => 'Quimioterapia',
+        'antibiotico' => 'Antimicrobianos Ativos',
+        'aviso' => 'Avisos',
+        'alta' => 'Alta Efetivada',
+        'alta_medica' => 'Alta Médica',
+        'previsao_alta' => 'Previsão de Alta',
+    ];
+
+    /**
+     * @return array{events: array<int, array<string, mixed>>, groups: array<int, array<string, mixed>>, first_event: array<string, mixed>|null}
+     */
+    public static function buildPendingModalData(array $pendingEvents): array
+    {
+        $events = self::withNearFlag($pendingEvents);
+        $groups = [];
+
+        foreach ($events as $event) {
+            $type = self::normalizeGroupType((string) ($event['tipo'] ?? 'outros'));
+            if (! isset($groups[$type])) {
+                $groups[$type] = [
+                    'type' => $type,
+                    'label' => self::GROUP_LABELS[$type] ?? ucfirst($type),
+                    'style' => self::groupStyle($type),
+                    'events' => [],
+                ];
+            }
+
+            $groups[$type]['events'][] = $event;
+        }
+
+        uksort($groups, function (string $a, string $b): int {
+            $indexA = array_search($a, self::GROUP_ORDER, true);
+            $indexB = array_search($b, self::GROUP_ORDER, true);
+
+            return ($indexA === false ? 99 : $indexA) <=> ($indexB === false ? 99 : $indexB);
+        });
+
+        return [
+            'events' => $events,
+            'groups' => array_values($groups),
+            'first_event' => self::resolveFirstEvent($events),
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $events
+     * @return array<int, array<string, mixed>>
+     */
+    public static function withNearFlag(array $events): array
+    {
+        return array_map(function (array $event): array {
+            $event['is_near'] = self::isNear($event);
+
+            return $event;
+        }, $events);
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    public static function isNear(array $event, ?Carbon $today = null): bool
+    {
+        if (in_array((string) ($event['tipo'] ?? ''), self::ALWAYS_NEAR_TYPES, true)) {
+            return true;
+        }
+
+        $dtEvent = $event['dt_evento'] ?? null;
+        if (empty($dtEvent)) {
+            return true;
+        }
+
+        try {
+            $baseDate = $today ?? Carbon::today();
+            $eventDate = Carbon::parse((string) $dtEvent)->startOfDay();
+
+            return abs($eventDate->diffInDays($baseDate)) <= 1;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * @return array{border_header: string, bg_header: string, text_header: string, border_card: string, bg_card: string}
+     */
+    public static function groupStyle(string $groupType): array
+    {
+        return match ($groupType) {
+            'aviso', 'alta', 'obito', 'alta_medica' => [
+                'border_header' => 'border-gray-300',
+                'bg_header' => 'bg-[#E8E8E8]',
+                'text_header' => 'text-gray-700',
+                'border_card' => 'border-gray-200',
+                'bg_card' => 'bg-[#E8E8E8]/80',
+            ],
+            'previsao_alta' => [
+                'border_header' => 'border-gray-300',
+                'bg_header' => 'bg-[#E8E8E8]',
+                'text_header' => 'text-gray-600',
+                'border_card' => 'border-gray-200',
+                'bg_card' => 'bg-[#E8E8E8]/80',
+            ],
+            'cirurgia' => [
+                'border_header' => 'border-[#7712C7]/30',
+                'bg_header' => 'bg-[#7712C7]/10',
+                'text_header' => 'text-[#7712C7]',
+                'border_card' => 'border-[#7712C7]/20',
+                'bg_card' => 'bg-[#7712C7]/5',
+            ],
+            'hemoterapia' => [
+                'border_header' => 'border-[#7712C7]/30',
+                'bg_header' => 'bg-[#7712C7]/10',
+                'text_header' => 'text-[#7712C7]',
+                'border_card' => 'border-[#7712C7]/20',
+                'bg_card' => 'bg-[#7712C7]/5',
+            ],
+            'quimioterapia' => [
+                'border_header' => 'border-[#0A4700]/30',
+                'bg_header' => 'bg-[#0A4700]/10',
+                'text_header' => 'text-[#0A4700]',
+                'border_card' => 'border-[#0A4700]/20',
+                'bg_card' => 'bg-[#0A4700]/5',
+            ],
+            'antibiotico' => [
+                'border_header' => 'border-[#BDAD02]/50',
+                'bg_header' => 'bg-[#BDAD02]/10',
+                'text_header' => 'text-[#5C5300]',
+                'border_card' => 'border-[#BDAD02]/30',
+                'bg_card' => 'bg-[#BDAD02]/5',
+            ],
+            'exame' => [
+                'border_header' => 'border-blue-200',
+                'bg_header' => 'bg-blue-50/60',
+                'text_header' => 'text-blue-700',
+                'border_card' => 'border-blue-200',
+                'bg_card' => 'bg-blue-50/40',
+            ],
+            'procedimento' => [
+                'border_header' => 'border-indigo-200',
+                'bg_header' => 'bg-indigo-50/60',
+                'text_header' => 'text-indigo-700',
+                'border_card' => 'border-indigo-200',
+                'bg_card' => 'bg-indigo-50/40',
+            ],
+            default => [
+                'border_header' => 'border-gray-200',
+                'bg_header' => 'bg-white/30',
+                'text_header' => 'text-[#062047]',
+                'border_card' => 'border-gray-200',
+                'bg_card' => 'bg-gray-50/50',
+            ],
+        };
+    }
+
     private const HEMOTHERAPY_TYPES = [
         '0' => 'Hemocomponente',
         '1' => 'Concentrado de Hemácias',
@@ -254,7 +420,7 @@ class PendingEventPresentation
         $hora = '';
         if (! empty($event['dt_evento'])) {
             try {
-                $hora = date('H:i', strtotime((string) $event['dt_evento']));
+                $hora = Carbon::parse((string) $event['dt_evento'])->format('H:i');
             } catch (\Throwable) {
             }
         }
@@ -271,5 +437,45 @@ class PendingEventPresentation
         $complement = trim((string) ($event['ds_complemento'] ?? ''));
 
         return $complement !== '' ? "{$base} — {$complement}" : $base;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $events
+     * @return array<string, mixed>|null
+     */
+    private static function resolveFirstEvent(array $events): ?array
+    {
+        $todayStart = now()->startOfDay();
+        $tomorrowEnd = $todayStart->copy()->addDay()->endOfDay();
+
+        foreach ($events as $event) {
+            $dtEvent = $event['dt_evento'] ?? null;
+            if (empty($dtEvent)) {
+                continue;
+            }
+
+            try {
+                $parsed = Carbon::parse((string) $dtEvent);
+                if ($parsed->lt($todayStart)) {
+                    continue;
+                }
+
+                $type = (string) ($event['tipo'] ?? '');
+                if (in_array($type, self::FRONT_NEAR_TYPES, true) && $parsed->gt($tomorrowEnd)) {
+                    continue;
+                }
+
+                return $event;
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private static function normalizeGroupType(string $type): string
+    {
+        return $type === 'proc_exame' ? 'exame' : $type;
     }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EMR\Core\Bed;
 use App\Models\EMR\Core\Hospital;
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
@@ -13,11 +12,6 @@ use Illuminate\Support\Facades\Log;
 
 class SystemConfigurationController extends Controller
 {
-    /**
-     * IDs de hospitais permitidos (configuração base)
-     */
-    private const ALLOWED_HOSPITAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 10, 18, 25];
-
     /**
      * Exibe página de preferências do usuário
      */
@@ -137,41 +131,7 @@ class SystemConfigurationController extends Controller
      */
     private function getAvailableSectors(): array
     {
-        $cacheKey = 'available_sectors_for_preferences_v4';
-
-        return Cache::remember($cacheKey, 3600, function () {
-            // Obtém hospitais
-            $hospitals = Hospital::whereIn('nr_sequencia', self::ALLOWED_HOSPITAL_IDS)
-                ->where('ie_situacao', 'A')
-                ->get()
-                ->mapWithKeys(function ($h) {
-                    return [(string) $h->nr_sequencia => $h->ds_agrupamento];
-                });
-
-            // Obtém setores apenas cd_classif_setor = 1 (emergência), 3 ou 4 (internação) com leitos ativos
-            $sectors = Sector::whereIn('nr_seq_agrupamento', self::ALLOWED_HOSPITAL_IDS)
-                ->whereIn('cd_classif_setor', [1, 3, 4])
-                ->where('ie_situacao', 'A')
-                ->orderBy('ds_setor_atendimento')
-                ->get()
-                ->filter(function ($s) {
-                    return Bed::where('cd_setor_atendimento', $s->cd_setor_atendimento)
-                        ->where('ie_situacao', 'A')
-                        ->exists();
-                })
-                ->map(function ($s) use ($hospitals) {
-                    return [
-                        'sector_code' => (string) $s->cd_setor_atendimento,
-                        'sector_name' => $s->ds_setor_atendimento,
-                        'hospital_code' => (string) $s->nr_seq_agrupamento,
-                        'hospital_name' => $hospitals->get((string) $s->nr_seq_agrupamento, 'Hospital'),
-                    ];
-                })
-                ->values()
-                ->toArray();
-
-            return $sectors;
-        });
+        return Sector::allowedForPreferences();
     }
 
     /**
@@ -179,6 +139,6 @@ class SystemConfigurationController extends Controller
      */
     public static function getAllowedHospitalIds(): array
     {
-        return self::ALLOWED_HOSPITAL_IDS;
+        return array_map('intval', (array) config('hospitals.allowed_ids', []));
     }
 }

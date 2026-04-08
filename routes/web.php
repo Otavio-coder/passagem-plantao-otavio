@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\ChatArchiveController;
 use App\Http\Controllers\ExportController;
-use App\Http\Controllers\PatientRecomendacoesController;
 use App\Http\Controllers\PatientTherapeuticPlanController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
@@ -40,11 +39,6 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     Route::post('/sectors/warm',
         [SectorWarmController::class, 'warm'])
         ->name('sectors.warm');
-
-    // Legacy endpoint kept for backward compatibility
-    Route::get('/sbar/paciente/{attendanceNumber}/recomendacoes',
-        [PatientRecomendacoesController::class, 'load'])
-        ->name('sbar.patient.recomendacoes');
 
     // Avaliações do Turno
     Route::get('/sbar/avaliacoes', [ExportController::class, 'showShiftEvaluations'])

@@ -5,7 +5,6 @@ namespace App\Providers;
 use App\Repositories\EMR\PatientAlertsRepository;
 use App\Repositories\EMR\PatientClinicalRepository;
 use App\Repositories\EMR\PatientMultidisciplinaryRepository;
-use App\Repositories\EMR\PatientPrescricoesRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
 use App\Repositories\EMR\PatientTherapeuticPlanRepository;
@@ -27,7 +26,6 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(PatientScalesRepository::class, PatientScalesRepository::class);
         $this->app->bind(PatientClinicalRepository::class, PatientClinicalRepository::class);
-        $this->app->bind(PatientPrescricoesRepository::class, PatientPrescricoesRepository::class);
         $this->app->bind(PatientAlertsRepository::class, PatientAlertsRepository::class);
         $this->app->bind(PatientSurgeryRepository::class, PatientSurgeryRepository::class);
         $this->app->bind(PatientMultidisciplinaryRepository::class, PatientMultidisciplinaryRepository::class);

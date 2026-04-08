@@ -40,7 +40,7 @@
                             $handoverDone  = $patient['handover_done'] ?? false;
                             $handoverTime  = $patient['handover_last_time'] ?? null;
                             $handoverCount = $patient['handover_msg_count'] ?? 0;
-                            $shiftName     = match(\App\Services\ShiftService::getShiftInfo()['shift']) {
+                            $shiftName     = match($currentShiftName ?? 'night') {
                                 'morning'   => 'manhã',
                                 'afternoon' => 'tarde',
                                 'night'     => 'noite',
@@ -767,9 +767,9 @@
                         <div class="grid grid-cols-3 gap-x-1 gap-y-0 text-[10px]">
                             <div class="truncate text-center"><span class="text-gray-600">At:</span> <span class="text-gray-900 font-medium">{{ $patient['nr_atendimento'] ?? 'N/A' }}</span></div>
                             <div class="text-center">
-                                @if(!empty($dischargeInfo) && $dType === 'previsao_alta')
+                                @if(!empty($dischargeInfo) && in_array($dType, ['previsao_alta', 'alta_medica']) && !empty($dischargeInfo['dt_previsto_alta_formatted']))
                                     <span class="text-orange-600 font-semibold">Prev.Alta:</span>
-                                    <span class="text-orange-700 font-bold">{{ $dischargeInfo['dt_previsto_alta_formatted'] ?? '-' }}</span>
+                                    <span class="text-orange-700 font-bold">{{ $dischargeInfo['dt_previsto_alta_formatted'] }}</span>
                                 @endif
                             </div>
                             <div class="truncate text-center">
@@ -1055,77 +1055,14 @@
                 @php
                     $pendingEvents = $patient['pending_events'] ?? [];
                     $evaluation = $patient['latest_evaluation'] ?? null;
-                    
-                    $now = \Carbon\Carbon::now();
 
-                    $todayStart = $now->copy()->startOfDay();
-                    $tomorrowEnd = $todayStart->copy()->addDay()->endOfDay();
-                    $frontNearTypes = ['procedimento', 'exame', 'proc_exame'];
-
-                    $futurePendingEvents = array_values(array_filter($pendingEvents, function ($ev) use ($todayStart, $tomorrowEnd, $frontNearTypes) {
-                        $dtEvento = $ev['dt_evento'] ?? null;
-                        if (empty($dtEvento)) {
-                            return false;
-                        }
-
-                        try {
-                            $dt = \Carbon\Carbon::parse($dtEvento);
-                            if ($dt->lt($todayStart)) {
-                                return false;
-                            }
-
-                            $tipo = $ev['tipo'] ?? null;
-                            if (in_array($tipo, $frontNearTypes, true)) {
-                                return $dt->lte($tomorrowEnd);
-                            }
-
-                            return true;
-                        } catch (\Exception $e) {
-                            return false;
-                        }
-                    }));
-
-                    $firstEvent = $futurePendingEvents[0] ?? null;
+                    $pendingEvents = $patient['pending_events'] ?? $pendingEvents;
+                    $groupedData = $patient['pending_groups'] ?? [];
+                    $firstEvent = $patient['first_pending_event'] ?? null;
                     $hasPendingCard = $firstEvent !== null;
                     $hasAnyPending = !empty($pendingEvents);
                     $hasEvaluationCard = !empty($evaluation['content'] ?? null);
                     $hasCarousel = $hasPendingCard && $hasEvaluationCard;
-
-                    // Adiciona is_near a cada evento (ontem, hoje ou amanhã)
-                    // Tipos sem data futura são sempre visíveis no filtro padrão
-                    $today = \Carbon\Carbon::today();
-                    $alwaysNearTypes = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
-                    $pendingEvents = array_map(function($ev) use ($today, $alwaysNearTypes) {
-                        if (in_array($ev['tipo'] ?? '', $alwaysNearTypes, true)) {
-                            $ev['is_near'] = true;
-                            return $ev;
-                        }
-                        $dtEvento = $ev['dt_evento'] ?? null;
-                        $isNear = true; // sem data = sempre visível
-                        if ($dtEvento) {
-                            try {
-                                $diff = abs(\Carbon\Carbon::parse($dtEvento)->startOfDay()->diffInDays($today));
-                                $isNear = $diff <= 1;
-                            } catch (\Exception $e) {}
-                        }
-                        $ev['is_near'] = $isNear;
-                        return $ev;
-                    }, $pendingEvents);
-
-                    // Agrupa para o modal — exame e procedimento são grupos distintos
-                    $grouped    = [];
-                    $groupOrder = ['alta', 'alta_medica', 'aviso', 'exame', 'procedimento', 'cirurgia', 'hemoterapia', 'quimioterapia', 'antibiotico', 'previsao_alta', 'outros'];
-                    foreach ($pendingEvents as $ev) {
-                        $tipo = $ev['tipo'] ?? 'outros';
-                        // Migração de tipo legado proc_exame → exame
-                        if ($tipo === 'proc_exame') {
-                            $tipo = 'exame';
-                        }
-                        $grouped[$tipo][] = $ev;
-                    }
-                    uksort($grouped, fn($a,$b) =>
-                        (array_search($a, $groupOrder) ?: 99) - (array_search($b, $groupOrder) ?: 99)
-                    );
                 @endphp
                 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col"
                      x-data="{ showPendingModal: false, pendingShowAll: false, cardSlide: 0 }"
@@ -1379,35 +1316,18 @@
                                     <p class="text-[10px] text-gray-400 mt-1">Troque o período para visualizar outros itens.</p>
                                 </div>
 
-                                @foreach($grouped as $groupTipo => $groupEvents)
+                                @foreach($groupedData as $group)
                                     @php
+                                        $groupTipo = $group['type'] ?? 'outros';
+                                        $groupEvents = $group['events'] ?? [];
                                         $groupJson  = json_encode(array_values($groupEvents), JSON_HEX_QUOT | JSON_HEX_TAG | JSON_UNESCAPED_UNICODE);
-                                        $groupLabel = match($groupTipo) {
-                                            'exame','proc_exame' => 'Exames/Laboratório',
-                                            'procedimento'  => 'Procedimentos',
-                                            'cirurgia'      => 'Cirurgias Agendadas',
-                                            'hemoterapia'   => 'Hemoterapia',
-                                            'quimioterapia' => 'Quimioterapia',
-                                            'antibiotico'   => 'Antimicrobianos Ativos',
-                                            'aviso'         => 'Avisos',
-                                            'alta'          => 'Alta Efetivada',
-                                            'alta_medica'   => 'Alta Médica',
-                                            'previsao_alta' => 'Previsão de Alta',
-                                            default         => ucfirst($groupTipo),
-                                        };
-                                        [$gBorderHdr, $gBgHdr, $gTxtHdr, $gBorderCard, $gBgCard] = match($groupTipo) {
-                                            'aviso','alta','obito','alta_medica'
-                                                            => ['border-gray-300',     'bg-[#E8E8E8]',    'text-gray-700',  'border-gray-200',    'bg-[#E8E8E8]/80'],
-                                            'previsao_alta' => ['border-gray-300',     'bg-[#E8E8E8]',    'text-gray-600',  'border-gray-200',    'bg-[#E8E8E8]/80'],
-                                            'cirurgia'      => ['border-[#7712C7]/30', 'bg-[#7712C7]/10', 'text-[#7712C7]', 'border-[#7712C7]/20','bg-[#7712C7]/5'],
-                                            'hemoterapia'   => ['border-[#7712C7]/30', 'bg-[#7712C7]/10', 'text-[#7712C7]', 'border-[#7712C7]/20','bg-[#7712C7]/5'],
-                                            'quimioterapia' => ['border-[#0A4700]/30', 'bg-[#0A4700]/10', 'text-[#0A4700]', 'border-[#0A4700]/20','bg-[#0A4700]/5'],
-                                            'antibiotico'   => ['border-[#BDAD02]/50', 'bg-[#BDAD02]/10', 'text-[#5C5300]', 'border-[#BDAD02]/30','bg-[#BDAD02]/5'],
-                                            'exame','proc_exame'
-                                                            => ['border-blue-200',     'bg-blue-50/60',   'text-blue-700',  'border-blue-200',    'bg-blue-50/40'],
-                                            'procedimento'  => ['border-indigo-200',   'bg-indigo-50/60', 'text-indigo-700','border-indigo-200',  'bg-indigo-50/40'],
-                                            default         => ['border-gray-200',     'bg-white/30',     'text-[#062047]', 'border-gray-200',    'bg-gray-50/50'],
-                                        };
+                                        $groupLabel = $group['label'] ?? ucfirst($groupTipo);
+                                        $style = $group['style'] ?? [];
+                                        $gBorderHdr = $style['border_header'] ?? 'border-gray-200';
+                                        $gBgHdr = $style['bg_header'] ?? 'bg-white/30';
+                                        $gTxtHdr = $style['text_header'] ?? 'text-[#062047]';
+                                        $gBorderCard = $style['border_card'] ?? 'border-gray-200';
+                                        $gBgCard = $style['bg_card'] ?? 'bg-gray-50/50';
                                     @endphp
 
                                     {{-- Grupo: shell Blade (cores) + items Alpine (filtro + paginação) --}}

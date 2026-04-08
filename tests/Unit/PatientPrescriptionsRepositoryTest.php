@@ -2,17 +2,17 @@
 
 namespace Tests\Unit;
 
-use App\Repositories\EMR\PatientTherapeuticPlanRepository;
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use PHPUnit\Framework\Attributes\Test;
 use stdClass;
 use Tests\TestCase;
 
-class PatientTherapeuticPlanRepositoryTest extends TestCase
+class PatientPrescriptionsRepositoryTest extends TestCase
 {
     #[Test]
     public function formats_nutrition_item_with_enriched_plan_fields(): void
     {
-        $repository = new PatientTherapeuticPlanRepository;
+        $repository = new PatientPrescriptionsRepository;
 
         $row = (object) [
             'name' => 'Dieta Enteral',
@@ -67,7 +67,7 @@ class PatientTherapeuticPlanRepositoryTest extends TestCase
     #[Test]
     public function returns_nutrition_items_without_shift_grouping(): void
     {
-        $repository = new PatientTherapeuticPlanRepository;
+        $repository = new PatientPrescriptionsRepository;
 
         $rowA = new stdClass;
         $rowA->name = 'Dieta A';
@@ -92,7 +92,7 @@ class PatientTherapeuticPlanRepositoryTest extends TestCase
     #[Test]
     public function format_surgery_includes_surgery_type_code(): void
     {
-        $repository = new PatientTherapeuticPlanRepository;
+        $repository = new PatientPrescriptionsRepository;
 
         $row = new stdClass;
         $row->id = 10;

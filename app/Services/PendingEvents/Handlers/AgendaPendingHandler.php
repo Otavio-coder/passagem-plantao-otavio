@@ -2,26 +2,21 @@
 
 namespace App\Services\PendingEvents\Handlers;
 
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Services\PendingEvents\AbstractPendingHandler;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Cirurgias e exames agendados — handler unificado para agenda_paciente.
  *
- * Substitui SurgeryPendingHandler + ExamsPendingHandler, eliminando:
- *   1. Dois round-trips separados na mesma tabela AGENDA_PACIENTE.
- *   2. N+1 Oracle: SurgeryPendingHandler chamava TASY.OBTER_DESC_PROC_INTERNO()
- *      em loop PHP — um round-trip Oracle por cirurgia.
- *   3. Funções Oracle por linha em SELECT (obter_desc_proc_interno, obter_descricao_procedimento)
- *      substituídas por LEFT JOINs estáticos avaliados uma vez pelo otimizador.
- *
- * Diferenciação cirurgia/exame: ie_carater_cirurgia NOT NULL e <> 'X' → cirurgia, caso contrário → exame.
+ * Fonte: PatientPrescriptionsRepository::queryAgendaChunk()
+ * Diferenciação cirurgia/exame: ie_carater_cirurgia NOT NULL e <> 'X' → cirurgia.
  * Janela: TRUNC(SYSDATE) até SYSDATE + 30 dias.
- * Filtros: status NOT IN ('C','S'), dt_executada IS NULL.
  */
 class AgendaPendingHandler extends AbstractPendingHandler
 {
+    public function __construct(private readonly PatientPrescriptionsRepository $repository) {}
+
     protected function handlerName(): string
     {
         return 'Agenda (cirurgias+exames)';
@@ -30,73 +25,7 @@ class AgendaPendingHandler extends AbstractPendingHandler
     protected function processChunk(array &$results, array $chunk): void
     {
         try {
-            $rows = DB::connection('tasy')->select("
-                SELECT
-                    atp.nr_atendimento,
-                    CASE
-                        WHEN ap.ie_carater_cirurgia IS NOT NULL
-                         AND ap.ie_carater_cirurgia <> 'X'
-                        THEN 'cirurgia'
-                        ELSE 'exame'
-                    END                                      AS tipo,
-                    ap.dt_agenda                             AS dt_evento,
-                    ap.hr_inicio,
-                    ap.ds_cirurgia,
-                    ap.ds_observacao,
-                    ap.ie_carater_cirurgia,
-                    ap.ie_status_agenda,
-                    ap.nr_seq_proc_interno,
-                    ap.nr_seq_sala,
-                    NVL(
-                        TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
-                        NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
-                    ) AS cd_setor_execucao,
-                    TASY.OBTER_DS_SETOR_ATENDIMENTO(
-                        NVL(
-                            TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
-                            NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
-                        )
-                    ) AS ds_setor_execucao,
-                    COALESCE(
-                        TASY.OBTER_TIPO_CIRUR_PROC(ap.nr_seq_proc_interno),
-                        (
-                            SELECT MAX(p.cd_tipo_procedimento)
-                            FROM tasy.procedimento p
-                            WHERE p.cd_procedimento = ap.cd_procedimento
-                              AND p.ie_origem_proced = ap.ie_origem_proced
-                        )
-                    ) AS cd_tipo_cirurgia,
-                    COALESCE(
-                        TASY.OBTER_CIRURGIA_PACIENTE(ap.nr_atendimento, 'AA'),
-                        pi.ds_proc_exame,
-                        proced.ds_procedimento,
-                        ap.ds_cirurgia
-                    )                                        AS descricao_proc,
-                    pi.nr_seq_exame_lab
-                FROM tasy.agenda_paciente ap
-                JOIN tasy.atendimento_paciente atp
-                    ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
-                LEFT JOIN tasy.proc_interno pi
-                    ON pi.nr_sequencia = ap.nr_seq_proc_interno
-                LEFT JOIN (
-                    SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento
-                    FROM tasy.procedimento
-                    GROUP BY cd_procedimento
-                ) proced ON proced.cd_procedimento = ap.cd_procedimento
-                         AND ap.nr_seq_proc_interno IS NULL
-                WHERE atp.nr_atendimento IN ({$this->placeholders($chunk)})
-                    AND ap.dt_agenda >= TRUNC(SYSDATE)
-                    AND ap.dt_agenda <= SYSDATE + 30
-                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
-                    AND ap.dt_executada IS NULL
-                    AND (
-                        (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')
-                        OR
-                        (ap.ie_carater_cirurgia IS NULL
-                         AND (ap.nr_seq_proc_interno IS NOT NULL OR ap.cd_procedimento IS NOT NULL))
-                    )
-                ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
-            ", $chunk);
+            $rows = $this->repository->queryAgendaChunk($chunk);
 
             foreach ($rows as $row) {
                 if (! isset($results[$row->nr_atendimento])) {

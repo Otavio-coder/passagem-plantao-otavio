@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +25,7 @@ class SectorWarmController extends Controller
     public function warm(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'sector_ids'   => 'required|array|min:1|max:20',
+            'sector_ids' => 'required|array|min:1|max:20',
             'sector_ids.*' => 'required|integer|min:1',
         ]);
 
@@ -33,12 +33,14 @@ class SectorWarmController extends Controller
         $user = Auth::user();
         $allowedCodes = $user->sectorPreferences()->pluck('sector_code')->map('intval')->toArray();
 
-        $warmed  = 0;
+        $warmed = 0;
         $skipped = 0;
 
         foreach ($validated['sector_ids'] as $sectorId) {
             $sectorId = (int) $sectorId;
-            if (!in_array($sectorId, $allowedCodes)) continue;
+            if (! in_array($sectorId, $allowedCodes)) {
+                continue;
+            }
 
             if ($this->tasyService->warmSectorCache($sectorId)) {
                 $warmed++;

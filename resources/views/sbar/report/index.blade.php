@@ -462,8 +462,8 @@
                                 (function() {
                                     const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 
-                                    // 1. Warm therapeutic plans for visible patients
-                                    fetch('/patient-care/therapeutic-plan/warm', {
+                                    // 1. Warm prescriptions cache for visible patients
+                                    fetch('/patient-care/prescriptions/warm', {
                                         method:  'POST',
                                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
                                         credentials: 'same-origin',

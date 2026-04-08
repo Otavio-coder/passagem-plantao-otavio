@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\PendingEvents;
 
-use App\Services\PendingEvents\AbstractPendingHandler;
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Services\PendingEvents\Handlers\AgendaPendingHandler;
 use App\Services\PendingEvents\Handlers\AntibioticPendingHandler;
 use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
@@ -32,12 +32,14 @@ class PatientPendingEventsService
 
     public function __construct()
     {
+        $repo = app(PatientPrescriptionsRepository::class);
+
         $this->handlers = [
             new PrescriptionPendingHandler,
-            new HemotherapyPendingHandler,
-            new AntibioticPendingHandler,
-            new ChemotherapyPendingHandler,
-            new AgendaPendingHandler,
+            new HemotherapyPendingHandler($repo),
+            new AntibioticPendingHandler($repo),
+            new ChemotherapyPendingHandler($repo),
+            new AgendaPendingHandler($repo),
         ];
     }
 

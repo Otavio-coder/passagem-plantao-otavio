@@ -2,19 +2,23 @@
 
 namespace App\Livewire;
 
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Livewire\Component;
 use Livewire\Attributes\Isolate;
+use Livewire\Component;
 
 #[Isolate]
 class ExpiredScalesModal extends Component
 {
     public bool $isOpen = false;
+
     public array $patientsWithExpiredScales = [];
+
     public ?int $sectorId = null;
+
     public bool $loading = false;
+
     public int $totalExpired = 0;
 
     protected $listeners = ['openExpiredScalesModal' => 'open'];
@@ -36,24 +40,25 @@ class ExpiredScalesModal extends Component
 
     public function loadExpiredScales()
     {
-        if (!$this->sectorId) {
+        if (! $this->sectorId) {
             $this->loading = false;
+
             return;
         }
 
         $this->loading = true;
 
         try {
-            $cacheKey = "expired_scales_sector_{$this->sectorId}_" . now()->format('YmdHi');
+            $cacheKey = "expired_scales_sector_{$this->sectorId}_".now()->format('YmdHi');
 
-            $this->patientsWithExpiredScales = Cache::remember($cacheKey, 120, function() {
-                $tasy = new TasyService();
+            $this->patientsWithExpiredScales = Cache::remember($cacheKey, 120, function () {
+                $tasy = new TasyService;
                 $patients = $tasy->getSectorPatientsForSbar($this->sectorId);
 
                 $expiredList = [];
 
                 foreach ($patients as $patient) {
-                    if (!($patient['has_patient'] ?? false)) {
+                    if (! ($patient['has_patient'] ?? false)) {
                         continue;
                     }
 
@@ -125,23 +130,26 @@ class ExpiredScalesModal extends Component
                         ];
                     }
 
-                    if (!empty($expiredScales)) {
+                    if (! empty($expiredScales)) {
                         $expiredList[] = [
-                            'bed'            => $patient['cd_unidade_basica'] ?? 'N/A',
-                            'name'           => $patient['nm_pessoa_fisica'] ?? 'N/A',
+                            'bed' => $patient['cd_unidade_basica'] ?? 'N/A',
+                            'name' => $patient['nm_pessoa_fisica'] ?? 'N/A',
                             'medical_record' => $patient['nr_prontuario'] ?? 'N/A',
-                            'attendance'     => $patient['nr_atendimento'] ?? 'N/A',
-                            'age'            => $patient['age'] ?? 'N/A',
+                            'attendance' => $patient['nr_atendimento'] ?? 'N/A',
+                            'age' => $patient['age'] ?? 'N/A',
                             'expired_scales' => $expiredScales,
-                            'total_expired'  => count($expiredScales),
-                            'priority'       => count($expiredScales) >= 4 ? 'critical' : (count($expiredScales) >= 2 ? 'high' : 'medium'),
+                            'total_expired' => count($expiredScales),
+                            'priority' => count($expiredScales) >= 4 ? 'critical' : (count($expiredScales) >= 2 ? 'high' : 'medium'),
                         ];
                     }
                 }
 
-                usort($expiredList, function($a, $b) {
+                usort($expiredList, function ($a, $b) {
                     $cmp = $b['total_expired'] - $a['total_expired'];
-                    if ($cmp !== 0) return $cmp;
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
                     return strnatcmp($a['bed'], $b['bed']);
                 });
 
@@ -154,7 +162,7 @@ class ExpiredScalesModal extends Component
             Log::error('[ExpiredScalesModal] Error loading scales', [
                 'sector_id' => $this->sectorId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             $this->patientsWithExpiredScales = [];
             $this->totalExpired = 0;
@@ -165,12 +173,12 @@ class ExpiredScalesModal extends Component
 
     private function isScaleExpired(array $patient, string $scale): bool
     {
-        return (bool)($patient["{$scale}_needs_assessment"] ?? false);
+        return (bool) ($patient["{$scale}_needs_assessment"] ?? false);
     }
 
     public function refresh()
     {
-        $cacheKey = "expired_scales_sector_{$this->sectorId}_" . now()->format('YmdHi');
+        $cacheKey = "expired_scales_sector_{$this->sectorId}_".now()->format('YmdHi');
         Cache::forget($cacheKey);
 
         $previousMinute = now()->subMinute()->format('YmdHi');

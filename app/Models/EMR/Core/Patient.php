@@ -1,20 +1,30 @@
 <?php
+
 namespace App\Models\EMR\Core;
 
 use App\Models\EMR\CPOE\Appointment;
-use App\Services\TasyService;
+use App\Models\EMR\CPOE\Hemotherapy;
+use App\Models\EMR\CPOE\Prescription;
+use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany, HasOne};
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Cache;
 
 class Patient extends Model
 {
     protected $connection = 'tasy';
+
     protected $table = 'TASY.ATENDIMENTO_PACIENTE';
+
     protected $primaryKey = 'nr_atendimento';
+
     public $incrementing = false;
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     protected TasyService $tasyService;
@@ -70,12 +80,12 @@ class Patient extends Model
     // Relações com ordens médicas (Prescrições, Hemoterapia)
     public function prescriptions(): HasMany
     {
-        return $this->hasMany(\App\Models\EMR\CPOE\Prescription::class, 'nr_atendimento', 'nr_atendimento');
+        return $this->hasMany(Prescription::class, 'nr_atendimento', 'nr_atendimento');
     }
 
     public function hemotherapies(): HasMany
     {
-        return $this->hasMany(\App\Models\EMR\CPOE\Hemotherapy::class, 'nr_atendimento', 'nr_atendimento');
+        return $this->hasMany(Hemotherapy::class, 'nr_atendimento', 'nr_atendimento');
     }
 
     public function appointments(): HasMany
@@ -94,7 +104,9 @@ class Patient extends Model
     public function isPediatric(): bool
     {
         $dob = $this->person?->dt_nascimento ?? null;
-        if (!$dob) return false;
+        if (! $dob) {
+            return false;
+        }
 
         try {
             return Carbon::parse($dob)->age < 18;
@@ -109,7 +121,7 @@ class Patient extends Model
      */
     public function getFullPatientDataWithoutCPOE(int $attendanceNumber): ?object
     {
-        if (!$attendanceNumber) {
+        if (! $attendanceNumber) {
             return null;
         }
 
@@ -122,7 +134,7 @@ class Patient extends Model
      */
     public function getPatientRecomendacoes(int $attendanceNumber): ?object
     {
-        if (!$attendanceNumber) {
+        if (! $attendanceNumber) {
             return null;
         }
 

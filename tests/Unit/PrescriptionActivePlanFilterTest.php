@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Repositories\EMR\PatientTherapeuticPlanRepository;
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -11,7 +11,7 @@ class PrescriptionActivePlanFilterTest extends TestCase
     #[Test]
     public function therapeutic_orders_query_applies_recent_release_guard_in_main_and_dedup_filters(): void
     {
-        $repository = new PatientTherapeuticPlanRepository;
+        $repository = new PatientPrescriptionsRepository;
 
         $method = new \ReflectionMethod($repository, 'ordersQuery');
         $method->setAccessible(true);
@@ -32,7 +32,7 @@ class PrescriptionActivePlanFilterTest extends TestCase
     #[Test]
     public function therapeutic_gasotherapy_and_dialysis_queries_limit_null_end_date_to_recent_releases(): void
     {
-        $repository = new PatientTherapeuticPlanRepository;
+        $repository = new PatientPrescriptionsRepository;
 
         $gasotherapyMethod = new \ReflectionMethod($repository, 'gasotherapyQuery');
         $gasotherapyMethod->setAccessible(true);

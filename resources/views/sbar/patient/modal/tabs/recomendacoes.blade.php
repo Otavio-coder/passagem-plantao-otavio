@@ -1,19 +1,19 @@
 @props([
     'planLoaded'         => false,
     'planError'          => false,
-    'therapeuticPlan'    => null,
+    'prescriptions'      => null,
     'scheduleDate'       => '',
     'medicationSchedule' => [],
 ])
 
-{{-- window.therapeuticPlan is registered via @script in modal/index.blade.php (the Livewire component view) --}}
+{{-- window.therapeuticPlan (Alpine component) is registered via @script in modal/index.blade.php --}}
 
 <div class="p-3 sm:p-4 lg:p-6 h-full overflow-y-auto">
 
-    @if($planLoaded && $therapeuticPlan)
+    @if($planLoaded && $prescriptions)
 
         @include('sbar.patient.modal.tabs.recomendacoes.plan', [
-            'plan'               => $therapeuticPlan,
+            'plan'               => $prescriptions,
             'scheduleDate'       => $scheduleDate,
             'medicationSchedule' => $medicationSchedule,
         ])
@@ -29,7 +29,7 @@
             </div>
             <p class="text-sm font-medium text-gray-700 mb-1">Falha ao carregar o plano terapêutico</p>
             <p class="text-xs text-gray-400 mb-4">Verifique sua conexão e tente novamente.</p>
-            <button wire:click="reloadTherapeuticPlan"
+            <button wire:click="reloadPrescriptions"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

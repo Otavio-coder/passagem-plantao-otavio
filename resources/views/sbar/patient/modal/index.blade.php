@@ -237,7 +237,7 @@
                             <x-sbar::recomendacoes
                                 :planLoaded="$planLoaded"
                                 :planError="$planError"
-                                :therapeuticPlan="$therapeuticPlan"
+                                :prescriptions="$prescriptions"
                                 :scheduleDate="$scheduleDate"
                                 :medicationSchedule="$medicationSchedule"
                             />

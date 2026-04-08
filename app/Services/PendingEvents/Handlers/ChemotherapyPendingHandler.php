@@ -2,24 +2,19 @@
 
 namespace App\Services\PendingEvents\Handlers;
 
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Services\PendingEvents\AbstractPendingHandler;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Sessões de quimioterapia agendadas nos próximos 30 dias.
  *
- * Fonte: agenda_quimioterapia_pep_v (view Tasy que agrega sessões por cd_pessoa_fisica)
- *
- * Performance:
- *   - Versão anterior fazia 2 round-trips por chunk:
- *       1. SELECT cd_pessoa_fisica FROM atendimento_paciente WHERE nr_atendimento IN (...)
- *       2. SELECT ... FROM agenda_quimioterapia_pep_v WHERE cd_pessoa_fisica IN (...)
- *   - Versão atual: único JOIN no Oracle — atendimento_paciente é consultado uma vez
- *     com index scan em nr_atendimento (PK) e o otimizador aplica o hash join com a view.
+ * Fonte: PatientPrescriptionsRepository::queryChemotherapyChunk()
  */
 class ChemotherapyPendingHandler extends AbstractPendingHandler
 {
+    public function __construct(private readonly PatientPrescriptionsRepository $repository) {}
+
     protected function handlerName(): string
     {
         return 'Quimioterapia';
@@ -28,21 +23,7 @@ class ChemotherapyPendingHandler extends AbstractPendingHandler
     protected function processChunk(array &$results, array $chunk): void
     {
         try {
-            $rows = DB::connection('tasy')->select("
-                SELECT
-                    ap.nr_atendimento,
-                    aq.dt_agenda            AS dt_evento,
-                    aq.ds_local,
-                    aq.nm_medico_resp,
-                    aq.ds_protocolo_medic,
-                    aq.nr_ciclo
-                FROM tasy.atendimento_paciente ap
-                JOIN tasy.agenda_quimioterapia_pep_v aq
-                    ON aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
-                WHERE ap.nr_atendimento IN ({$this->placeholders($chunk)})
-                    AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 30
-                ORDER BY ap.nr_atendimento, aq.dt_agenda
-            ", $chunk);
+            $rows = $this->repository->queryChemotherapyChunk($chunk);
 
             foreach ($rows as $row) {
                 if (! isset($results[$row->nr_atendimento])) {

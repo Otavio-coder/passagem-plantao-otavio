@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Livewire\SbarReport;
 use App\Models\System\User;
 use App\Models\System\UserSectorPreference;
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;

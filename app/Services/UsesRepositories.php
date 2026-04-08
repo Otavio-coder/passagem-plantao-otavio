@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Repositories\EMR\PatientAlertsRepository;
 use App\Repositories\EMR\PatientClinicalRepository;
 use App\Repositories\EMR\PatientMultidisciplinaryRepository;
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
-use App\Repositories\EMR\PatientTherapeuticPlanRepository;
 use App\Repositories\MySQL\UserRepository;
 
 trait UsesRepositories
@@ -67,8 +67,8 @@ trait UsesRepositories
         return $this->getRepo(PatientMultidisciplinaryRepository::class);
     }
 
-    public function therapeuticPlan(): PatientTherapeuticPlanRepository
+    public function prescriptions(): PatientPrescriptionsRepository
     {
-        return $this->getRepo(PatientTherapeuticPlanRepository::class);
+        return $this->getRepo(PatientPrescriptionsRepository::class);
     }
 }

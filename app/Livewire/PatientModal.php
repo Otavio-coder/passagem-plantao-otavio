@@ -4,7 +4,7 @@ namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
 use App\Services\ShiftService;
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -31,8 +31,8 @@ class PatientModal extends Component
 
     public $loadingPatient = false;
 
-    /** @var array|null Therapeutic plan data (medications, nutrition, orders, interventions, procedures) */
-    public $therapeuticPlan = null;
+    /** @var array|null Prescriptions data (medications, nutrition, orders, interventions, procedures, etc.) */
+    public $prescriptions = null;
 
     public bool $planLoaded = false;
 
@@ -152,7 +152,7 @@ class PatientModal extends Component
         }
 
         $this->loadingPatient = false;
-        $this->loadTherapeuticPlanData($attendanceNumber);
+        $this->loadPrescriptionsData($attendanceNumber);
 
         $this->dispatch('patient-data-loaded', [
             'patientId' => $attendanceNumber,
@@ -163,10 +163,10 @@ class PatientModal extends Component
     }
 
     /**
-     * Retries loading the therapeutic plan after a failure.
+     * Retries loading prescriptions after a failure.
      * Clears the (possibly corrupt) cache entry first.
      */
-    public function reloadTherapeuticPlan(): void
+    public function reloadPrescriptions(): void
     {
         if (! $this->currentPatient) {
             return;
@@ -177,12 +177,13 @@ class PatientModal extends Component
             return;
         }
 
-        Cache::forget("patient_therapeutic_plan_{$nr}");
-        Cache::forget("patient_therapeutic_plan_v2_{$nr}");
+        Cache::forget("patient_prescriptions_v4_{$nr}");
+        Cache::forget("patient_therapeutic_plan_{$nr}"); // legacy eviction
+        Cache::forget("patient_therapeutic_plan_v4_{$nr}"); // legacy eviction
 
         $this->planLoaded = false;
         $this->planError = false;
-        $this->loadTherapeuticPlanData($nr);
+        $this->loadPrescriptionsData($nr);
     }
 
     /**
@@ -202,26 +203,26 @@ class PatientModal extends Component
     }
 
     /**
-     * Loads the therapeutic plan from TasyService (Redis cache first, Oracle fallback).
+     * Loads patient prescriptions from TasyService (Redis cache first, Oracle fallback).
      * Called synchronously inside openModal so data is ready on first render.
      */
-    private function loadTherapeuticPlanData(int $nr): void
+    private function loadPrescriptionsData(int $nr): void
     {
         if (! $nr) {
             return;
         }
 
         try {
-            $this->therapeuticPlan = $this->tasyService->getTherapeuticPlan($nr);
+            $this->prescriptions = $this->tasyService->getPatientPrescriptions($nr);
             $this->planLoaded = true;
             $this->planError = false;
             $this->loadMedicationSchedule();
         } catch (\Throwable $e) {
-            Log::error('PatientModal: Failed to load therapeutic plan', [
+            Log::error('PatientModal: Failed to load patient prescriptions', [
                 'attendance' => $nr,
                 'error' => $e->getMessage(),
             ]);
-            $this->therapeuticPlan = null;
+            $this->prescriptions = null;
             $this->planLoaded = false;
             $this->planError = true;
         }
@@ -288,7 +289,7 @@ class PatientModal extends Component
             }
 
             $this->loadingPatient = false;
-            $this->loadTherapeuticPlanData($attendanceNumber);
+            $this->loadPrescriptionsData($attendanceNumber);
 
             $this->dispatch('patient-data-loaded', [
                 'patientId' => $attendanceNumber,
@@ -362,7 +363,7 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
 
-        $this->therapeuticPlan = null;
+        $this->prescriptions = null;
         $this->planLoaded = false;
         $this->planError = false;
         $this->scheduleDate = now()->format('Y-m-d');
@@ -381,7 +382,7 @@ class PatientModal extends Component
 
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
 
-        $this->therapeuticPlan = null;
+        $this->prescriptions = null;
         $this->planLoaded = false;
         $this->planError = false;
         $this->medicationSchedule = [];

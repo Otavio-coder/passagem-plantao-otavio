@@ -7,26 +7,32 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Fetches the complete therapeutic plan for a patient using separate query methods
- * per category (not UNION ALL). Includes gasotherapy and dialysis.
+ * Single source of truth for all prescription-related Tasy (Oracle) data.
  *
- * Categories returned:
+ * Exposes two modes:
+ *   1. Single-patient (for patient modal): getPrescriptions() runs 10 separate queries
+ *      and returns full-detail formatted data for all categories.
+ *   2. Batch / sector (for pending event handlers): queryXxxChunk() methods accept an
+ *      already-chunked attendance list and return raw stdClass rows — the handler
+ *      is responsible for transforming them into pending events.
+ *
+ * Categories (single-patient):
  *   medications   – CPOE_MATERIAL (active only, with NR_PRESCRICAO)
  *   nutrition     – CPOE_DIETA (dietary / enteral / fasting prescriptions)
  *   orders        – CPOE_RECOMENDACAO (standing medical orders)
  *   interventions – CPOE_INTERVENCAO (nursing care interventions)
- *   procedures    – PRESCR_PROCEDIMENTO UNION AGENDA_PACIENTE (exams + surgeries as procedures)
+ *   procedures    – PRESCR_PROCEDIMENTO UNION AGENDA_PACIENTE (exams + procedures)
  *   hemotherapy   – CPOE_HEMOTERAPIA (blood product orders)
  *   surgery       – AGENDA_PACIENTE (future surgeries)
  *   chemotherapy  – AGENDA_QUIMIOTERAPIA_PEP_V (upcoming chemo sessions)
  *   gasotherapy   – CPOE_GASOTERAPIA (active gas therapy)
  *   dialysis      – CPOE_DIALISE (active dialysis)
  */
-class PatientTherapeuticPlanRepository
+class PatientPrescriptionsRepository
 {
-    // ==================== PUBLIC API ====================
+    // ==================== SINGLE-PATIENT API (modal) ====================
 
-    public function getTherapeuticPlan(int $attendanceNumber): array
+    public function getPrescriptions(int $attendanceNumber): array
     {
         $nr = $attendanceNumber;
 
@@ -1436,5 +1442,222 @@ class PatientTherapeuticPlanRepository
         }
 
         return $schedule;
+    }
+
+    // ==================== BATCH QUERIES (pending event handlers) ====================
+
+    /**
+     * Hemotherapy scheduled in the next 48h for a chunk of attendances.
+     * Used by HemotherapyPendingHandler.
+     *
+     * @param  int[]  $chunk  Already-chunked attendance numbers (max ~200)
+     * @return \stdClass[]
+     */
+    public function queryHemotherapyChunk(array $chunk): array
+    {
+        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+        return DB::connection('tasy')->select("
+            SELECT
+                ch.nr_atendimento,
+                ch.dt_programada AS dt_evento,
+                ch.ie_tipo_hemoterap,
+                ch.ds_procedimento_prescrito,
+                ch.ds_observacao,
+                ch.ds_observacao_proc,
+                ch.ds_horarios,
+                ch.qt_vol_hemocomp,
+                ch.ie_via_aplicacao,
+                va.ds_via_aplicacao AS via_aplicacao,
+                ch.ie_urgencia,
+                sa.ds_setor_atendimento AS setor_execucao
+            FROM tasy.cpoe_hemoterapia ch
+            LEFT JOIN tasy.via_aplicacao va
+                ON va.ie_via_aplicacao = ch.ie_via_aplicacao
+               AND va.ie_situacao = 'A'
+            LEFT JOIN tasy.setor_atendimento sa
+                ON sa.cd_setor_atendimento = ch.cd_setor_atendimento
+            WHERE ch.nr_atendimento IN ({$placeholders})
+              AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
+              AND ch.dt_suspensao IS NULL
+        ", $chunk);
+    }
+
+    /**
+     * Chemotherapy sessions scheduled in the next 30 days for a chunk of attendances.
+     * Used by ChemotherapyPendingHandler.
+     *
+     * @param  int[]  $chunk
+     * @return \stdClass[]
+     */
+    public function queryChemotherapyChunk(array $chunk): array
+    {
+        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+        return DB::connection('tasy')->select("
+            SELECT
+                ap.nr_atendimento,
+                aq.dt_agenda            AS dt_evento,
+                aq.ds_local,
+                aq.nm_medico_resp,
+                aq.ds_protocolo_medic,
+                aq.nr_ciclo
+            FROM tasy.atendimento_paciente ap
+            JOIN tasy.agenda_quimioterapia_pep_v aq
+                ON aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
+            WHERE ap.nr_atendimento IN ({$placeholders})
+                AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 30
+            ORDER BY ap.nr_atendimento, aq.dt_agenda
+        ", $chunk);
+    }
+
+    /**
+     * Pending antibiotic administration slots for today, for a chunk of attendances.
+     * Used by AntibioticPendingHandler.
+     *
+     * Returns one row per pending slot (already filtered by HAVING priority < 400).
+     *
+     * @param  int[]  $chunk
+     * @return \stdClass[]
+     */
+    public function queryAntibioticsChunk(array $chunk): array
+    {
+        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+        return DB::connection('tasy')->select("
+            SELECT
+                nr_atendimento,
+                med_id,
+                descricao,
+                dt_horario,
+                qt_dose,
+                cd_unidade_medida_dose,
+                ie_via_aplicacao,
+                nr_dia_util,
+                MAX(priority) AS priority
+            FROM (
+                SELECT
+                    cm.nr_atendimento,
+                    cm.nr_sequencia                                                          AS med_id,
+                    INITCAP(TRIM(REGEXP_REPLACE(m.ds_material, '\\s*&&\\s*\$', '')))        AS descricao,
+                    pmh.dt_horario,
+                    cm.qt_dose,
+                    cm.cd_unidade_medida                                                     AS cd_unidade_medida_dose,
+                    cm.ie_via_aplicacao,
+                    cm.nr_dia_util,
+                    CASE pma.ie_alteracao
+                        WHEN 3  THEN 600
+                        WHEN 58 THEN 500
+                        WHEN 8  THEN 400
+                        WHEN 38 THEN 300
+                        WHEN 4  THEN 200
+                        WHEN 10 THEN  30
+                        WHEN 15 THEN  20
+                        ELSE           1
+                    END                                                                      AS priority
+                FROM tasy.cpoe_material cm
+                JOIN tasy.material m          ON m.cd_material       = cm.cd_material
+                JOIN tasy.material m_stock    ON m_stock.cd_material = m.cd_material_estoque
+                JOIN tasy.medic_ficha_tecnica mf ON mf.nr_sequencia  = m_stock.nr_seq_ficha_tecnica
+                JOIN tasy.prescr_material pm  ON pm.nr_seq_mat_cpoe  = cm.nr_sequencia
+                JOIN tasy.prescr_mat_hor pmh
+                    ON pmh.nr_prescricao  = pm.nr_prescricao
+                   AND pmh.nr_seq_material = pm.nr_sequencia
+                LEFT JOIN tasy.prescr_mat_alteracao pma
+                    ON pma.nr_seq_horario  = pmh.nr_sequencia
+                   AND pma.nr_prescricao   = pmh.nr_prescricao
+                   AND pma.nr_seq_prescricao = pm.nr_sequencia
+                   AND NVL(pma.ie_alteracao, 0) NOT IN (5, 12)
+                WHERE cm.nr_atendimento IN ({$placeholders})
+                  AND mf.ie_antimicrobiano = 'S'
+                  AND cm.dt_liberacao      IS NOT NULL
+                  AND cm.dt_suspensao      IS NULL
+                  AND TRUNC(pmh.dt_horario) = TRUNC(SYSDATE)
+            )
+            GROUP BY nr_atendimento, med_id, descricao, dt_horario,
+                     qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
+            HAVING MAX(priority) < 400
+            ORDER BY nr_atendimento, dt_horario
+        ", $chunk);
+    }
+
+    /**
+     * Scheduled surgeries and exams (agenda_paciente) in the next 30 days for a chunk.
+     * Used by AgendaPendingHandler.
+     *
+     * @param  int[]  $chunk
+     * @return \stdClass[]
+     */
+    public function queryAgendaChunk(array $chunk): array
+    {
+        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+
+        return DB::connection('tasy')->select("
+            SELECT
+                atp.nr_atendimento,
+                CASE
+                    WHEN ap.ie_carater_cirurgia IS NOT NULL
+                     AND ap.ie_carater_cirurgia <> 'X'
+                    THEN 'cirurgia'
+                    ELSE 'exame'
+                END                                      AS tipo,
+                ap.dt_agenda                             AS dt_evento,
+                ap.hr_inicio,
+                ap.ds_cirurgia,
+                ap.ds_observacao,
+                ap.ie_carater_cirurgia,
+                ap.ie_status_agenda,
+                ap.nr_seq_proc_interno,
+                ap.nr_seq_sala,
+                NVL(
+                    TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
+                    NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
+                ) AS cd_setor_execucao,
+                TASY.OBTER_DS_SETOR_ATENDIMENTO(
+                    NVL(
+                        TASY.OBTER_SETOR_PRESCR_AGENDA(ap.nr_sequencia),
+                        NVL(TASY.OBTER_SETOR_AGENDA(ap.cd_agenda), ap.cd_setor_atendimento)
+                    )
+                ) AS ds_setor_execucao,
+                COALESCE(
+                    TASY.OBTER_TIPO_CIRUR_PROC(ap.nr_seq_proc_interno),
+                    (
+                        SELECT MAX(p.cd_tipo_procedimento)
+                        FROM tasy.procedimento p
+                        WHERE p.cd_procedimento = ap.cd_procedimento
+                          AND p.ie_origem_proced = ap.ie_origem_proced
+                    )
+                ) AS cd_tipo_cirurgia,
+                COALESCE(
+                    TASY.OBTER_CIRURGIA_PACIENTE(ap.nr_atendimento, 'AA'),
+                    pi.ds_proc_exame,
+                    proced.ds_procedimento,
+                    ap.ds_cirurgia
+                )                                        AS descricao_proc,
+                pi.nr_seq_exame_lab
+            FROM tasy.agenda_paciente ap
+            JOIN tasy.atendimento_paciente atp
+                ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
+            LEFT JOIN tasy.proc_interno pi
+                ON pi.nr_sequencia = ap.nr_seq_proc_interno
+            LEFT JOIN (
+                SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento
+                FROM tasy.procedimento
+                GROUP BY cd_procedimento
+            ) proced ON proced.cd_procedimento = ap.cd_procedimento
+                     AND ap.nr_seq_proc_interno IS NULL
+            WHERE atp.nr_atendimento IN ({$placeholders})
+                AND ap.dt_agenda >= TRUNC(SYSDATE)
+                AND ap.dt_agenda <= SYSDATE + 30
+                AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
+                AND ap.dt_executada IS NULL
+                AND (
+                    (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')
+                    OR
+                    (ap.ie_carater_cirurgia IS NULL
+                     AND (ap.nr_seq_proc_interno IS NOT NULL OR ap.cd_procedimento IS NOT NULL))
+                )
+            ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
+        ", $chunk);
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

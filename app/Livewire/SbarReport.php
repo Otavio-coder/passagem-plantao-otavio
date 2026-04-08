@@ -5,7 +5,7 @@ namespace App\Livewire;
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use App\Services\ShiftService;
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use App\Support\PendingEventPresentation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;

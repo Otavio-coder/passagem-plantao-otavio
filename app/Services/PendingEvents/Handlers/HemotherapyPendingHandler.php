@@ -2,14 +2,14 @@
 
 namespace App\Services\PendingEvents\Handlers;
 
+use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Services\PendingEvents\AbstractPendingHandler;
 use App\Support\PendingEventPresentation;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Pendências de hemoterapia programada nas próximas 48h.
  *
- * Fonte: cpoe_hemoterapia
+ * Fonte: PatientPrescriptionsRepository::queryHemotherapyChunk()
  * Janela: SYSDATE até SYSDATE + 2 (48h)
  * Urgência: campo ie_urgencia = 'S'
  */
@@ -24,6 +24,8 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
         '5' => 'Concentrado de Granulócitos',
     ];
 
+    public function __construct(private readonly PatientPrescriptionsRepository $repository) {}
+
     protected function handlerName(): string
     {
         return 'Hemoterapia';
@@ -31,30 +33,7 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
 
     protected function processChunk(array &$results, array $chunk): void
     {
-        $rows = DB::connection('tasy')->select("
-            SELECT
-                ch.nr_atendimento,
-                ch.dt_programada AS dt_evento,
-                ch.ie_tipo_hemoterap,
-                ch.ds_procedimento_prescrito,
-                ch.ds_observacao,
-                ch.ds_observacao_proc,
-                ch.ds_horarios,
-                ch.qt_vol_hemocomp,
-                ch.ie_via_aplicacao,
-                va.ds_via_aplicacao AS via_aplicacao,
-                ch.ie_urgencia,
-                sa.ds_setor_atendimento AS setor_execucao
-            FROM tasy.cpoe_hemoterapia ch
-            LEFT JOIN tasy.via_aplicacao va
-                ON va.ie_via_aplicacao = ch.ie_via_aplicacao
-               AND va.ie_situacao = 'A'
-            LEFT JOIN tasy.setor_atendimento sa
-                ON sa.cd_setor_atendimento = ch.cd_setor_atendimento
-            WHERE ch.nr_atendimento IN ({$this->placeholders($chunk)})
-              AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
-              AND ch.dt_suspensao IS NULL
-        ", $chunk);
+        $rows = $this->repository->queryHemotherapyChunk($chunk);
 
         foreach ($rows as $row) {
             if (! isset($results[$row->nr_atendimento])) {

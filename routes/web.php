@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\ChatArchiveController;
 use App\Http\Controllers\ExportController;
-use App\Http\Controllers\PatientTherapeuticPlanController;
+use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SectorWarmController;
@@ -30,10 +30,10 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     // Rotas SBAR - Fora do grupo de administração
     Route::view('/sbar', 'sbar.report.page')->name('sbar.report');
 
-    // Therapeutic Plan – batch cache warm (called by SBAR page after sector loads)
-    Route::post('/patient-care/therapeutic-plan/warm',
-        [PatientTherapeuticPlanController::class, 'warmCache'])
-        ->name('patient.therapeutic-plan.warm');
+    // Prescriptions – batch cache warm (called by SBAR page after sector loads)
+    Route::post('/patient-care/prescriptions/warm',
+        [PatientPrescriptionsController::class, 'warmCache'])
+        ->name('patient.prescriptions.warm');
 
     // Sector cache warm – pre-warms other user sectors in the background
     Route::post('/sectors/warm',

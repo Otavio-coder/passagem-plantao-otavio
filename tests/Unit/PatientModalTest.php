@@ -3,7 +3,7 @@
 namespace Tests\Unit;
 
 use App\Livewire\PatientModal;
-use App\Services\TasyService;
+use App\Services\Tasy\TasyService;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
@@ -29,7 +29,7 @@ class PatientModalTest extends TestCase
             ->once()
             ->with($attendanceNumber, $personId)
             ->andReturn([]);
-        $tasyService->shouldReceive('getTherapeuticPlan')
+        $tasyService->shouldReceive('getPatientPrescriptions')
             ->once()
             ->with($attendanceNumber)
             ->andReturn([]);

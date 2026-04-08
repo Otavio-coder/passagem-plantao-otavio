@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Tasy;
 
 use App\Models\EMR\Core\Patient;
 use App\Models\EMR\Core\Sector;
-use App\Services\Tasy\TasyFormatter;
+use App\Services\UsesRepositories;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +22,7 @@ class TasyService
 
     private const SBAR_CACHE_VERSION = 2;
 
-    private const THERAPEUTIC_PLAN_CACHE_VERSION = 4;
+    private const PRESCRIPTIONS_CACHE_VERSION = 4;
 
     private TasyFormatter $formatter;
 
@@ -103,21 +103,20 @@ class TasyService
     }
 
     /**
-     * Fetches the complete therapeutic plan for a patient (single UNION ALL query, cached).
-     * Replaces the 5-query approach from getPatientRecomendacoesData.
+     * Fetches all prescriptions for a patient (medications, procedures, nutrition, etc.).
      *
-     * Cache key: patient_therapeutic_plan_v{version}_{nr} — 10 min TTL
+     * Cache key: patient_prescriptions_v{version}_{nr} — 10 min TTL
      */
-    public function getTherapeuticPlan(int $attendanceNumber): array
+    public function getPatientPrescriptions(int $attendanceNumber): array
     {
         if (! $attendanceNumber) {
             return [];
         }
 
-        $cacheKey = $this->therapeuticPlanCacheKey($attendanceNumber);
+        $cacheKey = $this->prescriptionsCacheKey($attendanceNumber);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
-            return $this->therapeuticPlan()->getTherapeuticPlan($attendanceNumber);
+            return $this->prescriptions()->getPrescriptions($attendanceNumber);
         });
     }
 
@@ -136,16 +135,16 @@ class TasyService
         $cacheKey = "patient_med_schedule_{$attendanceNumber}_{$date}";
 
         return Cache::remember($cacheKey, 180, function () use ($attendanceNumber, $date) {
-            return $this->therapeuticPlan()->getDailyMedicationSchedule($attendanceNumber, $date);
+            return $this->prescriptions()->getDailyMedicationSchedule($attendanceNumber, $date);
         });
     }
 
     /**
-     * Pre-warms the therapeutic plan cache for a batch of patients.
+     * Pre-warms the prescriptions cache for a batch of patients.
      * Called by the SBAR page after the sector loads so modal opens are instant.
      * Returns the number of patients whose cache was populated (skips already cached).
      */
-    public function batchWarmTherapeuticPlans(array $attendanceNumbers): int
+    public function batchWarmPatientPrescriptions(array $attendanceNumbers): int
     {
         $warmed = 0;
 
@@ -155,18 +154,18 @@ class TasyService
                 continue;
             }
 
-            $cacheKey = $this->therapeuticPlanCacheKey($nr);
+            $cacheKey = $this->prescriptionsCacheKey($nr);
             if (Cache::has($cacheKey)) {
                 continue;
             }
 
             try {
                 Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($nr) {
-                    return $this->therapeuticPlan()->getTherapeuticPlan($nr);
+                    return $this->prescriptions()->getPrescriptions($nr);
                 });
                 $warmed++;
             } catch (\Throwable $e) {
-                Log::warning('TasyService: Failed to warm therapeutic plan', [
+                Log::warning('TasyService: Failed to warm patient prescriptions', [
                     'attendance' => $nr,
                     'error' => $e->getMessage(),
                 ]);
@@ -214,8 +213,9 @@ class TasyService
     {
         $keys = [
             "patient_basic_modal_{$attendanceNumber}",
-            $this->therapeuticPlanCacheKey($attendanceNumber),
-            "patient_therapeutic_plan_{$attendanceNumber}", // backward compatibility (old key)
+            $this->prescriptionsCacheKey($attendanceNumber),
+            "patient_therapeutic_plan_{$attendanceNumber}", // legacy key (kept for cache eviction)
+            "patient_therapeutic_plan_v4_{$attendanceNumber}", // legacy key (kept for cache eviction)
         ];
 
         foreach ($keys as $key) {
@@ -242,9 +242,9 @@ class TasyService
         }
     }
 
-    private function therapeuticPlanCacheKey(int $attendanceNumber): string
+    private function prescriptionsCacheKey(int $attendanceNumber): string
     {
-        return 'patient_therapeutic_plan_v'.self::THERAPEUTIC_PLAN_CACHE_VERSION."_{$attendanceNumber}";
+        return 'patient_prescriptions_v'.self::PRESCRIPTIONS_CACHE_VERSION."_{$attendanceNumber}";
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA FETCHING ====================

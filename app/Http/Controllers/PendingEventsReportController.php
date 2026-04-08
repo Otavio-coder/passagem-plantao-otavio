@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\System\UserSectorPreference;
-use App\Services\PatientPendingEventsService;
-use App\Services\TasyService;
+use App\Services\PendingEvents\PatientPendingEventsService;
+use App\Services\Tasy\TasyService;
 use App\Support\PendingEventPresentation;
 use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;

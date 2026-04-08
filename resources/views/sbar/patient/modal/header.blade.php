@@ -59,17 +59,13 @@
         {{-- Patient name row --}}
         @if($currentPatient && ($currentPatient['has_patient'] ?? false))
         <div class="mt-2 pt-2 border-t border-white/20 flex items-center gap-2 min-w-0">
-            @php
-                $socialName = $currentPatient['nm_social'] ?? null;
-                $legalName  = $currentPatient['nm_pessoa_fisica'] ?? null;
-            @endphp
-            @if($socialName)
+            @if(!empty($currentPatient['nm_social'] ?? null))
                 <i class="fa-solid fa-user text-white/60 flex-shrink-0" style="font-size:11px;"></i>
-                <span class="text-white font-bold text-sm leading-tight truncate">{{ $socialName }}</span>
-                <span class="text-blue-200/80 text-xs leading-tight truncate">({{ $legalName }})</span>
-            @elseif($legalName)
+                <span class="text-white font-bold text-sm leading-tight truncate">{{ $currentPatient['nm_social'] }}</span>
+                <span class="text-blue-200/80 text-xs leading-tight truncate">({{ $currentPatient['nm_pessoa_fisica'] ?? '-' }})</span>
+            @elseif(!empty($currentPatient['nm_pessoa_fisica'] ?? null))
                 <i class="fa-solid fa-user text-white/60 flex-shrink-0" style="font-size:11px;"></i>
-                <span class="text-white font-bold text-sm leading-tight truncate">{{ $legalName }}</span>
+                <span class="text-white font-bold text-sm leading-tight truncate">{{ $currentPatient['nm_pessoa_fisica'] }}</span>
             @endif
         </div>
         @endif

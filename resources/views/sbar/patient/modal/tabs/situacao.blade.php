@@ -159,142 +159,84 @@
                         </div>
                     </div>
 
-                    @php
-                        $isPediatricPatient = isset($patientDetails->age) && intval($patientDetails->age) < 18;
-                    @endphp
-
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {{-- MEWS (adultos) ou PEWS (pediátricos) --}}
-                        @if(!$isPediatricPatient)
-                            @php
-                                $score = $patientDetails->mews_score ?? null;
-                                $prevScore = $patientDetails->mews_previous_score ?? null;
-                                $styling = $patientDetails->mews_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                                $increased = $patientDetails->mews_increased ?? false;
-                                $timestamp = $patientDetails->mews_timestamp ?? null;
-                                $prevTimestamp = $patientDetails->mews_previous_timestamp ?? null;
-                                $classification = $patientDetails->mews_classification ?? null;
-                            @endphp
+                        @if(intval($patientDetails->age ?? 0) >= 18)
                             <x-ui.scale-card
                                 title="MEWS"
                                 subtitle="Modified Early Warning Score"
-                                :score="$score"
-                                :previousScore="$prevScore"
-                                :styling="$styling"
-                                :increased="$increased"
-                                :timestamp="$timestamp"
-                                :previousTimestamp="$prevTimestamp"
-                                :classification="$classification"
+                                :score="$patientDetails->mews_score ?? null"
+                                :previousScore="$patientDetails->mews_previous_score ?? null"
+                                :styling="$patientDetails->mews_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                                :increased="$patientDetails->mews_increased ?? false"
+                                :timestamp="$patientDetails->mews_timestamp ?? null"
+                                :previousTimestamp="$patientDetails->mews_previous_timestamp ?? null"
+                                :classification="$patientDetails->mews_classification ?? null"
                             />
                         @else
-                            @php
-                                $score = $patientDetails->pews_score ?? null;
-                                $prevScore = $patientDetails->pews_previous_score ?? null;
-                                $styling = $patientDetails->pews_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                                $increased = $patientDetails->pews_increased ?? false;
-                                $timestamp = $patientDetails->pews_timestamp ?? null;
-                                $prevTimestamp = $patientDetails->pews_previous_timestamp ?? null;
-                                $classification = $patientDetails->pews_classification ?? null;
-                            @endphp
                             <x-ui.scale-card
                                 title="PEWS"
                                 subtitle="Pediatric Early Warning Score"
-                                :score="$score"
-                                :previousScore="$prevScore"
-                                :styling="$styling"
-                                :increased="$increased"
-                                :timestamp="$timestamp"
-                                :previousTimestamp="$prevTimestamp"
-                                :classification="$classification"
+                                :score="$patientDetails->pews_score ?? null"
+                                :previousScore="$patientDetails->pews_previous_score ?? null"
+                                :styling="$patientDetails->pews_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                                :increased="$patientDetails->pews_increased ?? false"
+                                :timestamp="$patientDetails->pews_timestamp ?? null"
+                                :previousTimestamp="$patientDetails->pews_previous_timestamp ?? null"
+                                :classification="$patientDetails->pews_classification ?? null"
                             />
                         @endif
 
                         {{-- BRADEN --}}
-                        @php
-                            $score = $patientDetails->braden_score ?? null;
-                            $prevScore = $patientDetails->braden_previous_score ?? null;
-                            $styling = $patientDetails->braden_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->braden_increased ?? false;
-                            $timestamp = $patientDetails->braden_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->braden_previous_timestamp ?? null;
-                            $classification = $patientDetails->braden_classification ?? null;
-                        @endphp
                         <x-ui.scale-card
                             title="Braden"
                             subtitle="Escala de Braden"
-                            :score="$score"
-                            :previousScore="$prevScore"
-                            :styling="$styling"
-                            :increased="$increased"
-                            :timestamp="$timestamp"
-                            :previousTimestamp="$prevTimestamp"
-                            :classification="$classification"
+                            :score="$patientDetails->braden_score ?? null"
+                            :previousScore="$patientDetails->braden_previous_score ?? null"
+                            :styling="$patientDetails->braden_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                            :increased="$patientDetails->braden_increased ?? false"
+                            :timestamp="$patientDetails->braden_timestamp ?? null"
+                            :previousTimestamp="$patientDetails->braden_previous_timestamp ?? null"
+                            :classification="$patientDetails->braden_classification ?? null"
                         />
 
                         {{-- MORSE --}}
-                        @php
-                            $score = $patientDetails->morse_score ?? null;
-                            $prevScore = $patientDetails->morse_previous_score ?? null;
-                            $styling = $patientDetails->morse_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->morse_increased ?? false;
-                            $timestamp = $patientDetails->morse_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->morse_previous_timestamp ?? null;
-                            $classification = $patientDetails->morse_classification ?? null;
-                        @endphp
                         <x-ui.scale-card
                             title="Morse"
                             subtitle="Risco de Queda"
-                            :score="$score"
-                            :previousScore="$prevScore"
-                            :styling="$styling"
-                            :increased="$increased"
-                            :timestamp="$timestamp"
-                            :previousTimestamp="$prevTimestamp"
-                            :classification="$classification"
+                            :score="$patientDetails->morse_score ?? null"
+                            :previousScore="$patientDetails->morse_previous_score ?? null"
+                            :styling="$patientDetails->morse_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                            :increased="$patientDetails->morse_increased ?? false"
+                            :timestamp="$patientDetails->morse_timestamp ?? null"
+                            :previousTimestamp="$patientDetails->morse_previous_timestamp ?? null"
+                            :classification="$patientDetails->morse_classification ?? null"
                         />
 
                         {{-- PAIN --}}
-                        @php
-                            $score = $patientDetails->pain_score ?? null;
-                            $prevScore = $patientDetails->pain_previous_score ?? null;
-                            $styling = $patientDetails->pain_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->pain_increased ?? false;
-                            $timestamp = $patientDetails->pain_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->pain_previous_timestamp ?? null;
-                            $classification = $patientDetails->pain_classification ?? null;
-                        @endphp
                         <x-ui.scale-card
                             title="Dor"
                             subtitle="Pain Scale"
-                            :score="$score"
-                            :previousScore="$prevScore"
-                            :styling="$styling"
-                            :increased="$increased"
-                            :timestamp="$timestamp"
-                            :previousTimestamp="$prevTimestamp"
-                            :classification="$classification"
+                            :score="$patientDetails->pain_score ?? null"
+                            :previousScore="$patientDetails->pain_previous_score ?? null"
+                            :styling="$patientDetails->pain_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                            :increased="$patientDetails->pain_increased ?? false"
+                            :timestamp="$patientDetails->pain_timestamp ?? null"
+                            :previousTimestamp="$patientDetails->pain_previous_timestamp ?? null"
+                            :classification="$patientDetails->pain_classification ?? null"
                         />
 
                         {{-- VTE --}}
-                        @php
-                            $score = $patientDetails->vte_score ?? null;
-                            $prevScore = $patientDetails->vte_previous_score ?? null;
-                            $styling = $patientDetails->vte_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
-                            $increased = $patientDetails->vte_increased ?? false;
-                            $timestamp = $patientDetails->vte_timestamp ?? null;
-                            $prevTimestamp = $patientDetails->vte_previous_timestamp ?? null;
-                            $classification = $patientDetails->vte_classification ?? null;
-                        @endphp
                         <x-ui.scale-card
                             title="TEV"
                             subtitle="Tromboembolismo Venoso"
-                            :score="$score"
-                            :previousScore="$prevScore"
-                            :styling="$styling"
-                            :increased="$increased"
-                            :timestamp="$timestamp"
-                            :previousTimestamp="$prevTimestamp"
-                            :classification="$classification"
+                            :score="$patientDetails->vte_score ?? null"
+                            :previousScore="$patientDetails->vte_previous_score ?? null"
+                            :styling="$patientDetails->vte_styling ?? ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800']"
+                            :increased="$patientDetails->vte_increased ?? false"
+                            :timestamp="$patientDetails->vte_timestamp ?? null"
+                            :previousTimestamp="$patientDetails->vte_previous_timestamp ?? null"
+                            :classification="$patientDetails->vte_classification ?? null"
                         />
                     </div>
                 </div>

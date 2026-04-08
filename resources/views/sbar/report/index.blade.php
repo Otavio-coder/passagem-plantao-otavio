@@ -218,16 +218,13 @@
 
                                             {{-- Desktop filters --}}
                                             <div class="hidden lg:block">
-                                                @php
-                                                    $selCls = "bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full";
-                                                @endphp
                                                 <div class="flex flex-wrap items-end gap-3">
 
                                                     {{-- Hospital --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Hospital:</label>
                                                         <select wire:model="selectedHospital" wire:change="changeHospital($event.target.value)"
-                                                                class="{{ $selCls }}">
+                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             @foreach($hospitals as $hospital)
                                                                 <option value="{{ $hospital['hospital_id'] }}">{{ $hospital['hospital_name'] }}</option>
                                                             @endforeach
@@ -238,7 +235,7 @@
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Setor:</label>
                                                         <select wire:model="selectedSector" wire:change="changeSector($event.target.value)"
-                                                                class="{{ $selCls }}">
+                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             @foreach($sectors as $sector)
                                                                 <option value="{{ $sector['cd_setor_atendimento'] }}">{{ $sector['ds_setor_atendimento'] }}</option>
                                                             @endforeach
@@ -248,7 +245,7 @@
                                                     {{-- Criticidade --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Criticidade:</label>
-                                                        <select x-model="mewsFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="mewsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos MEWS</option>
                                                             <option value="critical">CRÍTICOS (≥5)</option>
                                                             <option value="warning">ALERTA (3-4)</option>
@@ -259,7 +256,7 @@
                                                     {{-- Cirurgia --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Cirurgia:</label>
-                                                        <select x-model="surgicalFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="surgicalFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todas Cirurgias</option>
                                                             <option value="with_surgery">COM CIRURGIAS</option>
                                                             <option value="without_surgery">SEM CIRURGIAS</option>
@@ -269,7 +266,7 @@
                                                     {{-- Pendência --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Pendência:</label>
-                                                        <select x-model="pendingTypeFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="pendingTypeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todas</option>
                                                             <option value="hemoterapia">Hemoterapia</option>
                                                             <option value="cirurgia">Cirurgia</option>
@@ -283,7 +280,7 @@
                                                     {{-- Isolamento --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Isolamento:</label>
-                                                        <select x-model="isolationFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="isolationFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos</option>
                                                             <option value="with_isolation">Com isolamento</option>
                                                         </select>
@@ -292,7 +289,7 @@
                                                     {{-- Multidisciplinar --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Multidisciplinar:</label>
-                                                        <select x-model="multiFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="multiFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos</option>
                                                             <option value="fisioterapia">Fisioterapia</option>
                                                             <option value="psicologia">Psicologia</option>
@@ -306,7 +303,7 @@
                                                     {{-- Leitos --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
                                                         <label class="text-white text-sm font-medium mb-1">Leitos:</label>
-                                                        <select x-model="bedsFilter" @change="applyFilters()" class="{{ $selCls }}">
+                                                        <select x-model="bedsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos leitos</option>
                                                             <option value="only_occupied">Só ocupados</option>
                                                             <option value="only_empty">Só vagos</option>
@@ -399,22 +396,6 @@
                                 {{-- Grid de pacientes --}}
                                 <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                                     @foreach($patients as $index => $patient)
-                                        @php
-                                            $cardPendingTypes = collect($patient['pending_events']['events'] ?? [])
-                                                ->pluck('tipo')
-                                                ->map(function ($type) {
-                                                    if ($type === 'proc_exame') {
-                                                        return 'exame';
-                                                    }
-
-                                                    return $type;
-                                                })
-                                                ->unique()
-                                                ->filter()
-                                                ->implode(',');
-                                            $cardMultiTeams = collect($patient['multidisciplinary'] ?? [])
-                                                ->filter()->keys()->implode(',');
-                                        @endphp
                                         <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}"
                                              class="relative patient-card"
                                              data-pid="{{ $index }}"
@@ -422,8 +403,8 @@
                                              data-mews="{{ $patient['mews_score'] ?? ($patient['pews_score'] ?? '') }}"
                                              data-has-surgery="{{ ($patient['has_surgery'] ?? false) ? '1' : '0' }}"
                                              data-has-isolation="{{ ($patient['has_isolation'] ?? false) ? '1' : '0' }}"
-                                             data-pending-types="{{ $cardPendingTypes }}"
-                                             data-multi="{{ $cardMultiTeams }}"
+                                             data-pending-types="{{ $patient['pending_type_filter'] ?? '' }}"
+                                             data-multi="{{ $patient['multi_team_filter'] ?? '' }}"
                                              data-bed="{{ $patient['cd_unidade_basica'] ?? '' }}"
                                              data-bed-seq="{{ $patient['bed_sequence'] ?? 0 }}"
                                              data-internment="{{ $patient['internment_days'] ?? -1 }}"
@@ -450,14 +431,7 @@
                                 </div>
 
                                 {{-- Batch-warm therapeutic plan cache so modal opens are instant --}}
-                                @php
-                                    $visibleAttendances = collect($patients)
-                                        ->pluck('nr_atendimento')
-                                        ->filter()
-                                        ->values()
-                                        ->all();
-                                @endphp
-                                @if(!empty($visibleAttendances))
+                                @if(!empty(collect($patients)->pluck('nr_atendimento')->filter()->values()->all()))
                                 <script>
                                 (function() {
                                     const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
@@ -467,23 +441,16 @@
                                         method:  'POST',
                                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
                                         credentials: 'same-origin',
-                                        body: JSON.stringify({ attendance_numbers: @json($visibleAttendances) }),
+                                        body: JSON.stringify({ attendance_numbers: @json(collect($patients)->pluck('nr_atendimento')->filter()->values()->all()) }),
                                     }).catch(() => {});
 
                                     // 2. Warm other sectors so switching is instant (~5ms cache hit)
-                                    @php
-                                        $otherSectorIds = collect($sectors)
-                                            ->pluck('cd_setor_atendimento')
-                                            ->filter(fn($id) => $id != $selectedSector)
-                                            ->values()
-                                            ->all();
-                                    @endphp
-                                    @if(!empty($otherSectorIds))
+                                    @if(!empty(collect($sectors)->pluck('cd_setor_atendimento')->filter(fn($id) => $id != $selectedSector)->values()->all()))
                                     fetch('/sectors/warm', {
                                         method:  'POST',
                                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
                                         credentials: 'same-origin',
-                                        body: JSON.stringify({ sector_ids: @json($otherSectorIds) }),
+                                        body: JSON.stringify({ sector_ids: @json(collect($sectors)->pluck('cd_setor_atendimento')->filter(fn($id) => $id != $selectedSector)->values()->all()) }),
                                     }).catch(() => {});
                                     @endif
                                 })();

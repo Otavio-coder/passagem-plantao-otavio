@@ -4,6 +4,7 @@ namespace App\Services\Tasy;
 
 use App\Models\EMR\Core\Patient;
 use App\Models\EMR\Core\Sector;
+use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\UsesRepositories;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;

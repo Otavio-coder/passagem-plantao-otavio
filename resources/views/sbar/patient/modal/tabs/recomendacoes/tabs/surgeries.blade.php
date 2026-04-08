@@ -1,6 +1,6 @@
 <div x-show="activeRecomendacaoTab === 'tab-surg'" style="display:none;" class="pt-3">
 
-    @if($surgCount > 0)
+    @if(($planDisplayData['counts']['tab-surg'] ?? 0) > 0)
     <p class="text-[10px] font-bold text-[#7712C7] uppercase tracking-wider mb-2">Cirurgias Agendadas</p>
     <div class="space-y-2">
         @foreach($plan['surgery']['items'] as $surg)
@@ -34,11 +34,8 @@
                         </span>
                         @endif
                     </div>
-                    @php
-                        $surgeryDetail = $surg['observacoes'] ?? $surg['observation'] ?? null;
-                    @endphp
-                    @if(!empty($surgeryDetail))
-                    <p class="text-[10px] text-gray-500 italic mt-1.5">Obs: {{ $surgeryDetail }}</p>
+                    @if(!empty($surg['observacoes'] ?? $surg['observation'] ?? null))
+                    <p class="text-[10px] text-gray-500 italic mt-1.5">Obs: {{ $surg['observacoes'] ?? $surg['observation'] }}</p>
                     @endif
                 </div>
             </div>

@@ -102,63 +102,22 @@
             </div>
         </div>
     @else
-        @php
-            // Derive current shift from the clock (no longer stored on the component)
-            $currentShift = getShiftInfo(now(), 30)['shift'];
-
-            $shiftColors = \App\Services\ShiftService::getShiftColors($currentShift);
-            $shiftLabel  = \App\Services\ShiftService::getShiftLabel($currentShift);
-
-            $accentColor = $shiftColors['accentColor'];
-            $lightAccent = $shiftColors['lightAccent'];
-            $darkAccent  = $shiftColors['darkAccent'];
-
-            $shiftBadge = match($currentShift) {
-                'morning'   => 'MANHÃ',
-                'afternoon' => 'TARDE',
-                'night'     => 'NOITE',
-                default     => strtoupper($currentShift),
-            };
-            $shiftTheme = match($currentShift) {
-                'morning' => [
-                    'iconHtml' => '<i class="fas fa-sun text-white text-sm sm:text-base animate-pulse"></i>',
-                    'gradient' => 'from-amber-400 via-orange-400 to-red-400',
-                ],
-                'afternoon' => [
-                    'iconHtml' => '<i class="fas fa-cloud-sun text-white text-sm sm:text-base"></i>',
-                    'gradient' => 'from-sky-400 via-blue-400 to-cyan-400',
-                ],
-                'night' => [
-                    'iconHtml' => '<i class="fas fa-moon text-white text-sm sm:text-base animate-pulse"></i>',
-                    'gradient' => 'from-indigo-500 via-purple-500 to-violet-600',
-                ],
-                default => [
-                    'iconHtml' => '<i class="fas fa-clock text-white text-sm sm:text-base"></i>',
-                    'gradient' => 'from-gray-400 to-gray-500',
-                ],
-            };
-
-            $msgItems    = collect($messages)->filter(fn($m) => ($m['type'] ?? '') === 'message');
-            $pinned      = $msgItems->filter(fn($m) => (bool)($m['is_pinned'] ?? false));
-            $hasMessages = $msgItems->isNotEmpty();
-            $msgCount    = $msgItems->count();
-        @endphp
 
         <!-- Header -->
         <div class="flex-shrink-0 relative overflow-hidden rounded-none sm:rounded-t-lg">
-            <div class="absolute inset-0 bg-gradient-to-r {{ $shiftTheme['gradient'] }}"></div>
+            <div class="absolute inset-0" style="background: {{ $this->shiftDisplay['gradient_style'] ?? 'linear-gradient(90deg, #9ca3af 0%, #6b7280 100%)' }};"></div>
 
             <div class="relative z-10 text-white p-2 sm:p-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center space-x-2 min-w-0 flex-1">
                         <div class="flex-shrink-0 p-1.5 sm:p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                            {!! $shiftTheme['iconHtml'] !!}
+                            {!! $this->shiftDisplay['icon_html'] !!}
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center space-x-2">
                                 <h3 class="text-sm sm:text-base font-bold tracking-wide">PLANTÃO</h3>
                                 <span class="px-1.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium border border-white/30">
-                                    {{ $shiftBadge }}
+                                    {{ $this->shiftDisplay['badge'] }}
                                 </span>
                             </div>
                             <p class="text-xs text-white/90 font-medium">
@@ -196,8 +155,8 @@
                     <span class="font-medium">Ativo</span>
                 </div>
 
-                @if($msgCount > 0)
-                    <span class="text-xs text-gray-400">{{ $msgCount }} {{ $msgCount === 1 ? 'anotação' : 'anotações' }}</span>
+                @if($this->messageStats['count'] > 0)
+                    <span class="text-xs text-gray-400">{{ $this->messageStats['count'] }} {{ $this->messageStats['count'] === 1 ? 'anotação' : 'anotações' }}</span>
                 @endif
             </div>
         </div>
@@ -224,27 +183,26 @@
                 </div>
             @endif
 
-            @if($hasMessages)
+            @if($this->messageStats['has_messages'])
                 <!-- Pinned message sticky banner -->
-                @if($pinned->count() > 0)
-                    @php $pinnedMsg = $pinned->first(); @endphp
+                @if($this->messageStats['pinned_first'])
                     <div class="sticky top-0 z-10 mb-2">
                         <div class="border-2 border-yellow-400 bg-yellow-50 rounded-lg shadow p-2 transition-all duration-300"
                              :class="{ 'pinned-minimized': pinnedMinimized }">
                             <div class="flex items-start justify-between">
                                 <div class="flex items-start flex-1 min-w-0">
                                     <div class="flex-shrink-0 mr-2">
-                                        <x-ui.user-avatar :photo="$pinnedMsg['photo'] ?? null" :name="$pinnedMsg['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6" />
+                                        <x-ui.user-avatar :photo="$this->messageStats['pinned_first']['photo'] ?? null" :name="$this->messageStats['pinned_first']['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6" />
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center space-x-2 mb-1">
                                             <span class="inline-flex items-center gap-1 text-xs font-bold text-yellow-600"><i class="fas fa-thumbtack fa-xs"></i> Fixada</span>
-                                            <span class="text-xs text-gray-500">{{ $pinnedMsg['time'] ?? '' }}</span>
+                                            <span class="text-xs text-gray-500">{{ $this->messageStats['pinned_first']['time'] ?? '' }}</span>
                                         </div>
                                         <div class="pinned-content">
-                                            <p class="text-xs font-semibold text-gray-800 mb-1">{{ $pinnedMsg['author'] ?? 'Usuário' }}</p>
+                                            <p class="text-xs font-semibold text-gray-800 mb-1">{{ $this->messageStats['pinned_first']['author'] ?? 'Usuário' }}</p>
                                             <div class="text-xs text-gray-700 leading-relaxed prose prose-xs max-w-none">
-                                                {!! $pinnedMsg['content'] !!}
+                                                {!! $this->messageStats['pinned_first']['content'] !!}
                                             </div>
                                         </div>
                                     </div>
@@ -255,9 +213,9 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                         </svg>
                                     </button>
-                                    <button @click="togglePin({{ $pinnedMsg['id'] }})" class="p-1 hover:bg-yellow-100 rounded transition-colors" title="Desfixar" :disabled="isPinning({{ $pinnedMsg['id'] }})">
-                                        <span x-show="!isPinning({{ $pinnedMsg['id'] }})"><i class="fas fa-star fa-xs text-yellow-400"></i></span>
-                                        <span x-show="isPinning({{ $pinnedMsg['id'] }})"><div class="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin"></div></span>
+                                    <button @click="togglePin({{ $this->messageStats['pinned_first']['id'] }})" class="p-1 hover:bg-yellow-100 rounded transition-colors" title="Desfixar" :disabled="isPinning({{ $this->messageStats['pinned_first']['id'] }})">
+                                        <span x-show="!isPinning({{ $this->messageStats['pinned_first']['id'] }})"><i class="fas fa-star fa-xs text-yellow-400"></i></span>
+                                        <span x-show="isPinning({{ $this->messageStats['pinned_first']['id'] }})"><div class="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin"></div></span>
                                     </button>
                                 </div>
                             </div>
@@ -278,20 +236,8 @@
                             </div>
 
                         @elseif(($item['type'] ?? '') === 'message')
-                            @php
-                                $isTemp    = isset($item['is_temporary']) && $item['is_temporary'];
-                                $isFailed  = isset($item['failed']) && $item['failed'];
-                                $isReal    = !$isTemp && !str_starts_with((string)($item['id'] ?? ''), 'temp-');
-                                $isFixed   = (bool)($item['is_pinned'] ?? false);
-                                $isOwn     = (bool)($item['is_own'] ?? false);
-                                $isEdited  = (bool)($item['is_edited'] ?? false);
-                                $userReacted = (bool)($item['user_reacted'] ?? false);
-                                $reactions  = $item['reactions'] ?? [];
-                                $dtRaw      = $item['dt_criacao_raw'] ?? '';
-                                $msgId      = (int)($item['id'] ?? 0);
-                            @endphp
-                            <div class="flex {{ $isOwn ? 'justify-end' : 'justify-start' }} group mb-1.5" id="msg-{{ $item['id'] }}">
-                                <div class="flex items-start space-x-1.5 sm:space-x-2 {{ $isOwn ? 'flex-row-reverse space-x-reverse' : '' }} max-w-[90%] sm:max-w-[85%]">
+                            <div class="flex {{ ($item['is_own'] ?? false) ? 'justify-end' : 'justify-start' }} group mb-1.5" id="msg-{{ $item['id'] }}">
+                                <div class="flex items-start space-x-1.5 sm:space-x-2 {{ ($item['is_own'] ?? false) ? 'flex-row-reverse space-x-reverse' : '' }} max-w-[90%] sm:max-w-[85%]">
 
                                     {{-- Avatar --}}
                                     <x-ui.user-avatar :photo="$item['photo'] ?? null" :name="$item['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6 mt-0.5" />
@@ -299,51 +245,51 @@
                                     <div class="flex-1 min-w-0">
                                         {{-- Bubble --}}
                                         <div class="rounded-lg p-2 sm:p-2.5 shadow-sm border transition-all duration-200
-                                            {{ $isOwn ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200' }}
-                                            {{ $isFixed ? 'ring-2 ring-yellow-400' : '' }}
-                                            {{ $isFailed ? 'message-failed' : '' }}
-                                            {{ $isTemp ? 'message-sending' : 'hover:shadow-md' }}"
+                                            {{ ($item['is_own'] ?? false) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200' }}
+                                            {{ ($item['is_pinned'] ?? false) ? 'ring-2 ring-yellow-400' : '' }}
+                                            {{ ($item['failed'] ?? false) ? 'message-failed' : '' }}
+                                            {{ ($item['is_temporary'] ?? false) ? 'message-sending' : 'hover:shadow-md' }}"
                                         >
                                             {{-- Header row --}}
                                             <div class="flex items-center gap-1.5 mb-1 flex-wrap">
                                                 <p class="text-xs font-medium text-gray-800">{{ $item['author'] ?? 'Usuário' }}</p>
                                                 <span class="text-xs text-gray-400">{{ $item['time'] ?? '' }}</span>
 
-                                                @if($isEdited)
+                                                @if($item['is_edited'] ?? false)
                                                     <span class="text-xs text-gray-400 italic">(editado)</span>
                                                 @endif
-                                                @if($isTemp)
+                                                @if($item['is_temporary'] ?? false)
                                                     <span class="text-blue-500 text-xs animate-pulse">Enviando...</span>
                                                 @endif
-                                                @if($isFailed)
+                                                @if($item['failed'] ?? false)
                                                     <span class="text-red-500 text-xs font-medium">Falha</span>
                                                 @endif
 
-                                                @if($isReal)
+                                                @if($item['is_real'] ?? false)
                                                     {{-- Pin button --}}
                                                     <button
-                                                        @click="togglePin({{ $msgId }})"
-                                                        class="ml-auto {{ $isFixed ? '' : 'opacity-0 group-hover:opacity-100' }} focus:outline-none transition-opacity hover:scale-110"
-                                                        title="{{ $isFixed ? 'Desfixar' : 'Fixar' }}"
-                                                        :disabled="isPinning({{ $msgId }})"
+                                                        @click="togglePin({{ $item['msg_id'] ?? 0 }})"
+                                                        class="ml-auto {{ ($item['is_pinned'] ?? false) ? '' : 'opacity-0 group-hover:opacity-100' }} focus:outline-none transition-opacity hover:scale-110"
+                                                        title="{{ ($item['is_pinned'] ?? false) ? 'Desfixar' : 'Fixar' }}"
+                                                        :disabled="isPinning({{ $item['msg_id'] ?? 0 }})"
                                                     >
-                                                        <span x-show="!isPinning({{ $msgId }})">
-                                                            @if($isFixed)
+                                                        <span x-show="!isPinning({{ $item['msg_id'] ?? 0 }})">
+                                                            @if($item['is_pinned'] ?? false)
                                                                 <i class="fas fa-star fa-sm text-yellow-400"></i>
                                                             @else
                                                                 <i class="far fa-star fa-sm text-gray-400"></i>
                                                             @endif
                                                         </span>
-                                                        <span x-show="isPinning({{ $msgId }})">
+                                                        <span x-show="isPinning({{ $item['msg_id'] ?? 0 }})">
                                                             <div class="w-3.5 h-3.5 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                                                         </span>
                                                     </button>
 
-                                                    @if($isOwn)
+                                                    @if($item['is_own'] ?? false)
                                                         {{-- Edit button — client-side 6h check --}}
                                                         <button
-                                                            x-show="canEditMessage('{{ $dtRaw }}') && !isEditing({{ $msgId }})"
-                                                            @click="startEdit({{ $msgId }}, {{ json_encode($item['content_text'] ?? '') }})"
+                                                            x-show="canEditMessage('{{ $item['dt_criacao_raw'] ?? '' }}') && !isEditing({{ $item['msg_id'] ?? 0 }})"
+                                                            @click="startEdit({{ $item['msg_id'] ?? 0 }}, {{ json_encode($item['content_text'] ?? '') }})"
                                                             class="opacity-0 group-hover:opacity-100 focus:outline-none transition-opacity"
                                                             title="Editar mensagem (até 6h após envio)"
                                                         >
@@ -354,27 +300,27 @@
                                             </div>
 
                                             {{-- Message text (hidden while editing) --}}
-                                            <div x-show="!isEditing({{ $msgId }})">
+                                            <div x-show="!isEditing({{ $item['msg_id'] ?? 0 }})">
                                                 <div class="text-xs text-gray-700 leading-relaxed prose prose-xs max-w-none">
                                                     {!! $item['content'] !!}
                                                 </div>
                                             </div>
 
                                             {{-- Inline edit form --}}
-                                            @if($isOwn && $isReal)
-                                                <div x-show="isEditing({{ $msgId }})" class="mt-1">
+                                            @if(($item['is_own'] ?? false) && ($item['is_real'] ?? false))
+                                                <div x-show="isEditing({{ $item['msg_id'] ?? 0 }})" class="mt-1">
                                                     <textarea
-                                                        id="edit-textarea-{{ $msgId }}"
+                                                        id="edit-textarea-{{ $item['msg_id'] ?? 0 }}"
                                                         x-model="editText"
                                                         class="w-full text-xs border border-blue-300 rounded p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none bg-white"
                                                         rows="3"
                                                         maxlength="1000"
                                                         @keydown.escape.prevent="cancelEdit()"
-                                                        @keydown.ctrl.enter.prevent="saveEdit({{ $msgId }})"
+                                                        @keydown.ctrl.enter.prevent="saveEdit({{ $item['msg_id'] ?? 0 }})"
                                                     ></textarea>
                                                     <div class="flex items-center gap-1.5 mt-1">
                                                         <button
-                                                            @click="saveEdit({{ $msgId }})"
+                                                            @click="saveEdit({{ $item['msg_id'] ?? 0 }})"
                                                             class="text-xs px-2.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                                                         >Salvar</button>
                                                         <button
@@ -388,29 +334,29 @@
                                         </div>
 
                                         {{-- Reactions row --}}
-                                        @if($isReal)
-                                            <div class="flex items-center mt-0.5 {{ $isOwn ? 'justify-end' : 'justify-start' }} gap-1.5">
+                                        @if($item['is_real'] ?? false)
+                                            <div class="flex items-center mt-0.5 {{ ($item['is_own'] ?? false) ? 'justify-end' : 'justify-start' }} gap-1.5">
                                                 @if(true)
                                                     <button
-                                                        @click="toggleReaction({{ $msgId }})"
+                                                        @click="toggleReaction({{ $item['msg_id'] ?? 0 }})"
                                                         class="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-all duration-150
-                                                            {{ $userReacted
+                                                            {{ ($item['user_reacted'] ?? false)
                                                                 ? 'bg-green-100 border-green-300 text-green-700'
                                                                 : 'bg-white border-gray-200 text-gray-400 opacity-0 group-hover:opacity-100 hover:border-green-300 hover:text-green-600' }}"
-                                                        title="{{ $userReacted ? 'Remover confirmação' : 'Confirmar leitura' }}"
+                                                        title="{{ ($item['user_reacted'] ?? false) ? 'Remover confirmação' : 'Confirmar leitura' }}"
                                                     >
-                                                        <svg class="w-3 h-3" fill="{{ $userReacted ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                                        <svg class="w-3 h-3" fill="{{ ($item['user_reacted'] ?? false) ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                                                         </svg>
-                                                        @if(count($reactions) > 0)
-                                                            <span class="font-medium">{{ count($reactions) }}</span>
+                                                        @if(($item['reactions_count'] ?? 0) > 0)
+                                                            <span class="font-medium">{{ $item['reactions_count'] }}</span>
                                                         @endif
                                                     </button>
                                                 @endif
 
-                                                @if(count($reactions) > 0)
+                                                @if(($item['reactions_count'] ?? 0) > 0)
                                                     <div class="flex items-center gap-0.5">
-                                                        @foreach(array_slice($reactions, 0, 4) as $reaction)
+                                                        @foreach(array_slice($item['reactions'] ?? [], 0, 4) as $reaction)
                                                             <x-ui.user-avatar
                                                                 :photo="$reaction['photo'] ?? null"
                                                                 :name="$reaction['name'] ?? '?'"
@@ -418,8 +364,8 @@
                                                                 :title="$reaction['name'] ?? ''"
                                                             />
                                                         @endforeach
-                                                        @if(count($reactions) > 4)
-                                                            <span class="text-xs text-gray-400 ml-0.5">+{{ count($reactions) - 4 }}</span>
+                                                        @if(($item['reactions_count'] ?? 0) > 4)
+                                                            <span class="text-xs text-gray-400 ml-0.5">+{{ ($item['reactions_count'] ?? 0) - 4 }}</span>
                                                         @endif
                                                     </div>
                                                 @endif
@@ -452,7 +398,7 @@
                         x-model="messageText"
                         x-ref="textarea"
                         placeholder="Digite sua anotação..."
-                        class="p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-{{ $accentColor }} focus:border-{{ $accentColor }} resize-none flex-1 transition-all duration-200 min-h-[40px] leading-snug"
+                        class="p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-{{ $this->shiftDisplay['accent'] }} focus:border-{{ $this->shiftDisplay['accent'] }} resize-none flex-1 transition-all duration-200 min-h-[40px] leading-snug"
                         rows="1"
                         maxlength="1000"
                         :disabled="isSendingMessage()"

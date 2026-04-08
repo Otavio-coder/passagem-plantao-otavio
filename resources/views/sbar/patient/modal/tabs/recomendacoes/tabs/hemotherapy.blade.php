@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-hemo'" style="display:none;" class="pt-3">
-    <div x-show="{{ $hemoCount }} > 0" class="space-y-2">
+    <div x-show="{{ (int) ($planDisplayData['counts']['tab-hemo'] ?? 0) }} > 0" class="space-y-2">
         <div class="flex items-center justify-between mb-1">
             <span class="text-[10px] font-bold text-red-700 uppercase tracking-wider">Hemoterapia</span>
             <span class="text-[10px] text-gray-400" x-text="hemo.items.length + ' item(s)'"></span>

@@ -6,12 +6,28 @@ use App\Models\EMR\Core\Hospital;
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class SystemConfigurationController extends Controller
 {
+    /**
+     * @var array<string, string>
+     */
+    private const HOSPITAL_COLORS = [
+        '1' => '#8C3134',
+        '8' => '#42909A',
+        '2' => '#A96538',
+        '6' => '#3E6B35',
+        '4' => '#4586B4',
+        '3' => '#9574A1',
+        '25' => '#CE7D74',
+        '7' => '#563174',
+        '18' => '#073772',
+    ];
+
     /**
      * Exibe página de preferências do usuário
      */
@@ -35,10 +51,13 @@ class SystemConfigurationController extends Controller
         // Códigos de setores selecionados pelo usuário
         $selectedSectors = $userPreferences->keys()->toArray();
 
+        $hospitalSections = $this->buildHospitalSections($sectorsByHospital, $selectedSectors);
+
         return view('configuration.system.index', [
             'sectorsByHospital' => $sectorsByHospital,
             'selectedSectors' => $selectedSectors,
             'userPreferences' => $userPreferences,
+            'hospitalSections' => $hospitalSections,
         ]);
     }
 
@@ -140,5 +159,39 @@ class SystemConfigurationController extends Controller
     public static function getAllowedHospitalIds(): array
     {
         return array_map('intval', (array) config('hospitals.allowed_ids', []));
+    }
+
+    /**
+     * @param  Collection<int|string, Collection<int, array<string, mixed>>>  $sectorsByHospital
+     * @param  array<int, string>  $selectedSectors
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildHospitalSections($sectorsByHospital, array $selectedSectors): array
+    {
+        return $sectorsByHospital->map(function ($sectors, $hospitalCode) use ($selectedSectors): array {
+            $hospitalName = (string) ($sectors->first()['hospital_name'] ?? 'Hospital');
+            $selectedCount = $sectors->filter(fn ($sector) => in_array($sector['sector_code'], $selectedSectors, true))->count();
+
+            return [
+                'code' => (string) $hospitalCode,
+                'name' => $hospitalName,
+                'name_lower' => mb_strtolower($hospitalName),
+                'icon_label' => mb_substr($hospitalName, 0, 1),
+                'color' => self::HOSPITAL_COLORS[(string) $hospitalCode] ?? '#004D9D',
+                'total_sectors' => $sectors->count(),
+                'selected_count' => $selectedCount,
+                'is_expanded' => $selectedCount > 0,
+                'sectors' => $sectors->map(function ($sector) use ($selectedSectors): array {
+                    $isChecked = in_array($sector['sector_code'], $selectedSectors, true);
+
+                    return [
+                        'code' => $sector['sector_code'],
+                        'name' => $sector['sector_name'],
+                        'name_lower' => mb_strtolower($sector['sector_name']),
+                        'is_checked' => $isChecked,
+                    ];
+                })->values()->all(),
+            ];
+        })->values()->all();
     }
 }

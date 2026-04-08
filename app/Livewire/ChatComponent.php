@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -469,10 +470,21 @@ class ChatComponent extends Component
         $rawReactions = $msg['reactions'] ?? [];
 
         $content = $msg['content'] ?? '';
+        $id = $msg['id'] ?? null;
+        $isTemporary = (bool) ($msg['is_temporary'] ?? false);
+        $isFailed = (bool) ($msg['failed'] ?? false);
+        $isPinned = (bool) ($msg['is_pinned'] ?? false);
+        $isOwn = $userId == $this->currentUser['id'];
+        $isEdited = ! empty($msg['updated_at']);
+        $isReal = ! $isTemporary && ! str_starts_with((string) $id, 'temp-');
+        $rawReactions = is_array($rawReactions) ? $rawReactions : [];
+        $reactions = $this->formatReactions($rawReactions);
+        $userReacted = $this->currentUserReacted($rawReactions);
 
         return [
             'type' => 'message',
-            'id' => $msg['id'] ?? null,
+            'id' => $id,
+            'msg_id' => is_numeric($id) ? (int) $id : 0,
             'content' => $this->formatMessageText($content),
             'content_text' => $content,
             'user_id' => $userId,
@@ -480,11 +492,15 @@ class ChatComponent extends Component
             'photo' => $photo,
             'time' => $time,
             'dt_criacao_raw' => $dtRaw,
-            'is_pinned' => (bool) ($msg['is_pinned'] ?? false),
-            'is_edited' => ! empty($msg['updated_at']),
-            'is_own' => $userId == $this->currentUser['id'],
-            'reactions' => $this->formatReactions($rawReactions),
-            'user_reacted' => $this->currentUserReacted($rawReactions),
+            'is_temporary' => $isTemporary,
+            'failed' => $isFailed,
+            'is_pinned' => $isPinned,
+            'is_edited' => $isEdited,
+            'is_own' => $isOwn,
+            'is_real' => $isReal,
+            'reactions' => $reactions,
+            'reactions_count' => count($reactions),
+            'user_reacted' => $userReacted,
         ];
     }
 
@@ -686,6 +702,63 @@ class ChatComponent extends Component
         return [
             'total_messages' => $realMessages->count(),
             'pinned_count' => $realMessages->where('is_pinned', true)->count(),
+        ];
+    }
+
+    #[Computed]
+    public function shiftDisplay(): array
+    {
+        $shift = ShiftService::getShiftInfo(now(), 30)['shift'];
+        $colors = ShiftService::getShiftColors($shift);
+
+        $iconClass = match ($shift) {
+            'morning' => 'fa-sun',
+            'afternoon' => 'fa-cloud-sun',
+            'night' => 'fa-moon',
+            default => 'fa-clock',
+        };
+
+        $iconPulse = in_array($shift, ['morning', 'night'], true);
+
+        return [
+            'shift' => $shift,
+            'gradient' => match ($shift) {
+                'morning' => 'from-amber-400 via-orange-400 to-red-400',
+                'afternoon' => 'from-sky-400 via-blue-400 to-cyan-400',
+                'night' => 'from-indigo-500 via-purple-500 to-violet-600',
+                default => 'from-gray-400 to-gray-500',
+            },
+            'gradient_style' => match ($shift) {
+                'morning' => 'linear-gradient(90deg, #fbbf24 0%, #fb923c 50%, #f87171 100%)',
+                'afternoon' => 'linear-gradient(90deg, #38bdf8 0%, #60a5fa 50%, #22d3ee 100%)',
+                'night' => 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #7c3aed 100%)',
+                default => 'linear-gradient(90deg, #9ca3af 0%, #6b7280 100%)',
+            },
+            'badge' => match ($shift) {
+                'morning' => 'MANHÃ',
+                'afternoon' => 'TARDE',
+                'night' => 'NOITE',
+                default => strtoupper($shift),
+            },
+            'icon' => $iconClass,
+            'icon_pulse' => $iconPulse,
+            'icon_html' => '<i class="fas '.$iconClass.' text-white text-sm sm:text-base'.($iconPulse ? ' animate-pulse' : '').'"></i>',
+            'accent' => $colors['accentColor'],
+            'light_accent' => $colors['lightAccent'],
+            'dark_accent' => $colors['darkAccent'],
+        ];
+    }
+
+    #[Computed]
+    public function messageStats(): array
+    {
+        $items = collect($this->messages)->filter(fn ($m) => ($m['type'] ?? '') === 'message');
+        $pinned = $items->filter(fn ($m) => (bool) ($m['is_pinned'] ?? false));
+
+        return [
+            'count' => $items->count(),
+            'has_messages' => $items->isNotEmpty(),
+            'pinned_first' => $pinned->first(),
         ];
     }
 

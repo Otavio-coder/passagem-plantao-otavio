@@ -4,6 +4,7 @@
     'prescriptions'      => null,
     'scheduleDate'       => '',
     'medicationSchedule' => [],
+    'planDisplayData'    => [],
 ])
 
 {{-- window.therapeuticPlan (Alpine component) is registered via @script in modal/index.blade.php --}}
@@ -16,6 +17,7 @@
             'plan'               => $prescriptions,
             'scheduleDate'       => $scheduleDate,
             'medicationSchedule' => $medicationSchedule,
+            'planDisplayData'    => $planDisplayData,
         ])
 
     @elseif($planError)

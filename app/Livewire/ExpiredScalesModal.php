@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Services\Tasy\TasyService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
@@ -72,6 +73,7 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['mews_score'] ?? null,
                             'last_shift' => $patient['mews_shift'] ?? null,
                             'last_timestamp' => $patient['mews_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['mews_timestamp'] ?? null),
                         ];
                     }
 
@@ -83,6 +85,7 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['pews_score'] ?? null,
                             'last_shift' => $patient['pews_shift'] ?? null,
                             'last_timestamp' => $patient['pews_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['pews_timestamp'] ?? null),
                         ];
                     }
 
@@ -94,6 +97,7 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['braden_score'] ?? null,
                             'last_shift' => $patient['braden_shift'] ?? null,
                             'last_timestamp' => $patient['braden_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['braden_timestamp'] ?? null),
                         ];
                     }
 
@@ -105,6 +109,7 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['morse_score'] ?? null,
                             'last_shift' => $patient['morse_shift'] ?? null,
                             'last_timestamp' => $patient['morse_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['morse_timestamp'] ?? null),
                         ];
                     }
 
@@ -116,6 +121,7 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['pain_score'] ?? null,
                             'last_shift' => $patient['pain_shift'] ?? null,
                             'last_timestamp' => $patient['pain_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['pain_timestamp'] ?? null),
                         ];
                     }
 
@@ -127,10 +133,13 @@ class ExpiredScalesModal extends Component
                             'last_value' => $patient['vte_score'] ?? null,
                             'last_shift' => $patient['vte_shift'] ?? null,
                             'last_timestamp' => $patient['vte_timestamp'] ?? null,
+                            'last_timestamp_label' => $this->formatTimestampLabel($patient['vte_timestamp'] ?? null),
                         ];
                     }
 
                     if (! empty($expiredScales)) {
+                        $totalExpired = count($expiredScales);
+                        $priority = $totalExpired >= 4 ? 'critical' : ($totalExpired >= 2 ? 'high' : 'medium');
                         $expiredList[] = [
                             'bed' => $patient['cd_unidade_basica'] ?? 'N/A',
                             'name' => $patient['nm_pessoa_fisica'] ?? 'N/A',
@@ -138,8 +147,10 @@ class ExpiredScalesModal extends Component
                             'attendance' => $patient['nr_atendimento'] ?? 'N/A',
                             'age' => $patient['age'] ?? 'N/A',
                             'expired_scales' => $expiredScales,
-                            'total_expired' => count($expiredScales),
-                            'priority' => count($expiredScales) >= 4 ? 'critical' : (count($expiredScales) >= 2 ? 'high' : 'medium'),
+                            'total_expired' => $totalExpired,
+                            'priority' => $priority,
+                            'priority_border_class' => $this->priorityBorderClass($priority),
+                            'priority_count_class' => $this->priorityCountClass($priority),
                         ];
                     }
                 }
@@ -174,6 +185,47 @@ class ExpiredScalesModal extends Component
     private function isScaleExpired(array $patient, string $scale): bool
     {
         return (bool) ($patient["{$scale}_needs_assessment"] ?? false);
+    }
+
+    private function priorityBorderClass(string $priority): string
+    {
+        return match ($priority) {
+            'critical' => 'border-l-red-500',
+            'high' => 'border-l-orange-400',
+            default => 'border-l-amber-400',
+        };
+    }
+
+    private function priorityCountClass(string $priority): string
+    {
+        return match ($priority) {
+            'critical' => 'bg-red-100 text-red-700',
+            'high' => 'bg-orange-100 text-orange-700',
+            default => 'bg-amber-100 text-amber-700',
+        };
+    }
+
+    private function formatTimestampLabel(mixed $timestamp): ?string
+    {
+        if (! $timestamp) {
+            return null;
+        }
+
+        try {
+            $dt = Carbon::parse($timestamp);
+
+            if ($dt->isToday()) {
+                return 'Hoje '.$dt->format('H:i');
+            }
+
+            if ($dt->isYesterday()) {
+                return 'Ontem '.$dt->format('H:i');
+            }
+
+            return $dt->format('d/m H:i');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function refresh()

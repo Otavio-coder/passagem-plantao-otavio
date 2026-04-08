@@ -86,9 +86,19 @@ class ChatArchiveController extends Controller
         }
 
         [$topAnnotators, $shiftStats] = $this->computeStats();
+        $shiftDistribution = $this->buildShiftDistribution($shiftStats);
+        $seriesData = $this->buildMonthlySeries($months);
+        $periodStart = $this->formatDate($stats?->oldest);
+        $periodEnd = $this->formatDate($stats?->newest);
 
         return view('chat.archive', compact(
-            'stats', 'coveragePct', 'topAnnotators', 'shiftStats', 'months'
+            'stats',
+            'coveragePct',
+            'topAnnotators',
+            'shiftDistribution',
+            'seriesData',
+            'periodStart',
+            'periodEnd'
         ));
     }
 
@@ -288,7 +298,17 @@ class ChatArchiveController extends Controller
                 ]);
             }
 
-            return view('chat.archive-show', ['archive' => null, 'messages' => $messages, 'nr' => $nr]);
+            return view('chat.archive-show', [
+                'archive' => null,
+                'messages' => collect($messages),
+                'timeline' => $this->buildTimeline($messages),
+                'nr' => $nr,
+                'summary' => [
+                    'message_count' => count($messages),
+                    'first_date' => $this->formatDate($activeMessages->first()?->created_at),
+                    'last_date' => $this->formatDate($activeMessages->last()?->created_at),
+                ],
+            ]);
         }
 
         $messages = [];
@@ -321,7 +341,17 @@ class ChatArchiveController extends Controller
             ]);
         }
 
-        return view('chat.archive-show', compact('archive', 'messages', 'nr'));
+        return view('chat.archive-show', [
+            'archive' => $archive,
+            'messages' => collect($messages),
+            'timeline' => $this->buildTimeline($messages),
+            'nr' => $nr,
+            'summary' => [
+                'message_count' => (int) ($archive->message_count ?? 0),
+                'first_date' => $this->formatDate($archive->first_message_at ?? null),
+                'last_date' => $this->formatDate($archive->last_message_at ?? null),
+            ],
+        ]);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -459,6 +489,122 @@ class ChatArchiveController extends Controller
         }
 
         return ucfirst(strtolower($parts[0])).' '.ucfirst(strtolower(end($parts)));
+    }
+
+    private function formatDate(mixed $value, string $format = 'd/m/Y'): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format($format);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param  array{manha:int,tarde:int,noite:int}  $shiftStats
+     * @return array<int, array{key:string,label:string,color:string,percentage:int}>
+     */
+    private function buildShiftDistribution(array $shiftStats): array
+    {
+        $meta = [
+            'manha' => ['label' => 'Manhã', 'color' => '#F59E0B'],
+            'tarde' => ['label' => 'Tarde', 'color' => '#0071B9'],
+            'noite' => ['label' => 'Noite', 'color' => '#073772'],
+        ];
+
+        $total = max(1, array_sum($shiftStats));
+        $distribution = [];
+
+        foreach ($meta as $key => $item) {
+            $distribution[] = [
+                'key' => $key,
+                'label' => $item['label'],
+                'color' => $item['color'],
+                'percentage' => (int) round((($shiftStats[$key] ?? 0) / $total) * 100),
+            ];
+        }
+
+        return $distribution;
+    }
+
+    /**
+     * @param  array<string, array{label:string,attendances:int,messages:int}>  $months
+     * @return array<int, array{label:string,messages:int,percentage:int}>
+     */
+    private function buildMonthlySeries(array $months): array
+    {
+        $maxMessages = max(1, max(array_column($months, 'messages')));
+
+        return array_values(array_map(function (array $month) use ($maxMessages): array {
+            return [
+                'label' => $month['label'],
+                'messages' => $month['messages'],
+                'percentage' => (int) round(($month['messages'] / $maxMessages) * 100),
+            ];
+        }, $months));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $messages
+     * @return array<int, array{type:string,label?:string,badge_class?:string,user?:string,initial?:string,time?:string,text?:string}>
+     */
+    private function buildTimeline(array $messages): array
+    {
+        $timeline = [];
+        $lastKey = null;
+
+        foreach ($messages as $message) {
+            $timestamp = (int) ($message['ts'] ?? 0);
+            $turnoLabel = $this->normalizeTurnoLabel($message['turno'] ?? null);
+            $groupDate = $timestamp > 0 ? date('Y-m-d', $timestamp) : 'unknown';
+            $groupKey = $groupDate.'|'.$turnoLabel;
+
+            if ($groupKey !== $lastKey) {
+                $timeline[] = [
+                    'type' => 'separator',
+                    'label' => $turnoLabel.' · '.($timestamp > 0 ? date('d/m/Y', $timestamp) : '—'),
+                    'badge_class' => $this->turnoBadgeClass($turnoLabel),
+                ];
+                $lastKey = $groupKey;
+            }
+
+            $user = (string) ($message['user'] ?? '—');
+            $timeline[] = [
+                'type' => 'message',
+                'user' => $user,
+                'initial' => strtoupper(substr($user, 0, 1)),
+                'time' => $timestamp > 0 ? date('H:i', $timestamp) : '—',
+                'text' => (string) ($message['text'] ?? ''),
+            ];
+        }
+
+        return $timeline;
+    }
+
+    private function normalizeTurnoLabel(mixed $turno): string
+    {
+        $normalized = mb_strtolower(trim((string) $turno));
+
+        return match ($normalized) {
+            'manha', 'manhã' => 'Manhã',
+            'tarde' => 'Tarde',
+            'noite' => 'Noite',
+            default => $turno ? (string) $turno : 'Noite',
+        };
+    }
+
+    private function turnoBadgeClass(string $turno): string
+    {
+        return match (mb_strtolower($turno)) {
+            'manhã' => 'bg-amber-50 border-amber-200 text-amber-700',
+            'tarde' => 'bg-sky-50 border-sky-200 text-sky-700',
+            'noite' => 'bg-indigo-50 border-indigo-200 text-indigo-700',
+            default => 'bg-gray-50 border-gray-200 text-gray-500',
+        };
     }
 
     private function computeStats(): array

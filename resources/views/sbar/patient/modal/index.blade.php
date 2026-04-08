@@ -36,7 +36,8 @@
     {{-- Modal de Alertas --}}
     <x-patient-modal::alerts-modal
         :showAlertsModal="$showAlertsModal"
-        :patientAlerts="$patientAlerts"
+        :alertsGroupedByType="$alertsGroupedByType"
+        :activeAlertsCount="count($activeAlerts)"
         :currentPatient="$currentPatient"
     />
 
@@ -204,6 +205,7 @@
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
                                 :patientDetails="$patientDetails"
+                                :clinicalData="$clinicalData"
                             />
                         </div>
 
@@ -240,6 +242,7 @@
                                 :prescriptions="$prescriptions"
                                 :scheduleDate="$scheduleDate"
                                 :medicationSchedule="$medicationSchedule"
+                                :planDisplayData="$planDisplayData"
                             />
                         </div>
                     </div>

@@ -16,7 +16,7 @@
 
         <div class="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-2 flex-shrink-0">
             <i class="fa-regular fa-calendar text-gray-400" style="font-size:11px;"></i>
-            <span class="text-[11px] font-bold text-gray-700 whitespace-nowrap">{{ $dateLabel }}</span>
+            <span class="text-[11px] font-bold text-gray-700 whitespace-nowrap">{{ $planDisplayData['date_label'] ?? '' }}</span>
         </div>
 
         <div class="flex items-center gap-1 flex-shrink-0">

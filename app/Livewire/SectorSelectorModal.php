@@ -12,6 +12,21 @@ use Livewire\Component;
 
 class SectorSelectorModal extends Component
 {
+    /**
+     * @var array<string, string>
+     */
+    private const HOSPITAL_COLORS = [
+        '1' => '#8C3134',
+        '8' => '#42909A',
+        '2' => '#A96538',
+        '6' => '#3E6B35',
+        '4' => '#4586B4',
+        '3' => '#9574A1',
+        '25' => '#CE7D74',
+        '7' => '#563174',
+        '18' => '#073772',
+    ];
+
     public bool $show = false;
 
     public string $search = '';
@@ -77,6 +92,43 @@ class SectorSelectorModal extends Component
     public function totalSelected(): int
     {
         return count($this->selectedSectors);
+    }
+
+    #[Computed]
+    public function hospitalSections(): array
+    {
+        $sections = [];
+
+        foreach ($this->filteredSectors as $hospitalCode => $sectors) {
+            $selectedCount = collect($sectors)
+                ->filter(fn ($sector) => in_array($sector['sector_code'], $this->selectedSectors, true))
+                ->count();
+
+            $hospitalName = $sectors[0]['hospital_name'] ?? 'Hospital';
+            $allSelected = $selectedCount === count($sectors) && count($sectors) > 0;
+
+            $sections[] = [
+                'code' => (string) $hospitalCode,
+                'name' => $hospitalName,
+                'color' => self::HOSPITAL_COLORS[(string) $hospitalCode] ?? '#004D9D',
+                'selected_count' => $selectedCount,
+                'all_selected' => $allSelected,
+                'is_expanded' => $selectedCount > 0 || empty($sections),
+                'total_sectors' => count($sectors),
+                'icon_label' => mb_substr($hospitalName, 0, 1),
+                'sectors' => array_map(function ($sector): array {
+                    $isSelected = in_array($sector['sector_code'], $this->selectedSectors, true);
+
+                    return [
+                        'code' => $sector['sector_code'],
+                        'name' => $sector['sector_name'],
+                        'is_selected' => $isSelected,
+                    ];
+                }, $sectors),
+            ];
+        }
+
+        return $sections;
     }
 
     private function getSectorsByHospital(): array

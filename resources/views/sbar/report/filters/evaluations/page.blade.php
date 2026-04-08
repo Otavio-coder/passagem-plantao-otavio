@@ -1,33 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-@php
-    $baseParams = [
-        'sector_id' => $sectorId,
-        'search'    => $search,
-        'date_from' => $dateFrom,
-        'date_to'   => $dateTo,
-        'per_page'  => $perPage,
-    ];
-
-    $sortLink = fn($field) => route('sbar.evaluations.shift', array_merge($baseParams, [
-        'sort_by'  => $field,
-        'sort_dir' => ($sortBy === $field && $sortDir === 'asc') ? 'desc' : 'asc',
-        'page'     => 1,
-    ]));
-
-    $sortIcon = function($field) use ($sortBy, $sortDir) {
-        if ($sortBy !== $field) return '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>';
-        return $sortDir === 'asc'
-            ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>'
-            : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>';
-    };
-
-    $hasActiveFilters = !empty($search)
-        || $dateFrom !== \Carbon\Carbon::today()->format('Y-m-d')
-        || $dateTo   !== \Carbon\Carbon::today()->format('Y-m-d');
-@endphp
-
 <div
     class="w-full px-3 my-2 text-gray-600"
     x-data="{ modalOpen: false, selectedBedIdx: null }"
@@ -122,7 +95,7 @@
                     <span class="hidden sm:inline">Filtrar</span>
                 </button>
 
-                @if($hasActiveFilters)
+                @if(!empty($search) || $dateFrom !== \Carbon\Carbon::today()->format('Y-m-d') || $dateTo !== \Carbon\Carbon::today()->format('Y-m-d'))
                     <a
                         href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId]) }}"
                         class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
@@ -166,38 +139,38 @@
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th class="px-3 py-3 text-left">
-                                <a href="{{ $sortLink('leito') }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Leito {!! $sortIcon('leito') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'leito', 'sort_dir' => ($sortBy === 'leito' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Leito {!! $sortBy !== 'leito' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-left">
-                                <a href="{{ $sortLink('nome_paciente') }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Paciente {!! $sortIcon('nome_paciente') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'nome_paciente', 'sort_dir' => ($sortBy === 'nome_paciente' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Paciente {!! $sortBy !== 'nome_paciente' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-left hidden lg:table-cell">
-                                <a href="{{ $sortLink('setor') }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Setor {!! $sortIcon('setor') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'setor', 'sort_dir' => ($sortBy === 'setor' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Setor {!! $sortBy !== 'setor' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-left hidden md:table-cell">
-                                <a href="{{ $sortLink('dt_entrada') }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Internação {!! $sortIcon('dt_entrada') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'dt_entrada', 'sort_dir' => ($sortBy === 'dt_entrada' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Internação {!! $sortBy !== 'dt_entrada' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-left hidden md:table-cell">
-                                <a href="{{ $sortLink('dt_alta') }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Alta {!! $sortIcon('dt_alta') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'dt_alta', 'sort_dir' => ($sortBy === 'dt_alta' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Alta {!! $sortBy !== 'dt_alta' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-center hidden md:table-cell">
-                                <a href="{{ $sortLink('internment_days') }}" class="inline-flex items-center justify-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Dias {!! $sortIcon('internment_days') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'internment_days', 'sort_dir' => ($sortBy === 'internment_days' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center justify-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Dias {!! $sortBy !== 'internment_days' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-center">
-                                <a href="{{ $sortLink('total_mensagens') }}" class="inline-flex items-center justify-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
-                                    Anotações {!! $sortIcon('total_mensagens') !!}
+                                <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => 'total_mensagens', 'sort_dir' => ($sortBy === 'total_mensagens' && $sortDir === 'asc') ? 'desc' : 'asc', 'page' => 1]) }}" class="inline-flex items-center justify-center text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-santacasa-100 transition whitespace-nowrap">
+                                    Anotações {!! $sortBy !== 'total_mensagens' ? '<i class="fas fa-sort text-gray-300 ml-1 text-[10px]"></i>' : ($sortDir === 'asc' ? '<i class="fas fa-sort-up text-santacasa-100 ml-1 text-[10px]"></i>' : '<i class="fas fa-sort-down text-santacasa-100 ml-1 text-[10px]"></i>') !!}
                                 </a>
                             </th>
                             <th class="px-3 py-3 text-center w-16">
@@ -210,12 +183,7 @@
                             <tr class="hover:bg-gray-50 transition-colors">
                                 {{-- Leito --}}
                                 <td class="px-3 py-3">
-                                    @php
-                                        $bl = strlen($bed['leito']);
-                                        $fs = $bl > 5 ? 'text-[9px]' : ($bl > 4 ? 'text-[10px]' : 'text-xs');
-                                        $bw = $bl > 5 ? 'w-14' : 'w-11';
-                                    @endphp
-                                    <div class="{{ $bw }} h-10 bg-gradient-to-br from-santacasa-100 to-santacasa-default text-white rounded-lg flex items-center justify-center font-bold {{ $fs }} shadow-sm">
+                                    <div class="{{ strlen($bed['leito']) > 5 ? 'w-14' : 'w-11' }} h-10 bg-gradient-to-br from-santacasa-100 to-santacasa-default text-white rounded-lg flex items-center justify-center font-bold {{ strlen($bed['leito']) > 5 ? 'text-[9px]' : (strlen($bed['leito']) > 4 ? 'text-[10px]' : 'text-xs') }} shadow-sm">
                                         {{ $bed['leito'] }}
                                     </div>
                                 </td>
@@ -252,10 +220,9 @@
                                 {{-- Dias --}}
                                 <td class="px-3 py-3 text-center hidden md:table-cell">
                                     @if($bed['internment_days'] !== null)
-                                        @php $dias = (int) $bed['internment_days']; @endphp
                                         <span class="inline-flex items-center justify-center w-9 h-7 text-xs font-semibold rounded-full
-                                            {{ $dias >= 30 ? 'bg-red-100 text-red-700' : ($dias >= 14 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600') }}">
-                                            {{ $dias }}d
+                                            {{ (int) $bed['internment_days'] >= 30 ? 'bg-red-100 text-red-700' : ((int) $bed['internment_days'] >= 14 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600') }}">
+                                            {{ (int) $bed['internment_days'] }}d
                                         </span>
                                     @else
                                         <span class="text-gray-400 text-xs">—</span>
@@ -290,32 +257,24 @@
 
         {{-- ─── Pagination ──────────────────────────────────────────────────── --}}
         @if($totalPages > 1)
-            @php
-                $paginationBase = array_merge($baseParams, ['sort_by' => $sortBy, 'sort_dir' => $sortDir]);
-                $pageUrl = fn($p) => route('sbar.evaluations.shift', array_merge($paginationBase, ['page' => $p]));
-            @endphp
             <div class="flex justify-center">
                 <nav class="inline-flex items-center gap-1 bg-white rounded-lg shadow-sm px-2 py-2">
                     @if($currentPage > 1)
-                        <a href="{{ $pageUrl(1) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angles-left"></i></a>
-                        <a href="{{ $pageUrl($currentPage - 1) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angle-left"></i></a>
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => $sortBy, 'sort_dir' => $sortDir, 'page' => 1]) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angles-left"></i></a>
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => $sortBy, 'sort_dir' => $sortDir, 'page' => $currentPage - 1]) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angle-left"></i></a>
                     @endif
 
-                    @php
-                        $rangeStart = max(1, $currentPage - 2);
-                        $rangeEnd   = min($totalPages, $currentPage + 2);
-                    @endphp
-                    @for($i = $rangeStart; $i <= $rangeEnd; $i++)
+                    @for($i = max(1, $currentPage - 2); $i <= min($totalPages, $currentPage + 2); $i++)
                         @if($i === $currentPage)
                             <span class="px-3 py-2 text-sm font-medium text-white bg-santacasa-100 rounded-md">{{ $i }}</span>
                         @else
-                            <a href="{{ $pageUrl($i) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition">{{ $i }}</a>
+                            <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => $sortBy, 'sort_dir' => $sortDir, 'page' => $i]) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition">{{ $i }}</a>
                         @endif
                     @endfor
 
                     @if($currentPage < $totalPages)
-                        <a href="{{ $pageUrl($currentPage + 1) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angle-right"></i></a>
-                        <a href="{{ $pageUrl($totalPages) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angles-right"></i></a>
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => $sortBy, 'sort_dir' => $sortDir, 'page' => $currentPage + 1]) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angle-right"></i></a>
+                        <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId, 'search' => $search, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'per_page' => $perPage, 'sort_by' => $sortBy, 'sort_dir' => $sortDir, 'page' => $totalPages]) }}" class="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"><i class="fas fa-angles-right"></i></a>
                     @endif
                 </nav>
             </div>
@@ -326,16 +285,16 @@
         <div class="bg-white rounded-lg shadow-sm p-12 text-center">
             <i class="fas fa-inbox text-gray-300 text-4xl mb-4"></i>
             <h3 class="text-lg font-medium text-gray-900 mb-2">
-                @if($hasActiveFilters) Nenhum resultado encontrado @else Nenhuma anotação encontrada @endif
+                @if(!empty($search) || $dateFrom !== \Carbon\Carbon::today()->format('Y-m-d') || $dateTo !== \Carbon\Carbon::today()->format('Y-m-d')) Nenhum resultado encontrado @else Nenhuma anotação encontrada @endif
             </h3>
             <p class="text-sm text-gray-500 mb-4">
-                @if($hasActiveFilters)
+                @if(!empty($search) || $dateFrom !== \Carbon\Carbon::today()->format('Y-m-d') || $dateTo !== \Carbon\Carbon::today()->format('Y-m-d'))
                     Nenhum leito com anotações para os filtros selecionados.
                 @else
                     Não há anotações registradas para hoje neste setor.
                 @endif
             </p>
-            @if($hasActiveFilters)
+            @if(!empty($search) || $dateFrom !== \Carbon\Carbon::today()->format('Y-m-d') || $dateTo !== \Carbon\Carbon::today()->format('Y-m-d'))
                 <a href="{{ route('sbar.evaluations.shift', ['sector_id' => $sectorId]) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-santacasa-100 text-white rounded-lg hover:bg-santacasa-200 transition text-sm">
                     <i class="fas fa-times"></i> Limpar filtros
@@ -375,12 +334,7 @@
                 <div class="flex items-center gap-3 min-w-0">
                     @foreach($beds as $idx => $bed)
                         <div x-show="selectedBedIdx === {{ $idx }}" class="flex items-center gap-3 min-w-0">
-                            @php
-                                $bl = strlen($bed['leito']);
-                                $fs = $bl > 5 ? 'text-[9px]' : ($bl > 4 ? 'text-[10px]' : 'text-xs');
-                                $bw = $bl > 5 ? 'w-14' : 'w-11';
-                            @endphp
-                            <div class="{{ $bw }} h-10 bg-gradient-to-br from-santacasa-100 to-santacasa-default text-white rounded-lg flex items-center justify-center font-bold {{ $fs }} shadow-sm flex-shrink-0">
+                            <div class="{{ strlen($bed['leito']) > 5 ? 'w-14' : 'w-11' }} h-10 bg-gradient-to-br from-santacasa-100 to-santacasa-default text-white rounded-lg flex items-center justify-center font-bold {{ strlen($bed['leito']) > 5 ? 'text-[9px]' : (strlen($bed['leito']) > 4 ? 'text-[10px]' : 'text-xs') }} shadow-sm flex-shrink-0">
                                 {{ $bed['leito'] }}
                             </div>
                             <div class="min-w-0">

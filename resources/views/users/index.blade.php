@@ -39,39 +39,21 @@
                 <tbody>
 
                 @foreach( $users as $user )
-                    @php
-                        $color   = $user->status == 'A' ? 'teal' : 'red';
-
-                        // avatar
-                        $validPhoto = $user->hasValidPhoto() ? $user->photo : null;
-                        $words      = preg_split('/[\s.]+/', trim($user->name ?: 'U'));
-                        $initials   = strtoupper(substr($words[0] ?? 'U', 0, 1));
-                        if (count($words) > 1) $initials .= strtoupper(substr(end($words), 0, 1));
-                        $palette    = ['4F46E5','0891B2','059669','B45309','7C3AED','0284C7','BE185D','0F766E'];
-                        $avatarBg   = '#' . $palette[abs(crc32($user->name ?: 'U')) % count($palette)];
-
-                        // setores agrupados por hospital
-                        $sectorsByHospital = $user->sectorPreferences
-                            ->groupBy('hospital_name')
-                            ->map(fn($prefs) => $prefs->pluck('sector_name')->filter()->unique()->values())
-                            ->toArray();
-                        $hasSectors = !empty($sectorsByHospital);
-                    @endphp
                     <tr>
                         <td>{{ $user->id }}</td>
 
                         {{-- Avatar --}}
                         <td class="text-center">
-                            @if($validPhoto)
-                                <img src="data:image/jpeg;base64,{{ $validPhoto }}"
+                            @if($user->display_photo)
+                                <img src="data:image/jpeg;base64,{{ $user->display_photo }}"
                                      alt="{{ $user->name }}"
                                      class="w-8 h-8 rounded-full object-cover mx-auto"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                 <div class="w-8 h-8 rounded-full items-center justify-center mx-auto text-white text-[10px] font-bold select-none hidden"
-                                     style="background-color: {{ $avatarBg }}">{{ $initials }}</div>
+                                     style="background-color: {{ $user->avatar_bg_color }}">{{ $user->avatar_initials }}</div>
                             @else
                                 <div class="w-8 h-8 rounded-full flex items-center justify-center mx-auto text-white text-[10px] font-bold select-none"
-                                     style="background-color: {{ $avatarBg }}">{{ $initials }}</div>
+                                     style="background-color: {{ $user->avatar_bg_color }}">{{ $user->avatar_initials }}</div>
                             @endif
                         </td>
 
@@ -85,7 +67,7 @@
                         </td>
 
                         <td>
-                            <span class="px-2 border border-{{ $color }}-500 bg-white text-{{ $color }}-500 font-medium rounded-full text-xs">
+                            <span class="px-2 border border-{{ $user->status_color }}-500 bg-white text-{{ $user->status_color }}-500 font-medium rounded-full text-xs">
                                 {{ $user->status_name }}
                             </span>
                         </td>
@@ -102,11 +84,11 @@
                                 {{-- Setores --}}
                                 <button
                                     type="button"
-                                    title="{{ $hasSectors ? 'Ver setores configurados' : 'Sem setores configurados' }}"
-                                    class="sectors-btn text-sky-500 hover:text-sky-700 transition-colors {{ !$hasSectors ? 'opacity-30 cursor-default' : '' }}"
+                                    title="{{ $user->has_sectors ? 'Ver setores configurados' : 'Sem setores configurados' }}"
+                                    class="sectors-btn text-sky-500 hover:text-sky-700 transition-colors {{ !$user->has_sectors ? 'opacity-30 cursor-default' : '' }}"
                                     data-username="{{ $user->name }}"
-                                    data-sectors="{{ json_encode($sectorsByHospital) }}"
-                                    {{ !$hasSectors ? 'disabled' : '' }}
+                                    data-sectors="{{ json_encode($user->sectors_by_hospital) }}"
+                                    {{ !$user->has_sectors ? 'disabled' : '' }}
                                 >
                                     <i class="fas fa-hospital text-sm"></i>
                                 </button>

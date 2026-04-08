@@ -74,6 +74,9 @@ class TasyFormatter
 
         $hasAllergy = $this->checkHasAllergy($clinicalDetails->alergias_detalhadas ?? null);
         $hasIsolation = $this->checkHasIsolation($clinicalDetails->medida_bloqueio ?? null);
+        $diagnosticos = $clinicalDetails->diagnosticos_comorbidades ?? null;
+        $dispositivos = $clinicalDetails->dispositivos ?? null;
+        $alergiasDetalhadas = $clinicalDetails->alergias_detalhadas ?? null;
 
         $patientData = [
             'cd_unidade_basica' => $bed->cd_unidade_basica ?? 'N/A',
@@ -103,7 +106,8 @@ class TasyFormatter
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'multidisciplinary' => $batchData['multidisciplinary'][$attendanceNumber] ?? $this->getDefaultMultidisciplinary(),
             'multidisciplinary_requests' => $batchData['multidisciplinary_requests'][$attendanceNumber] ?? [],
-            'diagnosticos_comorbidades' => $clinicalDetails->diagnosticos_comorbidades ?? null,
+            'diagnosticos_comorbidades' => $diagnosticos,
+            'diagnosticos_list' => $this->parsePipeSeparatedList($diagnosticos),
             'medida_bloqueio' => $clinicalDetails->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $clinicalDetails->motivos_isolamento ?? null,
             'avaliacao_enf' => $clinicalDetails->avaliacao_enf ?? null,
@@ -111,8 +115,10 @@ class TasyFormatter
             'pe_data' => $clinicalDetails->pe_data ?? null,
             'ds_queda' => $clinicalDetails->ds_queda ?? 'Não',
             'diag' => $clinicalDetails->diag ?? null,
-            'dispositivos' => $clinicalDetails->dispositivos ?? null,
-            'alergias_detalhadas' => $clinicalDetails->alergias_detalhadas ?? null,
+            'dispositivos' => $dispositivos,
+            'dispositivos_list' => $this->parsePipeSeparatedList($dispositivos),
+            'alergias_detalhadas' => $alergiasDetalhadas,
+            'alergias_items' => $this->parseAllergyItems($alergiasDetalhadas),
             'materiais' => $clinicalDetails->materiais ?? null,
             'alerts' => [],
             'has_allergy' => $hasAllergy,
@@ -297,5 +303,51 @@ class TasyFormatter
         }
 
         return ! empty($parts) ? implode(' ', $parts) : 'Recém-nascido';
+    }
+
+    private function parsePipeSeparatedList(?string $value): array
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        return collect(preg_split('/\|+/', $value) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->values()
+            ->all();
+    }
+
+    private function parseAllergyItems(?string $allergies): array
+    {
+        $cleaned = trim((string) ($allergies ?? ''));
+        if ($cleaned === '') {
+            return [];
+        }
+
+        $cleaned = strip_tags($cleaned);
+        $cleaned = preg_replace('/\s*-\s*(Não informado|desconhecido|N\/A)[^;]*/iu', '', $cleaned) ?? $cleaned;
+        $cleaned = preg_replace('/;\s*;/', ';', $cleaned) ?? $cleaned;
+        $cleaned = trim($cleaned, '; ');
+
+        if ($cleaned === '' || mb_strtolower($cleaned) === 'sem alergias registradas') {
+            return [];
+        }
+
+        $items = collect(preg_split('/[;\r\n]+/', $cleaned) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->values();
+
+        return $items->map(function (string $item) {
+            if (preg_match('/^(.+?)\s*[-–]\s*(.+)$/u', $item, $matches)) {
+                return [
+                    'med' => trim($matches[1]),
+                    'grav' => trim($matches[2]),
+                ];
+            }
+
+            return ['text' => $item];
+        })->all();
     }
 }

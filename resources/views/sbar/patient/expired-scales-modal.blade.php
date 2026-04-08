@@ -54,39 +54,17 @@
                     @else
                         <div class="divide-y divide-gray-200">
                             @foreach($patientsWithExpiredScales as $patient)
-                                @php
-                                    $borderColor = match($patient['priority'] ?? 'medium') {
-                                        'critical' => 'border-l-red-500',
-                                        'high'     => 'border-l-orange-400',
-                                        default    => 'border-l-amber-400',
-                                    };
-                                    $countColor = match($patient['priority'] ?? 'medium') {
-                                        'critical' => 'bg-red-100 text-red-700',
-                                        'high'     => 'bg-orange-100 text-orange-700',
-                                        default    => 'bg-amber-100 text-amber-700',
-                                    };
-                                @endphp
-                                <div class="pl-4 pr-4 py-4 border-l-4 {{ $borderColor }} bg-white hover:bg-gray-50 transition-colors">
+                                <div class="pl-4 pr-4 py-4 border-l-4 {{ $patient['priority_border_class'] ?? 'border-l-amber-400' }} bg-white hover:bg-gray-50 transition-colors">
                                     <div class="flex items-center gap-3 mb-3">
                                         <div class="w-10 h-10 bg-gradient-to-br from-[#004D9D] to-[#0071B9] text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">{{ $patient['bed'] }}</div>
                                         <div class="min-w-0 flex-1">
                                             <div class="font-semibold text-gray-900 text-sm truncate">{{ $patient['name'] }}</div>
                                             <div class="text-xs text-gray-400 leading-tight">Pront. {{ $patient['medical_record'] }} {{ ($patient['age'] && $patient['age'] !== 'N/A') ? '· ' . $patient['age'] . 'a' : '' }}</div>
                                         </div>
-                                        <span class="flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold {{ $countColor }}">{{ $patient['total_expired'] }} pendente{{ $patient['total_expired'] > 1 ? 's' : '' }}</span>
+                                        <span class="flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold {{ $patient['priority_count_class'] ?? 'bg-amber-100 text-amber-700' }}">{{ $patient['total_expired'] }} pendente{{ $patient['total_expired'] > 1 ? 's' : '' }}</span>
                                     </div>
                                     <div class="space-y-2 pl-13">
                                         @foreach($patient['expired_scales'] as $scale)
-                                            @php
-                                                $ts = $scale['last_timestamp'] ?? null;
-                                                $tsLabel = null;
-                                                if ($ts) {
-                                                    try {
-                                                        $dt = \Carbon\Carbon::parse($ts);
-                                                        $tsLabel = $dt->isToday() ? 'Hoje ' . $dt->format('H:i') : ($dt->isYesterday() ? 'Ontem ' . $dt->format('H:i') : $dt->format('d/m H:i'));
-                                                    } catch (\Throwable $e) {}
-                                                }
-                                            @endphp
                                             <div class="flex items-center gap-2 text-sm">
                                                 <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
                                                 <span class="font-semibold text-gray-800 w-14 flex-shrink-0">{{ $scale['name'] }}</span>
@@ -95,7 +73,7 @@
                                                 @else
                                                     <span class="text-gray-400 text-xs italic">sem valor</span>
                                                 @endif
-                                                <span class="ml-auto flex-shrink-0 {{ $tsLabel ? 'text-gray-400 text-xs' : 'text-red-500 text-xs font-medium' }}">{{ $tsLabel ?? 'sem registro' }}</span>
+                                                <span class="ml-auto flex-shrink-0 {{ !empty($scale['last_timestamp_label']) ? 'text-gray-400 text-xs' : 'text-red-500 text-xs font-medium' }}">{{ $scale['last_timestamp_label'] ?? 'sem registro' }}</span>
                                             </div>
                                         @endforeach
                                     </div>

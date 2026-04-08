@@ -6,6 +6,7 @@ use App\Models\EMR\Core\Patient;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
@@ -339,19 +340,63 @@ class PatientModal extends Component
 
     private function checkAndShowAlertsModal()
     {
-        if (empty($this->patientAlerts)) {
-            return;
-        }
-
-        $activeAlerts = collect($this->patientAlerts)->filter(function ($alert) {
-            return ! isset($alert['end_date']) ||
-                $alert['end_date'] === null ||
-                Carbon::parse($alert['end_date'])->isFuture();
-        });
-
-        if ($activeAlerts->count() > 0) {
+        if ($this->activeAlerts->isNotEmpty()) {
             $this->showAlertsModal = true;
         }
+    }
+
+    private function filterActiveAlerts(array $alerts): Collection
+    {
+        return collect($alerts)->filter(function ($alert) {
+            $endDate = $alert['end_date'] ?? null;
+
+            return ! $endDate || Carbon::parse($endDate)->isFuture();
+        });
+    }
+
+    private function parsePipeSeparatedList(?string $value): array
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        return collect(preg_split('/\|+/', $value) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->values()
+            ->all();
+    }
+
+    private function parseAllergyItems(?string $value): array
+    {
+        $cleaned = trim((string) ($value ?? ''));
+        if ($cleaned === '') {
+            return [];
+        }
+
+        $cleaned = preg_replace('/\s*-\s*(Não informado|desconhecido|N\/A)[^;]*/iu', '', $cleaned) ?? $cleaned;
+        $cleaned = preg_replace('/;\s*;/', ';', $cleaned) ?? $cleaned;
+        $cleaned = trim($cleaned, '; ');
+
+        if ($cleaned === '') {
+            return [];
+        }
+
+        $items = collect(explode(';', $cleaned))
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->values();
+
+        return $items->map(function (string $item) {
+            if (preg_match('/^(.+?)\s*[-–]\s*(.+)$/u', $item, $matches)) {
+                return [
+                    'med' => trim($matches[1]),
+                    'grav' => trim($matches[2]),
+                ];
+            }
+
+            return ['text' => $item];
+        })->all();
     }
 
     private function resetModalState()
@@ -410,15 +455,7 @@ class PatientModal extends Component
 
     public function getActiveAlertsProperty()
     {
-        if (empty($this->patientAlerts)) {
-            return collect([]);
-        }
-
-        return collect($this->patientAlerts)->filter(function ($alert) {
-            return ! isset($alert['end_date']) ||
-                $alert['end_date'] === null ||
-                Carbon::parse($alert['end_date'])->isFuture();
-        });
+        return $this->filterActiveAlerts($this->patientAlerts ?? []);
     }
 
     public function getCriticalAlertsCountProperty()
@@ -427,6 +464,114 @@ class PatientModal extends Component
             return ($alert['severity'] ?? 'warning') === 'danger' ||
                 ($alert['type'] ?? '') === 'ALERTA';
         })->count();
+    }
+
+    public function getAlertsGroupedByTypeProperty(): array
+    {
+        return $this->activeAlerts
+            ->map(function ($alert) {
+                $alert['start_date_formatted'] = $this->formatAlertDate($alert['start_date'] ?? null);
+                $alert['end_date_formatted'] = $this->formatAlertDate($alert['end_date'] ?? null);
+
+                return $alert;
+            })
+            ->groupBy('type')
+            ->map(fn ($alerts) => $alerts->values()->all())
+            ->all();
+    }
+
+    private function formatAlertDate(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('d/m/Y');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Pre-computes all data needed by plan.blade.php so the template contains no logic.
+     *
+     * @return array{tabs: array, default_tab: string, date_label: string, date_badge: string|null, time_columns: string[], current_hour: string}
+     */
+    public function getPlanDisplayDataProperty(): array
+    {
+        $plan = $this->prescriptions ?? [];
+
+        $allProcedureItems = collect($plan['procedures']['items'] ?? []);
+        $examCount = $allProcedureItems->filter(function (array $item) {
+            $eventType = strtolower((string) ($item['event_type'] ?? ''));
+            $type = strtolower((string) ($item['type'] ?? ''));
+
+            return $eventType === 'exame'
+                || str_contains($type, 'exame')
+                || str_contains($type, 'laborat');
+        })->count();
+
+        $counts = [
+            'tab-med' => $plan['medications']['count'] ?? 0,
+            'tab-exam' => $examCount,
+            'tab-proc' => $allProcedureItems->count() - $examCount,
+            'tab-surg' => $plan['surgery']['count'] ?? 0,
+            'tab-hemo' => $plan['hemotherapy']['count'] ?? 0,
+            'tab-chemo' => $plan['chemotherapy']['count'] ?? 0,
+            'tab-nut' => $plan['nutrition']['count'] ?? 0,
+            'tab-rec' => $plan['orders']['count'] ?? 0,
+            'tab-int' => $plan['interventions']['count'] ?? 0,
+            'tab-gas' => $plan['gasotherapy']['count'] ?? 0,
+            'tab-dial' => $plan['dialysis']['count'] ?? 0,
+        ];
+
+        $defaultTab = 'tab-med';
+        foreach ($counts as $tabId => $count) {
+            if ($count > 0) {
+                $defaultTab = $tabId;
+                break;
+            }
+        }
+
+        $today = now()->format('Y-m-d');
+        $yesterday = now()->subDay()->format('Y-m-d');
+        $tomorrow = now()->addDay()->format('Y-m-d');
+
+        $dateBadge = match ($this->scheduleDate) {
+            $today => 'Hoje',
+            $yesterday => 'Ontem',
+            $tomorrow => 'Amanhã',
+            default => null,
+        };
+
+        $timeColumns = array_map(fn (int $h) => str_pad($h, 2, '0', STR_PAD_LEFT).':00', range(0, 23));
+
+        $alpinePayload = [
+            'meds' => $plan['medications']['items'] ?? [],
+            'schedule' => $this->medicationSchedule,
+            'time_columns' => $timeColumns,
+            'current_hour' => now()->format('H').':00',
+            'procedures' => $plan['procedures']['items'] ?? [],
+            'orders' => $plan['orders']['items'] ?? [],
+            'interventions' => $plan['interventions']['items'] ?? [],
+            'hemotherapy' => $plan['hemotherapy']['items'] ?? [],
+            'surgery' => $plan['surgery']['items'] ?? [],
+            'nutrition' => $plan['nutrition']['items'] ?? [],
+            'chemotherapy' => $plan['chemotherapy']['items'] ?? [],
+            'gasotherapy' => $plan['gasotherapy']['items'] ?? [],
+            'dialysis' => $plan['dialysis']['items'] ?? [],
+        ];
+
+        return [
+            'counts' => $counts,
+            'default_tab' => $defaultTab,
+            'date_label' => Carbon::parse($this->scheduleDate)->format('d/m/Y'),
+            'date_badge' => $dateBadge,
+            'time_columns' => $timeColumns,
+            'current_hour' => now()->format('H').':00',
+            'alpine_payload' => $alpinePayload,
+        ];
     }
 
     public function getScalesDataProperty()
@@ -498,10 +643,13 @@ class PatientModal extends Component
         if (! $this->patientDetails) {
             return [
                 'diagnosticos' => 'Sem diagnósticos registrados',
+                'diagnosticos_list' => [],
                 'isolamento' => 'Não',
                 'motivos_isolamento' => 'Nenhum motivo de isolamento',
                 'dispositivos' => 'Nenhum dispositivo registrado',
+                'dispositivos_list' => [],
                 'alergias' => 'Sem alergias registradas',
+                'alergias_items' => [],
                 'antimicrobianos' => 'Nenhum antimicrobiano',
                 'cirurgias' => [],
                 'avaliacao_enfermagem' => 'Não realizada',
@@ -511,12 +659,19 @@ class PatientModal extends Component
             ];
         }
 
+        $diagnosticos = (string) ($this->patientDetails->diagnosticos_comorbidades ?? 'Sem diagnósticos registrados');
+        $dispositivos = (string) ($this->patientDetails->dispositivos ?? 'Nenhum dispositivo registrado');
+        $alergias = (string) ($this->patientDetails->alergias_detalhadas ?? 'Sem alergias registradas');
+
         return [
-            'diagnosticos' => $this->patientDetails->diagnosticos_comorbidades ?? 'Sem diagnósticos registrados',
+            'diagnosticos' => $diagnosticos,
+            'diagnosticos_list' => $this->parsePipeSeparatedList($diagnosticos),
             'isolamento' => $this->patientDetails->medida_bloqueio ?? 'Não',
             'motivos_isolamento' => $this->patientDetails->motivos_isolamento ?? 'Nenhum motivo de isolamento',
-            'dispositivos' => $this->patientDetails->dispositivos ?? 'Nenhum dispositivo registrado',
-            'alergias' => $this->patientDetails->alergias_detalhadas ?? 'Sem alergias registradas',
+            'dispositivos' => $dispositivos,
+            'dispositivos_list' => $this->parsePipeSeparatedList($dispositivos),
+            'alergias' => $alergias,
+            'alergias_items' => $this->parseAllergyItems($alergias),
             'antimicrobianos' => $this->patientDetails->materiais ?? 'Nenhum antimicrobiano',
             'cirurgias' => $this->patientDetails->procedimentos_cirurgicos ?? [],
             'avaliacao_enfermagem' => $this->patientDetails->avaliacao_enf ?? 'Não realizada',
@@ -535,10 +690,12 @@ class PatientModal extends Component
     {
         return view('sbar.patient.modal.index', [
             'activeAlerts' => $this->activeAlerts,
+            'alertsGroupedByType' => $this->alertsGroupedByType,
             'criticalAlertsCount' => $this->criticalAlertsCount,
             'hasPatientData' => $this->hasPatientData(),
             'scalesData' => $this->scalesData,
             'clinicalData' => $this->clinicalData,
+            'planDisplayData' => $this->planDisplayData,
         ]);
     }
 }

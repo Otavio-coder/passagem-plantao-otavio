@@ -81,65 +81,48 @@
 
             {{-- Lista de Hospitais --}}
             <div class="flex-1 min-h-0 p-3 overflow-y-auto">
-                @php
-                    $hospitalColors = [
-                        '1' => '#8C3134', '8' => '#42909A', '2' => '#A96538',
-                        '6' => '#3E6B35', '4' => '#4586B4', '3' => '#9574A1',
-                        '25' => '#CE7D74', '7' => '#563174', '18' => '#073772',
-                    ];
-                @endphp
-
-                @forelse($sectorsByHospital as $hospitalCode => $sectors)
-                    @php
-                        $color = $hospitalColors[$hospitalCode] ?? '#004D9D';
-                        $selectedCount = $sectors->filter(fn($s) => in_array($s['sector_code'], $selectedSectors))->count();
-                        $isExpanded = $selectedCount > 0;
-                    @endphp
-
-                    <div class="hospital-group mb-2 border border-gray-200 rounded-lg overflow-hidden" data-hospital-name="{{ strtolower($sectors->first()['hospital_name']) }}">
+                @forelse($hospitalSections as $hospital)
+                    <div class="hospital-group mb-2 border border-gray-200 rounded-lg overflow-hidden" data-hospital-name="{{ $hospital['name_lower'] }}">
 
                         {{-- Accordion Header --}}
                         <div class="flex items-center justify-between px-3 py-2 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                             onclick="toggleAccordion('{{ $hospitalCode }}')">
+                             onclick="toggleAccordion('{{ $hospital['code'] }}')">
                             <div class="flex items-center gap-2 min-w-0">
-                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background: {{ $color }}">
-                                    {{ substr($sectors->first()['hospital_name'], 0, 1) }}
+                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background: {{ $hospital['color'] }}">
+                                    {{ $hospital['icon_label'] }}
                                 </div>
                                 <div class="min-w-0">
-                                    <h3 class="font-semibold text-gray-800 truncate text-sm">{{ $sectors->first()['hospital_name'] }}</h3>
-                                    <span class="text-xs text-gray-500">{{ $sectors->count() }} setores</span>
+                                    <h3 class="font-semibold text-gray-800 truncate text-sm">{{ $hospital['name'] }}</h3>
+                                    <span class="text-xs text-gray-500">{{ $hospital['total_sectors'] }} setores</span>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-                                @if($selectedCount > 0)
-                                    <span class="bg-[#004D9D] text-white text-xs px-2 py-0.5 rounded-full">{{ $selectedCount }}</span>
+                                @if($hospital['selected_count'] > 0)
+                                    <span class="bg-[#004D9D] text-white text-xs px-2 py-0.5 rounded-full">{{ $hospital['selected_count'] }}</span>
                                 @endif
                                 <button type="button"
-                                        onclick="event.stopPropagation(); toggleHospital('{{ $hospitalCode }}')"
+                                        onclick="event.stopPropagation(); toggleHospital('{{ $hospital['code'] }}')"
                                         class="text-xs font-medium px-2 py-1 rounded-md bg-white border border-gray-300 hover:bg-gray-50">
                                     Todos
                                 </button>
-                                <i id="icon-{{ $hospitalCode }}" class="fas fa-chevron-down text-gray-400 transition-transform duration-200 text-xs {{ $isExpanded ? 'rotate-180' : '' }}"></i>
+                                <i id="icon-{{ $hospital['code'] }}" class="fas fa-chevron-down text-gray-400 transition-transform duration-200 text-xs {{ $hospital['is_expanded'] ? 'rotate-180' : '' }}"></i>
                             </div>
                         </div>
 
                         {{-- Accordion Content --}}
-                        <div id="content-{{ $hospitalCode }}" class="transition-all duration-200 overflow-hidden {{ $isExpanded ? '' : 'hidden' }}">
+                        <div id="content-{{ $hospital['code'] }}" class="transition-all duration-200 overflow-hidden {{ $hospital['is_expanded'] ? '' : 'hidden' }}">
                             <div class="p-2 bg-white border-t border-gray-100">
                                 <div class="flex flex-wrap gap-1.5">
-                                    @foreach($sectors as $sector)
-                                        @php
-                                            $isChecked = in_array($sector['sector_code'], $selectedSectors);
-                                        @endphp
-                                        <label class="sector-item inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm {{ $isChecked ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50' }}"
-                                               data-sector-name="{{ strtolower($sector['sector_name']) }}">
-                                            <input type="checkbox" name="sector_codes[]" value="{{ $sector['sector_code'] }}" {{ $isChecked ? 'checked' : '' }} class="hidden" onchange="updateCheckbox(this)">
-                                            <div data-indicator class="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 {{ $isChecked ? 'bg-[#004D9D] border-[#004D9D]' : 'border-gray-300 bg-white' }}">
-                                                @if($isChecked)
+                                    @foreach($hospital['sectors'] as $sector)
+                                        <label class="sector-item inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm {{ $sector['is_checked'] ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50' }}"
+                                               data-sector-name="{{ $sector['name_lower'] }}">
+                                            <input type="checkbox" name="sector_codes[]" value="{{ $sector['code'] }}" {{ $sector['is_checked'] ? 'checked' : '' }} class="hidden" onchange="updateCheckbox(this)">
+                                            <div data-indicator class="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 {{ $sector['is_checked'] ? 'bg-[#004D9D] border-[#004D9D]' : 'border-gray-300 bg-white' }}">
+                                                @if($sector['is_checked'])
                                                     <i class="fas fa-check text-white" style="font-size: 0.5rem"></i>
                                                 @endif
                                             </div>
-                                            <span class="text-xs text-gray-700 whitespace-nowrap">{{ $sector['sector_name'] }}</span>
+                                            <span class="text-xs text-gray-700 whitespace-nowrap">{{ $sector['name'] }}</span>
                                         </label>
                                     @endforeach
                                 </div>

@@ -43,31 +43,21 @@
                     O sistema busca as 2 avaliações mais recentes de cada escala por paciente (score e classificação já vêm prontos do prontuário). Tudo fica em cache por 5 minutos; se parecer desatualizado, recarregue a página para renovar.
                 </p>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
-                    @php
-                        $scales = [
-                            'MEWS' => ['desc' => 'Alerta precoce (Adulto)', 'criteria' => [['color' => 'red', 'label' => '≥5: Crítico'], ['color' => 'orange', 'label' => '4: Alto'], ['color' => 'yellow', 'label' => '3: Alerta'], ['color' => 'gray', 'label' => '0-2: Normal']]],
-                            'PEWS' => ['desc' => 'Alerta precoce (Pediátrico)', 'criteria' => [['color' => 'red', 'label' => '≥4: Alto'], ['color' => 'yellow', 'label' => '2-3: Moderado'], ['color' => 'gray', 'label' => '0-1: Normal']]],
-                            'Braden' => ['desc' => 'Risco de Lesão por Pressão', 'criteria' => [['color' => 'red', 'label' => '≤12: Alto'], ['color' => 'yellow', 'label' => '13-14: Moderado'], ['color' => 'gray', 'label' => '15-18: Leve'], ['color' => 'green', 'label' => '19-23: Sem risco']]],
-                            'Morse' => ['desc' => 'Risco de Queda', 'criteria' => [['color' => 'red', 'label' => '≥45: Alto'], ['color' => 'yellow', 'label' => '25-44: Moderado'], ['color' => 'gray', 'label' => '<25: Baixo']]],
-                            'Dor' => ['desc' => 'Nível de Dor', 'criteria' => [['color' => 'red', 'label' => '≥7: Intensa'], ['color' => 'yellow', 'label' => '4-6: Moderada'], ['color' => 'gray', 'label' => '1-3: Leve'], ['color' => 'green', 'label' => '0: Sem dor']]],
-                            'TEV' => ['desc' => 'Risco de Tromboembolismo', 'criteria' => [['color' => 'red', 'label' => '≥7: Alto'], ['color' => 'yellow', 'label' => '3-6: Moderado'], ['color' => 'gray', 'label' => '0-2: Baixo']]],
-                        ];
-                        $colors = [
-                            'red' => 'bg-red-100 border-red-300',
-                            'orange' => 'bg-orange-100 border-orange-300',
-                            'yellow' => 'bg-yellow-100 border-yellow-300',
-                            'gray' => 'bg-gray-100 border-gray-300',
-                            'green' => 'bg-green-100 border-green-300',
-                        ];
-                    @endphp
-                    @foreach ($scales as $name => $scale)
+                    @foreach ([
+                        'MEWS' => ['desc' => 'Alerta precoce (Adulto)', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≥5: Crítico'], ['class' => 'bg-orange-100 border-orange-300', 'label' => '4: Alto'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '3: Alerta'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '0-2: Normal']]],
+                        'PEWS' => ['desc' => 'Alerta precoce (Pediátrico)', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≥4: Alto'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '2-3: Moderado'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '0-1: Normal']]],
+                        'Braden' => ['desc' => 'Risco de Lesão por Pressão', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≤12: Alto'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '13-14: Moderado'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '15-18: Leve'], ['class' => 'bg-green-100 border-green-300', 'label' => '19-23: Sem risco']]],
+                        'Morse' => ['desc' => 'Risco de Queda', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≥45: Alto'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '25-44: Moderado'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '<25: Baixo']]],
+                        'Dor' => ['desc' => 'Nível de Dor', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≥7: Intensa'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '4-6: Moderada'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '1-3: Leve'], ['class' => 'bg-green-100 border-green-300', 'label' => '0: Sem dor']]],
+                        'TEV' => ['desc' => 'Risco de Tromboembolismo', 'criteria' => [['class' => 'bg-red-100 border-red-300', 'label' => '≥7: Alto'], ['class' => 'bg-yellow-100 border-yellow-300', 'label' => '3-6: Moderado'], ['class' => 'bg-gray-100 border-gray-300', 'label' => '0-2: Baixo']]],
+                    ] as $name => $scale)
                         <div class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200">
                             <h4 class="font-bold text-gray-800 text-sm mb-1">{{ $name }}</h4>
                             <p class="text-[10px] text-gray-500 mb-2">{{ $scale['desc'] }}</p>
                             <div class="space-y-1.5">
                                 @foreach ($scale['criteria'] as $criterion)
                                     <div class="flex items-center gap-2">
-                                        <div class="w-3 h-3 {{ $colors[$criterion['color']] }} rounded-sm flex-shrink-0"></div>
+                                        <div class="w-3 h-3 {{ $criterion['class'] }} rounded-sm flex-shrink-0"></div>
                                         <span class="text-gray-700">{{ $criterion['label'] }}</span>
                                     </div>
                                 @endforeach

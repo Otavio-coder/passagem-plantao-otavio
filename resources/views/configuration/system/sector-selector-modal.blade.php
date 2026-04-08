@@ -41,14 +41,6 @@
 
                 {{-- Content --}}
                 <div class="flex-1 overflow-y-auto min-h-0 bg-gray-50 p-3" style="scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9;">
-                    @php
-                        $hospitalColors = [
-                            '1' => '#8C3134', '8' => '#42909A', '2' => '#A96538',
-                            '6' => '#3E6B35', '4' => '#4586B4', '3' => '#9574A1',
-                            '25' => '#CE7D74', '7' => '#563174', '18' => '#073772',
-                        ];
-                    @endphp
-
                     @if(empty($this->filteredSectors))
                         <div class="flex flex-col items-center justify-center h-48 text-gray-400">
                             <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,49 +53,41 @@
                         </div>
                     @else
                         <div class="space-y-3">
-                            @foreach($this->filteredSectors as $hospitalCode => $sectors)
-                                @php
-                                    $selectedCount = collect($sectors)->filter(fn($s) => in_array($s['sector_code'], $selectedSectors))->count();
-                                    $allSelected = $selectedCount === count($sectors) && count($sectors) > 0;
-                                    $isExpanded = $selectedCount > 0 || $loop->first;
-                                    $hospitalColor = $hospitalColors[$hospitalCode] ?? '#004D9D';
-                                    $hospitalName = $sectors[0]['hospital_name'] ?? 'Hospital';
-                                @endphp
-                                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm" wire:key="hospital-{{ $hospitalCode }}" style="border-top: 4px solid {{ $hospitalColor }};">
-                                    <button type="button" @click="expandedHospitals['{{ $hospitalCode }}'] = !expandedHospitals['{{ $hospitalCode }}']" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors">
+                            @foreach($this->hospitalSections as $hospital)
+                                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm" wire:key="hospital-{{ $hospital['code'] }}" style="border-top: 4px solid {{ $hospital['color'] }};">
+                                    <button type="button" @click="expandedHospitals['{{ $hospital['code'] }}'] = !expandedHospitals['{{ $hospital['code'] }}']" class="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors">
                                         <div class="flex items-center gap-3 min-w-0">
-                                            <div class="w-9 h-9 rounded-lg text-white flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm" style="background: {{ $hospitalColor }};">{{ substr($hospitalName, 0, 1) }}</div>
+                                            <div class="w-9 h-9 rounded-lg text-white flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm" style="background: {{ $hospital['color'] }};">{{ $hospital['icon_label'] }}</div>
                                             <div class="text-left min-w-0">
-                                                <h3 class="font-semibold text-gray-800 text-sm truncate">{{ $hospitalName }}</h3>
-                                                <p class="text-xs text-gray-500">{{ count($sectors) }} setores</p>
+                                                <h3 class="font-semibold text-gray-800 text-sm truncate">{{ $hospital['name'] }}</h3>
+                                                <p class="text-xs text-gray-500">{{ $hospital['total_sectors'] }} setores</p>
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-2 flex-shrink-0">
-                                            @if($selectedCount > 0)
-                                                <span class="text-white text-xs px-2 py-0.5 rounded-full shadow-sm" style="background: {{ $hospitalColor }};">{{ $selectedCount }}</span>
+                                            @if($hospital['selected_count'] > 0)
+                                                <span class="text-white text-xs px-2 py-0.5 rounded-full shadow-sm" style="background: {{ $hospital['color'] }};">{{ $hospital['selected_count'] }}</span>
                                             @endif
-                                            <svg class="w-5 h-5 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': expandedHospitals['{{ $hospitalCode }}'] ?? {{ $isExpanded ? 'true' : 'false' }} }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-5 h-5 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': expandedHospitals['{{ $hospital['code'] }}'] ?? {{ $hospital['is_expanded'] ? 'true' : 'false' }} }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                             </svg>
                                         </div>
                                     </button>
 
-                                    <div x-show="expandedHospitals['{{ $hospitalCode }}'] ?? {{ $isExpanded ? 'true' : 'false' }}" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 max-h-0" x-transition:enter-end="opacity-100 max-h-[1000px]" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 max-h-[1000px]" x-transition:leave-end="opacity-0 max-h-0" class="overflow-hidden">
+                                    <div x-show="expandedHospitals['{{ $hospital['code'] }}'] ?? {{ $hospital['is_expanded'] ? 'true' : 'false' }}" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 max-h-0" x-transition:enter-end="opacity-100 max-h-[1000px]" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 max-h-[1000px]" x-transition:leave-end="opacity-0 max-h-0" class="overflow-hidden">
                                         <div class="p-3 border-t border-gray-100">
                                             <div class="flex justify-between items-center mb-3">
                                                 <span class="text-xs text-gray-500">Clique para selecionar/deselecionar</span>
-                                                <button type="button" wire:click="selectAllFromHospital('{{ $hospitalCode }}')" class="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors" style="{{ $allSelected ? 'background: #f3f4f6; color: #4b5563;' : 'background: ' . $hospitalColor . '15; color: ' . $hospitalColor . ';' }}">{{ $allSelected ? 'Desmarcar todos' : 'Selecionar todos' }}</button>
+                                                <button type="button" wire:click="selectAllFromHospital('{{ $hospital['code'] }}')" class="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors" style="{{ $hospital['all_selected'] ? 'background: #f3f4f6; color: #4b5563;' : 'background: ' . $hospital['color'] . '15; color: ' . $hospital['color'] . ';' }}">{{ $hospital['all_selected'] ? 'Desmarcar todos' : 'Selecionar todos' }}</button>
                                             </div>
                                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                @foreach($sectors as $sector)
-                                                    @php $isSelected = in_array($sector['sector_code'], $selectedSectors); @endphp
-                                                    <button type="button" wire:key="sector-{{ $sector['sector_code'] }}" wire:click="toggleSector('{{ $sector['sector_code'] }}')" class="flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all {{ $isSelected ? 'bg-blue-50' : 'bg-white hover:bg-gray-50' }}" style="border-color: {{ $isSelected ? $hospitalColor : '#e5e7eb' }};">
-                                                        <div class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0" style="{{ $isSelected ? 'background: ' . $hospitalColor . '; border-color: ' . $hospitalColor . ';' : 'border-color: #d1d5db; background: #fff;' }}">
-                                                            @if($isSelected)
+                                                @foreach($hospital['sectors'] as $sector)
+                                                    <button type="button" wire:key="sector-{{ $sector['code'] }}" wire:click="toggleSector('{{ $sector['code'] }}')" class="flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all {{ $sector['is_selected'] ? 'bg-blue-50' : 'bg-white hover:bg-gray-50' }}" style="border-color: {{ $sector['is_selected'] ? $hospital['color'] : '#e5e7eb' }};">
+                                                        <div class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0" style="{{ $sector['is_selected'] ? 'background: ' . $hospital['color'] . '; border-color: ' . $hospital['color'] . ';' : 'border-color: #d1d5db; background: #fff;' }}">
+                                                            @if($sector['is_selected'])
                                                                 <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                                                             @endif
                                                         </div>
-                                                        <span class="text-sm text-gray-700 truncate">{{ $sector['sector_name'] }}</span>
+                                                        <span class="text-sm text-gray-700 truncate">{{ $sector['name'] }}</span>
                                                     </button>
                                                 @endforeach
                                             </div>

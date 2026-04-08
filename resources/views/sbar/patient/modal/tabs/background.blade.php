@@ -1,7 +1,8 @@
 @props([
     'loadingPatient' => false,
     'currentPatient' => null,
-    'patientDetails' => null
+    'patientDetails' => null,
+    'clinicalData' => [],
 ])
 
 <div x-show="activeTab === 'tab-b'" class="p-2 sm:p-3">
@@ -39,14 +40,9 @@
                         Diagnóstico e Comorbidades
                     </h5>
                     <div class="bg-gray-50 p-2 rounded-lg border">
-                        @php
-                            $diagnosticos = $patientDetails->diagnosticos_comorbidades ?? 'Não informado';
-                            $diagnosticosList = array_filter(array_map('trim', preg_split('/\|/', $diagnosticos)));
-                        @endphp
-
-                        @if(count($diagnosticosList) > 1)
+                        @if(count($clinicalData['diagnosticos_list'] ?? []) > 1)
                             <div class="space-y-1">
-                                @foreach($diagnosticosList as $diag)
+                                @foreach(($clinicalData['diagnosticos_list'] ?? []) as $diag)
                                     <div class="flex items-center space-x-2 text-xs text-gray-800">
                                         <span class="inline-block w-1.5 h-1.5 flex-shrink-0 bg-red-400 rounded-full"></span>
                                         <span class="font-medium">{{ $diag }}</span>
@@ -54,7 +50,7 @@
                                 @endforeach
                             </div>
                         @else
-                            <p class="text-xs text-gray-800 font-medium">{{ $diagnosticos }}</p>
+                            <p class="text-xs text-gray-800 font-medium">{{ $clinicalData['diagnosticos'] ?? 'Não informado' }}</p>
                         @endif
                     </div>
                 </div>
@@ -65,14 +61,9 @@
                         Dispositivos em Uso
                     </h5>
                     <div class="bg-gray-50 p-2 rounded-lg border">
-                        @php
-                            $dispositivos = $patientDetails->dispositivos ?? 'Nenhum dispositivo';
-                            $dispositivosList = array_filter(explode('|', $dispositivos));
-                        @endphp
-
-                        @if(count($dispositivosList) > 1)
+                        @if(count($clinicalData['dispositivos_list'] ?? []) > 1)
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                                @foreach($dispositivosList as $dispositivo)
+                                @foreach(($clinicalData['dispositivos_list'] ?? []) as $dispositivo)
                                     <div class="flex items-center space-x-2 text-xs text-gray-800">
                                         <span class="inline-block w-1.5 h-1.5 flex-shrink-0 bg-orange-400 rounded-full"></span>
                                         <span class="font-medium">{{ trim($dispositivo) }}</span>
@@ -80,7 +71,7 @@
                                 @endforeach
                             </div>
                         @else
-                            <p class="text-xs text-gray-800 font-medium">{{ $dispositivos }}</p>
+                            <p class="text-xs text-gray-800 font-medium">{{ $clinicalData['dispositivos'] ?? 'Nenhum dispositivo' }}</p>
                         @endif
                     </div>
                 </div>
@@ -94,27 +85,27 @@
                         Alergias Conhecidas
                     </h5>
                     <div class="bg-gray-50 p-2 rounded-lg border">
-                        @php
-                            $alergias = $patientDetails->alergias_detalhadas ?? 'Nenhuma alergia registrada';
-                            $alergias = preg_replace('/\s*-\s*(Não informado|desconhecido|N\/A)[^;]*/i', '', $alergias);
-                            $alergias = preg_replace('/;\s*;/', ';', $alergias);
-                            $alergias = trim($alergias, '; ');
-                            $alergiasList = array_filter(array_map('trim', explode(';', $alergias)));
-                        @endphp
-
-                        @if(count($alergiasList) > 1 && !in_array(strtolower($alergias), ['nenhuma alergia registrada', 'sem alergias registradas']))
+                        @if(!empty($clinicalData['alergias_items'] ?? []))
                             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                @foreach($alergiasList as $alergia)
-                                    @if(!empty(trim($alergia)))
+                                @foreach(($clinicalData['alergias_items'] ?? []) as $alergia)
+                                    @if(!empty($alergia['med'] ?? null))
                                         <div class="flex items-center space-x-1.5 text-xs text-gray-800">
                                             <span class="inline-block w-1.5 h-1.5 flex-shrink-0 bg-red-400 rounded-full"></span>
-                                            <span class="font-medium">{{ trim($alergia) }}</span>
+                                            <span class="font-medium">{{ $alergia['med'] }}</span>
+                                            @if(!empty($alergia['grav']))
+                                                <span class="text-gray-500">{{ $alergia['grav'] }}</span>
+                                            @endif
+                                        </div>
+                                    @elseif(!empty($alergia['text'] ?? null))
+                                        <div class="flex items-center space-x-1.5 text-xs text-gray-800">
+                                            <span class="inline-block w-1.5 h-1.5 flex-shrink-0 bg-red-400 rounded-full"></span>
+                                            <span class="font-medium">{{ $alergia['text'] }}</span>
                                         </div>
                                     @endif
                                 @endforeach
                             </div>
                         @else
-                            <p class="text-xs text-gray-800 font-medium">{{ $alergias ?: 'Nenhuma alergia registrada' }}</p>
+                            <p class="text-xs text-gray-800 font-medium">{{ $clinicalData['alergias'] ?? 'Nenhuma alergia registrada' }}</p>
                         @endif
                     </div>
                 </div>

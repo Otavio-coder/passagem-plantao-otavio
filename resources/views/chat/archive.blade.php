@@ -97,24 +97,15 @@
             {{-- Distribuição por turno --}}
             <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Anotações por turno</p>
-                @php
-                    $shiftTotal = max(1, array_sum($shiftStats));
-                    $shifts = [
-                        'manha' => ['Manhã',  '#F59E0B'],
-                        'tarde' => ['Tarde',  '#0071B9'],
-                        'noite' => ['Noite',  '#073772'],
-                    ];
-                @endphp
                 <div class="space-y-2">
-                    @foreach($shifts as $k => [$label, $color])
-                        @php $pct = round($shiftStats[$k] / $shiftTotal * 100); @endphp
+                    @foreach($shiftDistribution as $shift)
                         <div>
                             <div class="flex justify-between text-[10px] text-gray-500 mb-1">
-                                <span>{{ $label }}</span>
-                                <span class="font-semibold">{{ $pct }}%</span>
+                                <span>{{ $shift['label'] }}</span>
+                                <span class="font-semibold">{{ $shift['percentage'] }}%</span>
                             </div>
                             <div class="h-2 bg-gray-100 rounded-full">
-                                <div class="h-2 rounded-full transition-all" style="width:{{ $pct }}%; background-color:{{ $color }}"></div>
+                                <div class="h-2 rounded-full transition-all" style="width:{{ $shift['percentage'] }}%; background-color:{{ $shift['color'] }}"></div>
                             </div>
                         </div>
                     @endforeach
@@ -122,9 +113,9 @@
                 <div class="mt-2 pt-2 border-t border-gray-100">
                     <p class="text-[10px] text-gray-400">
                         Período:
-                        <span class="text-gray-600 font-medium">{{ $stats->oldest ? \Carbon\Carbon::parse($stats->oldest)->format('d/m/Y') : '—' }}</span>
+                        <span class="text-gray-600 font-medium">{{ $periodStart ?? '—' }}</span>
                         →
-                        <span class="text-gray-600 font-medium">{{ $stats->newest ? \Carbon\Carbon::parse($stats->newest)->format('d/m/Y') : '—' }}</span>
+                        <span class="text-gray-600 font-medium">{{ $periodEnd ?? '—' }}</span>
                     </p>
                 </div>
             </div>
@@ -132,14 +123,12 @@
             {{-- Time series: últimos 6 meses --}}
             <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Anotações — últimos 6 meses</p>
-                @php $maxMsg = max(1, max(array_column($months, 'messages'))); @endphp
                 <div class="space-y-1.5">
-                    @foreach($months as $data)
-                        @php $pct = (int) round($data['messages'] / $maxMsg * 100); @endphp
+                    @foreach($seriesData as $data)
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] text-gray-400 w-11 text-right flex-shrink-0">{{ $data['label'] }}</span>
                             <div class="flex-1 bg-gray-100 rounded-full h-2.5">
-                                <div class="h-2.5 rounded-full" style="width:{{ $pct }}%; background-color:#0071B9"></div>
+                                <div class="h-2.5 rounded-full" style="width:{{ $data['percentage'] }}%; background-color:#0071B9"></div>
                             </div>
                             <span class="text-[10px] text-gray-600 font-semibold w-8 text-right">{{ $data['messages'] ?: '—' }}</span>
                         </div>

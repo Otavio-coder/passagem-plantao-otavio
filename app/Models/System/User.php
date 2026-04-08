@@ -80,6 +80,51 @@ class User extends Authenticatable implements LdapAuthenticatable
         return $status[$this->status];
     }
 
+    public function getStatusColorAttribute(): string
+    {
+        return $this->status === 'A' ? 'teal' : 'red';
+    }
+
+    public function getDisplayPhotoAttribute(): ?string
+    {
+        return $this->hasValidPhoto() ? $this->photo : null;
+    }
+
+    public function getAvatarInitialsAttribute(): string
+    {
+        $words = preg_split('/[\s.]+/', trim($this->name ?: 'U')) ?: ['U'];
+        $initials = strtoupper(substr((string) ($words[0] ?? 'U'), 0, 1));
+
+        if (count($words) > 1) {
+            $initials .= strtoupper(substr((string) end($words), 0, 1));
+        }
+
+        return $initials;
+    }
+
+    public function getAvatarBgColorAttribute(): string
+    {
+        $palette = ['4F46E5', '0891B2', '059669', 'B45309', '7C3AED', '0284C7', 'BE185D', '0F766E'];
+
+        return '#'.$palette[abs(crc32($this->name ?: 'U')) % count($palette)];
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public function getSectorsByHospitalAttribute(): array
+    {
+        return $this->sectorPreferences
+            ->groupBy('hospital_name')
+            ->map(fn ($preferences) => $preferences->pluck('sector_name')->filter()->unique()->values()->all())
+            ->toArray();
+    }
+
+    public function getHasSectorsAttribute(): bool
+    {
+        return ! empty($this->sectors_by_hospital);
+    }
+
     /**
      * Check if user has a valid photo (not error data)
      */

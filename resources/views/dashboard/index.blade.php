@@ -44,14 +44,6 @@
 
                 <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
 
-                    @php
-                        /**
-                         * Cards são renderizados com layout duplo:
-                         *  - mobile  : ícone centralizado + label abaixo (flex-col)
-                         *  - sm+     : ícone à esquerda + texto à direita (flex-row)
-                         */
-                    @endphp
-
                     {{-- Passagem de Plantão — todos --}}
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
                         <a href="{{ route('sbar.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">

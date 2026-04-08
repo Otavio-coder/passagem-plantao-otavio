@@ -1,7 +1,7 @@
 <div x-show="activeRecomendacaoTab === 'tab-proc'" style="display:none;" class="pt-3">
 
     {{-- Procedimentos header + search --}}
-    @if($procCount > 0)
+    @if(($planDisplayData['counts']['tab-proc'] ?? 0) > 0)
     <p class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-2
                mt-0">Procedimentos</p>
     <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -36,7 +36,7 @@
     @endif
 
     {{-- No search results --}}
-    <div x-show="{{ $procCount }} > 0 && procFiltered.length === 0"
+    <div x-show="{{ (int) ($planDisplayData['counts']['tab-proc'] ?? 0) }} > 0 && procFiltered.length === 0"
          class="bg-white rounded-xl border border-gray-200 py-10 flex flex-col items-center gap-2">
         <i class="fa-solid fa-filter-circle-xmark text-gray-200" style="font-size:28px;"></i>
         <p class="text-sm text-gray-400">Nenhum resultado no período selecionado.</p>

@@ -35,9 +35,6 @@ class SystemConfigurationController extends Controller
     {
         $user = Auth::user();
 
-        // Obtém setores disponíveis dos hospitais permitidos
-        $availableSectors = $this->getAvailableSectors();
-
         // Obtém preferências atuais do usuário
         $userPreferences = $user->sectorPreferences()
             ->get()
@@ -45,11 +42,17 @@ class SystemConfigurationController extends Controller
                 return [$pref->sector_code => $pref];
             });
 
+        // Obtém setores disponíveis e garante que preferências já salvas também apareçam.
+        $availableSectors = $this->mergeAvailableWithUserPreferences(
+            $this->getAvailableSectors(),
+            $userPreferences
+        );
+
         // Agrupa setores por hospital para exibição
         $sectorsByHospital = collect($availableSectors)->groupBy('hospital_code');
 
         // Códigos de setores selecionados pelo usuário
-        $selectedSectors = $userPreferences->keys()->toArray();
+        $selectedSectors = $userPreferences->keys()->map(fn ($code) => (string) $code)->toArray();
 
         $hospitalSections = $this->buildHospitalSections($sectorsByHospital, $selectedSectors);
 
@@ -168,9 +171,13 @@ class SystemConfigurationController extends Controller
      */
     private function buildHospitalSections($sectorsByHospital, array $selectedSectors): array
     {
-        return $sectorsByHospital->map(function ($sectors, $hospitalCode) use ($selectedSectors): array {
+        $selectedSectorLookup = array_flip(array_map(static fn ($code) => (string) $code, $selectedSectors));
+
+        return $sectorsByHospital->map(function ($sectors, $hospitalCode) use ($selectedSectorLookup): array {
             $hospitalName = (string) ($sectors->first()['hospital_name'] ?? 'Hospital');
-            $selectedCount = $sectors->filter(fn ($sector) => in_array($sector['sector_code'], $selectedSectors, true))->count();
+            $selectedCount = $sectors->filter(function ($sector) use ($selectedSectorLookup): bool {
+                return isset($selectedSectorLookup[(string) ($sector['sector_code'] ?? '')]);
+            })->count();
 
             return [
                 'code' => (string) $hospitalCode,
@@ -181,8 +188,8 @@ class SystemConfigurationController extends Controller
                 'total_sectors' => $sectors->count(),
                 'selected_count' => $selectedCount,
                 'is_expanded' => $selectedCount > 0,
-                'sectors' => $sectors->map(function ($sector) use ($selectedSectors): array {
-                    $isChecked = in_array($sector['sector_code'], $selectedSectors, true);
+                'sectors' => $sectors->map(function ($sector) use ($selectedSectorLookup): array {
+                    $isChecked = isset($selectedSectorLookup[(string) ($sector['sector_code'] ?? '')]);
 
                     return [
                         'code' => $sector['sector_code'],
@@ -193,5 +200,38 @@ class SystemConfigurationController extends Controller
                 })->values()->all(),
             ];
         })->values()->all();
+    }
+
+    /**
+     * @param  array<int, array{sector_code: string, sector_name: string, hospital_code: string, hospital_name: string}>  $availableSectors
+     * @param  Collection<int|string, UserSectorPreference>  $userPreferences
+     * @return array<int, array{sector_code: string, sector_name: string, hospital_code: string, hospital_name: string}>
+     */
+    private function mergeAvailableWithUserPreferences(array $availableSectors, Collection $userPreferences): array
+    {
+        $availableByCode = collect($availableSectors)
+            ->keyBy(fn (array $sector) => (string) $sector['sector_code']);
+
+        foreach ($userPreferences as $preference) {
+            $sectorCode = (string) $preference->sector_code;
+
+            if (! $availableByCode->has($sectorCode)) {
+                $availableByCode->put($sectorCode, [
+                    'sector_code' => $sectorCode,
+                    'sector_name' => (string) ($preference->sector_name ?? $sectorCode),
+                    'hospital_code' => (string) ($preference->hospital_code ?? ''),
+                    'hospital_name' => (string) ($preference->hospital_name ?? 'Hospital'),
+                ]);
+            }
+        }
+
+        return $availableByCode
+            ->values()
+            ->sortBy([
+                ['hospital_name', 'asc'],
+                ['sector_name', 'asc'],
+            ])
+            ->values()
+            ->all();
     }
 }

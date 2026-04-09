@@ -108,4 +108,31 @@ class PatientModalTest extends TestCase
         $this->assertArrayNotHasKey('pews', $scales);
         $this->assertSame(2, $scales['mews']['score']);
     }
+
+    #[Test]
+    public function it_removes_duplicate_cid_entries_from_clinical_diagnostics_list(): void
+    {
+        $component = new PatientModal;
+
+        $component->patientDetails = (object) [
+            'diagnosticos_comorbidades' => 'D729 D72.9 Transt NE dos globulos brancos (Principal) | D729 D72.9 Transt NE dos globulos brancos (Principal) | E119 E11.9 Diabetes mellitus tipo 2',
+            'dispositivos' => 'Nenhum dispositivo registrado',
+            'alergias_detalhadas' => 'Sem alergias registradas',
+            'medida_bloqueio' => 'Não',
+            'motivos_isolamento' => 'Nenhum motivo de isolamento',
+            'materiais' => 'Nenhum antimicrobiano',
+            'procedimentos_cirurgicos' => [],
+            'avaliacao_enf' => 'Não realizada',
+            'plano_educ' => 'Não realizado',
+            'pe_data' => 'Não realizado',
+            'ds_queda' => 'Não avaliado',
+        ];
+
+        $clinicalData = $component->getClinicalDataProperty();
+
+        $this->assertSame([
+            'D729 D72.9 Transt NE dos globulos brancos (Principal)',
+            'E119 E11.9 Diabetes mellitus tipo 2',
+        ], $clinicalData['diagnosticos_list']);
+    }
 }

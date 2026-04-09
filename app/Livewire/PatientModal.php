@@ -373,6 +373,7 @@ class PatientModal extends Component
         return collect(preg_split('/\|+/', $value) ?: [])
             ->map(fn ($item) => trim((string) $item))
             ->filter(fn ($item) => $item !== '')
+            ->unique()
             ->values()
             ->all();
     }

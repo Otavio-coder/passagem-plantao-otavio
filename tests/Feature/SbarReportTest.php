@@ -6,13 +6,13 @@ use App\Livewire\SbarReport;
 use App\Models\System\User;
 use App\Models\System\UserSectorPreference;
 use App\Services\Tasy\TasyService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class SbarReportTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private function mockTasy(): void
     {

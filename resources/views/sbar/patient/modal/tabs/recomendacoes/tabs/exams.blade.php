@@ -57,6 +57,24 @@
                         </p>
                         <p x-show="exam.prescriber" class="text-[10px] text-gray-400 mt-0.5"><i class="fa-regular fa-user mr-1"></i><span x-text="exam.prescriber"></span></p>
                         <p x-show="exam.resultado_laudo" class="text-[10px] text-emerald-700 font-semibold mt-0.5"><i class="fa-solid fa-flask mr-1 opacity-70"></i><span x-text="exam.resultado_laudo"></span></p>
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            <span x-show="exam.foi_executado_sem_baixa"
+                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
+                                Executado sem baixa
+                            </span>
+                            <span x-show="exam.exame_coletado_em_prescricao_mais_nova"
+                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+                                  :title="exam.prescricao_mais_nova_pendente_info ? 'Pedido mais recente em aberto: ' + exam.prescricao_mais_nova_pendente_info : 'Pedido mais recente em aberto'">
+                                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>
+                                Pedido mais recente em aberto
+                            </span>
+                            <span x-show="exam.prescricao_mais_nova_pendente_info && !exam.exame_coletado_em_prescricao_mais_nova"
+                                  class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
+                                <i class="fa-solid fa-rotate" style="font-size:9px;"></i>
+                                Renovado: <span class="font-mono ml-0.5" x-text="exam.prescricao_mais_nova_pendente_info"></span>
+                            </span>
+                        </div>
                     </div>
                       <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
                           :class="examBadge(exam.status)"

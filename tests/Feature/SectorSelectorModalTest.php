@@ -5,14 +5,14 @@ namespace Tests\Feature;
 use App\Livewire\SectorSelectorModal;
 use App\Models\System\User;
 use App\Models\System\UserSectorPreference;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class SectorSelectorModalTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     /** @var array<int, array<string, string>> */
     private array $fakeSectors = [

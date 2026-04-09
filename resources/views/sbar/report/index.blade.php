@@ -51,21 +51,75 @@
                                         </button>
                                     </div>
 
-                                    <div class="flex items-center justify-center lg:justify-end gap-1 flex-shrink-0 font-montserrat">
+                                    <div class="flex items-center justify-center lg:justify-end gap-2 flex-shrink-0 font-montserrat">
                                         @if($lastRefresh)
-                                            <span class="hidden sm:block text-white/80 text-xs font-montserrat mr-2">
+                                            <span class="hidden xl:block text-white/80 text-xs font-montserrat mr-1">
                                                 Última atualização: {{ $lastRefresh }}
                                             </span>
                                         @endif
+
+                                        {{-- Action buttons — ficam na linha do título em lg+ para liberar espaço dos filtros --}}
+                                        <div class="hidden lg:flex items-center gap-2 flex-shrink-0">
+                                            <button wire:click="refreshData"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="refreshData"
+                                                    :disabled="isInitialLoading"
+                                                    class="inline-flex items-center px-2.5 h-8 xl:px-3 xl:h-9 min-w-[110px] xl:min-w-[126px] rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs xl:text-sm font-medium leading-none">
+                                                <span class="inline-flex items-center gap-1.5" :class="isInitialLoading ? 'inline-flex' : 'hidden'">
+                                                    <svg class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                    </svg>
+                                                    <span>Carregando...</span>
+                                                </span>
+                                                <span x-show="!isInitialLoading" x-cloak wire:loading.remove wire:target="refreshData" class="inline-flex items-center gap-1.5">
+                                                    <x-iconoir-reload-window class="text-white h-3.5 w-3.5 xl:h-4 xl:w-4" />
+                                                    <span>Atualizar</span>
+                                                </span>
+                                                <span x-show="!isInitialLoading" x-cloak wire:loading.inline-flex wire:target="refreshData" class="items-center gap-1.5">
+                                                    <svg class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                    </svg>
+                                                    <span>Atualizando...</span>
+                                                </span>
+                                            </button>
+
+                                            <button @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector ?? 0 }} })"
+                                                    :disabled="isInitialLoading"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="changeHospital,changeSector,refreshData"
+                                                    class="inline-flex items-center px-2.5 py-1.5 xl:px-3 xl:py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 shadow-md text-xs xl:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-orange-500">
+                                                <i class="fas fa-exclamation-triangle xl:mr-1.5"></i>
+                                                <span class="hidden xl:inline">Escalas</span>
+                                            </button>
+
+                                            <button
+                                                @click="$dispatch('openEvaluationsModal', { sectorId: {{ $selectedSector ?? 0 }} })"
+                                                :disabled="isInitialLoading"
+                                                wire:loading.attr="disabled"
+                                                wire:target="changeHospital,changeSector,refreshData"
+                                                class="inline-flex items-center px-2.5 py-1.5 xl:px-3 xl:py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs xl:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#0071B9]">
+                                                <x-iconoir-chat-lines class="text-white h-3.5 w-3.5 xl:h-4 xl:w-4 xl:mr-1.5" />
+                                                <span class="hidden xl:inline">Avaliações</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {{-- Filters + Actions --}}
                                 <div class="w-full">
-                                    <div class="flex flex-col lg:flex-row lg:items-end gap-3 sm:gap-4 lg:gap-6">
+                                    <fieldset
+                                        class="w-full border-0 p-0 m-0 min-w-0"
+                                        disabled
+                                        :disabled="isInitialLoading"
+                                        wire:loading.attr="disabled"
+                                        wire:target="changeHospital,changeSector,refreshData"
+                                    >
+                                    <div class="flex flex-col gap-3 sm:gap-4">
 
                                         {{-- Filters container --}}
-                                        <div class="flex-1 min-w-0">
+                                        <div class="w-full min-w-0">
                                             {{-- Mobile filters --}}
                                             <div class="lg:hidden" x-data="{ filtersOpen: false }">
                                                 <div class="flex items-center justify-between sm:justify-center gap-2">
@@ -77,22 +131,47 @@
 
                                                     <button
                                                         @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector ?? 0 }} })"
-                                                        class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 shadow-md text-xs sm:text-sm font-medium">
+                                                        :disabled="isInitialLoading"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="changeHospital,changeSector,refreshData"
+                                                        class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 shadow-md text-xs sm:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-orange-500">
                                                         <i class="fas fa-exclamation-triangle leading-none sm:mr-1.5"></i>
                                                         <span class="hidden sm:inline">Escalas</span>
                                                     </button>
 
                                                     <button
                                                         @click="$dispatch('openEvaluationsModal', { sectorId: {{ $selectedSector ?? 0 }} })"
-                                                        class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium">
+                                                        :disabled="isInitialLoading"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="changeHospital,changeSector,refreshData"
+                                                        class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#0071B9]">
                                                         <x-iconoir-chat-lines class="text-white h-4 w-4 sm:mr-1.5" />
                                                         <span class="hidden sm:inline">Aval.</span>
                                                     </button>
 
                                                     <button wire:click="refreshData"
                                                             wire:loading.attr="disabled"
-                                                            class="flex-shrink-0 inline-flex items-center justify-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium">
-                                                        <x-iconoir-reload-window class="text-white h-4 w-4" />
+                                                            wire:target="refreshData"
+                                                            :disabled="isInitialLoading"
+                                                            class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium leading-none">
+                                                        <span class="inline-flex items-center gap-1.5" :class="isInitialLoading ? 'inline-flex' : 'hidden'">
+                                                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                            </svg>
+                                                            <span class="hidden sm:inline">Carregando...</span>
+                                                        </span>
+                                                        <span x-show="!isInitialLoading" x-cloak wire:loading.remove wire:target="refreshData" class="inline-flex items-center gap-1.5">
+                                                            <x-iconoir-reload-window class="text-white h-4 w-4" />
+                                                            <span class="hidden sm:inline">Atualizar</span>
+                                                        </span>
+                                                        <span x-show="!isInitialLoading" x-cloak wire:loading.inline-flex wire:target="refreshData" class="items-center gap-1.5">
+                                                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                            </svg>
+                                                            <span class="hidden sm:inline">Atualizando...</span>
+                                                        </span>
                                                     </button>
                                                 </div>
 
@@ -192,6 +271,9 @@
                                                             <label class="text-white text-xs font-medium block mb-1">Ordenar por</label>
                                                             <div class="flex gap-1">
                                                                 <select x-model="orderBy" @change="applyFilters()"
+                                                                    :disabled="isInitialLoading"
+                                                                    wire:loading.attr="disabled"
+                                                                    wire:target="changeHospital,changeSector,refreshData"
                                                                         class="flex-1 bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs">
                                                                     <option value="bed">Leito</option>
                                                                     <option value="mews">MEWS</option>
@@ -200,8 +282,23 @@
                                                                     <option value="name">Nome</option>
                                                                 </select>
                                                                 <button @click="orderDir = orderDir === 'asc' ? 'desc' : 'asc'; applyFilters()"
-                                                                        class="px-2 bg-white/20 border border-white/40 rounded-lg text-white text-xs font-bold">
-                                                                    <span x-text="orderDir === 'asc' ? '↑' : '↓'"></span>
+                                                                        :disabled="isInitialLoading"
+                                                                        wire:loading.attr="disabled"
+                                                                        wire:target="changeHospital,changeSector,refreshData"
+                                                                        class="h-9 px-2 inline-flex items-center justify-center bg-white/20 border border-white/40 rounded-lg text-white text-xs font-bold leading-none">
+                                                                    <span x-show="isInitialLoading" class="inline-flex items-center justify-center">
+                                                                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                            <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                            <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                                        </svg>
+                                                                    </span>
+                                                                    <span x-show="!isInitialLoading" wire:loading.remove wire:target="changeHospital,changeSector,refreshData" x-text="orderDir === 'asc' ? '↑' : '↓'"></span>
+                                                                    <span x-show="!isInitialLoading" wire:loading.inline-flex wire:target="changeHospital,changeSector,refreshData" class="items-center justify-center">
+                                                                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                            <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                            <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                                        </svg>
+                                                                    </span>
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -218,13 +315,13 @@
 
                                             {{-- Desktop filters --}}
                                             <div class="hidden lg:block">
-                                                <div class="flex flex-wrap items-end gap-3">
+                                                <div class="flex flex-wrap items-end gap-2 xl:gap-3">
 
                                                     {{-- Hospital --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Hospital:</label>
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Hospital:</label>
                                                         <select wire:model="selectedHospital" wire:change="changeHospital($event.target.value)"
-                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             @foreach($hospitals as $hospital)
                                                                 <option value="{{ $hospital['hospital_id'] }}">{{ $hospital['hospital_name'] }}</option>
                                                             @endforeach
@@ -233,9 +330,9 @@
 
                                                     {{-- Setor --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Setor:</label>
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Setor:</label>
                                                         <select wire:model="selectedSector" wire:change="changeSector($event.target.value)"
-                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                            class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             @foreach($sectors as $sector)
                                                                 <option value="{{ $sector['cd_setor_atendimento'] }}">{{ $sector['ds_setor_atendimento'] }}</option>
                                                             @endforeach
@@ -244,8 +341,8 @@
 
                                                     {{-- Criticidade --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Criticidade:</label>
-                                                        <select x-model="mewsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Criticidade:</label>
+                                                        <select x-model="mewsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos MEWS</option>
                                                             <option value="critical">CRÍTICOS (≥5)</option>
                                                             <option value="warning">ALERTA (3-4)</option>
@@ -255,8 +352,8 @@
 
                                                     {{-- Cirurgia --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Cirurgia:</label>
-                                                        <select x-model="surgicalFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Cirurgia:</label>
+                                                        <select x-model="surgicalFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todas Cirurgias</option>
                                                             <option value="with_surgery">COM CIRURGIAS</option>
                                                             <option value="without_surgery">SEM CIRURGIAS</option>
@@ -265,8 +362,8 @@
 
                                                     {{-- Pendência --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Pendência:</label>
-                                                        <select x-model="pendingTypeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Pendência:</label>
+                                                        <select x-model="pendingTypeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todas</option>
                                                             <option value="hemoterapia">Hemoterapia</option>
                                                             <option value="cirurgia">Cirurgia</option>
@@ -279,8 +376,8 @@
 
                                                     {{-- Isolamento --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Isolamento:</label>
-                                                        <select x-model="isolationFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Isolamento:</label>
+                                                        <select x-model="isolationFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos</option>
                                                             <option value="with_isolation">Com isolamento</option>
                                                         </select>
@@ -288,8 +385,8 @@
 
                                                     {{-- Multidisciplinar --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Multidisciplinar:</label>
-                                                        <select x-model="multiFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Multidisciplinar:</label>
+                                                        <select x-model="multiFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos</option>
                                                             <option value="fisioterapia">Fisioterapia</option>
                                                             <option value="psicologia">Psicologia</option>
@@ -302,8 +399,8 @@
 
                                                     {{-- Leitos --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Leitos:</label>
-                                                        <select x-model="bedsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Leitos:</label>
+                                                        <select x-model="bedsFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                                                             <option value="all">Todos leitos</option>
                                                             <option value="only_occupied">Só ocupados</option>
                                                             <option value="only_empty">Só vagos</option>
@@ -312,10 +409,13 @@
 
                                                     {{-- Ordenar --}}
                                                     <div class="flex flex-col min-w-0 flex-1">
-                                                        <label class="text-white text-sm font-medium mb-1">Ordenar:</label>
+                                                        <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Ordenar:</label>
                                                         <div class="flex gap-1">
                                                             <select x-model="orderBy" @change="applyFilters()"
-                                                                    class="flex-1 bg-white text-gray-700 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#0071B9]/40">
+                                                                    :disabled="isInitialLoading"
+                                                                    wire:loading.attr="disabled"
+                                                                    wire:target="changeHospital,changeSector,refreshData"
+                                                                    class="flex-1 bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40">
                                                                 <option value="bed">Leito</option>
                                                                 <option value="mews">MEWS</option>
                                                                 <option value="internment">Internação</option>
@@ -324,8 +424,23 @@
                                                             </select>
                                                             <button @click="orderDir = orderDir === 'asc' ? 'desc' : 'asc'; applyFilters()"
                                                                     :title="orderDir === 'asc' ? 'Crescente' : 'Decrescente'"
-                                                                    class="px-3 py-2 bg-white/20 hover:bg-white/30 border border-white/40 rounded-lg text-white text-sm font-bold transition-colors self-end">
-                                                                <i :class="orderDir === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down'" class="fas"></i>
+                                                                    :disabled="isInitialLoading"
+                                                                    wire:loading.attr="disabled"
+                                                                    wire:target="changeHospital,changeSector,refreshData"
+                                                                    class="h-9 px-3 inline-flex items-center justify-center bg-white/20 hover:bg-white/30 border border-white/40 rounded-lg text-white text-sm font-bold transition-colors self-end leading-none disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20">
+                                                                <span x-show="isInitialLoading" class="inline-flex items-center justify-center">
+                                                                    <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                                    </svg>
+                                                                </span>
+                                                                <i x-show="!isInitialLoading" wire:loading.remove wire:target="changeHospital,changeSector,refreshData" :class="orderDir === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down'" class="fas"></i>
+                                                                <span x-show="!isInitialLoading" wire:loading.inline-flex wire:target="changeHospital,changeSector,refreshData" class="items-center justify-center">
+                                                                    <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
+                                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
+                                                                    </svg>
+                                                                </span>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -344,29 +459,8 @@
                                             </div>
                                         </div>
 
-                                        {{-- Desktop actions --}}
-                                        <div class="hidden lg:flex items-center gap-2.5 flex-shrink-0">
-                                            <button wire:click="refreshData"
-                                                    class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-sm font-medium">
-                                                <x-iconoir-reload-window class="text-white h-4 w-4 mr-1.5" />
-                                                Atualizar
-                                            </button>
-
-                                            <button @click="$dispatch('openExpiredScalesModal', { sectorId: {{ $selectedSector ?? 0 }} })"
-                                                    class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-orange-500 hover:bg-orange-600 shadow-md text-sm font-medium">
-                                                <i class="fas fa-exclamation-triangle mr-1.5"></i>
-                                                Escalas
-                                            </button>
-
-                                            <button
-                                                @click="$dispatch('openEvaluationsModal', { sectorId: {{ $selectedSector ?? 0 }} })"
-                                                class="inline-flex items-center px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-sm font-medium">
-                                                <x-iconoir-chat-lines class="text-white h-4 w-4 mr-1.5" />
-                                                Avaliações
-                                            </button>
-
-                                        </div>
                                     </div>
+                                    </fieldset>
                                 </div>
                             </div>
                         </div>
@@ -489,13 +583,45 @@ window.sbarFilters = function () {
         visibleCount:      0,
         totalCount:        0,
         cards:             [],
+        isInitialLoading:  true,
 
         init() {
-            this.$nextTick(() => { this.buildCards(); this.applyFilters(); });
+            const releaseInitialLock = () => {
+                requestAnimationFrame(() => {
+                    this.isInitialLoading = false;
+                });
+            };
 
-            // Re-apply after Livewire re-renders patient list
+            this.$nextTick(() => {
+                this.buildCards();
+                this.applyFilters();
+
+                // Keep controls blocked until initial page load is fully settled.
+                if (document.readyState === 'complete') {
+                    releaseInitialLock();
+                } else {
+                    window.addEventListener('load', releaseInitialLock, { once: true });
+                }
+
+                // Fallback guard: never keep controls locked indefinitely.
+                setTimeout(() => {
+                    if (this.isInitialLoading) {
+                        releaseInitialLock();
+                    }
+                }, 1800);
+            });
+
+            // Re-apply after Livewire re-renders patient list (preserves sort/filter state)
             window.addEventListener('sbar:patients-loaded', () => {
                 this.$nextTick(() => { this.buildCards(); this.applyFilters(); });
+            });
+
+            // Also re-apply whenever any Livewire component updates, since morphdom may
+            // remove the CSS `order` properties that Alpine sets via applyFilters().
+            document.addEventListener('livewire:updated', () => {
+                if (document.getElementById('patientCardsContainer')) {
+                    this.$nextTick(() => { this.buildCards(); this.applyFilters(); });
+                }
             });
         },
 

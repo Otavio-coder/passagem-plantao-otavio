@@ -18,6 +18,8 @@ class PatientSurgeryRepositoryTest extends TestCase
         $appointment = new Appointment;
         $appointment->forceFill([
             'ie_status_agenda' => 'CR',
+            'ds_status_agenda_label' => 'Cirurgia realizada', // domain 83 label from SQL addSelect
+            'ds_carater_label' => 'Urgência',                // domain 1016 label from SQL addSelect
             'ie_carater_cirurgia' => 'U',
             'dt_agenda' => '2026-04-02',
             'hr_inicio' => '2026-04-02 18:30:00',
@@ -33,7 +35,7 @@ class PatientSurgeryRepositoryTest extends TestCase
         $this->assertSame('Biópsia Endoscópica De Bexiga', $mapped['descricao']);
         $this->assertSame('Cirurgia realizada', $mapped['status']);
 
-        $appointment->forceFill(['ie_status_agenda' => 'N']);
+        $appointment->forceFill(['ie_status_agenda' => 'N', 'ds_status_agenda_label' => 'Normal']);
         $mappedNormal = $method->invoke($repository, $appointment, 'Dissecção De Veia Para Colocação De Cateter Central Npp Ou Qt');
 
         $this->assertSame('Normal', $mappedNormal['status']);

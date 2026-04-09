@@ -79,6 +79,11 @@
                         <p x-show="p.resultado_laudo" class="text-[10px] text-emerald-700 font-semibold mt-0.5">
                             <i class="fa-solid fa-flask mr-1 opacity-70"></i><span x-text="p.resultado_laudo"></span>
                         </p>
+                        <span x-show="p.foi_executado_sem_baixa"
+                              class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
+                            Executado sem baixa
+                        </span>
                     </div>
                     <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
                           :class="procBadge(p.status)"

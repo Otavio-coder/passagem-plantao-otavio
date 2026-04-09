@@ -4,7 +4,7 @@ namespace App\Services\PendingEvents\Handlers;
 
 use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Services\PendingEvents\AbstractPendingHandler;
-use App\Support\PendingEventPresentation;
+use App\View\Presenters\PendingEventPresenter;
 
 /**
  * Pendências de hemoterapia programada nas próximas 48h.
@@ -45,7 +45,7 @@ class HemotherapyPendingHandler extends AbstractPendingHandler
             $results[$row->nr_atendimento]['events'][] = [
                 'tipo' => 'hemoterapia',
                 'icone' => 'hemoterapia.svg',
-                'descricao' => PendingEventPresentation::hemotherapyDescription([
+                'descricao' => PendingEventPresenter::hemotherapyDescription([
                     'tipo_label' => $tipo,
                     'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
                     'ds_procedimento_prescrito' => $row->ds_procedimento_prescrito ?? null,

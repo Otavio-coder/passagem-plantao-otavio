@@ -70,7 +70,7 @@
 
         {{-- ─── Panel ──────────────────────────────────────────────────── --}}
         <div
-            class="relative bg-white flex flex-col overflow-hidden w-full h-full sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl lg:w-[740px] lg:h-[86vh] shadow-2xl"
+            class="relative bg-white flex flex-col overflow-hidden w-full h-full sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl lg:w-[740px] lg:h-[90vh] shadow-2xl"
             @click.stop
             x-show="show"
             x-transition:enter="transition ease-out duration-250"

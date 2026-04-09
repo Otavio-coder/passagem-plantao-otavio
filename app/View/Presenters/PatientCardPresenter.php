@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Support;
+namespace App\View\Presenters;
 
 use Carbon\Carbon;
 
-class PatientCardPresentation
+class PatientCardPresenter
 {
     public static function shiftDisplayName(?string $shift): string
     {
@@ -190,37 +190,6 @@ class PatientCardPresentation
         }
 
         return $items;
-    }
-
-    public static function buildFirstPendingStyle(?array $firstEvent): array
-    {
-        $event = $firstEvent ?? [];
-        $type = (string) ($event['tipo'] ?? 'outros');
-        $urgent = (bool) ($event['urgente'] ?? false);
-
-        [$cardBg, $descriptionClass, $timeClass, $pulseColor] = match (true) {
-            in_array($type, ['alta', 'aviso', 'obito'], true) => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
-            $type === 'alta_medica' => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
-            $type === 'previsao_alta' => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-600 font-semibold', 'text-gray-500 font-medium', 'bg-gray-400'],
-            $type === 'cirurgia' && $urgent => ['bg-[#7712C7]/10 border border-[#7712C7]', 'text-[#7712C7] font-bold', 'text-[#7712C7] font-semibold', 'bg-[#7712C7]'],
-            $type === 'cirurgia' => ['bg-[#7712C7]/10 border border-[#7712C7]/50', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]/70'],
-            $type === 'hemoterapia' => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]'],
-            $type === 'quimioterapia' => ['bg-[#0A4700]/10 border border-[#0A4700]/40', 'text-[#0A4700] font-semibold', 'text-[#0A4700]/80 font-medium', 'bg-[#0A4700]'],
-            $type === 'antibiotico' => ['bg-[#BDAD02]/10 border border-[#BDAD02]/60', 'text-[#5C5300] font-semibold', 'text-[#5C5300]/80 font-medium', 'bg-[#BDAD02]'],
-            in_array($type, ['proc_exame', 'exame'], true) => ['bg-blue-50/60 border border-blue-200', 'text-blue-700 font-semibold', 'text-blue-600 font-medium', 'bg-blue-400'],
-            $type === 'procedimento' => ['bg-indigo-50/60 border border-indigo-200', 'text-indigo-700 font-semibold', 'text-indigo-600 font-medium', 'bg-indigo-400'],
-            $urgent => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-bold', 'text-[#7712C7]/80 font-semibold', 'bg-[#7712C7]'],
-            default => ['bg-white/30 border border-white/50', 'text-[#062047] font-semibold', 'text-[#004D9D] font-medium', 'bg-gray-400'],
-        };
-
-        return [
-            'icon' => $event['icone'] ?? 'alert-circle.svg',
-            'card_bg' => $cardBg,
-            'description_class' => $descriptionClass,
-            'time_class' => $timeClass,
-            'pulse_color' => $pulseColor,
-            'show_pulse' => $urgent || in_array($type, ['alta', 'aviso'], true),
-        ];
     }
 
     public static function buildSectorFallbackLabel(array $patient): string

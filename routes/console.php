@@ -22,8 +22,3 @@ Schedule::command('auth:clear-resets')
 // Remove jobs falhos com mais de 168h (7 dias) da fila
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();
-
-// Captura métricas do Horizon para os gráficos do dashboard (requer Horizon + Redis)
-// Remover se QUEUE_CONNECTION != redis em produção
-Schedule::command('horizon:snapshot')
-    ->everyFiveMinutes();

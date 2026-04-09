@@ -2,7 +2,7 @@
 
 <div class="relative patient-card w-full">
     <div
-        class="card-inner patient-card-fixed flex flex-col rounded-xl shadow-lg overflow-hidden h-[400px] max-h-[400px]
+        class="card-inner patient-card-fixed flex flex-col rounded-xl shadow-lg overflow-hidden h-[400px] lg:h-[420px] xl:h-[430px] max-h-[400px] lg:max-h-[420px] xl:max-h-[430px]
         {{ ($patient['has_patient'] ?? false) ? ($patient['border_class'] ?? '') . ' ' . ($patient['text_color_class'] ?? '') : '' }}"
         style="{{ ($patient['gradient_style'] ?? '') }}"
     >
@@ -32,7 +32,7 @@
             {{-- Occupied Bed Card --}}
             <div class="flex flex-col h-full overflow-hidden">
                 {{-- Header Section --}}
-                <div class="flex-shrink-0 p-3 flex flex-col gap-2">
+                <div class="flex-shrink-0 p-3 lg:p-2.5 flex flex-col gap-2 lg:gap-1.5">
                     {{-- Row 1: Bed + Alerts + MEWS --}}
                     <div class="flex justify-between items-center gap-2">
                         {{-- Bed badge com dot de passagem --}}
@@ -174,7 +174,7 @@
                                          style="margin: 0 !important;"
                                     >
                                         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
-                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[500px] flex flex-col"
                                              @click.stop
                                              x-show="showModal"
                                              x-transition:enter="transition ease-out duration-300"
@@ -306,7 +306,7 @@
                                          style="margin: 0 !important;"
                                     >
                                         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
-                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[500px] flex flex-col"
                                              @click.stop
                                              x-show="showModal"
                                              x-transition:enter="transition ease-out duration-300"
@@ -445,7 +445,7 @@
                                          style="margin: 0 !important;"
                                     >
                                         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
-                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col"
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[500px] flex flex-col"
                                              @click.stop
                                              x-show="showModal"
                                              x-transition:enter="transition ease-out duration-300"
@@ -588,7 +588,7 @@
                                         style="margin: 0 !important;"
                                     >
                                         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal()"></div>
-                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[400px] flex flex-col"
+                                        <div class="relative bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[400px] flex flex-col"
                                              @click.stop
                                              x-show="showModal"
                                              x-transition:enter="transition ease-out duration-300"
@@ -655,7 +655,7 @@
                                 <strong>{{ $patient['ews_display']['label'] ?? 'MEWS' }}:</strong>
                                 <span class="ml-1">{{ data_get($patient, ($patient['ews_display']['prefix'] ?? 'mews') . '_score', '-') }}</span>
                                 @if(data_get($patient, ($patient['ews_display']['prefix'] ?? 'mews') . '_shift'))
-                                    <span class="ml-0.5 text-[10px] font-normal">({{ data_get($patient, ($patient['ews_display']['prefix'] ?? 'mews') . '_shift') }})</span>
+                                    <span class="ml-0.5 text-[10px] font-normal hidden">({{ data_get($patient, ($patient['ews_display']['prefix'] ?? 'mews') . '_shift') }})</span>
                                 @endif
                                 @if(data_get($patient, ($patient['ews_display']['prefix'] ?? 'mews') . '_increased', false) && !($patient['is_new_patient'] ?? false))
                                     <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
@@ -676,42 +676,102 @@
                             <span class="text-gray-700 text-xs font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
                         </div>
                     </div>
-                    {{-- Row 3: Administrative Data --}}
-                    <div class="bg-white/70 rounded-lg px-2 py-1 shadow-sm">
-                        <div class="grid grid-cols-3 gap-x-1 gap-y-0 text-[10px]">
-                            <div class="truncate text-center"><span class="text-gray-600">At:</span> <span class="text-gray-900 font-medium">{{ $patient['nr_atendimento'] ?? 'N/A' }}</span></div>
-                            <div class="text-center">
-                                    @if(in_array(($patient['discharge_display']['type'] ?? ''), ['previsao_alta', 'alta_medica']) && !empty($patient['discharge_info']['dt_previsto_alta_formatted']))
-                                    <span class="text-orange-600 font-semibold">Prev.Alta:</span>
-                                        <span class="text-orange-700 font-bold">{{ $patient['discharge_info']['dt_previsto_alta_formatted'] }}</span>
+                    {{-- Row 3: Administrative Data grid --}}
+                    @php
+                        $prevAltaRaw = $patient['discharge_info']['dt_previsto_alta_formatted'] ?? null;
+                        $hasPrevAlta = in_array(($patient['discharge_display']['type'] ?? ''), ['previsao_alta', 'alta_medica']) && !empty($prevAltaRaw);
+                        // formato "09/04/2026 14:30" → "09/04 14:30"
+                        $prevAlta = $prevAltaRaw ? (substr($prevAltaRaw, 0, 5) . ' ' . substr($prevAltaRaw, -5)) : null;
+                        $avalEnf = $patient['avaliacao_enf'] ?? null;
+                        $avalEnfOk = $avalEnf && $avalEnf !== 'Não realizada';
+                        $avalEnfDisplay = $avalEnfOk ? Str::before($avalEnf, ' ') : null;
+                        $peData = $patient['pe_data'] ?? null;
+                        $peOk = $peData && $peData !== 'Não realizado';
+                        $hemocDate = $patient['ultima_hemocultura'] ?? null;
+                        $hemocPend = $patient['hemocultura_pendente'] ?? false;
+                        // Dr(a): primeiro + último nome
+                        $medicoRaw = $patient['medico_responsavel'] ?? null;
+                        $medicoParts = $medicoRaw ? array_values(array_filter(explode(' ', $medicoRaw))) : [];
+                        $medicoAbrev = count($medicoParts) >= 2
+                            ? $medicoParts[0] . ' ' . $medicoParts[count($medicoParts) - 1]
+                            : ($medicoRaw ?? null);
+                    @endphp
+                    <div class="bg-white/70 rounded-lg px-2 py-0.5 shadow-sm">
+                        <div class="grid grid-cols-3 gap-x-2 gap-y-0 text-[9px] leading-snug">
+                            {{-- Row 1: Nº | Alta | Int --}}
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Nº:</span>
+                                <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['nr_atendimento'] ?? '—' }}</span>
+                            </div>
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                @if($hasPrevAlta)
+                                    <span class="text-orange-600 shrink-0">Alta:</span>
+                                    <span class="text-orange-700 font-semibold overflow-hidden">{{ $prevAlta }}</span>
+                                @else
+                                    <span class="text-gray-500 shrink-0">Alta:</span>
+                                    <span class="text-gray-400">—</span>
                                 @endif
                             </div>
-                            <div class="truncate text-center">
-                                <span class="text-gray-600">Int:</span>
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Int:</span>
                                 @if($patient['is_new_patient'] ?? false)
-                                    <span class="text-green-700 font-bold">Hoje</span>
+                                    <span class="text-green-700 font-semibold">Hoje</span>
                                 @elseif(isset($patient['internment_days']) && $patient['internment_days'] !== null)
                                     <span class="text-gray-900 font-medium">{{ ceil($patient['internment_days']) }}d</span>
                                 @else
-                                    <span class="text-gray-400">-</span>
+                                    <span class="text-gray-400">—</span>
                                 @endif
                             </div>
-                            <div class="text-center whitespace-nowrap overflow-hidden">
-                                <span class="text-gray-600">Cv:</span>
-                                <span class="text-gray-900 font-medium truncate">{{ $patient['convenio_short'] ?? 'N/A' }}</span>
+                            {{-- Row 2: Dr | Enf | Educ --}}
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Dr:</span>
+                                @if($medicoAbrev)
+                                    <span class="text-gray-900 font-medium overflow-hidden">{{ $medicoAbrev }}</span>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
                             </div>
-                            @if(!empty($patient['medico_responsavel'] ?? null))
-                                <div class="col-span-2 text-center whitespace-nowrap overflow-hidden">
-                                    <span class="text-gray-600">Dr:</span>
-                                    <span class="text-gray-900 font-medium truncate">{{ $patient['medico_responsavel'] }}</span>
-                                </div>
-                            @else
-                                <div class="col-span-2 text-center"><span class="text-gray-400">-</span></div>
-                            @endif
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Enf:</span>
+                                @if($avalEnfOk)
+                                    <span class="text-gray-900 font-medium">{{ $avalEnfDisplay }}</span>
+                                @else
+                                    <span class="text-gray-400">N/A</span>
+                                @endif
+                            </div>
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Educ:</span>
+                                @if($peOk)
+                                    <span class="text-gray-900 font-medium">{{ $peData }}</span>
+                                @else
+                                    <span class="text-gray-400">N/A</span>
+                                @endif
+                            </div>
+                            {{-- Row 3: Hemoc (2 cols) | Conv --}}
+                            <div class="col-span-2 flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="{{ $hemocPend ? 'text-purple-600 font-semibold shrink-0' : 'text-gray-500 shrink-0' }}">Hemoc:</span>
+                                @if($hemocPend)
+                                    <span class="text-purple-700 font-semibold shrink-0">Pend.</span>
+                                    @if($hemocDate)<span class="text-purple-500 font-normal overflow-hidden"> últ.{{ $hemocDate }}</span>@endif
+                                @elseif($hemocDate)
+                                    <span class="text-gray-900 font-medium overflow-hidden">{{ $hemocDate }}</span>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </div>
+                            <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+                                <span class="text-gray-500 shrink-0">Conv:</span>
+                                <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['convenio_short'] ?? '—' }}</span>
+                            </div>
                         </div>
                     </div>
-                    {{-- Row 4: Risk Scales --}}
-                    <div class="bg-white/70 rounded-lg px-2 py-1 shadow-sm">
+                    {{-- Row 4: Risk Scales (clickable → opens lightweight scales modal) --}}
+                    <div x-data="{ showScalesModal: false }">
+                    <div
+                        class="bg-white/70 rounded-lg px-2 py-1 shadow-sm cursor-pointer hover:bg-white/90 transition-colors"
+                        title="Ver escalas de avaliação"
+                        @click="showScalesModal = true; document.body.style.overflow = 'hidden'"
+                    >
                         <div class="flex flex-wrap gap-1 justify-center items-center min-h-[18px]">
                             @if($patient['has_patient'] ?? false)
                                 {{-- Braden --}}
@@ -723,7 +783,7 @@
                                     <strong>Braden:</strong>
                                     <span class="ml-1">{{ $patient['braden_score'] ?? '-' }}</span>
                                     @if($patient['braden_shift'] ?? null)
-                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['braden_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal hidden">({{ $patient['braden_shift'] }})</span>
                                     @endif
                                     @if(($patient['braden_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
@@ -738,7 +798,7 @@
                                     <strong>Morse:</strong>
                                     <span class="ml-1">{{ $patient['morse_score'] ?? '-' }}</span>
                                     @if($patient['morse_shift'] ?? null)
-                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['morse_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal hidden">({{ $patient['morse_shift'] }})</span>
                                     @endif
                                     @if(($patient['morse_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
@@ -753,7 +813,7 @@
                                     <strong>Dor:</strong>
                                     <span class="ml-1">{{ $patient['pain_score'] ?? '-' }}</span>
                                     @if($patient['pain_shift'] ?? null)
-                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['pain_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal hidden">({{ $patient['pain_shift'] }})</span>
                                     @endif
                                     @if(($patient['pain_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
@@ -768,7 +828,7 @@
                                     <strong>TEV:</strong>
                                     <span class="ml-1">{{ $patient['vte_score'] ?? '-' }}</span>
                                     @if($patient['vte_shift'] ?? null)
-                                        <span class="ml-0.5 text-[10px] font-normal">({{ $patient['vte_shift'] }})</span>
+                                        <span class="ml-0.5 text-[10px] font-normal hidden">({{ $patient['vte_shift'] }})</span>
                                     @endif
                                     @if(($patient['vte_increased'] ?? false))
                                         <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
@@ -779,6 +839,55 @@
                             @endif
                         </div>
                     </div>
+
+                    {{-- Modal de Escalas (Alpine inline, sem Livewire) --}}
+                    <div x-show="showScalesModal"
+                         x-cloak
+                         class="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         @keydown.escape.window="showScalesModal = false; document.body.style.overflow = ''"
+                    >
+                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                             @click="showScalesModal = false; document.body.style.overflow = ''"></div>
+                        <div class="relative w-full h-full sm:w-[680px] sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                             @click.stop
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+                            {{-- Header --}}
+                            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-700 to-purple-500 flex-shrink-0">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <svg class="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                    </svg>
+                                    <div class="min-w-0">
+                                        <h3 class="text-base font-bold text-white leading-tight">Escalas de Avaliação</h3>
+                                        <p class="text-white/70 text-xs leading-tight truncate">{{ $patient['nm_pessoa_fisica'] ?? '' }}</p>
+                                    </div>
+                                </div>
+                                <button @click="showScalesModal = false; document.body.style.overflow = ''"
+                                        title="Fechar"
+                                        class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors flex-shrink-0">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            {{-- Conteúdo --}}
+                            <div class="flex-1 overflow-y-auto p-4">
+                                <x-ui.scales-display :data="$patient" />
+                            </div>
+                        </div>
+                    </div>
+                    </div>{{-- fecha x-data="{ showScalesModal: false }" --}}
 
                     {{-- Row 5: Equipe Multi (Clickable) --}}
                     @if(!empty($patient['multidisciplinary'] ?? []) || !empty($patient['multidisciplinary_other'] ?? null))
@@ -953,7 +1062,8 @@
 
                     @if(!empty($patient['first_pending_event']) || !empty($patient['latest_evaluation']['content'] ?? null))
                         {{-- ── CARD: somente o evento mais próximo/urgente ── --}}
-                        <div class="rounded-lg p-2 {{ !empty($patient['first_pending_event']) ? (($patient['first_pending_style']['card_bg'] ?? 'bg-white/30 border border-white/50')) : 'bg-blue-50/60 border border-blue-200' }}">
+                        <div class="rounded-lg p-2 border {{ !empty($patient['first_pending_event']) ? '' : 'bg-blue-50/60 border-blue-200' }}"
+                             @if(!empty($patient['first_pending_event']) && !empty($patient['first_pending_style']['card_style'])) style="{{ $patient['first_pending_style']['card_style'] }}" @endif>
                             {{-- Cabeçalho da seção --}}
                             <div class="flex items-center justify-between mb-1.5">
                                 <span class="text-[12px] font-bold tracking-wide text-[#004D9D]">
@@ -1028,12 +1138,6 @@
                             </div>
                             @endif
 
-                            @if(empty($patient['first_pending_event']) && !empty($patient['pending_events'] ?? []))
-                            <div class="mb-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-[9px] text-blue-800 leading-tight">
-                                Sem pendências próximas no card. 
-                            </div>
-                            @endif
-
                             @if(!empty($patient['latest_evaluation']['content'] ?? null))
                             <div x-show="{{ !empty($patient['first_pending_event']) ? 'cardSlide === 1' : 'true' }}" class="flex items-start gap-2" x-transition>
                                 <x-ui.user-avatar 
@@ -1073,16 +1177,8 @@
                         <div class="flex items-center justify-center h-full w-full">
                             <div class="text-center py-2">
                                 <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
-                                <p class="text-xs text-gray-500 font-medium">Sem pendências para hoje</p>
-                                <p class="text-[9px] text-gray-400 mt-0.5">O card prioriza pendências próximas; em Ver todas você vê a lista completa.</p>
-                                @if(!empty($patient['pending_events'] ?? []))
-                                    <button
-                                        @click="showPendingModal = true; pendingShowAll = true; document.body.style.overflow = 'hidden'"
-                                        class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#004D9D] hover:text-[#003d7a] transition-colors"
-                                    >
-                                        Ver todas
-                                    </button>
-                                @endif
+                                <p class="text-xs text-gray-500 font-medium">Sem pendências</p>
+                                <p class="text-[9px] text-gray-400 mt-0.5">Nenhum evento pendente registrado para este paciente.</p>
                             </div>
                         </div>
                     @endif
@@ -1103,7 +1199,7 @@
                              @click="showPendingModal = false; document.body.style.overflow = ''"></div>
 
                             <div data-pending-modal-panel
-                                class="relative w-full h-full sm:w-[760px] sm:h-[760px] sm:max-w-[95vw] sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                                class="relative w-full h-full sm:w-[760px] sm:h-auto sm:max-w-[95vw] sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
                              @click.stop
                              x-show="showPendingModal"
                              x-transition:enter="transition ease-out duration-300"
@@ -1338,7 +1434,10 @@
                 >
                     <button
                         type="button"
-                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+                        wire:loading.attr="disabled"
+                        wire:loading.class="opacity-60 cursor-not-allowed hover:bg-white/20 hover:shadow-sm"
+                        wire:target="changeHospital,changeSector,refreshData"
+                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20 disabled:hover:shadow-sm"
                         @click.prevent="$dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient })"
                     >
                         <span>Detalhes</span>

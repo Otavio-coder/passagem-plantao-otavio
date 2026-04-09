@@ -33,12 +33,6 @@ class AntibioticPendingHandler extends AbstractPendingHandler
             }
 
             $priority = (int) $row->priority;
-            $status = match (true) {
-                $priority >= 300 => 'refused',
-                $priority >= 200 => 'undone',
-                $priority >= 30 => 'rescheduled',
-                default => 'scheduled',
-            };
 
             $dose = '';
             if (! empty($row->qt_dose)) {
@@ -86,12 +80,9 @@ class AntibioticPendingHandler extends AbstractPendingHandler
                 'dt_evento' => $dtHorario,
                 'dt_evento_formatted' => $dtTs ? date('d/m/Y H:i', $dtTs) : null,
                 'tempo_pendente' => $tempo,
-                'status_laudo' => match ($status) {
-                    'refused' => 'Recusado',
-                    'undone' => 'Desfeito',
-                    'rescheduled' => 'Reaprazado',
-                    default => 'Pendente',
-                },
+                'status_laudo' => ! empty($row->ds_alteracao_label)
+                    ? trim((string) $row->ds_alteracao_label)
+                    : 'Pendente',
                 'urgente' => false,
             ];
         }

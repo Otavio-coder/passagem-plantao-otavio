@@ -22,7 +22,7 @@
 
         {{-- Container --}}
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
-            <div class="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-h-[85vh] sm:w-[500px] flex flex-col overflow-hidden"
+            <div class="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:w-[500px] flex flex-col overflow-hidden"
                  @click.stop
                  x-show="show"
                  x-transition:enter="transition ease-out duration-300"

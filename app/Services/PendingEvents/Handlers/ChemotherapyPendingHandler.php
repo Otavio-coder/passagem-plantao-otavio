@@ -49,11 +49,18 @@ class ChemotherapyPendingHandler extends AbstractPendingHandler
                     $parts[] = $row->nm_medico_resp;
                 }
 
+                $statusCode = strtoupper(trim((string) ($row->ie_status_agenda ?? '')));
+                $statusLabel = ! empty($row->ds_status_agenda_label)
+                    ? trim((string) $row->ds_status_agenda_label)
+                    : ($statusCode !== '' ? $statusCode : null);
+
                 $results[$row->nr_atendimento]['events'][] = [
                     'tipo' => 'quimioterapia',
                     'icone' => 'quimioterapia.svg',
                     'descricao' => $descricao,
                     'ds_subtipo' => $row->ds_local ?? null,
+                    'status_laudo' => $statusLabel,
+                    'ie_status_agenda' => $statusCode !== '' ? $statusCode : null,
                     'dt_evento' => $row->dt_evento,
                     'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                     'ds_complemento' => implode(' · ', $parts),
@@ -63,6 +70,7 @@ class ChemotherapyPendingHandler extends AbstractPendingHandler
                     'medico' => $row->nm_medico_resp ?? null,
                     'ciclo' => $row->nr_ciclo ?? null,
                     'urgente' => false,
+                    '_fonte' => 'agenda',
                 ];
             }
         } catch (\Throwable $e) {

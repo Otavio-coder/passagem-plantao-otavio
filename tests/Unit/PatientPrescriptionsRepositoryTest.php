@@ -115,4 +115,63 @@ class PatientPrescriptionsRepositoryTest extends TestCase
         $this->assertSame('Centro Cirúrgico HSR', $formatted['local']);
         $this->assertSame('Pedido Medico: Com OPME /', $formatted['observacoes']);
     }
+
+    #[Test]
+    public function format_procedure_maps_status_flags_correctly(): void
+    {
+        $repository = new PatientPrescriptionsRepository;
+        $method = new \ReflectionMethod($repository, 'formatProcedure');
+
+        $base = (object) [
+            'id' => 1,
+            'name' => 'Hemograma',
+            'origem' => 'PRESCRICAO',
+            'status_raw' => '10',
+            'status_label' => 'Solicitado',
+            'scheduled' => '09/04/26 08:00',
+            'scheduled_raw' => '2026-04-09 08:00:00',
+            'tipo' => 'Exame Laboratorial',
+            'professional_name' => 'Dr. Silva',
+            'nr_prescricao' => 12345,
+            'dt_baixa' => null,
+            'dt_solicitacao_raw' => '2026-04-09 07:00:00',
+            'dt_liberacao_raw' => '2026-04-09 07:05:00',
+            'event_type' => 'exame',
+            'sample_check' => 'S',
+            'collected_at_raw' => null,
+            'ds_grupo_lab' => 'Hematologia',
+            'ds_status_laudo' => null,
+            'setor_raw' => null,
+            'setor_desc_raw' => null,
+            'is_today' => 1,
+            'is_yesterday' => 0,
+            'is_tomorrow' => 0,
+            'ds_resultado_laudo' => null,
+            'dt_resultado' => null,
+            'foi_executado_sem_baixa' => 0,
+            'exame_coletado_em_prescricao_mais_nova' => 0,
+            'prescricao_mais_nova_pendente_info' => null,
+        ];
+
+        $result = $method->invoke($repository, $base);
+
+        $this->assertFalse($result['foi_executado_sem_baixa']);
+        $this->assertFalse($result['exame_coletado_em_prescricao_mais_nova']);
+        $this->assertNull($result['prescricao_mais_nova_pendente_info']);
+        $this->assertSame('Hematologia', $result['classificacao']);
+
+        // Flag: executado sem baixa
+        $rowFlag = clone $base;
+        $rowFlag->foi_executado_sem_baixa = 1;
+        $resultFlag = $method->invoke($repository, $rowFlag);
+        $this->assertTrue($resultFlag['foi_executado_sem_baixa']);
+
+        // Flag: exame coletado em prescrição mais nova
+        $rowNova = clone $base;
+        $rowNova->exame_coletado_em_prescricao_mais_nova = 1;
+        $rowNova->prescricao_mais_nova_pendente_info = '12999 — 10/04/2026';
+        $resultNova = $method->invoke($repository, $rowNova);
+        $this->assertTrue($resultNova['exame_coletado_em_prescricao_mais_nova']);
+        $this->assertSame('12999 — 10/04/2026', $resultNova['prescricao_mais_nova_pendente_info']);
+    }
 }

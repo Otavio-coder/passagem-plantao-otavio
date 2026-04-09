@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Jobs\SyncUserPhoto;
 use App\Models\System\User as AppUser;
 use App\Repositories\MySQL\UserRepository;
 use Illuminate\Http\RedirectResponse;
@@ -81,6 +82,7 @@ class AuthenticatedSessionController extends Controller
 
         if ($userRecord) {
             $userRecord->forceFill(['last_access_at' => $now])->save();
+            SyncUserPhoto::dispatch($userRecord->id);
         }
 
         return redirect()->intended(route('home', absolute: false));

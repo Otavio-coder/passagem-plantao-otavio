@@ -40,12 +40,10 @@
                     class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
             </div>
             <div class="overflow-y-auto px-3 py-2.5 text-[11px] text-gray-600 space-y-2.5">
-
                 <p class="text-gray-500">
                     Um item aparece como <strong class="text-gray-700">pendente</strong> quando existe uma ação assistencial ainda não concluída.
                     Abaixo estão os critérios de forma simples, por tipo de pendência.
                 </p>
-
                 <div>
                     <h3 class="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-1">Critérios por tipo de pendência</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[10px] leading-tight">
@@ -57,14 +55,12 @@
                                 <li><span class="font-semibold text-gray-700">Material em análise:</span> exame em processamento.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Procedimentos</p>
                             <ul class="space-y-0.5 text-gray-600">
                                 <li><span class="font-semibold text-gray-700">Aguardando execução:</span> procedimento prescrito e ainda não realizado.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cirurgias</p>
                             <ul class="space-y-0.5 text-gray-600">
@@ -76,7 +72,6 @@
                                 <li><span class="font-semibold text-gray-700">Aguardando remarcação:</span> cirurgia desmarcada.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Hemoterapia</p>
                             <ul class="space-y-0.5 text-gray-600">
@@ -84,14 +79,12 @@
                                 <li><span class="font-semibold text-gray-700">Urgente:</span> mesma situação com prioridade imediata.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quimioterapia</p>
                             <ul class="space-y-0.5 text-gray-600">
                                 <li><span class="font-semibold text-gray-700">Sessão agendada:</span> sessão nos próximos 30 dias.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Antimicrobianos</p>
                             <ul class="space-y-0.5 text-gray-600">
@@ -99,25 +92,21 @@
                                 <li><span class="font-semibold text-gray-700">Dose reaprazada:</span> horário reagendado e ainda não administrado.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
                             <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Consultorias</p>
                             <ul class="space-y-0.5 text-gray-600">
                                 <li><span class="font-semibold text-gray-700">Aguardando resposta:</span> solicitação sem parecer registrado.</li>
                             </ul>
                         </div>
-
                         <div class="rounded-lg border border-amber-100 bg-amber-50 p-1.5 md:col-span-2">
                             <p class="text-[9px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Inconsistências no sistema</p>
                             <ul class="space-y-0.5 text-amber-700">
-                                <li><span class="font-semibold text-amber-800">Realizado sem baixa:</span> item realizado e ainda em aberto.</li>
-                                <li><span class="font-semibold text-amber-800">Realizado em solicitação mais recente:</span> exame feito em solicitação nova e anterior ficou aberta.</li>
+                                <li><span class="font-semibold text-amber-800">Realizado sem baixa:</span> item executado mas prescrição não foi baixada no sistema.</li>
+                                <li><span class="font-semibold text-amber-800">Pedido mais recente em aberto:</span> existe uma solicitação mais nova do mesmo exame ainda pendente — indica que a anterior pode ter sido superada.</li>
                             </ul>
                         </div>
                     </div>
                 </div>
-
-
             </div>
         </div>
     </div>
@@ -128,7 +117,7 @@
         </div>
     @endif
 
-    {{-- Loading overlay — visível por padrão, escondido após renderização --}}
+    {{-- Loading overlay --}}
     <div id="pending-loading"
          class="fixed inset-0 z-50 flex items-center justify-center"
          style="background: rgba(0,20,70,0.55); backdrop-filter: blur(3px);">
@@ -219,42 +208,84 @@
     @if($rows->count() > 0)
         <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-3">
             <div class="overflow-x-auto">
-                <table id="pendencias-table" class="w-full min-w-[900px]" style="width:100%">
+                {{--
+                    Colunas (índices DataTables):
+                     0  Atend.
+                     1  Paciente
+                     2  Leito          (md+)
+                     3  Tipo + Classif. (concatenados)
+                     4  Pendência + badge de status abaixo
+                     5  Data / Prazo   (data-date + data-order — prev.exec. empilhado com pend.há)
+                     6  Motivo         (lg+)
+                     7  Setor exec.    (xl+)
+                     8  Tipo bruto     (hidden, usado nos filtros JS)
+                --}}
+                <table id="pendencias-table" class="w-full min-w-[560px]" style="width:100%">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200">
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[68px]">Atend.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[130px]">Paciente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[52px] hidden lg:table-cell">Leito</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px] hidden md:table-cell">Setor</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[90px]">Tipo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px] hidden xl:table-cell">Setor exec.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap hidden xl:table-cell">Classif.</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[65px]">Atend.</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px]">Paciente</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[44px] hidden md:table-cell">Leito</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[90px]">Tipo</th>
                             <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Pendência</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[88px] hidden lg:table-cell">Solicitação</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[80px]">Prev. exec.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[80px]">Pend. há</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[200px]">Motivo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[100px] hidden xl:table-cell">Desc.</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[88px]">Data / Prazo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[160px] hidden lg:table-cell">Motivo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[100px] hidden xl:table-cell">Setor exec.</th>
                             <th class="hidden">Tipo bruto</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($rows as $row)
+                            @php
+                                $statusRaw   = trim((string) ($row['status'] ?? ''));
+                                $statusLower = mb_strtolower($statusRaw);
+                                if (str_contains($statusLower, 'urgent') || str_contains($statusLower, 'emergê')) {
+                                    $statusBadge = 'bg-red-50 text-red-700 border-red-200';
+                                } elseif (str_contains($statusLower, 'análise') || str_contains($statusLower, 'analise') || str_contains($statusLower, 'coleta') || str_contains($statusLower, 'preparo') || str_contains($statusLower, 'sala')) {
+                                    $statusBadge = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+                                } elseif (str_contains($statusLower, 'laudo') || str_contains($statusLower, 'aguardando')) {
+                                    $statusBadge = 'bg-blue-50 text-blue-700 border-blue-200';
+                                } elseif (str_contains($statusLower, 'execuç') || str_contains($statusLower, 'execuc') || str_contains($statusLower, 'andamento') || str_contains($statusLower, 'progresso')) {
+                                    $statusBadge = 'bg-purple-50 text-purple-700 border-purple-200';
+                                } else {
+                                    $statusBadge = 'bg-gray-100 text-gray-600 border-gray-200';
+                                }
+                            @endphp
                             <tr class="hover:bg-gray-50 transition-colors">
+                                {{-- 0: Atend. --}}
                                 <td class="px-2 py-1.5 text-[11px] text-gray-700 font-medium whitespace-nowrap">{{ $row['atendimento'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[130px] truncate" title="{{ $row['paciente'] }}">{{ $row['paciente'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap hidden lg:table-cell">{{ $row['ugb'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[110px] truncate hidden md:table-cell" title="{{ $row['uga'] ?? '-' }}">{{ $row['uga'] ?? '-' }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap">{{ $row['tipo_label'] ?? '-' }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[110px] truncate hidden xl:table-cell" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 whitespace-nowrap hidden xl:table-cell">{{ $row['classificacao'] ?? '-' }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[200px] truncate" title="{{ $row['item'] }}">{{ $row['item'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap hidden lg:table-cell">{{ $row['data_solicitacao'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap"
-                                    data-date="{{ $row['data_prev_execucao'] }}">{{ $row['data_prev_execucao'] }}</td>
-                                <td data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}" class="px-2 py-1.5 text-[11px] text-gray-700 whitespace-nowrap">{{ $row['tempo_pendente'] }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[200px] truncate" title="{{ $row['motivo_pendente'] ?? '-' }}">{{ $row['motivo_pendente'] ?? '-' }}</td>
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 max-w-[100px] truncate hidden xl:table-cell" title="{{ $row['laudo'] ?? '-' }}">{{ $row['laudo'] ?? '-' }}</td>
+                                {{-- 1: Paciente --}}
+                                <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[110px] truncate" title="{{ $row['paciente'] }}">{{ $row['paciente'] }}</td>
+                                {{-- 2: Leito (md+) --}}
+                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap hidden md:table-cell">{{ $row['ugb'] }}</td>
+                                {{-- 3: Tipo + Classif. --}}
+                                <td class="px-2 py-1.5 text-[11px] w-[90px] max-w-[90px]">
+                                    <div class="truncate text-gray-700 font-medium">{{ $row['tipo_label'] ?? '-' }}</div>
+                                    @if(!empty($row['classificacao']) && $row['classificacao'] !== '-')
+                                        <div class="truncate text-[10px] text-gray-400">{{ $row['classificacao'] }}</div>
+                                    @endif
+                                </td>
+                                {{-- 4: Pendência + status badge abaixo --}}
+                                <td class="px-2 py-1.5 text-[11px] max-w-[200px]">
+                                    <div class="truncate text-gray-700" title="{{ $row['item'] }}">{{ $row['item'] }}</div>
+                                    @if($statusRaw !== '')
+                                        <span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight {{ $statusBadge }}">{{ $statusRaw }}</span>
+                                    @endif
+                                </td>
+                                {{-- 5: Data / Prazo (data-date + data-order para filtros JS) --}}
+                                <td class="px-2 py-1.5 text-[11px] whitespace-nowrap"
+                                    data-date="{{ $row['data_prev_execucao'] }}"
+                                    data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">
+                                    <div class="text-gray-600">{{ $row['data_prev_execucao'] }}</div>
+                                    @if(!empty($row['tempo_pendente']))
+                                        <div class="text-[10px] text-gray-400">{{ $row['tempo_pendente'] }}</div>
+                                    @endif
+                                </td>
+                                {{-- 6: Motivo (lg+) --}}
+                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[160px] truncate hidden lg:table-cell" title="{{ $row['motivo_pendente'] ?? '-' }}">{{ $row['motivo_pendente'] ?? '-' }}</td>
+                                {{-- 7: Setor exec. (xl+) --}}
+                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[100px] truncate hidden xl:table-cell" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
+                                {{-- 8: Tipo bruto (hidden — usado nos filtros JS) --}}
                                 <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>
                             </tr>
                         @endforeach
@@ -282,7 +313,6 @@ function hidePendingLoader() {
     document.getElementById('pending-loading').style.display = 'none';
 }
 @if($totalRows === 0)
-// Sem tabela para inicializar — esconde o loader assim que o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', hidePendingLoader);
 @endif
 </script>
@@ -332,11 +362,11 @@ $(document).ready(function () {
             $('#pendencias-table_filter input').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100');
             $('#pendencias-table_length select').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs');
 
-            // Popula o filtro de Tipo com o tipo bruto da consulta
+            // Popula o filtro de Tipo a partir da coluna 8 (tipo bruto, hidden)
             var tiposSet = {};
-            api.column(13).data().each(function (val) {
+            api.column(8).data().each(function (val) {
                 var label = String(val || '').trim();
-                if (label) tiposSet[label] = true;
+                if (label) { tiposSet[label] = true; }
             });
             Object.keys(tiposSet).sort().forEach(function (tipo) {
                 $('#filter-tipo').append('<option value="' + tipo + '">' + titleCase(tipo) + '</option>');
@@ -361,23 +391,20 @@ $(document).ready(function () {
             && d.getDate() === now.getDate();
     }
 
-    // Lê o data-date da célula "Prev. exec." (col 9) via DOM — sempre disponível
-    // mesmo quando a célula exibe o badge "Hoje" em vez do texto da data.
+    // col 5 = Data / Prazo (data-date + data-order)
     function getPrevExecDate(row) {
-        var cell = row && row.anCells && row.anCells[9] ? row.anCells[9] : null;
+        var cell = row && row.anCells && row.anCells[5] ? row.anCells[5] : null;
         if (!cell) { return null; }
         return parseRowDate(cell.getAttribute('data-date') || '');
     }
 
-    // Lê os segundos pendentes do data-order da coluna "Pend. há" (col 10)
     function getPendingSeconds(row) {
-        var cell = row && row.anCells && row.anCells[10] ? row.anCells[10] : null;
+        var cell = row && row.anCells && row.anCells[5] ? row.anCells[5] : null;
         if (!cell) { return null; }
         var v = parseFloat(cell.getAttribute('data-order') || '');
         return isNaN(v) || v < 0 ? null : v;
     }
 
-    // Filtro principal — lida com turno, data e duração pendente
     $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
         if (settings.nTable.id !== 'pendencias-table') { return true; }
 
@@ -388,7 +415,6 @@ $(document).ready(function () {
             var passed = false;
 
             if (filter.indexOf('turno:') === 0 || filter === 'data:hoje') {
-                // Filtra pelo datetime agendado (Prev. exec.)
                 var d = getPrevExecDate(row);
                 if (!d) { return false; }
 
@@ -396,12 +422,11 @@ $(document).ready(function () {
                     passed = isDateToday(d);
                 } else {
                     var h = d.getHours();
-                    if (filter === 'turno:manha') { passed = isDateToday(d) && h >= 7 && h < 13; }
+                    if (filter === 'turno:manha')  { passed = isDateToday(d) && h >= 7  && h < 13; }
                     else if (filter === 'turno:tarde') { passed = isDateToday(d) && h >= 13 && h < 19; }
                     else if (filter === 'turno:noite') { passed = isDateToday(d) && (h >= 19 || h < 7); }
                 }
             } else if (filter.indexOf('pendente:') === 0) {
-                // Filtra pelo tempo decorrido desde a criação (Pend. há)
                 var secs = getPendingSeconds(row);
                 if (secs === null) { return false; }
                 var parts = filter.split(':');
@@ -415,12 +440,11 @@ $(document).ready(function () {
 
         if (activePendingTypeTab === 'all') { return true; }
 
-        var tipo = String(data[13] || '').toLowerCase();
-        if (activePendingTypeTab === 'exame') {
-            return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1;
-        }
-        if (activePendingTypeTab === 'procedimento') { return tipo === 'procedimento'; }
-        if (activePendingTypeTab === 'cirurgia') { return tipo === 'cirurgia'; }
+        // col 8 = tipo bruto
+        var tipo = String(data[8] || '').toLowerCase();
+        if (activePendingTypeTab === 'exame')         { return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1; }
+        if (activePendingTypeTab === 'procedimento')  { return tipo === 'procedimento'; }
+        if (activePendingTypeTab === 'cirurgia')      { return tipo === 'cirurgia'; }
 
         return true;
     });
@@ -430,26 +454,24 @@ $(document).ready(function () {
         $('#filter-limpar').toggleClass('hidden', !hasFilter);
     }
 
-    // Filtro por Tipo (prefixo da coluna Pendência)
+    // Filtro Tipo → coluna 8 (tipo bruto)
     $('#filter-tipo').on('change', function () {
-        table.column(13).search(
+        table.column(8).search(
             this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '',
             true, false
         ).draw();
         updateLimparBtn();
     });
 
-    // Filtro por tempo pendente
     $('#filter-tempo').on('change', function () {
         table.draw();
         updateLimparBtn();
     });
 
-    // Limpar todos os filtros da tabela
     $('#filter-limpar').on('click', function () {
         $('#filter-tipo').val('');
         $('#filter-tempo').val('');
-        table.column(13).search('', false, false).draw();
+        table.column(8).search('', false, false).draw();
         updateLimparBtn();
     });
 

@@ -389,6 +389,7 @@ class PatientPrescriptionsRepository
                 )                                           AS name,
                 'PRESCRICAO'                                AS origem,
                 pp.IE_STATUS_EXECUCAO                       AS status_raw,
+                COALESCE(vd_exam.ds_valor_dominio, vd_proc_s.ds_valor_dominio) AS status_label,
                 TO_CHAR(pp.DT_PREV_EXECUCAO, 'DD/MM/YY HH24:MI') AS scheduled,
                 pp.DT_PREV_EXECUCAO                         AS scheduled_raw,
                 (SELECT tasy.OBTER_VALOR_DOMINIO(95, proc2.CD_TIPO_PROCEDIMENTO)
@@ -399,23 +400,23 @@ class PatientPrescriptionsRepository
                 {$prescriberName}                           AS professional_name,
                 pm.NR_PRESCRICAO                            AS nr_prescricao,
                 pp.DT_BAIXA                                 AS dt_baixa,
-                                pm.DT_PRESCRICAO                            AS dt_solicitacao_raw,
-                                pm.DT_LIBERACAO                             AS dt_liberacao_raw,
+                pm.DT_PRESCRICAO                            AS dt_solicitacao_raw,
+                pm.DT_LIBERACAO                             AS dt_liberacao_raw,
                 CASE
                     WHEN pp.NR_SEQ_EXAME IS NOT NULL THEN 'exame'
                     ELSE 'procedimento'
                 END                                         AS event_type,
                 pp.IE_AMOSTRA                               AS sample_check,
                 pp.DT_COLETA                                AS collected_at_raw,
-                                (SELECT MAX(gel.DS_GRUPO_EXAME_LAB)
-                                 FROM tasy.EXAME_LABORATORIO el
-                                 LEFT JOIN tasy.GRUPO_EXAME_LAB gel
-                                                ON gel.NR_SEQUENCIA = el.NR_SEQ_GRUPO
-                                 WHERE el.NR_SEQ_EXAME = pp.NR_SEQ_EXAME)   AS ds_grupo_lab,
-                                (SELECT tasy.OBTER_STATUS_LAUDO(MAX(pp_pac.nr_laudo))
-                                 FROM tasy.PROCEDIMENTO_PACIENTE pp_pac
-                                 WHERE pp_pac.nr_prescricao           = pm.NR_PRESCRICAO
-                                     AND pp_pac.nr_sequencia_prescricao = pp.nr_sequencia) AS ds_status_laudo,
+                (SELECT MAX(gel.DS_GRUPO_EXAME_LAB)
+                 FROM tasy.EXAME_LABORATORIO el
+                 LEFT JOIN tasy.GRUPO_EXAME_LAB gel
+                    ON gel.NR_SEQUENCIA = el.NR_SEQ_GRUPO
+                 WHERE el.NR_SEQ_EXAME = pp.NR_SEQ_EXAME)   AS ds_grupo_lab,
+                (SELECT tasy.OBTER_STATUS_LAUDO(MAX(pp_pac.nr_laudo))
+                 FROM tasy.PROCEDIMENTO_PACIENTE pp_pac
+                 WHERE pp_pac.nr_prescricao            = pm.NR_PRESCRICAO
+                   AND pp_pac.nr_sequencia_prescricao  = pp.nr_sequencia) AS ds_status_laudo,
                 CAST(NULL AS NUMBER)                        AS setor_raw,
                 CAST(NULL AS VARCHAR2(255))                 AS setor_desc_raw,
                 CASE WHEN TRUNC(pp.DT_PREV_EXECUCAO) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
@@ -430,26 +431,80 @@ class PatientPrescriptionsRepository
                                 ), '.', ','
                             )
                         END
-                 FROM tasy.result_laboratorio rl
+                 FROM tasy.result_laboratorio rl_res
                  JOIN tasy.exame_lab_result_item elri
-                      ON elri.nr_seq_resultado = rl.nr_sequencia
+                      ON elri.nr_seq_resultado = rl_res.nr_sequencia
                      AND elri.nr_sequencia     = 1
-                 WHERE rl.nr_prescricao     = pm.NR_PRESCRICAO
-                   AND rl.nr_seq_prescricao = pp.NR_SEQUENCIA
-                   AND ROWNUM = 1)                              AS ds_resultado_laudo
+                 WHERE rl_res.nr_prescricao     = pm.NR_PRESCRICAO
+                   AND rl_res.nr_seq_prescricao = pp.NR_SEQUENCIA
+                   AND ROWNUM = 1)                              AS ds_resultado_laudo,
+                pp.DT_RESULTADO                             AS dt_resultado,
+                -- Flags de status complementares (alinhados com PrescriptionPendingHandler)
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM tasy.procedimento_paciente pp_exec
+                    WHERE pp_exec.nr_prescricao           = pm.NR_PRESCRICAO
+                      AND pp_exec.nr_sequencia_prescricao = pp.NR_SEQUENCIA
+                ) THEN 1 ELSE 0 END AS foi_executado_sem_baixa,
+                CASE WHEN pp.NR_SEQ_EXAME IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM tasy.procedimento_paciente pp_dup
+                    WHERE pp_dup.nr_atendimento = pm.NR_ATENDIMENTO
+                      AND pp_dup.nr_seq_exame   = pp.NR_SEQ_EXAME
+                      AND pp_dup.nr_prescricao  > pm.NR_PRESCRICAO
+                ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova,
+                CASE WHEN pp.NR_SEQ_EXAME IS NOT NULL THEN (
+                    SELECT nova.nr_prescricao || ' — ' || TO_CHAR(nova.dt_prescricao, 'DD/MM/YYYY')
+                    FROM (
+                        SELECT pm2.nr_prescricao, pm2.dt_prescricao
+                        FROM tasy.prescr_medica pm2
+                        JOIN tasy.prescr_procedimento pp2
+                            ON pp2.nr_prescricao = pm2.nr_prescricao
+                        WHERE pm2.nr_atendimento = pm.NR_ATENDIMENTO
+                          AND pp2.nr_seq_exame   = pp.NR_SEQ_EXAME
+                          AND pm2.nr_prescricao  > pm.NR_PRESCRICAO
+                          AND pp2.ie_status_execucao NOT IN ('40','R','C','BE')
+                          AND pp2.dt_baixa        IS NULL
+                          AND pp2.dt_cancelamento IS NULL
+                          AND pp2.ie_suspenso     <> 'S'
+                          AND pm2.dt_suspensao    IS NULL
+                          AND pm2.dt_liberacao    IS NOT NULL
+                        ORDER BY pm2.nr_prescricao DESC
+                    ) nova WHERE ROWNUM = 1
+                ) ELSE NULL END AS prescricao_mais_nova_pendente_info
             FROM tasy.PRESCR_PROCEDIMENTO pp
             JOIN tasy.PRESCR_MEDICA pm
               ON pm.NR_PRESCRICAO = pp.NR_PRESCRICAO
+            -- Status domain 1030: lab exams
+            LEFT JOIN tasy.valor_dominio vd_exam
+                ON vd_exam.cd_dominio = 1030
+               AND vd_exam.vl_dominio = pp.IE_STATUS_EXECUCAO
+               AND pp.NR_SEQ_EXAME IS NOT NULL
+            -- Status domain 1226: procedures / imaging
+            LEFT JOIN tasy.valor_dominio vd_proc_s
+                ON vd_proc_s.cd_dominio = 1226
+               AND vd_proc_s.vl_dominio = pp.IE_STATUS_EXECUCAO
+               AND pp.NR_SEQ_EXAME IS NULL
+            -- Exclude lab exams that have already been collected
+            LEFT JOIN tasy.result_laboratorio rl_coll
+                ON rl_coll.nr_prescricao     = pm.NR_PRESCRICAO
+               AND rl_coll.nr_seq_prescricao = pp.NR_SEQUENCIA
+               AND rl_coll.dt_coleta         IS NOT NULL
             WHERE pm.NR_ATENDIMENTO = :nr_proc
               AND pm.DT_LIBERACAO   IS NOT NULL
               AND pm.DT_SUSPENSAO   IS NULL
               AND pp.DT_BAIXA       IS NULL
-              AND pp.IE_STATUS_EXECUCAO NOT IN ('40', 'R', 'C')
-                            AND (
-                                    pp.DT_PREV_EXECUCAO IS NOT NULL
-                                    OR
-                                    pp.DT_PREV_EXECUCAO IS NULL
-                            )
+              AND pp.DT_CANCELAMENTO IS NULL
+              AND pp.IE_SUSPENSO    <> 'S'
+              AND pp.IE_STATUS_EXECUCAO NOT IN ('40', 'R', 'C', 'BE')
+              AND pp.IE_STATUS_ATEND < 35
+              AND (pp.IE_ORIGEM_PROCED <> 4 OR pp.NR_SEQ_EXAME IS NOT NULL)
+              AND (pp.NR_SEQ_PROC_INTERNO IS NULL OR pp.NR_SEQ_PROC_INTERNO NOT IN (5970, 1341, 5927))
+              AND rl_coll.NR_PRESCRICAO IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM tasy.procedimento_paciente pp_laudo
+                  WHERE pp_laudo.nr_prescricao           = pm.NR_PRESCRICAO
+                    AND pp_laudo.nr_sequencia_prescricao  = pp.NR_SEQUENCIA
+                    AND pp_laudo.nr_laudo                 IS NOT NULL
+              )
 
             UNION ALL
 
@@ -467,6 +522,7 @@ class PatientPrescriptionsRepository
                 )                                           AS name,
                 'AGENDAMENTO'                               AS origem,
                 ap.IE_STATUS_AGENDA                         AS status_raw,
+                vd_agt.ds_valor_dominio                     AS status_label,
                 TO_CHAR(ap.DT_AGENDA, 'DD/MM/YY')
                     || CASE WHEN ap.HR_INICIO IS NOT NULL
                        THEN ' ' || SUBSTR(TO_CHAR(ap.HR_INICIO, 'HH24:MI'), 1, 5)
@@ -516,19 +572,27 @@ class PatientPrescriptionsRepository
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE - 1) THEN 1 ELSE 0 END AS is_yesterday,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow,
-                CAST(NULL AS VARCHAR2(255))                     AS ds_resultado_laudo
+                CAST(NULL AS VARCHAR2(255))                 AS ds_resultado_laudo,
+                CAST(NULL AS DATE)                          AS dt_resultado,
+                0                                           AS foi_executado_sem_baixa,
+                0                                           AS exame_coletado_em_prescricao_mais_nova,
+                CAST(NULL AS VARCHAR2(255))                 AS prescricao_mais_nova_pendente_info
             FROM tasy.AGENDA_PACIENTE ap
+            -- Status domain 83: agenda_paciente statuses
+            LEFT JOIN tasy.valor_dominio vd_agt
+                ON vd_agt.cd_dominio = 83
+               AND vd_agt.vl_dominio = ap.IE_STATUS_AGENDA
             WHERE ap.NR_ATENDIMENTO      = :nr_surg
               AND ap.IE_CARATER_CIRURGIA IS NULL
               AND ap.DT_EXECUTADA        IS NULL
               AND ap.IE_STATUS_AGENDA    NOT IN ('C', 'S')
-                            AND NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) = (
-                                                                                SELECT MAX(ua2.CD_SETOR_ATENDIMENTO)
-                                                                                FROM tasy.UNIDADE_ATENDIMENTO ua2
-                                                                                WHERE ua2.NR_ATENDIMENTO = :nr_surg_setor
-                                                                                    AND ua2.IE_SITUACAO = 'A'
-                            )
-                            AND (ap.NR_SEQ_PROC_INTERNO IS NOT NULL OR ap.CD_PROCEDIMENTO IS NOT NULL)
+              AND NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO) = (
+                  SELECT MAX(ua2.CD_SETOR_ATENDIMENTO)
+                  FROM tasy.UNIDADE_ATENDIMENTO ua2
+                  WHERE ua2.NR_ATENDIMENTO = :nr_surg_setor
+                    AND ua2.IE_SITUACAO = 'A'
+              )
+              AND (ap.NR_SEQ_PROC_INTERNO IS NOT NULL OR ap.CD_PROCEDIMENTO IS NOT NULL)
         ";
     }
 
@@ -594,6 +658,8 @@ class PatientPrescriptionsRepository
                 )                                                  AS name,
                 ap.IE_CARATER_CIRURGIA                             AS flag1,
                 ap.IE_STATUS_AGENDA                                AS status_raw,
+                vd_surg_stat.ds_valor_dominio                      AS status_label,
+                vd_surg_car.ds_valor_dominio                       AS carater_label,
                 NVL(
                     TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
                     NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
@@ -623,9 +689,17 @@ class PatientPrescriptionsRepository
                 )                                                  AS extra3,
                 ap.DS_CIRURGIA                                     AS extra4
             FROM tasy.AGENDA_PACIENTE ap
-                        JOIN tasy.ATENDIMENTO_PACIENTE atp
-                            ON atp.CD_PESSOA_FISICA = ap.CD_PESSOA_FISICA
-                        WHERE atp.NR_ATENDIMENTO       = :nr
+            JOIN tasy.ATENDIMENTO_PACIENTE atp
+                ON atp.CD_PESSOA_FISICA = ap.CD_PESSOA_FISICA
+            -- Status domain 83: agenda_paciente statuses
+            LEFT JOIN tasy.valor_dominio vd_surg_stat
+                ON vd_surg_stat.cd_dominio = 83
+               AND vd_surg_stat.vl_dominio = ap.IE_STATUS_AGENDA
+            -- Caráter domain 1016: cirurgia character
+            LEFT JOIN tasy.valor_dominio vd_surg_car
+                ON vd_surg_car.cd_dominio = 1016
+               AND vd_surg_car.vl_dominio = ap.IE_CARATER_CIRURGIA
+            WHERE atp.NR_ATENDIMENTO       = :nr
               AND ap.DT_AGENDA             >= TRUNC(SYSDATE)
               AND ap.IE_CARATER_CIRURGIA   IS NOT NULL
               AND ap.IE_CARATER_CIRURGIA   <> 'X'
@@ -855,17 +929,18 @@ class PatientPrescriptionsRepository
     {
         $labels = [];
         if (($row->flag1 ?? '') === '1') {
-            $labels[] = 'Urgent';
+            $labels[] = 'Urgente';
         }
         if (($row->flag2 ?? '') === 'S') {
-            $labels[] = 'PRN';
+            $labels[] = 'Se necessário';
         }
         if (($row->flag3 ?? '') === 'S') {
-            $labels[] = 'ACM';
+            $labels[] = 'A critério médico';
         }
         if (! empty($row->flag4)) {
-            $sideMap = ['D' => 'Right', 'E' => 'Left', 'B' => 'Bilateral'];
-            $labels[] = 'Side: '.($sideMap[$row->flag4] ?? $row->flag4);
+            $sideMap = ['D' => 'Direito', 'E' => 'Esquerdo', 'B' => 'Bilateral', 'U' => 'Unilateral', 'N' => 'Não se aplica'];
+            $side = $sideMap[$row->flag4] ?? $row->flag4;
+            $labels[] = 'Lado: '.$side;
         }
 
         return [
@@ -888,25 +963,17 @@ class PatientPrescriptionsRepository
 
     private function formatProcedure(object $row): array
     {
-        // For PRESCRICAO rows
-        $prescricaoStatusMap = [
-            '10' => 'Waiting',
-            '20' => 'Collected',
-            '30' => 'Analyzing',
-            '40' => 'Completed',
-            'A' => 'Scheduled',
-            'R' => 'Done',
-        ];
-
         $origem = $row->origem ?? 'PRESCRICAO';
         $statusRaw = (string) ($row->status_raw ?? '');
+        $statusLabel = ! empty($row->status_label) ? trim((string) $row->status_label) : null;
+
         $status = 'Pendente';
-        if ($origem === 'AGENDAMENTO') {
-            $status = $this->agendaStatusLabel($statusRaw);
-        } elseif (! empty($row->dt_baixa)) {
-            $status = 'Done';
+        if (! empty($row->dt_baixa)) {
+            $status = 'Realizado';
+        } elseif ($statusLabel !== null) {
+            $status = $statusLabel;
         } elseif ($statusRaw !== '') {
-            $status = $prescricaoStatusMap[$statusRaw] ?? 'Pendente';
+            $status = $statusRaw;
         }
 
         $type = ! empty($row->tipo) ? $row->tipo : null;
@@ -961,6 +1028,10 @@ class PatientPrescriptionsRepository
                 ! empty($row->dt_solicitacao_raw) ? (string) $row->dt_solicitacao_raw : (! empty($row->scheduled_raw) ? (string) $row->scheduled_raw : null)
             ),
             'resultado_laudo' => ! empty($row->ds_resultado_laudo) ? trim((string) $row->ds_resultado_laudo) : null,
+            'dt_resultado' => ! empty($row->dt_resultado) ? Carbon::parse($row->dt_resultado)->format('d/m/Y H:i') : null,
+            'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1,
+            'exame_coletado_em_prescricao_mais_nova' => (int) ($row->exame_coletado_em_prescricao_mais_nova ?? 0) === 1,
+            'prescricao_mais_nova_pendente_info' => ! empty($row->prescricao_mais_nova_pendente_info) ? (string) $row->prescricao_mais_nova_pendente_info : null,
         ];
     }
 
@@ -1025,14 +1096,12 @@ class PatientPrescriptionsRepository
 
     public function formatSurgery(object $row): array
     {
-        $caracterMap = [
-            'E' => 'Eletiva',
-            'U' => 'Urgência',
-            'G' => 'Emergência',
-        ];
+        $caraterCode = (string) ($row->flag1 ?? '');
+        $carater = ! empty($row->carater_label) ? trim((string) $row->carater_label) : ($caraterCode !== '' ? $caraterCode : 'Não informado');
+        $is_urgent = in_array($caraterCode, ['U', 'M']);
 
-        $carater = $caracterMap[$row->flag1 ?? ''] ?? 'Não informado';
-        $is_urgent = in_array($row->flag1 ?? '', ['U', 'G']);
+        $statusRaw = (string) ($row->status_raw ?? '');
+        $status = ! empty($row->status_label) ? trim((string) $row->status_label) : ($statusRaw !== '' ? $statusRaw : 'Aguardando');
 
         $name = $this->normalizeSurgeryDescription((string) ($row->name ?? 'Cirurgia não especificada'));
 
@@ -1042,7 +1111,7 @@ class PatientPrescriptionsRepository
             'id' => (int) ($row->id ?? 0),
             'name' => $name,
             'carater' => $carater,
-            'status' => $this->agendaStatusLabel((string) ($row->status_raw ?? '')),
+            'status' => $status,
             'sector_code' => isset($row->setor_raw) ? (string) $row->setor_raw : null,
             'sector_name' => ! empty($row->setor_desc_raw) ? trim((string) $row->setor_desc_raw) : null,
             'is_urgent' => $is_urgent,
@@ -1086,46 +1155,6 @@ class PatientPrescriptionsRepository
         $normalized = trim((string) $filtered);
 
         return $normalized !== '' ? $normalized : 'Informações disponíveis no prontuário';
-    }
-
-    private function agendaStatusLabel(?string $code): string
-    {
-        $map = [
-            'A' => 'Aguardando',
-            'AD' => 'Atendido',
-            'AE' => 'Aguardando remarcação',
-            'AP' => 'Aguardando paciente',
-            'AT' => 'Aguardando atendimento',
-            'B' => 'Bloqueada',
-            'C' => 'Cancelada',
-            'CN' => 'Confirmada',
-            'CR' => 'Cirurgia realizada',
-            'E' => 'Executada',
-            'EE' => 'Em exame',
-            'EP' => 'Em preparo',
-            'F' => 'Falta justificada',
-            'I' => 'Falta não justificada',
-            'II' => 'Inativo',
-            'IN' => 'Iniciada',
-            'IT' => 'Interrompida',
-            'L' => 'Livre',
-            'LF' => 'Livre forçado',
-            'N' => 'Normal',
-            'O' => 'Em Consulta',
-            'P' => 'Paciente internado',
-            'PA' => 'Pré-agenda',
-            'PH' => 'Paciente chamado',
-            'PO' => 'Pós-operatório',
-            'PS' => 'Paciente em sala',
-            'R' => 'Reservada',
-            'RE' => 'Remarcada',
-            'RV' => 'Revisar',
-            'S' => 'Suspenso',
-        ];
-
-        $normalized = strtoupper(trim((string) $code));
-
-        return $map[$normalized] ?? ($normalized !== '' ? $normalized : 'Aguardando');
     }
 
     public function formatChemotherapy(object $row): array
@@ -1501,10 +1530,15 @@ class PatientPrescriptionsRepository
                 aq.ds_local,
                 aq.nm_medico_resp,
                 aq.ds_protocolo_medic,
-                aq.nr_ciclo
+                aq.nr_ciclo,
+                aq.ie_status_agenda,
+                vd.ds_valor_dominio     AS ds_status_agenda_label
             FROM tasy.atendimento_paciente ap
             JOIN tasy.agenda_quimioterapia_pep_v aq
                 ON aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
+            LEFT JOIN tasy.valor_dominio vd
+                ON vd.cd_dominio = 83
+               AND vd.vl_dominio = aq.ie_status_agenda
             WHERE ap.nr_atendimento IN ({$placeholders})
                 AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 30
             ORDER BY ap.nr_atendimento, aq.dt_agenda
@@ -1525,17 +1559,7 @@ class PatientPrescriptionsRepository
         $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
         return DB::connection('tasy')->select("
-            SELECT
-                nr_atendimento,
-                med_id,
-                descricao,
-                dt_horario,
-                qt_dose,
-                cd_unidade_medida_dose,
-                ie_via_aplicacao,
-                nr_dia_util,
-                MAX(priority) AS priority
-            FROM (
+            WITH base AS (
                 SELECT
                     cm.nr_atendimento,
                     cm.nr_sequencia                                                          AS med_id,
@@ -1545,6 +1569,7 @@ class PatientPrescriptionsRepository
                     cm.cd_unidade_medida                                                     AS cd_unidade_medida_dose,
                     cm.ie_via_aplicacao,
                     cm.nr_dia_util,
+                    pma.ie_alteracao,
                     CASE pma.ie_alteracao
                         WHEN 3  THEN 600
                         WHEN 58 THEN 500
@@ -1573,11 +1598,32 @@ class PatientPrescriptionsRepository
                   AND cm.dt_liberacao      IS NOT NULL
                   AND cm.dt_suspensao      IS NULL
                   AND TRUNC(pmh.dt_horario) = TRUNC(SYSDATE)
+            ),
+            grouped AS (
+                SELECT
+                    nr_atendimento,
+                    med_id,
+                    descricao,
+                    dt_horario,
+                    qt_dose,
+                    cd_unidade_medida_dose,
+                    ie_via_aplicacao,
+                    nr_dia_util,
+                    MAX(priority) AS priority,
+                    MAX(ie_alteracao) KEEP (DENSE_RANK LAST ORDER BY priority NULLS FIRST) AS ie_alteracao_code
+                FROM base
+                GROUP BY nr_atendimento, med_id, descricao, dt_horario,
+                         qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
+                HAVING MAX(priority) < 400
             )
-            GROUP BY nr_atendimento, med_id, descricao, dt_horario,
-                     qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
-            HAVING MAX(priority) < 400
-            ORDER BY nr_atendimento, dt_horario
+            SELECT
+                g.*,
+                vd.ds_valor_dominio AS ds_alteracao_label
+            FROM grouped g
+            LEFT JOIN tasy.valor_dominio vd
+                ON vd.cd_dominio = 1620
+               AND vd.vl_dominio = TO_CHAR(g.ie_alteracao_code)
+            ORDER BY g.nr_atendimento, g.dt_horario
         ", $chunk);
     }
 
@@ -1607,6 +1653,8 @@ class PatientPrescriptionsRepository
                 ap.ds_observacao,
                 ap.ie_carater_cirurgia,
                 ap.ie_status_agenda,
+                vd_ag_stat.ds_valor_dominio AS ds_status_agenda_label,
+                vd_ag_car.ds_valor_dominio  AS ds_carater_label,
                 ap.nr_seq_proc_interno,
                 ap.nr_seq_sala,
                 NVL(
@@ -1629,7 +1677,11 @@ class PatientPrescriptionsRepository
                     )
                 ) AS cd_tipo_cirurgia,
                 COALESCE(
-                    TASY.OBTER_CIRURGIA_PACIENTE(ap.nr_atendimento, 'AA'),
+                    CASE
+                        WHEN ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X'
+                        THEN TASY.OBTER_CIRURGIA_PACIENTE(ap.nr_atendimento, 'AA')
+                        ELSE NULL
+                    END,
                     pi.ds_proc_exame,
                     proced.ds_procedimento,
                     ap.ds_cirurgia
@@ -1638,6 +1690,14 @@ class PatientPrescriptionsRepository
             FROM tasy.agenda_paciente ap
             JOIN tasy.atendimento_paciente atp
                 ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
+            -- Status domain 83: agenda_paciente statuses
+            LEFT JOIN tasy.valor_dominio vd_ag_stat
+                ON vd_ag_stat.cd_dominio = 83
+               AND vd_ag_stat.vl_dominio = ap.ie_status_agenda
+            -- Caráter domain 1016: cirurgia character
+            LEFT JOIN tasy.valor_dominio vd_ag_car
+                ON vd_ag_car.cd_dominio = 1016
+               AND vd_ag_car.vl_dominio = ap.ie_carater_cirurgia
             LEFT JOIN tasy.proc_interno pi
                 ON pi.nr_sequencia = ap.nr_seq_proc_interno
             LEFT JOIN (

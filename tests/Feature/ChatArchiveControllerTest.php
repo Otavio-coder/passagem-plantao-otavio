@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\System\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ChatArchiveControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_show_view_builds_timeline_for_active_messages(): void
     {

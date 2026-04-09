@@ -2,8 +2,8 @@
 
 namespace Tests\Unit;
 
-use App\Support\PendingEventPresentation;
 use App\Support\PendingEventTypeClassifier;
+use App\View\Presenters\PendingEventPresenter;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -12,7 +12,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function prefers_explicit_execution_sector_label(): void
     {
-        $label = PendingEventPresentation::executionSectorLabel([
+        $label = PendingEventPresenter::executionSectorLabel([
             'setor_execucao' => 'Hemodinâmica',
             'setor_desc_raw' => 'Enfermaria',
             'local' => 'Sala 1',
@@ -24,7 +24,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function falls_back_to_other_sector_fields(): void
     {
-        $label = PendingEventPresentation::executionSectorLabel([
+        $label = PendingEventPresenter::executionSectorLabel([
             'setor_execucao' => '',
             'setor_desc_raw' => 'Centro Cirúrgico',
         ]);
@@ -35,7 +35,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function returns_dash_when_no_sector_is_available(): void
     {
-        $label = PendingEventPresentation::executionSectorLabel([]);
+        $label = PendingEventPresenter::executionSectorLabel([]);
 
         $this->assertSame('-', $label);
     }
@@ -43,7 +43,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function builds_a_richer_hemotherapy_description(): void
     {
-        $description = PendingEventPresentation::hemotherapyDescription([
+        $description = PendingEventPresenter::hemotherapyDescription([
             'tipo_label' => 'Concentrado de Hemácias',
             'ds_procedimento_prescrito' => '',
             'ds_observacao' => 'cirurgia às 15h do dia 13/11/25',
@@ -62,7 +62,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function builds_a_richer_surgery_description(): void
     {
-        $description = PendingEventPresentation::surgeryDescription([
+        $description = PendingEventPresenter::surgeryDescription([
             'descricao' => 'Dissecção de veia para colocação de cateter (Cirurgia realizada)',
             'local' => 'Centro Cirúrgico',
             'sala' => '3',
@@ -77,7 +77,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function returns_null_classification_for_surgery_events(): void
     {
-        $classification = PendingEventPresentation::classificationLabel([
+        $classification = PendingEventPresenter::classificationLabel([
             'tipo_cirurgia_codigo' => 7,
             'ds_grupo_lab' => 'Grupo não usado',
         ], PendingEventTypeClassifier::SURGERY);
@@ -88,7 +88,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function returns_null_classification_when_surgery_type_is_missing(): void
     {
-        $classification = PendingEventPresentation::classificationLabel([
+        $classification = PendingEventPresenter::classificationLabel([
             'descricao' => 'Cirurgia sem tipo retornado',
         ], PendingEventTypeClassifier::SURGERY);
 
@@ -98,7 +98,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function returns_lab_group_as_classification_for_non_surgery_events(): void
     {
-        $classification = PendingEventPresentation::classificationLabel([
+        $classification = PendingEventPresenter::classificationLabel([
             'ds_grupo_lab' => 'Hematologia',
         ], PendingEventTypeClassifier::EXAM);
 
@@ -108,7 +108,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function builds_surgery_diagnostic_with_status_and_missing_fields(): void
     {
-        $diagnostic = PendingEventPresentation::surgeryDiagnosticLabel([
+        $diagnostic = PendingEventPresenter::surgeryDiagnosticLabel([
             'status_agenda_codigo' => 'PS',
             'status_laudo' => 'Paciente em sala',
             'tipo_cirurgia_codigo' => null,
@@ -124,7 +124,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_aguardando_coleta(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Pendente',
             'urgente' => false,
@@ -136,7 +136,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_urgente_aguardando_coleta(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Pendente',
             'urgente' => true,
@@ -148,9 +148,11 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_aguardando_laudo_por_status(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        // Domínio 1030 código 20 = "Coleta do material" (material coletado, aguardando resultado)
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
-            'status_laudo' => 'Coletado',
+            'status_laudo' => 'Coleta do material',
+            'ie_status_execucao' => '20',
             'urgente' => false,
         ]);
 
@@ -160,7 +162,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_aguardando_laudo_por_dt_coleta(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Pendente',
             'dt_coleta' => '2026-04-06 10:00:00',
@@ -173,9 +175,11 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_em_analise(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        // Domínio 1030 código 30 = "Digitação do resultado" → material em análise
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
-            'status_laudo' => 'Em análise',
+            'status_laudo' => 'Digitação do resultado',
+            'ie_status_execucao' => '30',
             'urgente' => false,
         ]);
 
@@ -187,7 +191,7 @@ class PendingEventPresentationTest extends TestCase
     {
         $this->assertSame(
             'Realizado — prescrição não baixada no sistema',
-            PendingEventPresentation::motivoPendente([
+            PendingEventPresenter::motivoPendente([
                 'tipo' => 'exame',
                 'foi_executado_sem_baixa' => true,
                 'urgente' => true,
@@ -196,7 +200,7 @@ class PendingEventPresentationTest extends TestCase
 
         $this->assertSame(
             'Exame realizado em solicitação mais recente',
-            PendingEventPresentation::motivoPendente([
+            PendingEventPresenter::motivoPendente([
                 'tipo' => 'exame',
                 'exame_coletado_em_prescricao_mais_nova' => true,
             ])
@@ -210,7 +214,7 @@ class PendingEventPresentationTest extends TestCase
     {
         $this->assertSame(
             'Aguardando execução',
-            PendingEventPresentation::motivoPendente(['tipo' => 'procedimento', 'urgente' => false])
+            PendingEventPresenter::motivoPendente(['tipo' => 'procedimento', 'urgente' => false])
         );
     }
 
@@ -219,7 +223,7 @@ class PendingEventPresentationTest extends TestCase
     {
         $this->assertSame(
             'Urgente — aguardando execução',
-            PendingEventPresentation::motivoPendente(['tipo' => 'procedimento', 'urgente' => true])
+            PendingEventPresenter::motivoPendente(['tipo' => 'procedimento', 'urgente' => true])
         );
     }
 
@@ -228,7 +232,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_eletiva_aguardando(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Eletiva',
             'status_laudo' => 'Aguardando',
@@ -241,7 +245,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_eletiva_confirmada(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Eletiva',
             'status_laudo' => 'Confirmada',
@@ -254,7 +258,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_urgencia_aguardando(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Urgência',
             'status_laudo' => 'Aguardando',
@@ -267,7 +271,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_urgencia_confirmada(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Emergência',
             'status_laudo' => 'Confirmada',
@@ -280,7 +284,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_em_preparo(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Eletiva',
             'status_laudo' => 'Em preparo',
@@ -293,7 +297,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_paciente_em_sala(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Eletiva',
             'status_laudo' => 'Paciente em sala',
@@ -306,7 +310,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_aguardando_remarcacao(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Eletiva',
             'status_laudo' => 'Aguardando remarcação',
@@ -319,7 +323,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_ambulatorial_aguardando(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Ambulatorial',
             'status_laudo' => 'Aguardando',
@@ -332,7 +336,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_cirurgia_rotina_aguardando(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'cirurgia',
             'carater' => 'Rotina',
             'status_laudo' => 'Aguardando',
@@ -347,7 +351,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_hemoterapia_com_tipo_especifico(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'hemoterapia',
             'ie_tipo_hemoterap' => '1',
             'urgente' => false,
@@ -359,7 +363,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_hemoterapia_urgente_com_tipo(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'hemoterapia',
             'ie_tipo_hemoterap' => '3',
             'urgente' => true,
@@ -371,7 +375,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_hemoterapia_sem_tipo_usa_hemocomponente(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'hemoterapia',
             'urgente' => false,
         ]);
@@ -382,7 +386,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_hemoterapia_usa_tipo_label_quando_disponivel(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'hemoterapia',
             'tipo_label' => 'Crioprecipitado',
             'urgente' => false,
@@ -396,7 +400,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_quimioterapia_sem_ciclo(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'quimioterapia',
         ]);
 
@@ -406,7 +410,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_quimioterapia_com_ciclo(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'quimioterapia',
             'ciclo' => '3',
         ]);
@@ -419,7 +423,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_antibiotico_sem_complemento(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'antibiotico',
         ]);
 
@@ -429,7 +433,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_antibiotico_com_complemento(): void
     {
-        $motivo = PendingEventPresentation::motivoPendente([
+        $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'antibiotico',
             'ds_complemento' => 'Dia 3 · 500mg · IV · 8/8h',
         ]);
@@ -440,7 +444,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function builds_pending_modal_data_with_sorted_groups_and_near_flag(): void
     {
-        $data = PendingEventPresentation::buildPendingModalData([
+        $data = PendingEventPresenter::buildPendingModalData([
             [
                 'tipo' => 'procedimento',
                 'descricao' => 'ECG',
@@ -463,7 +467,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function resolves_first_event_respecting_front_window_for_exam_and_procedure(): void
     {
-        $data = PendingEventPresentation::buildPendingModalData([
+        $data = PendingEventPresenter::buildPendingModalData([
             [
                 'tipo' => 'exame',
                 'descricao' => 'Exame distante',

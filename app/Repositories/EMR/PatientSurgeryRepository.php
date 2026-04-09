@@ -46,6 +46,8 @@ class PatientSurgeryRepository
             ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
             ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
             ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
+            ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 83 AND vd.vl_dominio = agenda_paciente.ie_status_agenda) AS ds_status_agenda_label'))
+            ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 1016 AND vd.vl_dominio = agenda_paciente.ie_carater_cirurgia) AS ds_carater_label'))
             ->whereIn('cd_pessoa_fisica', $personIds)
             ->where('dt_agenda', '>=', Carbon::today())
             ->where('dt_agenda', '<=', $cutoff)
@@ -82,6 +84,8 @@ class PatientSurgeryRepository
                 ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
                 ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
                 ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
+                ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 83 AND vd.vl_dominio = agenda_paciente.ie_status_agenda) AS ds_status_agenda_label'))
+                ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 1016 AND vd.vl_dominio = agenda_paciente.ie_carater_cirurgia) AS ds_carater_label'))
                 ->where('nr_atendimento', $attendanceNumber)
                 ->where('dt_agenda', '>', Carbon::now())
                 ->whereNull('dt_executada')
@@ -116,10 +120,11 @@ class PatientSurgeryRepository
     private function getCaraterCirurgiaDescription(string $carater): string
     {
         return match ($carater) {
+            'A' => 'Ambulatorial',
             'E' => 'Eletiva',
+            'M' => 'Emergência',
             'U' => 'Urgência',
-            'G' => 'Emergência',
-            default => 'Não informado',
+            default => $carater !== '' ? $carater : 'Não informado',
         };
     }
 
@@ -158,9 +163,9 @@ class PatientSurgeryRepository
             'descricao_padronizada' => $descricao,
             'data_agenda' => $dataAgendada,
             'hora_agenda' => $horaAgendada,
-            'status' => $this->agendaStatusLabel((string) ($appointment->ie_status_agenda ?? '')),
+            'status' => ! empty($appointment->ds_status_agenda_label) ? trim((string) $appointment->ds_status_agenda_label) : ($appointment->ie_status_agenda ?? 'Aguardando'),
             'tipo_agendamento' => 'Cirúrgico',
-            'carater_cirurgia' => $appointment->getSurgeryCharacterAttribute() ?? ($appointment->ie_carater_cirurgia ?? 'Não informado'),
+            'carater_cirurgia' => ! empty($appointment->ds_carater_label) ? trim((string) $appointment->ds_carater_label) : ($appointment->getSurgeryCharacterAttribute() ?? ($appointment->ie_carater_cirurgia ?? 'Não informado')),
             'observacoes' => $this->filterSensitiveData($appointment->ds_observacao ?? ''),
             'duracao_formatada' => 'A definir',
             'cd_procedimento' => $appointment->cd_procedimento,
@@ -181,46 +186,6 @@ class PatientSurgeryRepository
         $normalized = trim((string) ($cleaned ?? $description));
 
         return $normalized !== '' ? $normalized : $description;
-    }
-
-    private function agendaStatusLabel(?string $code): string
-    {
-        $map = [
-            'A' => 'Aguardando',
-            'AD' => 'Atendido',
-            'AE' => 'Aguardando remarcação',
-            'AP' => 'Aguardando paciente',
-            'AT' => 'Aguardando atendimento',
-            'B' => 'Bloqueada',
-            'C' => 'Cancelada',
-            'CN' => 'Confirmada',
-            'CR' => 'Cirurgia realizada',
-            'E' => 'Executada',
-            'EE' => 'Em exame',
-            'EP' => 'Em preparo',
-            'F' => 'Falta justificada',
-            'I' => 'Falta não justificada',
-            'II' => 'Inativo',
-            'IN' => 'Iniciada',
-            'IT' => 'Interrompida',
-            'L' => 'Livre',
-            'LF' => 'Livre forçado',
-            'N' => 'Normal',
-            'O' => 'Em consulta',
-            'P' => 'Paciente internado',
-            'PA' => 'Pré-agenda',
-            'PH' => 'Paciente chamado',
-            'PO' => 'Pós-operatório',
-            'PS' => 'Paciente em sala',
-            'R' => 'Reservada',
-            'RE' => 'Remarcada',
-            'RV' => 'Revisar',
-            'S' => 'Suspenso',
-        ];
-
-        $normalized = strtoupper(trim((string) $code));
-
-        return $map[$normalized] ?? ($normalized !== '' ? $normalized : 'Aguardando');
     }
 
     private function filterSensitiveData(?string $observacao): string

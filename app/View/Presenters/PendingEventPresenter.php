@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Support;
+namespace App\View\Presenters;
 
+use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 
-class PendingEventPresentation
+class PendingEventPresenter
 {
     private const ALWAYS_NEAR_TYPES = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
 
@@ -23,6 +24,15 @@ class PendingEventPresentation
         'alta' => 'Alta Efetivada',
         'alta_medica' => 'Alta Médica',
         'previsao_alta' => 'Previsão de Alta',
+    ];
+
+    private const HEMOTHERAPY_TYPES = [
+        '0' => 'Hemocomponente',
+        '1' => 'Concentrado de Hemácias',
+        '2' => 'Concentrado de Plaquetas',
+        '3' => 'Plasma Fresco Congelado',
+        '4' => 'Crioprecipitado',
+        '5' => 'Concentrado de Granulócitos',
     ];
 
     /**
@@ -170,14 +180,55 @@ class PendingEventPresentation
         };
     }
 
-    private const HEMOTHERAPY_TYPES = [
-        '0' => 'Hemocomponente',
-        '1' => 'Concentrado de Hemácias',
-        '2' => 'Concentrado de Plaquetas',
-        '3' => 'Plasma Fresco Congelado',
-        '4' => 'Crioprecipitado',
-        '5' => 'Concentrado de Granulócitos',
-    ];
+    /**
+     * Estilos do card de resumo do paciente para o primeiro evento pendente.
+     *
+     * @return array{icon: string, card_bg: string, card_style: string, description_class: string, time_class: string, pulse_color: string, show_pulse: bool}
+     */
+    public static function firstEventCardStyle(?array $firstEvent): array
+    {
+        $event = $firstEvent ?? [];
+        $type = (string) ($event['tipo'] ?? 'outros');
+        $urgent = (bool) ($event['urgente'] ?? false);
+
+        [$cardBg, $descriptionClass, $timeClass, $pulseColor] = match (true) {
+            in_array($type, ['alta', 'aviso', 'obito'], true) => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
+            $type === 'alta_medica' => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-700 font-bold', 'text-gray-600 font-semibold', 'bg-gray-400'],
+            $type === 'previsao_alta' => ['bg-[#E8E8E8] border border-gray-300', 'text-gray-600 font-semibold', 'text-gray-500 font-medium', 'bg-gray-400'],
+            $type === 'cirurgia' && $urgent => ['bg-[#7712C7]/10 border border-[#7712C7]', 'text-[#7712C7] font-bold', 'text-[#7712C7] font-semibold', 'bg-[#7712C7]'],
+            $type === 'cirurgia' => ['bg-[#7712C7]/10 border border-[#7712C7]/50', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]/70'],
+            $type === 'hemoterapia' => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-semibold', 'text-[#7712C7]/80 font-medium', 'bg-[#7712C7]'],
+            $type === 'quimioterapia' => ['bg-[#0A4700]/10 border border-[#0A4700]/40', 'text-[#0A4700] font-semibold', 'text-[#0A4700]/80 font-medium', 'bg-[#0A4700]'],
+            $type === 'antibiotico' => ['bg-[#BDAD02]/10 border border-[#BDAD02]/60', 'text-[#5C5300] font-semibold', 'text-[#5C5300]/80 font-medium', 'bg-[#BDAD02]'],
+            in_array($type, ['proc_exame', 'exame'], true) => ['bg-blue-50/60 border border-blue-200', 'text-blue-700 font-semibold', 'text-blue-600 font-medium', 'bg-blue-400'],
+            $type === 'procedimento' => ['bg-indigo-50/60 border border-indigo-200', 'text-indigo-700 font-semibold', 'text-indigo-600 font-medium', 'bg-indigo-400'],
+            $urgent => ['bg-[#7712C7]/10 border border-[#7712C7]/30', 'text-[#7712C7] font-bold', 'text-[#7712C7]/80 font-semibold', 'bg-[#7712C7]'],
+            default => ['bg-white/30 border border-white/50', 'text-[#062047] font-semibold', 'text-[#004D9D] font-medium', 'bg-gray-400'],
+        };
+
+        $cardStyle = match (true) {
+            in_array($type, ['alta', 'aviso', 'obito', 'alta_medica', 'previsao_alta'], true) => 'background-color: #E8E8E8; border-color: #D1D5DB;',
+            $type === 'cirurgia' && $urgent => 'background-color: rgba(119, 18, 199, 0.12); border-color: rgba(119, 18, 199, 1);',
+            $type === 'cirurgia' => 'background-color: rgba(119, 18, 199, 0.10); border-color: rgba(119, 18, 199, 0.5);',
+            $type === 'hemoterapia' => 'background-color: rgba(119, 18, 199, 0.10); border-color: rgba(119, 18, 199, 0.3);',
+            $type === 'quimioterapia' => 'background-color: rgba(10, 71, 0, 0.10); border-color: rgba(10, 71, 0, 0.4);',
+            $type === 'antibiotico' => 'background-color: rgba(189, 173, 2, 0.10); border-color: rgba(189, 173, 2, 0.6);',
+            in_array($type, ['proc_exame', 'exame'], true) => 'background-color: rgba(239, 246, 255, 0.9); border-color: #BFDBFE;',
+            $type === 'procedimento' => 'background-color: rgba(238, 242, 255, 0.9); border-color: #C7D2FE;',
+            $urgent => 'background-color: rgba(119, 18, 199, 0.10); border-color: rgba(119, 18, 199, 0.3);',
+            default => 'background-color: rgba(255, 255, 255, 0.30); border-color: rgba(255, 255, 255, 0.50);',
+        };
+
+        return [
+            'icon' => $event['icone'] ?? 'alert-circle.svg',
+            'card_bg' => $cardBg,
+            'card_style' => $cardStyle,
+            'description_class' => $descriptionClass,
+            'time_class' => $timeClass,
+            'pulse_color' => $pulseColor,
+            'show_pulse' => $urgent || in_array($type, ['alta', 'aviso'], true),
+        ];
+    }
 
     /**
      * @param  array<string, mixed>  $event
@@ -272,6 +323,11 @@ class PendingEventPresentation
             return 'Realizado — prescrição não baixada no sistema';
         }
 
+        $novaInfo = trim((string) ($event['prescricao_mais_nova_pendente_info'] ?? ''));
+        if ($novaInfo !== '') {
+            return "Pedido mais recente em aberto: {$novaInfo}";
+        }
+
         if ($event['exame_coletado_em_prescricao_mais_nova'] ?? false) {
             return 'Exame realizado em solicitação mais recente';
         }
@@ -284,9 +340,14 @@ class PendingEventPresentation
         $statusExec = trim((string) ($event['status_laudo'] ?? ''));
         $status = $statusLaudo !== '' ? $statusLaudo : $statusExec;
 
+        // Eventos provenientes de agenda_paciente usam o status da agenda como motivo.
+        if (($event['_fonte'] ?? '') === 'agenda' && ! in_array($tipo, [PendingEventTypeClassifier::SURGERY], true)) {
+            return self::motivoAgenda($event);
+        }
+
         return match ($tipo) {
             PendingEventTypeClassifier::EXAM => self::motivoExame($status, $urgente, $event),
-            PendingEventTypeClassifier::PROCEDURE => self::motivoProcedimento($urgente),
+            PendingEventTypeClassifier::PROCEDURE => self::motivoProcedimento($urgente, $event),
             PendingEventTypeClassifier::SURGERY => self::motivoCirurgia($event),
             PendingEventTypeClassifier::HEMOTHERAPY => self::motivoHemoterapia($event, $urgente),
             PendingEventTypeClassifier::CHEMOTHERAPY => self::motivoQuimioterapia($event),
@@ -343,24 +404,70 @@ class PendingEventPresentation
 
     // ── Helpers privados por tipo ─────────────────────────────────────────────
 
+    /**
+     * Motivo para itens oriundos de agenda_paciente (exceto cirurgias).
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private static function motivoAgenda(array $event): string
+    {
+        $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+        $statusCode = strtoupper(trim((string) ($event['ie_status_agenda'] ?? '')));
+        $descricao = trim((string) ($event['descricao'] ?? ''));
+
+        return match ($statusCode) {
+            'F' => 'Falta justificada — '.(mb_strlen($descricao) > 0 ? mb_strtolower($descricao) : 'sessão não realizada'),
+            'FI' => 'Falta injustificada — sessão não realizada',
+            'AG' => 'Aguardando atendimento',
+            'AT' => 'Em atendimento',
+            'EM' => 'Em preparo',
+            'RE' => 'Em recuperação',
+            default => $statusLabel !== '' ? "Agendado: {$statusLabel}" : 'Agendado — aguardando realização',
+        };
+    }
+
     private static function motivoExame(string $status, bool $urgente, array $event): string
     {
-        $statusNorm = mb_strtolower($status);
+        // Domínio 1030 — Status do exame (exames de laboratório)
+        // Códigos confiáveis independentes de tradução do domínio:
+        // 20=Coleta do material, 29=Liberado pelo Interfaceamento, 30=Digitação do resultado,
+        // 35=Aprovação do resultado, 40=Liberação do exame, 45=Entrega do exame
+        $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
-        if (in_array($statusNorm, ['coletado'], true) || ! empty($event['dt_coleta'])) {
+        if (! empty($event['dt_coleta']) || $code === '20' || $code === '25') {
             return 'Aguardando laudo';
         }
 
-        if (in_array($statusNorm, ['em análise', 'em analise'], true)) {
+        if (in_array($code, ['29', '30', '35', '40', '45'], true)) {
             return 'Material em análise — aguardando laudo';
         }
 
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
     }
 
-    private static function motivoProcedimento(bool $urgente): string
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    private static function motivoProcedimento(bool $urgente, array $event = []): string
     {
-        return $urgente ? 'Urgente — aguardando execução' : 'Aguardando execução';
+        $code = trim((string) ($event['ie_status_execucao'] ?? ''));
+
+        // Mapeia códigos do domínio 1226 para mensagens orientadas à ação
+        $motivo = match ($code) {
+            '11' => 'Paciente chegou ao setor — aguardando execução',
+            '13' => 'Previsto — aguardando execução',
+            '14' => 'Em preparo — execução não registrada',
+            '15' => 'Em exame',
+            '17' => 'Em avaliação médica',
+            '18' => 'Em complemento',
+            '19' => 'Concluído — aguardando baixa',
+            '20' => 'Executado — aguardando baixa',
+            '22' => 'Aguardando laudo',
+            'ASA' => 'Aguardando aprovação para execução',
+            default => $urgente ? 'Urgente — aguardando execução' : 'Aguardando execução',
+        };
+
+        return ($urgente && $code === '') ? 'Urgente — aguardando execução' : $motivo;
     }
 
     private static function motivoCirurgia(array $event): string
@@ -409,10 +516,20 @@ class PendingEventPresentation
     private static function motivoQuimioterapia(array $event): string
     {
         $ciclo = trim((string) ($event['ciclo'] ?? ''));
+        $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+        $statusCode = strtoupper(trim((string) ($event['ie_status_agenda'] ?? '')));
 
-        return $ciclo !== ''
-            ? "Sessão de quimioterapia agendada — Ciclo {$ciclo}"
-            : 'Sessão de quimioterapia agendada';
+        $statusSuffix = match ($statusCode) {
+            'F' => ' — falta justificada',
+            'FI' => ' — falta injustificada',
+            'AT' => ' — em atendimento',
+            'EM' => ' — em preparo',
+            default => $statusLabel !== '' ? ': '.lcfirst($statusLabel) : ' agendada',
+        };
+
+        $base = 'Sessão de quimioterapia'.$statusSuffix;
+
+        return $ciclo !== '' ? "{$base} — Ciclo {$ciclo}" : $base;
     }
 
     private static function motivoAntibiotico(array $event): string
@@ -443,31 +560,86 @@ class PendingEventPresentation
      * @param  array<int, array<string, mixed>>  $events
      * @return array<string, mixed>|null
      */
+    /**
+     * Seleciona o evento mais relevante para exibição no card do paciente.
+     *
+     * Prioridade (ordem decrescente):
+     *   1. Urgente ou tipo crítico (alta, alta_medica, aviso, obito)
+     *   2. Em atraso — dt_evento anterior a hoje (mais urgentes primeiro)
+     *   3. Hoje — dt_evento no dia corrente
+     *   4. Always-near sem data — antibióticos e afins sem dt_evento
+     *   5. Amanhã — dt_evento amanhã
+     *   6. Futuro — qualquer evento além de amanhã
+     *   7. Sem data — eventos restantes sem dt_evento
+     *
+     * Retorna null somente se não há nenhum evento.
+     */
     private static function resolveFirstEvent(array $events): ?array
     {
-        $todayStart = now()->startOfDay();
+        if (empty($events)) {
+            return null;
+        }
+
+        $todayStart = Carbon::today();
+        $todayEnd = $todayStart->copy()->endOfDay();
         $tomorrowEnd = $todayStart->copy()->addDay()->endOfDay();
 
+        $urgent = [];
+        $overdue = [];
+        $today = [];
+        $alwaysNearNoDate = [];
+        $tomorrow = [];
+        $future = [];
+        $futureFrontOnly = []; // exames/procedimentos além de amanhã: menor prioridade que outros tipos futuros
+        $noDate = [];
+
+        $criticalTypes = ['alta', 'alta_medica', 'aviso', 'obito'];
+
         foreach ($events as $event) {
+            $type = (string) ($event['tipo'] ?? '');
+            $isUrgent = (bool) ($event['urgente'] ?? false);
+
+            if ($isUrgent || in_array($type, $criticalTypes, true)) {
+                $urgent[] = $event;
+
+                continue;
+            }
+
             $dtEvent = $event['dt_evento'] ?? null;
+
             if (empty($dtEvent)) {
+                if (in_array($type, self::ALWAYS_NEAR_TYPES, true)) {
+                    $alwaysNearNoDate[] = $event;
+                } else {
+                    $noDate[] = $event;
+                }
+
                 continue;
             }
 
             try {
                 $parsed = Carbon::parse((string) $dtEvent);
+
                 if ($parsed->lt($todayStart)) {
-                    continue;
+                    $overdue[] = $event;
+                } elseif ($parsed->lte($todayEnd)) {
+                    $today[] = $event;
+                } elseif ($parsed->lte($tomorrowEnd)) {
+                    $tomorrow[] = $event;
+                } elseif (in_array($type, self::FRONT_NEAR_TYPES, true)) {
+                    // Exames/procedimentos distantes têm menor prioridade que cirurgias, quimio etc.
+                    $futureFrontOnly[] = $event;
+                } else {
+                    $future[] = $event;
                 }
-
-                $type = (string) ($event['tipo'] ?? '');
-                if (in_array($type, self::FRONT_NEAR_TYPES, true) && $parsed->gt($tomorrowEnd)) {
-                    continue;
-                }
-
-                return $event;
             } catch (\Throwable) {
-                continue;
+                $noDate[] = $event;
+            }
+        }
+
+        foreach ([$urgent, $overdue, $today, $alwaysNearNoDate, $tomorrow, $future, $futureFrontOnly, $noDate] as $bucket) {
+            if (! empty($bucket)) {
+                return $bucket[0];
             }
         }
 

@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\System\UserSectorPreference;
 use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\Tasy\TasyService;
-use App\Support\PendingEventPresentation;
 use App\Support\PendingEventTypeClassifier;
+use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -144,9 +144,9 @@ class PendingEventsReportController extends Controller
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
-                    'setor_execucao' => PendingEventPresentation::executionSectorLabel($event),
+                    'setor_execucao' => PendingEventPresenter::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
-                    'classificacao' => PendingEventPresentation::classificationLabel($event, $normalizedType),
+                    'classificacao' => PendingEventPresenter::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
                     'data_prev_execucao' => $event['dt_evento_formatted'] ?? '-',
                     'tempo_pendente' => $this->resolveTempoPendente(
@@ -203,8 +203,8 @@ class PendingEventsReportController extends Controller
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
 
         if ($type === PendingEventTypeClassifier::SURGERY) {
-            $base = PendingEventPresentation::surgeryDescription($event);
-            $statusDetail = PendingEventPresentation::surgeryDiagnosticLabel($event);
+            $base = PendingEventPresenter::surgeryDescription($event);
+            $statusDetail = PendingEventPresenter::surgeryDiagnosticLabel($event);
 
             if ($statusDetail !== '') {
                 return $this->truncate($base.' | '.$statusDetail, 120);
@@ -236,7 +236,7 @@ class PendingEventsReportController extends Controller
 
     private function computeMotivoPendente(string $normalizedType, array $event, string $status): string
     {
-        return PendingEventPresentation::motivoPendente($event);
+        return PendingEventPresenter::motivoPendente($event);
     }
 
     private function parseDateToTs(?string $date): ?int

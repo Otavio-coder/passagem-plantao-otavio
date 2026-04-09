@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\DB;
  * Filtros alinhados com OBTER_EXAM_PEND_BAR: ie_suspenso<>'S', dt_cancelamento IS NULL,
  * ie_status_atend<35, NOT EXISTS result_laboratorio coletado, status NOT IN ('40','R','C','BE')
  *
+ * Status: derivado dos domínios Tasy reais — sem mapeamento manual:
+ *   - Exames de laboratório (nr_seq_exame IS NOT NULL): domínio 1030 "Status do exame"
+ *   - Procedimentos/imagem (nr_seq_exame IS NULL):     domínio 1226 "Status dos exames (não laboratório)"
+ *
  * Performance:
  *   - Substitui chamadas por linha a obter_desc_proc_interno(), obter_descricao_procedimento()
  *     e obter_valor_dominio() por LEFT JOINs estáticos avaliados uma única vez pelo otimizador.
@@ -19,16 +23,6 @@ use Illuminate\Support\Facades\DB;
  */
 class PrescriptionPendingHandler extends AbstractPendingHandler
 {
-    private const STATUS_MAP = [
-        // Mapeamento observável no banco Tasy para pendências de prescrição.
-        '10' => 'Pendente',
-        '11' => 'Agendado',
-        '14' => 'Aguardando execução',
-        '15' => 'Coletado',
-        '20' => 'Coletado',
-        '30' => 'Em análise',
-    ];
-
     protected function handlerName(): string
     {
         return 'Prescrições';
@@ -46,6 +40,7 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     pp.nr_seq_proc_interno,
                     pp.dt_prev_execucao                         AS dt_evento,
                     pp.dt_coleta,
+                    pp.dt_resultado,
                     pp.ie_amostra,
                     pm.dt_prescricao                            AS dt_solicitacao,
                     pm.dt_liberacao                             AS dt_autorizacao,
@@ -54,12 +49,22 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
                     dv.ds_valor_dominio                         AS ds_subtipo,
                     COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
-                    -- Computed once; reused in outer JOIN (eliminates duplicate function call)
-                    -- PROC_INTERNO_SETOR replaces per-row AGEINT_OBTER_SETOR_PROC_INT() call
+                    -- Status legível direto do domínio Tasy:
+                    -- domínio 1030 para exames de lab, domínio 1226 para procedimentos/imagem
+                    COALESCE(vd_exam.ds_valor_dominio, vd_proc.ds_valor_dominio) AS ds_status_execucao_label,
                     NVL(
                         pis.cd_setor_atendimento,
                         NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
-                    ) AS cd_setor_execucao
+                    ) AS cd_setor_execucao,
+                    -- Deduplicacao: mesma prescricao com mesmo proc_interno e mesma data
+                    -- pode ter multiplas sequencias (entrada duplicada no Tasy).
+                    -- Mantemos apenas a de menor nr_sequencia.
+                    ROW_NUMBER() OVER (
+                        PARTITION BY pm.nr_prescricao,
+                                     pp.nr_seq_proc_interno,
+                                     pp.dt_prev_execucao
+                        ORDER BY pp.nr_sequencia
+                    ) AS rn_proc_dup
                 FROM tasy.prescr_medica pm
                 JOIN tasy.prescr_procedimento pp
                     ON pp.nr_prescricao = pm.nr_prescricao
@@ -91,7 +96,17 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 LEFT JOIN tasy.valor_dominio dv
                     ON dv.cd_dominio = 95
                    AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
-                -- Lowest-priority setor for this proc_interno+estabelecimento (replaces AGEINT function)
+                -- Status domínio 1030: exames de laboratório
+                LEFT JOIN tasy.valor_dominio vd_exam
+                    ON vd_exam.cd_dominio = 1030
+                   AND vd_exam.vl_dominio = pp.ie_status_execucao
+                   AND pp.nr_seq_exame IS NOT NULL
+                -- Status domínio 1226: procedimentos e exames de imagem
+                LEFT JOIN tasy.valor_dominio vd_proc
+                    ON vd_proc.cd_dominio = 1226
+                   AND vd_proc.vl_dominio = pp.ie_status_execucao
+                   AND pp.nr_seq_exame IS NULL
+                -- Lowest-priority setor for this proc_interno+estabelecimento
                 LEFT JOIN (
                     SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento
                     FROM (
@@ -112,12 +127,9 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     AND pp.ie_status_atend < 35
                     AND pm.dt_liberacao    IS NOT NULL
                     AND pm.dt_suspensao    IS NULL
-                    -- ie_origem_proced=4 (CPOE): exclui apenas procedimentos sem exame de lab; exames de lab com origem 4 são legítimos
                     AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                     AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
-                    AND rl.nr_prescricao IS NULL  -- anti-join: exclui exames de lab já coletados em result_laboratorio
-                    -- Exclui exames de imagem (Raio X, etc.) que já têm laudo em procedimento_paciente,
-                    -- mesmo que a prescrição não tenha sido formalmente baixada no Tasy.
+                    AND rl.nr_prescricao IS NULL
                     AND NOT EXISTS (
                         SELECT 1 FROM tasy.procedimento_paciente pp_laudo
                         WHERE pp_laudo.nr_prescricao          = pm.nr_prescricao
@@ -128,7 +140,6 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             SELECT
                 b.*,
                 sa.ds_setor_atendimento AS setor_desc_raw,
-                -- NULL: NOT EXISTS (nr_laudo IS NOT NULL) in base guarantees this is always NULL
                 NULL AS ds_status_laudo,
                 -- Flag: procedimento registrado como executado em procedimento_paciente (prescrição não foi baixada)
                 CASE WHEN EXISTS (
@@ -136,16 +147,42 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                     WHERE pp_exec.nr_prescricao           = b.nr_prescricao
                       AND pp_exec.nr_sequencia_prescricao = b.nr_sequencia_pp
                 ) THEN 1 ELSE 0 END AS foi_executado_sem_baixa,
+                -- Flag: resultado lançado em exame de laboratório mas prescrição não foi baixada.
+                -- Restrito a nr_seq_exame IS NOT NULL: em procedimentos dt_resultado pode ser
+                -- igual a dt_prev_execucao (data prevista) e não indica resultado real.
+                CASE WHEN b.dt_resultado IS NOT NULL AND b.nr_seq_exame IS NOT NULL THEN 1 ELSE 0 END AS tem_resultado_sem_baixa,
                 -- Flag: existe prescrição mais recente do mesmo exame já executada no mesmo atendimento
                 CASE WHEN b.nr_seq_exame IS NOT NULL AND EXISTS (
                     SELECT 1 FROM tasy.procedimento_paciente pp_dup
                     WHERE pp_dup.nr_atendimento = b.nr_atendimento
                       AND pp_dup.nr_seq_exame   = b.nr_seq_exame
                       AND pp_dup.nr_prescricao  > b.nr_prescricao
-                ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova
+                ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova,
+                -- Info da prescricao mais nova PENDENTE do mesmo exame (nr + data), quando existir.
+                -- Indica que este pedido foi superado por um mais recente ainda em aberto.
+                CASE WHEN b.nr_seq_exame IS NOT NULL THEN (
+                    SELECT nova.nr_prescricao || ' — ' || TO_CHAR(nova.dt_prescricao, 'DD/MM/YYYY')
+                    FROM (
+                        SELECT pm2.nr_prescricao, pm2.dt_prescricao
+                        FROM tasy.prescr_medica pm2
+                        JOIN tasy.prescr_procedimento pp2
+                            ON pp2.nr_prescricao = pm2.nr_prescricao
+                        WHERE pm2.nr_atendimento = b.nr_atendimento
+                          AND pp2.nr_seq_exame   = b.nr_seq_exame
+                          AND pm2.nr_prescricao  > b.nr_prescricao
+                          AND pp2.ie_status_execucao NOT IN ('40','R','C','BE')
+                          AND pp2.dt_baixa        IS NULL
+                          AND pp2.dt_cancelamento IS NULL
+                          AND pp2.ie_suspenso     <> 'S'
+                          AND pm2.dt_suspensao    IS NULL
+                          AND pm2.dt_liberacao    IS NOT NULL
+                        ORDER BY pm2.nr_prescricao DESC
+                    ) nova WHERE ROWNUM = 1
+                ) ELSE NULL END AS prescricao_mais_nova_pendente_info
             FROM base b
             LEFT JOIN tasy.setor_atendimento sa
                 ON sa.cd_setor_atendimento = b.cd_setor_execucao
+            WHERE b.rn_proc_dup = 1
             ORDER BY b.nr_atendimento, b.dt_evento NULLS LAST
         ", $chunk);
 
@@ -184,6 +221,9 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                         : (int) floor($diff / 86400).'d em aberto');
             }
 
+            // Status direto do domínio Tasy — sem mapeamento manual
+            $statusLabel = $row->ds_status_execucao_label ?? $row->ie_status_execucao ?? null;
+
             $results[$row->nr_atendimento]['events'][] = [
                 'tipo' => $isExam ? 'exame' : 'procedimento',
                 'icone' => $isExam ? 'outpatient-department.svg' : 'tac.svg',
@@ -200,11 +240,15 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
                 'ie_amostra' => $isExam ? ($row->ie_amostra ?? null) : null,
                 'setor_execucao' => $row->setor_desc_raw ?? ($row->cd_setor_execucao ?? null),
                 'tempo_pendente' => $tempo,
-                'status_laudo' => self::STATUS_MAP[$row->ie_status_execucao] ?? 'Pendente',
+                'status_laudo' => $statusLabel,
+                'ie_status_execucao' => $row->ie_status_execucao ?? null,
                 'ds_status_laudo' => $row->ds_status_laudo ?? null,
-                'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1,
+                'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1 || (int) ($row->tem_resultado_sem_baixa ?? 0) === 1,
                 'exame_coletado_em_prescricao_mais_nova' => (int) ($row->exame_coletado_em_prescricao_mais_nova ?? 0) === 1,
+                'prescricao_mais_nova_pendente_info' => $row->prescricao_mais_nova_pendente_info ?? null,
                 'urgente' => false,
+                'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                '_fonte' => 'prescricao',
             ];
         }
     }

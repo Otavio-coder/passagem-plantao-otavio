@@ -112,7 +112,7 @@ class PatientModal extends Component
         try {
             $details = (object) $sbarData;
 
-            // Busca apenas os alertas (não vêm no payload do SBAR)
+            // Busca campos que não vêm no payload do SBAR
             $details->alerts = [];
             $personId = $sbarData['cd_pessoa_fisica'] ?? null;
             if ($personId) {
@@ -124,6 +124,16 @@ class PatientModal extends Component
                         'error' => $e->getMessage(),
                     ]);
                 }
+            }
+
+            try {
+                $details->cid_history = $this->tasyService->getPatientCidHistory($attendanceNumber);
+            } catch (\Throwable $e) {
+                Log::warning('PatientModal: Failed to fetch CID history', [
+                    'attendance' => $attendanceNumber,
+                    'error' => $e->getMessage(),
+                ]);
+                $details->cid_history = [];
             }
 
             $this->patientDetails = $details;
@@ -656,6 +666,7 @@ class PatientModal extends Component
                 'plano_educacional' => 'Não realizado',
                 'pe_data' => 'Não realizado',
                 'historico_queda' => 'Não avaliado',
+                'cid_history' => [],
             ];
         }
 
@@ -678,6 +689,7 @@ class PatientModal extends Component
             'plano_educacional' => $this->patientDetails->plano_educ ?? 'Não realizado',
             'pe_data' => $this->patientDetails->pe_data ?? 'Não realizado',
             'historico_queda' => $this->patientDetails->ds_queda ?? 'Não avaliado',
+            'cid_history' => $this->patientDetails->cid_history ?? [],
         ];
     }
 

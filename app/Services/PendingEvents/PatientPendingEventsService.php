@@ -9,7 +9,7 @@ use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\HemotherapyPendingHandler;
 use App\Services\PendingEvents\Handlers\PrescriptionPendingHandler;
 use App\Services\Tasy\TasyFormatter;
-use App\Support\PendingEventPresentation;
+use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +130,27 @@ class PatientPendingEventsService
             $handler->handle($results, $allNrs);
         }
 
+        // Deduplica: remove eventos de prescrição cujo nr_seq_proc_interno já está
+        // representado por um evento de agenda (mais informativo: data agendada, sala, setor).
+        foreach ($results as &$data) {
+            $agendaProcs = [];
+            foreach ($data['events'] as $event) {
+                if (($event['_fonte'] ?? null) === 'agenda' && ! empty($event['nr_seq_proc_interno'])) {
+                    $agendaProcs[$event['nr_seq_proc_interno']] = true;
+                }
+            }
+
+            if (! empty($agendaProcs)) {
+                $data['events'] = array_values(array_filter(
+                    $data['events'],
+                    fn ($e) => ($e['_fonte'] ?? null) !== 'prescricao'
+                        || empty($e['nr_seq_proc_interno'])
+                        || ! isset($agendaProcs[$e['nr_seq_proc_interno']])
+                ));
+            }
+        }
+        unset($data);
+
         // Ordena eventos: urgentes primeiro, depois por proximidade ao momento atual
         $now = now()->timestamp;
         foreach ($results as &$data) {
@@ -160,7 +181,7 @@ class PatientPendingEventsService
         // Adiciona motivo_pendente a todos os eventos (fonte única: PendingEventPresentation)
         foreach ($results as &$data) {
             foreach ($data['events'] as &$event) {
-                $event['motivo_pendente'] = PendingEventPresentation::motivoPendente($event);
+                $event['motivo_pendente'] = PendingEventPresenter::motivoPendente($event);
             }
             unset($event);
         }

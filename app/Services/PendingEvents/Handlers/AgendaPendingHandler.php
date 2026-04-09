@@ -41,18 +41,10 @@ class AgendaPendingHandler extends AbstractPendingHandler
                 }
 
                 if ($row->tipo === 'cirurgia') {
-                    $carater = match ($row->ie_carater_cirurgia) {
-                        'A' => 'Ambulatorial',
-                        'E' => 'Eletiva',
-                        'M' => 'Mutirão',
-                        'R' => 'Rotina',
-                        'U' => 'Urgência',
-                        'G' => 'Emergência',
-                        'N' => 'Não informado',
-                        default => trim((string) ($row->ie_carater_cirurgia ?? '')) !== ''
-                            ? 'Código '.$row->ie_carater_cirurgia
-                            : 'Não informado',
-                    };
+                    $caraterCode = trim((string) ($row->ie_carater_cirurgia ?? ''));
+                    $carater = ! empty($row->ds_carater_label)
+                        ? trim((string) $row->ds_carater_label)
+                        : ($caraterCode !== '' ? $caraterCode : 'Não informado');
 
                     $parts = [];
                     $localAgenda = trim((string) ($row->ds_local_agenda ?? $row->ds_cirurgia ?? ''));
@@ -66,41 +58,9 @@ class AgendaPendingHandler extends AbstractPendingHandler
                     $surgeryTypeCodeRaw = trim((string) ($row->cd_tipo_cirurgia ?? ''));
                     $surgeryTypeCode = $surgeryTypeCodeRaw !== '' ? (int) $surgeryTypeCodeRaw : null;
                     $statusCode = strtoupper(trim((string) ($row->ie_status_agenda ?? '')));
-                    $statusLabel = $statusCode !== ''
-                        ? (match ($statusCode) {
-                            'A' => 'Aguardando',
-                            'AD' => 'Atendido',
-                            'AE' => 'Aguardando remarcação',
-                            'AP' => 'Aguardando paciente',
-                            'AT' => 'Aguardando atendimento',
-                            'B' => 'Bloqueada',
-                            'C' => 'Cancelada',
-                            'CN' => 'Confirmada',
-                            'CR' => 'Cirurgia realizada',
-                            'E' => 'Executada',
-                            'EE' => 'Em exame',
-                            'EP' => 'Em preparo',
-                            'F' => 'Falta justificada',
-                            'I' => 'Falta não justificada',
-                            'II' => 'Inativo',
-                            'IN' => 'Iniciada',
-                            'IT' => 'Interrompida',
-                            'L' => 'Livre',
-                            'LF' => 'Livre forçado',
-                            'N' => 'Normal',
-                            'O' => 'Em consulta',
-                            'P' => 'Paciente internado',
-                            'PA' => 'Pré-agenda',
-                            'PH' => 'Paciente chamado',
-                            'PO' => 'Pós-operatório',
-                            'PS' => 'Paciente em sala',
-                            'R' => 'Reservada',
-                            'RE' => 'Remarcada',
-                            'RV' => 'Revisar',
-                            'S' => 'Suspenso',
-                            default => $statusCode,
-                        })
-                        : null;
+                    $statusLabel = ! empty($row->ds_status_agenda_label)
+                        ? trim((string) $row->ds_status_agenda_label)
+                        : ($statusCode !== '' ? $statusCode : null);
 
                     $descricaoNormalizado = $this->normalizeSurgeryDescription($row->descricao_proc ?? 'Cirurgia Agendada');
                     $dataAgenda = $row->dt_evento ? date('d/m/Y', strtotime($row->dt_evento)) : null;
@@ -128,21 +88,32 @@ class AgendaPendingHandler extends AbstractPendingHandler
                         'status_agenda_codigo' => $statusCode !== '' ? $statusCode : null,
                         'status_laudo' => $statusLabel,
                         'observacoes' => $this->filterSensitiveSurgeryObservation($row->ds_observacao ?? null),
-                        'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'G']),
+                        'urgente' => in_array($row->ie_carater_cirurgia, ['U', 'M']),
+                        'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                        '_fonte' => 'agenda',
                     ];
                 } else {
                     $descricao = $row->descricao_proc ?? $row->ds_observacao ?? 'Procedimento Agendado';
                     $tipoAgenda = ! empty($row->nr_seq_exame_lab) ? 'exame' : 'procedimento';
+
+                    $statusCode = strtoupper(trim((string) ($row->ie_status_agenda ?? '')));
+                    $statusLabel = ! empty($row->ds_status_agenda_label)
+                        ? trim((string) $row->ds_status_agenda_label)
+                        : ($statusCode !== '' ? $statusCode : null);
 
                     $results[$row->nr_atendimento]['events'][] = [
                         'tipo' => $tipoAgenda,
                         'icone' => $tipoAgenda === 'exame' ? 'outpatient-department.svg' : 'tac.svg',
                         'descricao' => substr($descricao, 0, 80),
                         'ds_subtipo' => 'Agendamento',
+                        'status_laudo' => $statusLabel,
+                        'ie_status_agenda' => $statusCode !== '' ? $statusCode : null,
                         'dt_evento' => $row->dt_evento,
                         'dt_evento_formatted' => $dtFormatted,
                         'setor_execucao' => trim((string) ($row->ds_setor_execucao ?? '')) !== '' ? trim((string) $row->ds_setor_execucao) : null,
                         'urgente' => false,
+                        'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                        '_fonte' => 'agenda',
                     ];
                 }
             }

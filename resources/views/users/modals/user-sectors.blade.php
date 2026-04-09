@@ -19,8 +19,8 @@
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
             <div
                 class="relative bg-white flex flex-col overflow-hidden
-                       w-full h-auto
-                       sm:w-[95vw] sm:max-w-[420px] sm:rounded-2xl
+                       w-full h-full
+                       sm:w-[95vw] sm:max-w-[420px] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl
                        shadow-2xl"
                 onclick="event.stopPropagation()"
                 x-show="open"
@@ -47,7 +47,7 @@
                 </div>
 
                 {{-- Content --}}
-                <div class="overflow-y-auto max-h-[60vh] p-4" id="sectors-modal-content">
+                <div class="flex-1 overflow-y-auto min-h-0 p-4" id="sectors-modal-content">
                     <p class="text-gray-400 text-sm text-center py-4">Nenhum setor configurado.</p>
                 </div>
             </div>

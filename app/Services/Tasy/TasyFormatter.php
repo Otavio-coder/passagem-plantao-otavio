@@ -120,6 +120,8 @@ class TasyFormatter
             'alergias_detalhadas' => $alergiasDetalhadas,
             'alergias_items' => $this->parseAllergyItems($alergiasDetalhadas),
             'materiais' => $clinicalDetails->materiais ?? null,
+            'ultima_hemocultura' => $clinicalDetails->ultima_hemocultura ?? null,
+            'hemocultura_pendente' => (int) ($clinicalDetails->hemocultura_pendente ?? 0) === 1,
             'alerts' => [],
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,

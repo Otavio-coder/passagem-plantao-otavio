@@ -104,6 +104,18 @@ class TasyService
     }
 
     /**
+     * Returns the deduplicated CID history for a single patient (latest record per CID code).
+     */
+    public function getPatientCidHistory(int $attendanceNumber): array
+    {
+        if (! $attendanceNumber) {
+            return [];
+        }
+
+        return $this->clinical()->getCidHistory($attendanceNumber);
+    }
+
+    /**
      * Fetches all prescriptions for a patient (medications, procedures, nutrition, etc.).
      *
      * Cache key: patient_prescriptions_v{version}_{nr} — 10 min TTL
@@ -532,6 +544,13 @@ class TasyService
         $hasAllergy = $this->formatter->checkHasAllergy($details->alergias_detalhadas ?? null);
         $hasIsolation = $this->formatter->checkHasIsolation($details->medida_bloqueio ?? null);
 
+        $cidHistory = [];
+        try {
+            $cidHistory = $this->clinical()->getCidHistory($attendanceNumber);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to fetch CID history', ['attendance' => $attendanceNumber, 'error' => $e->getMessage()]);
+        }
+
         return (object) [
             'diagnosticos_comorbidades' => $details->diagnosticos_comorbidades ?? null,
             'medida_bloqueio' => $details->medida_bloqueio ?? 'Não',
@@ -550,6 +569,7 @@ class TasyService
             'multidisciplinary_requests' => $multidisciplinaryRequests,
             'has_allergy' => $hasAllergy,
             'has_isolation' => $hasIsolation,
+            'cid_history' => $cidHistory,
         ];
     }
 
@@ -671,6 +691,7 @@ class TasyService
                 'procedimentos_cirurgicos' => $clinicalData->procedimentos_cirurgicos,
                 'alerts' => $clinicalData->alerts,
                 'multidisciplinary' => $clinicalData->multidisciplinary,
+                'cid_history' => $clinicalData->cid_history ?? [],
             ]
         );
 

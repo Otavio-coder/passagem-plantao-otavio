@@ -40,7 +40,28 @@
                         Diagnóstico e Comorbidades
                     </h5>
                     <div class="bg-gray-50 p-2 rounded-lg border">
-                        @if(count($clinicalData['diagnosticos_list'] ?? []) > 1)
+                        @if(!empty($clinicalData['cid_history'] ?? []))
+                            <div class="space-y-1">
+                                @foreach($clinicalData['cid_history'] as $cid)
+                                    @php $isInativo = ($cid['situacao'] ?? '') !== 'Ativo'; @endphp
+                                    <div class="flex items-start gap-2 text-xs {{ $isInativo ? 'opacity-50' : '' }}">
+                                        <span class="inline-block w-1.5 h-1.5 flex-shrink-0 mt-1 rounded-full {{ $isInativo ? 'bg-gray-400' : 'bg-red-400' }}"></span>
+                                        <div class="flex-1 min-w-0 leading-tight">
+                                            <span class="font-mono font-semibold text-indigo-700">{{ $cid['cd_cid'] ?? '' }}</span>
+                                            <span class="text-gray-800 {{ $isInativo ? 'line-through decoration-gray-400' : '' }}"> {{ $cid['ds_cid'] ?? '' }}</span>
+                                            @if(($cid['classificacao'] ?? '') === 'Principal')
+                                                <span class="ml-1 text-[10px] text-blue-600 font-medium">(Principal)</span>
+                                            @elseif(($cid['classificacao'] ?? '') === 'Secundário')
+                                                <span class="ml-1 text-[10px] text-gray-400">(Secundário)</span>
+                                            @endif
+                                            @if($isInativo && !empty($cid['dt_inativacao']))
+                                                <span class="ml-1 text-[10px] text-gray-400">· inativado {{ $cid['dt_inativacao'] }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @elseif(count($clinicalData['diagnosticos_list'] ?? []) > 1)
                             <div class="space-y-1">
                                 @foreach(($clinicalData['diagnosticos_list'] ?? []) as $diag)
                                     <div class="flex items-center space-x-2 text-xs text-gray-800">

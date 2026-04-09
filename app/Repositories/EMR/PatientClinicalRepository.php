@@ -149,6 +149,7 @@ class PatientClinicalRepository
         $basicData = $result[0];
         $basicData->diagnosticos_comorbidades = $this->getDiagnosticsAndComorbidities($attendanceNumber);
         $basicData->materiais = $this->getAntimicrobials($attendanceNumber) ?? 'Nenhum antimicrobiano';
+        $basicData->cid_history = $this->getCidHistory($attendanceNumber);
 
         return $basicData;
     }
@@ -268,6 +269,28 @@ class PatientClinicalRepository
                        AND dt_retirada IS NULL),
                     'Nenhum dispositivo'
                 ) AS dispositivos,
+
+                -- Última hemocultura coletada: usa dt_coleta de prescr_procedimento
+                -- (result_laboratorio.dt_coleta está sempre NULL no Tasy desta instituição)
+                (SELECT TO_CHAR(MAX(pp_h.dt_coleta), 'DD/MM/YY HH24:MI')
+                 FROM tasy.prescr_procedimento pp_h
+                 JOIN tasy.prescr_medica pm_h ON pm_h.nr_prescricao = pp_h.nr_prescricao
+                 JOIN tasy.exame_laboratorio el_h ON el_h.nr_seq_exame = pp_h.nr_seq_exame
+                 WHERE pm_h.nr_atendimento = atp.nr_atendimento
+                   AND UPPER(el_h.nm_exame) LIKE '%HEMOCULTURA%'
+                   AND pp_h.dt_coleta IS NOT NULL) AS ultima_hemocultura,
+
+                -- Hemocultura prescrita mas ainda sem coleta registrada (dt_coleta IS NULL = não coletada)
+                (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+                 FROM tasy.prescr_procedimento pp_h
+                 JOIN tasy.prescr_medica pm_h ON pm_h.nr_prescricao = pp_h.nr_prescricao
+                 JOIN tasy.exame_laboratorio el_h ON el_h.nr_seq_exame = pp_h.nr_seq_exame
+                 WHERE pm_h.nr_atendimento = atp.nr_atendimento
+                   AND UPPER(el_h.nm_exame) LIKE '%HEMOCULTURA%'
+                   AND pp_h.dt_coleta IS NULL
+                   AND pp_h.dt_cancelamento IS NULL
+                   AND pp_h.ie_suspenso <> 'S'
+                   AND pp_h.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')) AS hemocultura_pendente,
 
                 -- Alergias (alergia_v: cascade de nomes + marcação de intolerância, sem truncamento)
                 COALESCE(
@@ -391,6 +414,52 @@ class PatientClinicalRepository
         }
 
         return $results;
+    }
+
+    /**
+     * Retorna o histórico completo de CIDs registrados durante o atendimento,
+     * ordenados do mais recente para o mais antigo.
+     *
+     * @return array<int, array{cd_cid: string, ds_cid: string, classificacao: string, situacao: string, dt_diagnostico: string, dt_inativacao: string|null, nm_usuario: string}>
+     */
+    public function getCidHistory(int $attendanceNumber): array
+    {
+        // O Tasy insere uma nova linha por atualização do diagnóstico.
+        // Deduplica por CD_DOENCA mantendo somente o registro mais recente (DT_ATUALIZACAO DESC).
+        $rows = DB::connection($this->connection)->select("
+            SELECT cd_cid, ds_cid, classificacao, situacao, dt_diagnostico, dt_inativacao
+            FROM (
+                SELECT
+                    dd.CD_DOENCA                                                AS cd_cid,
+                    COALESCE(cd.DS_DOENCA_CID, dd.DS_DIAGNOSTICO, dd.CD_DOENCA) AS ds_cid,
+                    CASE dd.IE_CLASSIFICACAO_DOENCA
+                        WHEN 'P' THEN 'Principal'
+                        WHEN 'S' THEN 'Secundário'
+                        ELSE NVL(dd.IE_CLASSIFICACAO_DOENCA, '-')
+                    END                                                         AS classificacao,
+                    CASE dd.IE_SITUACAO
+                        WHEN 'A' THEN 'Ativo'
+                        WHEN 'I' THEN 'Inativo'
+                        ELSE NVL(dd.IE_SITUACAO, 'Ativo')
+                    END                                                         AS situacao,
+                    TO_CHAR(dd.DT_DIAGNOSTICO, 'DD/MM/YYYY')                   AS dt_diagnostico,
+                    TO_CHAR(dd.DT_INATIVACAO, 'DD/MM/YYYY')                    AS dt_inativacao,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY dd.CD_DOENCA
+                        ORDER BY dd.DT_ATUALIZACAO DESC, dd.NR_SEQ_INTERNO DESC
+                    ) AS rn
+                FROM tasy.DIAGNOSTICO_DOENCA dd
+                LEFT JOIN tasy.CID_DOENCA cd ON cd.CD_DOENCA_CID = dd.CD_DOENCA
+                WHERE dd.NR_ATENDIMENTO = :nr_atendimento
+            )
+            WHERE rn = 1
+            ORDER BY
+                CASE situacao WHEN 'Ativo' THEN 0 ELSE 1 END,
+                CASE classificacao WHEN 'Principal' THEN 0 WHEN 'Secundário' THEN 1 ELSE 2 END,
+                dt_diagnostico DESC
+        ", ['nr_atendimento' => $attendanceNumber]);
+
+        return array_map(fn ($row) => (array) $row, $rows);
     }
 
     private function getDiagnosticsAndComorbidities(int $attendanceNumber): string

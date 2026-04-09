@@ -6,8 +6,8 @@ use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
-use App\Support\PatientCardPresentation;
-use App\Support\PendingEventPresentation;
+use App\View\Presenters\PatientCardPresenter;
+use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -571,7 +571,7 @@ class SbarReport extends Component
                 $pendingEvents = [];
             }
 
-            $structured = PendingEventPresentation::buildPendingModalData($pendingEvents);
+            $structured = PendingEventPresenter::buildPendingModalData($pendingEvents);
             $surgeries = $patient['procedimentos_cirurgicos'] ?? [];
             if (! is_array($surgeries)) {
                 $surgeries = [];
@@ -590,16 +590,16 @@ class SbarReport extends Component
             $patient['pending_events'] = $structured['events'];
             $patient['pending_groups'] = $structured['groups'];
             $patient['first_pending_event'] = $structured['first_event'];
-            $patient['allergy_items'] = PatientCardPresentation::buildAllergyItems($patient);
-            $patient['isolation_items'] = PatientCardPresentation::buildIsolationItems($patient['motivos_isolamento'] ?? null);
-            $patient['first_pending_style'] = PatientCardPresentation::buildFirstPendingStyle($structured['first_event']);
-            $patient['sector_exec_fallback'] = PatientCardPresentation::buildSectorFallbackLabel($patient);
-            $patient['handover_shift_name'] = PatientCardPresentation::shiftDisplayName($this->currentShiftName);
-            $patient['procedimentos_cirurgicos'] = PatientCardPresentation::buildSurgeryItems($surgeries);
-            $patient['discharge_display'] = PatientCardPresentation::buildDischargeDisplay($dischargeInfo);
-            $patient['ews_display'] = PatientCardPresentation::buildEwsDisplay($patient);
-            $patient['multidisciplinary_requests'] = PatientCardPresentation::buildMultidisciplinaryRequests($multidisciplinaryRequests);
-            $patient['pending_modal_meta'] = PatientCardPresentation::buildPendingModalMeta($structured['events']);
+            $patient['allergy_items'] = PatientCardPresenter::buildAllergyItems($patient);
+            $patient['isolation_items'] = PatientCardPresenter::buildIsolationItems($patient['motivos_isolamento'] ?? null);
+            $patient['first_pending_style'] = PendingEventPresenter::firstEventCardStyle($structured['first_event']);
+            $patient['sector_exec_fallback'] = PatientCardPresenter::buildSectorFallbackLabel($patient);
+            $patient['handover_shift_name'] = PatientCardPresenter::shiftDisplayName($this->currentShiftName);
+            $patient['procedimentos_cirurgicos'] = PatientCardPresenter::buildSurgeryItems($surgeries);
+            $patient['discharge_display'] = PatientCardPresenter::buildDischargeDisplay($dischargeInfo);
+            $patient['ews_display'] = PatientCardPresenter::buildEwsDisplay($patient);
+            $patient['multidisciplinary_requests'] = PatientCardPresenter::buildMultidisciplinaryRequests($multidisciplinaryRequests);
+            $patient['pending_modal_meta'] = PatientCardPresenter::buildPendingModalMeta($structured['events']);
             $patient['pending_type_filter'] = collect($structured['events'])
                 ->pluck('tipo')
                 ->map(fn ($type) => $type === 'proc_exame' ? 'exame' : $type)

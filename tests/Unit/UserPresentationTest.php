@@ -4,12 +4,12 @@ namespace Tests\Unit;
 
 use App\Models\System\User;
 use App\Models\System\UserSectorPreference;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class UserPresentationTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_user_presentation_accessors_return_expected_values(): void
     {

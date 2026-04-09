@@ -81,10 +81,11 @@ class Appointment extends Model
         }
 
         return match ($this->ie_carater_cirurgia) {
+            'A' => 'Ambulatorial',
             'E' => 'Eletiva',
+            'M' => 'Emergência',
             'U' => 'Urgência',
-            'G' => 'Emergência',
-            default => 'Não informado'
+            default => trim((string) ($this->ie_carater_cirurgia ?? '')) !== '' ? $this->ie_carater_cirurgia : 'Não informado',
         };
     }
 

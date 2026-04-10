@@ -7,7 +7,6 @@ use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
@@ -188,9 +187,7 @@ class PatientModal extends Component
             return;
         }
 
-        Cache::forget("patient_prescriptions_v4_{$nr}");
-        Cache::forget("patient_therapeutic_plan_{$nr}"); // legacy eviction
-        Cache::forget("patient_therapeutic_plan_v4_{$nr}"); // legacy eviction
+        $this->tasyService->clearPatientCache($nr);
 
         $this->planLoaded = false;
         $this->planError = false;

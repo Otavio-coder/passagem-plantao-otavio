@@ -147,14 +147,5 @@ class Patient extends Model
     public function clearPatientCache(int $attendanceNumber): void
     {
         $this->tasyService->clearPatientCache($attendanceNumber);
-
-        $additionalKeys = [
-            "patient_basic_modal_{$attendanceNumber}",
-            "patient_recomendacoes_{$attendanceNumber}",
-        ];
-
-        foreach ($additionalKeys as $key) {
-            Cache::forget($key);
-        }
     }
 }

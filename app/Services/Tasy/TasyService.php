@@ -39,7 +39,7 @@ class TasyService
      */
     public function getSectorPatientsForSbar(int $sectorId): array
     {
-        $cacheKey = 'sector_patients_sbar_v'.self::SBAR_CACHE_VERSION."_{$sectorId}";
+        $cacheKey = $this->sectorPatientsCacheKey($sectorId);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECTOR, function () use ($sectorId) {
             $t0 = microtime(true);
@@ -86,7 +86,7 @@ class TasyService
             return null;
         }
 
-        $cacheKey = 'patient_basic_modal_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
+        $cacheKey = $this->patientModalCacheKey($attendanceNumber);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             $patient = $this->loadPatientWithRelations($attendanceNumber);
@@ -194,8 +194,7 @@ class TasyService
      */
     public function warmSectorCache(int $sectorId): bool
     {
-        $cacheKey = "sector_patients_sbar_{$sectorId}";
-        if (Cache::has($cacheKey)) {
+        if (Cache::has($this->sectorPatientsCacheKey($sectorId))) {
             return false;
         }
 
@@ -217,15 +216,14 @@ class TasyService
 
     public function clearSectorCache(int $sectorId): void
     {
-        Cache::forget("sector_patients_sbar_{$sectorId}");
-        Cache::forget("pending_events_sector_{$sectorId}");
+        Cache::forget($this->sectorPatientsCacheKey($sectorId));
         Cache::forget("sector_pending_fast_{$sectorId}");
     }
 
     public function clearPatientCache(int $attendanceNumber): void
     {
         $keys = [
-            "patient_basic_modal_{$attendanceNumber}",
+            $this->patientModalCacheKey($attendanceNumber),
             $this->prescriptionsCacheKey($attendanceNumber),
             "patient_therapeutic_plan_{$attendanceNumber}", // legacy key (kept for cache eviction)
             "patient_therapeutic_plan_v4_{$attendanceNumber}", // legacy key (kept for cache eviction)
@@ -253,6 +251,16 @@ class TasyService
 
             return [];
         }
+    }
+
+    private function sectorPatientsCacheKey(int $sectorId): string
+    {
+        return 'sector_patients_sbar_v'.self::SBAR_CACHE_VERSION."_{$sectorId}";
+    }
+
+    private function patientModalCacheKey(int $attendanceNumber): string
+    {
+        return 'patient_basic_modal_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
     }
 
     private function prescriptionsCacheKey(int $attendanceNumber): string

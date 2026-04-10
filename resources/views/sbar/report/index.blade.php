@@ -501,6 +501,7 @@
                                              data-multi="{{ $patient['multi_team_filter'] ?? '' }}"
                                              data-bed="{{ $patient['cd_unidade_basica'] ?? '' }}"
                                              data-bed-seq="{{ $patient['bed_sequence'] ?? 0 }}"
+                                             data-bed-order="{{ $patient['bed_display_order'] ?? $patient['bed_sequence'] ?? 0 }}"
                                              data-internment="{{ $patient['internment_days'] ?? -1 }}"
                                              data-age="{{ $patient['age'] ?? 0 }}"
                                              data-name="{{ strtolower($patient['nm_pessoa_fisica'] ?? 'zzz') }}">
@@ -639,6 +640,7 @@ window.sbarFilters = function () {
                 multi:        el.dataset.multi ? el.dataset.multi.split(',').filter(Boolean) : [],
                 bed:          el.dataset.bed || '',
                 bedSeq:       parseInt(el.dataset.bedSeq) || 0,
+                bedOrder:     parseInt(el.dataset.bedOrder) || parseInt(el.dataset.bedSeq) || 0,
                 internment:   parseFloat(el.dataset.internment) || -1,
                 age:          parseInt(el.dataset.age) || 0,
                 name:         el.dataset.name || 'zzz',
@@ -672,34 +674,38 @@ window.sbarFilters = function () {
             });
 
             visible.sort((a, b) => {
-                // empty beds always at end
+                // empty beds: always sorted by their physical display order, not pushed to end
                 if (!a.hasPatient && !b.hasPatient) {
-                    const ka = a.bed + '-' + String(a.bedSeq).padStart(3, '0');
-                    const kb = b.bed + '-' + String(b.bedSeq).padStart(3, '0');
-                    return ka.localeCompare(kb);
+                    return a.bedOrder - b.bedOrder;
                 }
-                if (!a.hasPatient) return 1;
-                if (!b.hasPatient) return -1;
 
                 let ka, kb;
                 switch (this.orderBy) {
                     case 'mews':
+                        // empty beds at end when sorting by clinical criteria
+                        if (!a.hasPatient) return 1;
+                        if (!b.hasPatient) return -1;
                         ka = a.mews ?? -1; kb = b.mews ?? -1;
                         return this.orderDir === 'asc' ? ka - kb : kb - ka;
                     case 'name':
+                        if (!a.hasPatient) return 1;
+                        if (!b.hasPatient) return -1;
                         return this.orderDir === 'asc'
                             ? a.name.localeCompare(b.name)
                             : b.name.localeCompare(a.name);
                     case 'internment':
+                        if (!a.hasPatient) return 1;
+                        if (!b.hasPatient) return -1;
                         ka = a.internment; kb = b.internment;
                         return this.orderDir === 'asc' ? ka - kb : kb - ka;
                     case 'age':
+                        if (!a.hasPatient) return 1;
+                        if (!b.hasPatient) return -1;
                         ka = a.age; kb = b.age;
                         return this.orderDir === 'asc' ? ka - kb : kb - ka;
-                    default: // bed
-                        ka = a.bed + '-' + String(a.bedSeq).padStart(3, '0');
-                        kb = b.bed + '-' + String(b.bedSeq).padStart(3, '0');
-                        return this.orderDir === 'asc' ? ka.localeCompare(kb) : kb.localeCompare(ka);
+                    default: // bed — interleave empty beds in their physical position
+                        const diff = a.bedOrder - b.bedOrder;
+                        return this.orderDir === 'asc' ? diff : -diff;
                 }
             });
 

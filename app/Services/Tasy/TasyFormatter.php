@@ -81,6 +81,7 @@ class TasyFormatter
         $patientData = [
             'cd_unidade_basica' => $bed->cd_unidade_basica ?? 'N/A',
             'bed_sequence' => $bed->bed_sequence ?? 0,
+            'bed_display_order' => (int) ($bed->bed_display_order ?? $bed->bed_sequence ?? 0),
             'bed_status' => $bed->bed_status ?? 'A',
             'cd_setor_atendimento' => $bed->cd_setor_atendimento ?? null,
             'ds_setor_atendimento' => $bed->ds_setor_atendimento ?? 'Setor não identificado',

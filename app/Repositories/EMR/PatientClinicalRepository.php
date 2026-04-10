@@ -459,7 +459,40 @@ class PatientClinicalRepository
                 dt_diagnostico DESC
         ", ['nr_atendimento' => $attendanceNumber]);
 
-        return array_map(fn ($row) => (array) $row, $rows);
+        return array_map(function ($row) {
+            $row = (array) $row;
+            $row['ds_cid'] = self::stripCidCodeFromDescription(
+                (string) ($row['cd_cid'] ?? ''),
+                (string) ($row['ds_cid'] ?? '')
+            );
+
+            return $row;
+        }, $rows);
+    }
+
+    /**
+     * Removes leading CID code tokens from a description string.
+     *
+     * DS_DIAGNOSTICO in Tasy sometimes stores entries like "D729 D72.9 Transt NE dos globulos brancos"
+     * where the code without dot and with dot both appear before the description text.
+     * This strips those prefixes so the display shows only the description next to cd_cid.
+     */
+    public static function stripCidCodeFromDescription(string $code, string $desc): string
+    {
+        $code = trim($code);
+        $desc = trim($desc);
+
+        if ($code === '' || $desc === '') {
+            return $desc;
+        }
+
+        $codeNoDot = str_replace('.', '', $code);
+
+        return trim((string) preg_replace(
+            '/^(?:'.preg_quote($codeNoDot, '/').'[\s]*)?(?:'.preg_quote($code, '/').'[\s]*)?\s*/i',
+            '',
+            $desc
+        ));
     }
 
     private function getDiagnosticsAndComorbidities(int $attendanceNumber): string

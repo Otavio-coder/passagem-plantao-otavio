@@ -283,6 +283,7 @@ class TasyService
             SELECT
                 ua.cd_unidade_basica,
                 ua.nr_seq_interno as bed_sequence,
+                ua.nr_seq_apresent as bed_display_order,
                 ua.ie_situacao as bed_status,
                 ua.cd_setor_atendimento,
                 sa.ds_setor_atendimento,
@@ -320,7 +321,7 @@ class TasyService
             WHERE ua.cd_setor_atendimento = :sector_id
             AND ua.ie_situacao = 'A'
             ORDER BY
-                CASE WHEN ua.nr_seq_interno IS NOT NULL THEN ua.nr_seq_interno ELSE 999999 END ASC,
+                ua.nr_seq_apresent ASC,
                 ua.cd_unidade_basica ASC
         ", ['sector_id' => $sectorId]);
 

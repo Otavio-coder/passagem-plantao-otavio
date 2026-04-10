@@ -19,6 +19,7 @@
         "livewire/livewire": "^3.6",
         "mobiledetect/mobiledetectlib": "^4.8",
         "opcodesio/log-viewer": "^3.12",
+        "predis/predis": "^3.4",
         "pusher/pusher-php-server": "^7.2",
         "silviolleite/laravelpwa": "^2.0",
         "spatie/fork": "^1.2",

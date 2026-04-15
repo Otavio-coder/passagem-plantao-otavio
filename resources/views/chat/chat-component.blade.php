@@ -2,7 +2,7 @@
     class="h-full flex flex-col bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-sm border-0 sm:border sm:border-gray-200 overflow-hidden"
     x-data="chatComponent()"
     x-init="initialize()"
-    wire:poll.60s.visible
+    wire:poll.15s="refreshShiftHeader"
     wire:key="{{ $this->getId() }}"
 >
     <style>

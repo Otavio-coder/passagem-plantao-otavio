@@ -42,6 +42,8 @@ class ChatComponent extends Component
 
     public $initialized = false;
 
+    public string $shiftHeaderHeartbeat = '';
+
     private $userCache = [];
 
     private $photoCache = [];
@@ -66,6 +68,14 @@ class ChatComponent extends Component
             'role' => $this->buildUserRole($user),
             'photo' => $this->getUserPhotoBase64($user),
         ];
+
+        $this->shiftHeaderHeartbeat = now()->format('Y-m-d H:i:s');
+    }
+
+    public function refreshShiftHeader(): void
+    {
+        // Heartbeat to force a lightweight re-render so shiftDisplay reflects current shift.
+        $this->shiftHeaderHeartbeat = now()->format('Y-m-d H:i:s.u');
     }
 
     public function initialize()
@@ -762,7 +772,7 @@ class ChatComponent extends Component
     #[Computed]
     public function shiftDisplay(): array
     {
-        $shift = ShiftService::getShiftInfo(now(), 30)['shift'];
+        $shift = ShiftService::getShiftInfo(now())['shift'];
         $colors = ShiftService::getShiftColors($shift);
 
         $iconClass = match ($shift) {

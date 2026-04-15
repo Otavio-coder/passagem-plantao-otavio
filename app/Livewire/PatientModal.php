@@ -31,7 +31,7 @@ class PatientModal extends Component
 
     public $loadingPatient = false;
 
-    /** @var array<int, array{nr_atendimento:int,label:string}> */
+    /** @var array<int, array{nr_atendimento:int,label:string,sbar_payload?:array<string,mixed>}> */
     public array $modalPatients = [];
 
     public ?int $currentPatientIndex = null;
@@ -122,12 +122,14 @@ class PatientModal extends Component
             ->map(function (array $patient): array {
                 $attendance = (int) ($patient['nr_atendimento'] ?? 0);
                 $existingLabel = trim((string) ($patient['label'] ?? ''));
+                $sbarPayload = $patient['sbar_payload'] ?? $patient;
 
                 return [
                     'nr_atendimento' => $attendance,
                     'label' => $existingLabel !== ''
                         ? $existingLabel
                         : $this->buildPatientNavigationLabel($patient, $attendance),
+                    'sbar_payload' => is_array($sbarPayload) ? $sbarPayload : [],
                 ];
             })
             ->filter(fn (array $patient) => $patient['nr_atendimento'] > 0)
@@ -139,6 +141,7 @@ class PatientModal extends Component
             $normalized[] = [
                 'nr_atendimento' => $currentAttendance,
                 'label' => sprintf('Atendimento %d', $currentAttendance),
+                'sbar_payload' => [],
             ];
         }
 
@@ -151,6 +154,7 @@ class PatientModal extends Component
             $this->modalPatients[] = [
                 'nr_atendimento' => $currentAttendance,
                 'label' => sprintf('Atendimento %d', $currentAttendance),
+                'sbar_payload' => [],
             ];
             $currentIndex = count($this->modalPatients) - 1;
         }
@@ -548,7 +552,12 @@ class PatientModal extends Component
         }
 
         $this->currentPatientIndex = $targetIndex;
-        $this->openModal((int) $targetPatient['nr_atendimento'], $this->currentHospitalName, null, $this->modalPatients);
+        $this->openModal(
+            (int) $targetPatient['nr_atendimento'],
+            $this->currentHospitalName,
+            $targetPatient['sbar_payload'] ?? null,
+            $this->modalPatients
+        );
     }
 
     public function refreshPatientData()

@@ -2,6 +2,7 @@
     class="h-full flex flex-col bg-white rounded-none sm:rounded-lg shadow-none sm:shadow-sm border-0 sm:border sm:border-gray-200 overflow-hidden"
     x-data="chatComponent()"
     x-init="initialize()"
+    wire:poll.60s.visible
     wire:key="{{ $this->getId() }}"
 >
     <style>
@@ -414,15 +415,15 @@
         </div>
 
         <!-- Message input -->
-        <div class="flex-shrink-0 border-t border-slate-200 bg-white p-2.5 sm:p-3">
+        <div class="flex-shrink-0 border-t border-slate-200 bg-white p-2 sm:p-3">
             <form @submit.prevent="sendMessage()">
-                <div class="flex items-center gap-2">
+                <div class="flex items-end gap-2.5 sm:gap-2">
                     <div class="relative flex-1">
                         <textarea
                             x-model="messageText"
                             x-ref="textarea"
                             placeholder="Digite sua anotação..."
-                            class="w-full min-h-[40px] max-h-40 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm transition duration-200 placeholder:text-slate-400 focus:ring-2 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                            class="w-full min-h-[44px] max-h-40 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm transition duration-200 placeholder:text-slate-400 focus:ring-2 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                             style="--focus-color: {{ $this->shiftDisplay['hex_color'] }}; box-shadow: none;"
                             rows="1"
                             maxlength="1000"
@@ -442,13 +443,13 @@
                         type="submit"
                         :disabled="!messageText.trim() || isSendingMessage()"
                         :class="{ 'send-btn-loading': isSendingMessage() }"
-                        class="relative flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition duration-200 focus:outline-none disabled:cursor-not-allowed disabled:hover:brightness-100"
+                        class="relative flex h-11 w-11 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl p-2 text-white shadow-sm transition duration-200 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:hover:brightness-100"
                         style="background-color: {{ $this->shiftDisplay['hex_color'] }};"
                         :style="(!messageText.trim() || isSendingMessage()) ? 'background-color: #94a3b8;' : 'background-color: {{ $this->shiftDisplay['hex_color'] }};'"
                     >
                         <div class="btn-spinner absolute"></div>
                         <span class="btn-text inline-flex items-center justify-center">
-                            <i class="fas fa-paper-plane text-sm"></i>
+                            <i class="fas fa-paper-plane text-base sm:text-sm"></i>
                         </span>
                     </button>
                 </div>

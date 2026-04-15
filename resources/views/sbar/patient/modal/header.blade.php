@@ -9,18 +9,18 @@
     'activeAlertsCount' => 0,
 ])
 
-<div class="bg-[#004D9D] px-4 sm:px-6 py-3 sm:py-4 relative">
+<div class="bg-[#004D9D] px-3 sm:px-6 py-3 sm:py-4 relative">
     {{-- Close Button --}}
     <button 
         @click="showModal = false; $wire.closeModal();"
-        class="absolute top-1/2 -translate-y-1/2 right-3 sm:right-4 z-10 flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
+        class="absolute top-3 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
         aria-label="Fechar modal"
     >
         <x-heroicon-o-x-mark class="w-5 h-5" />
     </button>
     
     {{-- Header Content --}}
-    <div class="pr-12 sm:pr-10">
+    <div class="pr-14 sm:pr-10">
         {{-- Logo e Título --}}
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3">
             <img src="{{ asset('images/santacasa-horizontal-branco.svg') }}" 
@@ -35,29 +35,29 @@
         </div>
         
         {{-- Informações em Grid --}}
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-3 gap-y-1 px-1 sm:px-2 text-xs sm:text-sm text-blue-100">
-            <div class="flex items-center gap-1.5 min-w-0">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-x-3 gap-y-1.5 px-1 sm:px-2 text-xs sm:text-sm text-blue-100">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                 <span class="opacity-80 whitespace-nowrap">Hospital:</span>
                 <span class="text-white font-medium truncate">{{ $currentHospitalName ?? 'Carregando...' }}</span>
             </div>
 
-            <div class="flex items-center gap-1.5 min-w-0">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                 <span class="opacity-80 whitespace-nowrap">Setor:</span>
                 <span class="text-white font-medium truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? $patientDetails->cd_unidade_basica ?? 'Não informado' }}</span>
             </div>
 
-            <div class="flex items-center gap-1.5 min-w-0">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                 <span class="opacity-80 whitespace-nowrap">Data:</span>
                 <span class="text-white font-medium font-mono">{{ date('d/m/Y') }}</span>
             </div>
 
             @if($currentPatient && $currentPatient['has_patient'] && $patientDetails)
-                <div class="flex items-center gap-1.5 min-w-0">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                     <span class="opacity-80 whitespace-nowrap">Prontuário:</span>
                     <span class="text-white font-medium font-mono">{{ $patientDetails->nr_prontuario ?? 'N/A' }}</span>
                 </div>
 
-                <div class="flex items-center gap-1.5 min-w-0">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                     <span class="opacity-80 whitespace-nowrap">Atendimento:</span>
                     <span class="text-white font-medium font-mono">{{ $currentPatient['nr_atendimento'] }}</span>
                 </div>
@@ -82,12 +82,12 @@
             <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <span class="text-[11px] sm:text-xs text-blue-100/90 font-medium whitespace-nowrap">Trocar atendimento:</span>
 
-                <div class="flex items-center gap-2 min-w-0 flex-1">
+                <div class="flex items-stretch sm:items-center gap-2 min-w-0 flex-1">
                     <button
                         type="button"
                         wire:click="goToPreviousPatient"
                         @disabled(! $canGoPrevious)
-                        class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="inline-flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="Atendimento anterior"
                     >
                         <x-heroicon-o-chevron-up class="w-4 h-4" />
@@ -96,7 +96,7 @@
                     <div class="relative min-w-0 flex-1">
                         <select
                             wire:change="goToPatientByAttendance($event.target.value)"
-                            class="w-full bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-2 pr-9 focus:outline-none focus:ring-2 focus:ring-white/40"
+                            class="w-full bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-2.5 sm:py-2 pr-9 focus:outline-none focus:ring-2 focus:ring-white/40"
                         >
                             @foreach($modalPatients as $modalPatient)
                                 <option
@@ -117,7 +117,7 @@
                         type="button"
                         wire:click="goToNextPatient"
                         @disabled(! $canGoNext)
-                        class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="inline-flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="Próximo atendimento"
                     >
                         <x-heroicon-o-chevron-down class="w-4 h-4" />

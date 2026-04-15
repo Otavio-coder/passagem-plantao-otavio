@@ -183,6 +183,7 @@ class PatientModalTest extends TestCase
             [
                 'nr_atendimento' => 9999,
                 'label' => 'Atendimento 9999',
+                'sbar_payload' => [],
             ],
         ], $component->modalPatients);
         $this->assertSame(0, $component->currentPatientIndex);
@@ -228,5 +229,50 @@ class PatientModalTest extends TestCase
         $component->openAlertsModal();
 
         $this->assertTrue($component->showAlertsModal);
+    }
+
+    #[Test]
+    public function it_forwards_sbar_payload_when_switching_attendance_inside_modal(): void
+    {
+        $component = new class extends PatientModal
+        {
+            public ?array $capturedOpenModalArgs = null;
+
+            public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
+            {
+                $this->capturedOpenModalArgs = [
+                    'attendance' => (int) $attendanceNumber,
+                    'hospital' => $hospital,
+                    'sbar' => $sbarPatient,
+                    'patients' => $patients,
+                ];
+            }
+        };
+
+        $component->currentHospitalName = 'Hospital Teste';
+        $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
+
+        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [
+            [
+                'nr_atendimento' => 1001,
+                'nm_pessoa_fisica' => 'Paciente Um',
+                'ds_setor_atendimento' => 'UTI A',
+            ],
+            [
+                'nr_atendimento' => 1002,
+                'nm_pessoa_fisica' => 'Paciente Dois',
+                'ds_setor_atendimento' => 'UTI B',
+            ],
+        ], 1001);
+
+        $component->goToPatientByAttendance(1002);
+
+        $this->assertNotNull($component->capturedOpenModalArgs);
+        $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
+        $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
+        $this->assertIsArray($component->capturedOpenModalArgs['sbar']);
+        $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
     }
 }

@@ -312,10 +312,12 @@ class PatientModalTest extends TestCase
             [
                 'nr_atendimento' => 1001,
                 'label' => '1001 - Leito A1 - Paciente Um',
+                'ds_setor_atendimento' => 'UTI A',
             ],
             [
                 'nr_atendimento' => 1002,
                 'label' => '1002 - Leito A2 - Paciente Dois',
+                'ds_setor_atendimento' => 'UTI B',
             ],
         ], 1001);
 
@@ -324,6 +326,39 @@ class PatientModalTest extends TestCase
         $this->assertNotNull($component->capturedOpenModalArgs);
         $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
         $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
-        $this->assertSame([], $component->capturedOpenModalArgs['sbar']);
+        $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
+    }
+
+    #[Test]
+    public function it_keeps_sector_fields_in_current_patient_when_opening_modal_with_navigation_payload(): void
+    {
+        $attendanceNumber = 12345;
+
+        $tasyService = Mockery::mock(TasyService::class);
+        $tasyService->shouldReceive('getPatientAlerts')->once()->andReturn([]);
+        $tasyService->shouldReceive('getPatientPrescriptions')->once()->andReturn([]);
+        $tasyService->shouldReceive('getMedicationSchedule')->zeroOrMoreTimes()->andReturn([]);
+        $tasyService->shouldReceive('getPatientCidHistory')->once()->andReturn([]);
+
+        $component = new PatientModal;
+        $component->boot($tasyService);
+
+        $component->openModal(
+            $attendanceNumber,
+            'Hospital Teste',
+            [
+                'nr_atendimento' => $attendanceNumber,
+                'cd_pessoa_fisica' => 789,
+                'nm_pessoa_fisica' => 'Paciente Teste',
+                'cd_unidade_basica' => 'UTI-05',
+                'ds_setor_atendimento' => 'UTI Adulto',
+                'ds_prescricao' => 'Prescrição UTI Adulto',
+            ],
+            []
+        );
+
+        $this->assertSame('UTI-05', $component->currentPatient['cd_unidade_basica'] ?? null);
+        $this->assertSame('UTI Adulto', $component->currentPatient['ds_setor_atendimento'] ?? null);
+        $this->assertSame('Prescrição UTI Adulto', $component->currentPatient['ds_prescricao'] ?? null);
     }
 }

@@ -693,10 +693,10 @@
                             </div>
                             <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
                                 @if($hasPrevAlta)
-                                    <span class="text-orange-600 shrink-0">Alta:</span>
+                                    <span class="text-orange-600 shrink-0"> Prev. Alta:</span>
                                     <span class="text-orange-700 font-semibold overflow-hidden">{{ $prevAlta }}</span>
                                 @else
-                                    <span class="text-gray-500 shrink-0">Alta:</span>
+                                    <span class="text-gray-500 shrink-0">Prev. Alta:</span>
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </div>

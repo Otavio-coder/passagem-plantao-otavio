@@ -461,6 +461,8 @@
                                             'nm_pessoa_fisica' => $item['nm_pessoa_fisica'] ?? null,
                                             'nm_social' => $item['nm_social'] ?? null,
                                             'cd_unidade_basica' => $item['cd_unidade_basica'] ?? null,
+                                            'ds_setor_atendimento' => $item['ds_setor_atendimento'] ?? null,
+                                            'ds_prescricao' => $item['ds_prescricao'] ?? null,
                                         ])
                                         ->values()
                                         ->all();

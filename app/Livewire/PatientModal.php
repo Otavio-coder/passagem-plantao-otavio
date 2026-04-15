@@ -87,6 +87,9 @@ class PatientModal extends Component
             $this->currentPatient = [
                 'nr_atendimento' => $attendanceNumber,
                 'has_patient' => true,
+                'cd_unidade_basica' => is_array($sbarPatient) ? ($sbarPatient['cd_unidade_basica'] ?? null) : null,
+                'ds_setor_atendimento' => is_array($sbarPatient) ? ($sbarPatient['ds_setor_atendimento'] ?? null) : null,
+                'ds_prescricao' => is_array($sbarPatient) ? ($sbarPatient['ds_prescricao'] ?? null) : null,
             ];
             $this->currentHospitalName = $hospital;
 
@@ -128,8 +131,23 @@ class PatientModal extends Component
                     $sbarPayload = [];
                 }
 
+                $navigationPayload = [
+                    'nr_atendimento' => $attendance,
+                    'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
+                    'ds_setor_atendimento' => $patient['ds_setor_atendimento'] ?? null,
+                    'ds_prescricao' => $patient['ds_prescricao'] ?? null,
+                ];
+                $navigationPayload = array_filter(
+                    $navigationPayload,
+                    fn ($value) => ! (is_null($value) || $value === '')
+                );
+
                 if (empty($sbarPayload) && $this->isUsableSbarPayload($patient)) {
                     $sbarPayload = $patient;
+                }
+
+                if (empty($sbarPayload) && ! empty($navigationPayload)) {
+                    $sbarPayload = $navigationPayload;
                 }
 
                 return [
@@ -256,6 +274,9 @@ class PatientModal extends Component
                 'sexo' => $sbarData['sexo'] ?? 'N/A',
                 'convenio' => $sbarData['convenio'] ?? 'N/A',
                 'hospital_name' => $sbarData['hospital_name'] ?? $this->currentHospitalName,
+                'cd_unidade_basica' => $sbarData['cd_unidade_basica'] ?? ($this->currentPatient['cd_unidade_basica'] ?? null),
+                'ds_setor_atendimento' => $sbarData['ds_setor_atendimento'] ?? ($this->currentPatient['ds_setor_atendimento'] ?? null),
+                'ds_prescricao' => $sbarData['ds_prescricao'] ?? ($this->currentPatient['ds_prescricao'] ?? null),
             ]);
 
             $this->checkAndShowAlertsModal();

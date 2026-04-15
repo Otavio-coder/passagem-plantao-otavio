@@ -44,7 +44,7 @@
 
                 <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
                     <span class="opacity-80 leading-tight">Setor</span>
-                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? $patientDetails->cd_unidade_basica ?? 'Não informado' }}</span>
+                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? ($currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? 'Não informado') }}</span>
                 </div>
 
                 <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
@@ -104,7 +104,7 @@
 
             <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                 <span class="opacity-80 whitespace-nowrap">Setor:</span>
-                <span class="text-white font-medium truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? $patientDetails->cd_unidade_basica ?? 'Não informado' }}</span>
+                <span class="text-white font-medium truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? ($currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? 'Não informado') }}</span>
             </div>
 
             <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">

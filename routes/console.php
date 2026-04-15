@@ -15,10 +15,6 @@ Schedule::command('chat:cleanup --days=30')
     ->withoutOverlapping()
     ->runInBackground();
 
-// Remove tokens de redefinição de senha expirados da tabela password_reset_tokens
-Schedule::command('auth:clear-resets')
-    ->daily();
-
 // Remove jobs falhos com mais de 168h (7 dias) da fila
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();

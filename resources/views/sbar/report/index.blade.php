@@ -587,29 +587,10 @@ window.sbarFilters = function () {
         isInitialLoading:  true,
 
         init() {
-            const releaseInitialLock = () => {
-                requestAnimationFrame(() => {
-                    this.isInitialLoading = false;
-                });
-            };
-
             this.$nextTick(() => {
                 this.buildCards();
                 this.applyFilters();
-
-                // Keep controls blocked until initial page load is fully settled.
-                if (document.readyState === 'complete') {
-                    releaseInitialLock();
-                } else {
-                    window.addEventListener('load', releaseInitialLock, { once: true });
-                }
-
-                // Fallback guard: never keep controls locked indefinitely.
-                setTimeout(() => {
-                    if (this.isInitialLoading) {
-                        releaseInitialLock();
-                    }
-                }, 1800);
+                this.isInitialLoading = false;
             });
 
             // Re-apply after Livewire re-renders patient list (preserves sort/filter state)

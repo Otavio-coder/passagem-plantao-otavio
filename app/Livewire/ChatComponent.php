@@ -444,15 +444,25 @@ class ChatComponent extends Component
     {
         $userId = $msg['user_id'] ?? null;
         $user = null;
-        $photo = '';
 
-        if ($users && $userId) {
-            $user = $users->get($userId);
-            $photo = $user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '';
-        } elseif ($userId) {
-            $user = $this->getUserFromCache($userId);
-            $photo = $user ? $this->getUserPhotoBase64($user) : '';
+        // Use pre-loaded values from broadcast payload when available to avoid DB queries
+        $photo = $msg['_photo'] ?? null;
+        $author = $msg['_author'] ?? null;
+
+        if ($author === null || $photo === null) {
+            if ($users && $userId) {
+                $user = $users->get($userId);
+                $author = $author ?? ($user?->name ?? 'Usuário');
+                $photo = $photo ?? ($user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '');
+            } elseif ($userId) {
+                $user = $this->getUserFromCache($userId);
+                $author = $author ?? ($user?->name ?? 'Usuário');
+                $photo = $photo ?? ($user ? $this->getUserPhotoBase64($user) : '');
+            }
         }
+
+        $author = $author ?? 'Usuário';
+        $photo = $photo ?? '';
 
         if ($userId == $this->currentUser['id'] && empty($photo)) {
             $photo = $this->currentUser['photo'] ?? '';
@@ -488,7 +498,7 @@ class ChatComponent extends Component
             'content' => $this->formatMessageText($content),
             'content_text' => $content,
             'user_id' => $userId,
-            'author' => $user ? $user->name : 'Usuário',
+            'author' => $author,
             'photo' => $photo,
             'time' => $time,
             'dt_criacao_raw' => $dtRaw,
@@ -560,6 +570,8 @@ class ChatComponent extends Component
             'updated_at' => null,
             'is_pinned' => $data['is_pinned'] ?? false,
             'reactions' => [],
+            '_author' => $data['author'] ?? null,
+            '_photo' => $data['photo'] ?? null,
         ]);
         $message['type'] = 'message';
         $this->messages[] = $message;

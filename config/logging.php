@@ -132,7 +132,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/audit.log'),
             'level' => 'info',
-            'days' => 60,
+            'days' => 30,
             'replace_placeholders' => true,
             'permission' => 0664,
         ],

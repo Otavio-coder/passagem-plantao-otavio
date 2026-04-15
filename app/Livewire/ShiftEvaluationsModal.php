@@ -2,8 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Repositories\MySQL\Chat\ChatRepository;
+use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
@@ -20,23 +23,17 @@ class ShiftEvaluationsModal extends Component
 
     public array $beds = [];
 
-    public array $userPhotos = []; // map: user_name => base64 photo
-
     public int $totalMessages = 0;
 
     public string $sectorName = '';
 
-    public string $dateFrom = '';
+    public string $activeShift = 'previous'; // 'previous' | 'current'
 
-    public string $dateTo = '';
+    public string $currentShiftLabel = '';
+
+    public string $previousShiftLabel = '';
 
     protected $listeners = ['openEvaluationsModal' => 'open'];
-
-    public function mount(): void
-    {
-        $this->dateFrom = Carbon::today()->format('Y-m-d');
-        $this->dateTo = Carbon::today()->format('Y-m-d');
-    }
 
     public function open($sectorId = null): void
     {
@@ -44,10 +41,15 @@ class ShiftEvaluationsModal extends Component
             $this->sectorId = (int) $sectorId;
         }
 
-        if (empty($this->dateFrom)) {
-            $this->dateFrom = Carbon::today()->format('Y-m-d');
-            $this->dateTo = Carbon::today()->format('Y-m-d');
-        }
+        $shiftInfo = ShiftService::getShiftInfo();
+        $this->currentShiftLabel = ShiftService::getShiftLabel($shiftInfo['shift']);
+
+        $previousShiftName = match ($shiftInfo['shift']) {
+            'morning' => 'night',
+            'afternoon' => 'morning',
+            'night' => 'afternoon',
+        };
+        $this->previousShiftLabel = ShiftService::getShiftLabel($previousShiftName);
 
         $this->isOpen = true;
         $this->loadEvaluations();
@@ -58,13 +60,13 @@ class ShiftEvaluationsModal extends Component
         $this->isOpen = false;
     }
 
-    public function updatedDateFrom(): void
+    public function switchShift(string $shift): void
     {
-        $this->loadEvaluations();
-    }
+        if (! in_array($shift, ['previous', 'current'])) {
+            return;
+        }
 
-    public function updatedDateTo(): void
-    {
+        $this->activeShift = $shift;
         $this->loadEvaluations();
     }
 
@@ -77,7 +79,6 @@ class ShiftEvaluationsModal extends Component
         }
 
         $this->loading = true;
-        $this->userPhotos = [];
 
         try {
             $tasy = new TasyService;
@@ -94,80 +95,124 @@ class ShiftEvaluationsModal extends Component
             $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
             $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
 
-            $fromDate = Carbon::parse($this->dateFrom)->startOfDay();
-            $toDate = Carbon::parse($this->dateTo)->endOfDay();
+            [$from, $to] = $this->resolveShiftWindow();
 
-            $rawMessages = DB::table('chat_messages as cm')
-                ->leftJoin('users as u', 'cm.user_id', '=', 'u.id')
-                ->leftJoin('chat_message_pins as cmp', function ($join) {
-                    $join->on('cmp.message_id', '=', 'cm.id')
-                        ->whereNull('cmp.unpinned_at');
-                })
-                ->whereIn('cm.nr_atendimento', $attendanceNumbers)
-                ->whereBetween('cm.created_at', [$fromDate, $toDate])
-                ->select([
-                    'cm.id',
-                    'cm.nr_atendimento',
-                    'cm.content',
-                    'cm.created_at',
-                    'u.name as user_name',
-                    'u.photo as user_photo',
-                    DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
-                ])
-                ->orderBy('cm.created_at', 'desc')
-                ->get();
+            $rawMessages = ! empty($attendanceNumbers)
+                ? DB::table('chat_messages as cm')
+                    ->leftJoin('users as u', 'cm.user_id', '=', 'u.id')
+                    ->leftJoin('chat_message_pins as cmp', function ($join) {
+                        $join->on('cmp.message_id', '=', 'cm.id')
+                            ->whereNull('cmp.unpinned_at');
+                    })
+                    ->whereIn('cm.nr_atendimento', $attendanceNumbers)
+                    ->whereBetween('cm.created_at', [$from, $to])
+                    ->select([
+                        'cm.id',
+                        'cm.nr_atendimento',
+                        'cm.content',
+                        'cm.created_at',
+                        'u.name as user_name',
+                        'u.photo as user_photo',
+                        DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
+                    ])
+                    ->orderBy('cm.created_at', 'asc')
+                    ->get()
+                : collect();
 
-            $patientsMap = collect($patients)->keyBy('nr_atendimento');
             $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
+
+            // Batch-load reactions for all messages in the window.
+            $messageIds = $rawMessages->pluck('id')->filter()->values()->all();
+            $currentUserId = Auth::id();
+            $reactionsByMessage = ! empty($messageIds)
+                ? DB::table('chat_reactions as cr')
+                    ->join('users as u', 'cr.user_id', '=', 'u.id')
+                    ->whereIn('cr.message_id', $messageIds)
+                    ->select(['cr.message_id', 'cr.user_id', 'u.name'])
+                    ->get()
+                    ->groupBy('message_id')
+                : collect();
 
             $beds = [];
             $totalMessages = 0;
 
-            foreach ($messagesByAttendance as $nrAtendimento => $messages) {
-                $patient = $patientsMap->get($nrAtendimento);
-                if (! $patient) {
-                    continue;
-                }
-
-                $formattedMessages = [];
-                foreach ($messages as $message) {
-                    $dt = Carbon::parse($message->created_at);
-                    $shiftInfo = getShiftInfo($dt);
-                    $userName = $message->user_name ?? 'Desconhecido';
-
-                    // Popula o mapa de fotos (uma vez por usuário)
-                    if (! isset($this->userPhotos[$userName]) && ! empty($message->user_photo)) {
-                        $raw = $message->user_photo;
-                        $decoded = base64_decode($raw, true);
-                        if ($decoded !== false && strlen($decoded) > 50
-                            && strpos($decoded, '"error"') === false) {
-                            $this->userPhotos[$userName] = $raw;
-                        }
-                    }
-
-                    $formattedMessages[] = [
-                        'id' => $message->id,
-                        'content' => nl2br(e($message->content)),
-                        'user_name' => $userName,
-                        'user_initials' => $this->getInitials($userName),
-                        'timestamp' => $this->formatTimestamp($dt),
-                        'turno' => $this->getShiftLabel($shiftInfo['shift']),
-                        'is_pinned' => (bool) $message->is_pinned,
-                    ];
-                }
-
-                $dtEntrada = $patient['dt_entrada'] ?? null;
+            // Iterate all beds in their presentation order (already sorted by nr_seq_apresent).
+            foreach ($patients as $patient) {
+                $nrAtendimento = $patient['nr_atendimento'] ?? null;
+                $hasPatient = (bool) ($patient['has_patient'] ?? false);
                 $dischargeInfo = $patient['discharge_info'] ?? null;
+                $dischargeTipo = $dischargeInfo['tipo'] ?? null;
+
+                // Determine bed status
+                if (! $hasPatient) {
+                    $status = 'empty';
+                } elseif ($dischargeTipo === 'alta') {
+                    $status = 'alta';
+                } elseif ($dischargeTipo === 'alta_medica') {
+                    $status = 'alta_medica';
+                } else {
+                    $status = 'occupied';
+                }
+
+                // Build discharge label for display
+                $altaLabel = null;
+                $altaFormatted = null;
+                if ($dischargeTipo === 'alta') {
+                    $altaLabel = 'Alta';
+                    $altaFormatted = $dischargeInfo['dt_alta_formatted'] ?? null;
+                } elseif ($dischargeTipo === 'alta_medica') {
+                    $altaLabel = 'Alta Médica';
+                    $altaFormatted = $dischargeInfo['dt_alta_medico_formatted'] ?? null;
+                } elseif ($dischargeTipo === 'previsao_alta') {
+                    $altaLabel = 'Prev. Alta';
+                    $altaFormatted = $dischargeInfo['dt_previsto_alta_formatted'] ?? null;
+                }
+
+                // Format messages
+                $formattedMessages = [];
+                $photoMap = [];
+
+                if ($nrAtendimento && isset($messagesByAttendance[$nrAtendimento])) {
+                    foreach ($messagesByAttendance[$nrAtendimento] as $message) {
+                        $dt = Carbon::parse($message->created_at);
+                        $userName = $message->user_name ?? 'Desconhecido';
+
+                        if (! isset($photoMap[$userName]) && ! empty($message->user_photo)) {
+                            $raw = $message->user_photo;
+                            $decoded = base64_decode($raw, true);
+                            if ($decoded !== false && strlen($decoded) > 50 && strpos($decoded, '"error"') === false) {
+                                $photoMap[$userName] = $raw;
+                            }
+                        }
+
+                        $msgReactions = $reactionsByMessage->get($message->id, collect());
+
+                        $formattedMessages[] = [
+                            'id' => $message->id,
+                            'content' => nl2br(e($message->content)),
+                            'user_name' => $userName,
+                            'user_initials' => $this->getInitials($userName),
+                            'photo' => $photoMap[$userName] ?? '',
+                            'time' => $dt->format('H:i'),
+                            'is_pinned' => (bool) $message->is_pinned,
+                            'reactions_count' => $msgReactions->count(),
+                            'user_reacted' => $currentUserId && $msgReactions->contains('user_id', $currentUserId),
+                        ];
+                    }
+                }
 
                 $beds[] = [
                     'leito' => $patient['cd_unidade_basica'] ?? 'N/A',
-                    'nome_paciente' => $patient['nm_pessoa_fisica'] ?? 'N/A',
-                    'prontuario' => $patient['nr_prontuario'] ?? 'N/A',
+                    'nome_paciente' => $hasPatient ? ($patient['nm_pessoa_fisica'] ?? 'N/A') : '',
+                    'prontuario' => $patient['nr_prontuario'] ?? '',
                     'atendimento' => $nrAtendimento,
-                    'setor' => $patient['ds_setor_atendimento'] ?? 'N/A',
-                    'dt_entrada_formatted' => $dtEntrada ? Carbon::parse($dtEntrada)->format('d/m/Y') : null,
-                    'dt_alta_formatted' => $dischargeInfo['dt_alta_medico_formatted'] ?? null,
-                    'internment_days' => $patient['internment_days'] !== null ? (int) $patient['internment_days'] : null,
+                    'has_patient' => $hasPatient,
+                    'status' => $status,
+                    'internment_days' => ($patient['internment_days'] !== null && $hasPatient) ? (int) $patient['internment_days'] : null,
+                    'internment_label' => $this->buildInternmentLabel($patient, $hasPatient),
+                    'alta_label' => $altaLabel,
+                    'alta_formatted' => $altaFormatted,
+                    'motivo_alta' => $dischargeInfo['ds_motivo_alta'] ?? null,
                     'mensagens' => $formattedMessages,
                     'total_mensagens' => count($formattedMessages),
                     'has_pinned' => collect($formattedMessages)->contains('is_pinned', true),
@@ -176,7 +221,7 @@ class ShiftEvaluationsModal extends Component
                 $totalMessages += count($formattedMessages);
             }
 
-            $this->beds = array_values($beds);
+            $this->beds = $beds;
             $this->totalMessages = $totalMessages;
 
         } catch (\Exception $e) {
@@ -191,26 +236,90 @@ class ShiftEvaluationsModal extends Component
         }
     }
 
-    private function getShiftLabel(string $turno): string
+    public function toggleReaction(int $messageId): void
     {
-        return match ($turno) {
-            'morning' => 'Manhã',
-            'afternoon' => 'Tarde',
-            'night' => 'Noite',
-            default => ucfirst($turno),
-        };
+        $userId = Auth::id();
+        if (! $userId) {
+            return;
+        }
+
+        $repo = new ChatRepository;
+        $result = $repo->toggleReaction($messageId, $userId);
+
+        // Update the specific message in $this->beds without a full reload.
+        $beds = $this->beds;
+        foreach ($beds as &$bed) {
+            foreach ($bed['mensagens'] as &$msg) {
+                if ($msg['id'] === $messageId) {
+                    $msg['user_reacted'] = $result['reacted'];
+                    $msg['reactions_count'] = count($result['reactions']);
+                    break 2;
+                }
+            }
+        }
+        $this->beds = $beds;
     }
 
-    private function formatTimestamp(Carbon $dt): string
+    /**
+     * Returns [Carbon $from, Carbon $to] for the selected shift.
+     *
+     * The current window comes from ShiftService::getShiftWindow().
+     * The previous window is computed by stepping back one shift duration:
+     *   - morning  → previous night  = 12h back from morning start (19h yesterday – 07h today)
+     *   - afternoon→ previous morning =  6h back from afternoon start
+     *   - night    → previous afternoon = 6h back from night start
+     */
+    private function resolveShiftWindow(): array
     {
-        if ($dt->isToday()) {
-            return $dt->format('H:i');
-        }
-        if ($dt->isYesterday()) {
-            return 'Ontem '.$dt->format('H:i');
+        $currentWindow = ShiftService::getShiftWindow();
+        [$currentStart, $currentEnd] = $currentWindow;
+
+        if ($this->activeShift === 'current') {
+            return $currentWindow;
         }
 
-        return $dt->format('d/m H:i');
+        // Previous shift: step back from the start of the current shift.
+        $shiftInfo = ShiftService::getShiftInfo();
+        $stepBack = $shiftInfo['shift'] === 'morning' ? 12 : 6;
+
+        return [
+            $currentStart->copy()->subHours($stepBack),
+            $currentStart->copy(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $patient
+     */
+    private function buildInternmentLabel(array $patient, bool $hasPatient): ?string
+    {
+        if (! $hasPatient) {
+            return null;
+        }
+
+        $days = is_numeric($patient['internment_days'] ?? null) ? (int) $patient['internment_days'] : null;
+
+        if ($days === null) {
+            return null;
+        }
+
+        if ($days > 0) {
+            return $days.'d internado';
+        }
+
+        // Same-day admission: compute hours from dt_entrada.
+        $dtEntrada = $patient['dt_entrada'] ?? null;
+        if ($dtEntrada) {
+            try {
+                $hours = (int) Carbon::parse($dtEntrada)->diffInHours(Carbon::now());
+
+                return $hours > 0 ? $hours.'h internado' : '< 1h internado';
+            } catch (\Exception) {
+                // fall through
+            }
+        }
+
+        return '< 1d internado';
     }
 
     private function getInitials(string $name): string

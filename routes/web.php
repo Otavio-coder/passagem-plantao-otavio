@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\ChatArchiveController;
-use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
@@ -39,14 +38,6 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     Route::post('/sectors/warm',
         [SectorWarmController::class, 'warm'])
         ->name('sectors.warm');
-
-    // Avaliações do Turno
-    Route::get('/sbar/avaliacoes', [ExportController::class, 'showShiftEvaluations'])
-        ->name('sbar.evaluations.shift');
-
-    // Exportação
-    Route::get('/sbar/avaliacoes/exportar', [ExportController::class, 'exportShiftEvaluations'])
-        ->name('sbar.evaluations.export');
 
     // Preferências do Usuário - Configurar hospitais/setores/leitos
     Route::get('/minhas-preferencias', [SystemConfigurationController::class, 'index'])

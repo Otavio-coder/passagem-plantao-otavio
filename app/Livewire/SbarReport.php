@@ -208,7 +208,6 @@ class SbarReport extends Component
             }
 
             $this->lastRefresh = now()->format('H:i:s');
-            $this->auditSectorView('mount');
         } catch (\Exception $e) {
             Log::error('SBAR mount error', [
                 'exception' => $e,

@@ -34,8 +34,69 @@
             </div>
         </div>
         
-        {{-- Informações em Grid --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-x-3 gap-y-1.5 px-1 sm:px-2 text-xs sm:text-sm text-blue-100">
+        {{-- Informações em Grid (mobile 3 colunas) --}}
+        <div class="sm:hidden px-1">
+            <div class="grid grid-cols-3 gap-2 text-[11px] text-blue-100">
+                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                    <span class="opacity-80 leading-tight">Hospital</span>
+                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $currentHospitalName ?? 'Carregando...' }}</span>
+                </div>
+
+                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                    <span class="opacity-80 leading-tight">Setor</span>
+                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? $patientDetails->cd_unidade_basica ?? 'Não informado' }}</span>
+                </div>
+
+                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                    <span class="opacity-80 leading-tight">Data</span>
+                    <span class="text-white font-semibold font-mono leading-tight mt-0.5">{{ date('d/m/Y') }}</span>
+                </div>
+
+                @if($currentPatient && $currentPatient['has_patient'] && $patientDetails)
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                        <span class="opacity-80 leading-tight">Prontuário</span>
+                        <span class="text-white font-semibold font-mono leading-tight mt-0.5 truncate">{{ $patientDetails->nr_prontuario ?? 'N/A' }}</span>
+                    </div>
+
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                        <span class="opacity-80 leading-tight">Atendimento</span>
+                        <span class="text-white font-semibold font-mono leading-tight mt-0.5 truncate">{{ $currentPatient['nr_atendimento'] }}</span>
+                    </div>
+
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col items-center justify-center">
+                        @if($activeAlertsCount > 0)
+                            <button
+                                type="button"
+                                wire:click="openAlertsModal"
+                                class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-white text-[#004D9D] border border-blue-200 hover:bg-blue-50 transition-colors"
+                            >
+                                <span>Alertas</span>
+                                <span class="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[#004D9D] text-white text-[10px]">{{ $activeAlertsCount }}</span>
+                            </button>
+                        @else
+                            <span class="opacity-80 leading-tight">Alertas</span>
+                            <span class="text-white font-semibold leading-tight mt-0.5">0 ativos</span>
+                        @endif
+                    </div>
+                @else
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                        <span class="opacity-80 leading-tight">Prontuário</span>
+                        <span class="text-white font-semibold font-mono leading-tight mt-0.5">N/A</span>
+                    </div>
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                        <span class="opacity-80 leading-tight">Atendimento</span>
+                        <span class="text-white font-semibold font-mono leading-tight mt-0.5">N/A</span>
+                    </div>
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
+                        <span class="opacity-80 leading-tight">Alertas</span>
+                        <span class="text-white font-semibold leading-tight mt-0.5">0 ativos</span>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        {{-- Informações em Grid (tablet/desktop) --}}
+        <div class="hidden sm:grid sm:grid-cols-2 lg:grid-cols-6 gap-x-3 gap-y-1.5 px-1 sm:px-2 text-xs sm:text-sm text-blue-100">
             <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
                 <span class="opacity-80 whitespace-nowrap">Hospital:</span>
                 <span class="text-white font-medium truncate">{{ $currentHospitalName ?? 'Carregando...' }}</span>
@@ -79,10 +140,10 @@
 
         @if(!empty($modalPatients))
         <div class="mt-2 pt-2 border-t border-white/20">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                <span class="text-[11px] sm:text-xs text-blue-100/90 font-medium whitespace-nowrap">Trocar atendimento:</span>
+            <div class="flex flex-col items-center sm:items-start gap-2 sm:gap-3">
+                <span class="text-[11px] sm:text-xs text-blue-100/90 font-medium text-center sm:text-left whitespace-nowrap">Trocar atendimento:</span>
 
-                <div class="flex items-stretch sm:items-center gap-2 min-w-0 flex-1">
+                <div class="w-full max-w-xs sm:max-w-none flex items-stretch sm:items-center justify-center sm:justify-start gap-2 min-w-0 sm:flex-1">
                     <button
                         type="button"
                         wire:click="goToPreviousPatient"
@@ -125,7 +186,7 @@
                 </div>
 
                 @if($currentPatientIndex !== null)
-                    <span class="text-[10px] sm:text-xs text-blue-100/80 whitespace-nowrap">
+                    <span class="text-[10px] sm:text-xs text-blue-100/80 text-center sm:text-left whitespace-nowrap">
                         {{ $currentPatientIndex + 1 }} de {{ count($modalPatients) }}
                     </span>
                 @endif

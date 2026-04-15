@@ -458,6 +458,7 @@
                                         ->filter(fn ($item) => ($item['has_patient'] ?? false) && !empty($item['nr_atendimento']))
                                         ->map(fn ($item) => [
                                             'nr_atendimento' => (int) $item['nr_atendimento'],
+                                            'cd_pessoa_fisica' => isset($item['cd_pessoa_fisica']) ? (int) $item['cd_pessoa_fisica'] : null,
                                             'nm_pessoa_fisica' => $item['nm_pessoa_fisica'] ?? null,
                                             'nm_social' => $item['nm_social'] ?? null,
                                             'cd_unidade_basica' => $item['cd_unidade_basica'] ?? null,

@@ -312,11 +312,13 @@ class PatientModalTest extends TestCase
             [
                 'nr_atendimento' => 1001,
                 'label' => '1001 - Leito A1 - Paciente Um',
+                'cd_pessoa_fisica' => 501,
                 'ds_setor_atendimento' => 'UTI A',
             ],
             [
                 'nr_atendimento' => 1002,
                 'label' => '1002 - Leito A2 - Paciente Dois',
+                'cd_pessoa_fisica' => 502,
                 'ds_setor_atendimento' => 'UTI B',
             ],
         ], 1001);
@@ -326,6 +328,7 @@ class PatientModalTest extends TestCase
         $this->assertNotNull($component->capturedOpenModalArgs);
         $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
         $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
+        $this->assertSame(502, $component->capturedOpenModalArgs['sbar']['cd_pessoa_fisica'] ?? null);
         $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
     }
 
@@ -334,11 +337,9 @@ class PatientModalTest extends TestCase
     {
         $attendanceNumber = 12345;
 
-        $tasyService = Mockery::mock(TasyService::class);
-        $tasyService->shouldReceive('getPatientAlerts')->once()->andReturn([]);
-        $tasyService->shouldReceive('getPatientPrescriptions')->once()->andReturn([]);
+        $tasyService = Mockery::mock(TasyService::class)->shouldIgnoreMissing();
+        $tasyService->shouldReceive('getPatientPrescriptions')->zeroOrMoreTimes()->andReturn([]);
         $tasyService->shouldReceive('getMedicationSchedule')->zeroOrMoreTimes()->andReturn([]);
-        $tasyService->shouldReceive('getPatientCidHistory')->once()->andReturn([]);
 
         $component = new PatientModal;
         $component->boot($tasyService);
@@ -360,5 +361,46 @@ class PatientModalTest extends TestCase
         $this->assertSame('UTI-05', $component->currentPatient['cd_unidade_basica'] ?? null);
         $this->assertSame('UTI Adulto', $component->currentPatient['ds_setor_atendimento'] ?? null);
         $this->assertSame('Prescrição UTI Adulto', $component->currentPatient['ds_prescricao'] ?? null);
+    }
+
+    #[Test]
+    public function it_marks_navigation_payload_as_not_usable_sbar_snapshot(): void
+    {
+        $component = new PatientModal;
+
+        $isUsablePayload = new ReflectionMethod(PatientModal::class, 'isUsableSbarPayload');
+        $isUsablePayload->setAccessible(true);
+
+        $result = $isUsablePayload->invoke($component, [
+            'nr_atendimento' => 1002,
+            'cd_pessoa_fisica' => 502,
+            'nm_pessoa_fisica' => 'Paciente Dois',
+            'cd_unidade_basica' => 'A2',
+            'ds_setor_atendimento' => 'UTI B',
+            'ds_prescricao' => 'UTI B',
+        ]);
+
+        $this->assertFalse($result);
+    }
+
+    #[Test]
+    public function it_marks_full_sbar_payload_as_usable_snapshot(): void
+    {
+        $component = new PatientModal;
+
+        $isUsablePayload = new ReflectionMethod(PatientModal::class, 'isUsableSbarPayload');
+        $isUsablePayload->setAccessible(true);
+
+        $result = $isUsablePayload->invoke($component, [
+            'nr_atendimento' => 1002,
+            'cd_pessoa_fisica' => 502,
+            'nm_pessoa_fisica' => 'Paciente Dois',
+            'nr_prontuario' => '123456',
+            'age_detailed' => '67 anos',
+            'sexo' => 'M',
+            'convenio' => 'SUS',
+        ]);
+
+        $this->assertTrue($result);
     }
 }

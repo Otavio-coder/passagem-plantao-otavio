@@ -133,6 +133,7 @@ class PatientModal extends Component
 
                 $navigationPayload = [
                     'nr_atendimento' => $attendance,
+                    'cd_pessoa_fisica' => isset($patient['cd_pessoa_fisica']) ? (int) $patient['cd_pessoa_fisica'] : null,
                     'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
                     'ds_setor_atendimento' => $patient['ds_setor_atendimento'] ?? null,
                     'ds_prescricao' => $patient['ds_prescricao'] ?? null,
@@ -194,19 +195,31 @@ class PatientModal extends Component
      */
     private function isUsableSbarPayload(array $payload): bool
     {
-        if ((int) ($payload['cd_pessoa_fisica'] ?? 0) > 0) {
+        // IDs/campos de navegação sozinhos não são snapshot completo.
+        $lightweightNavigationKeys = [
+            'nr_atendimento',
+            'cd_pessoa_fisica',
+            'nm_pessoa_fisica',
+            'nm_social',
+            'cd_unidade_basica',
+            'ds_setor_atendimento',
+            'ds_prescricao',
+            'label',
+            'sbar_payload',
+        ];
+
+        $nonNavigationData = collect($payload)
+            ->except($lightweightNavigationKeys)
+            ->filter(fn ($value) => ! (is_null($value) || $value === '' || $value === []));
+
+        if ($nonNavigationData->isNotEmpty()) {
             return true;
         }
 
-        if (! empty($payload['nr_prontuario'])) {
-            return true;
-        }
-
-        if (! empty($payload['age_detailed']) || ! empty($payload['sexo']) || ! empty($payload['convenio'])) {
-            return true;
-        }
-
-        return false;
+        return ! empty($payload['nr_prontuario'])
+            || ! empty($payload['age_detailed'])
+            || ! empty($payload['sexo'])
+            || ! empty($payload['convenio']);
     }
 
     /**

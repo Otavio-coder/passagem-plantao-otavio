@@ -49,7 +49,7 @@ trait GetUserRole
             ? Carbon::instance($this->role_synced_at)
             : Carbon::parse($this->role_synced_at);
 
-        return $syncedAt->diffInDays(now()) < self::ROLE_CACHE_DAYS;
+        return $syncedAt->diffInDay(now()) < self::ROLE_CACHE_DAYS;
     }
 
     private function fetchRoleFromGraph(string $username): string

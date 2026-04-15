@@ -609,13 +609,13 @@ class TasyService
             $birth = Carbon::parse($birthDate);
             $now = now();
             $age = $birth->age;
-            $ageMonths = $birth->copy()->addYears($age)->diffInMonths($now);
-            $ageDays = $birth->copy()->addYears($age)->addMonths($ageMonths)->diffInDays($now);
+            $ageMonths = (int) $birth->copy()->addYears($age)->diffInMonth($now);
+            $ageDays = (int) $birth->copy()->addYears($age)->addMonths($ageMonths)->diffInDay($now);
         }
 
         $internmentDays = null;
         if ($patient->dt_entrada) {
-            $internmentDays = floor(Carbon::parse($patient->dt_entrada)->floatDiffInDays(now()));
+            $internmentDays = (int) Carbon::parse($patient->dt_entrada)->diffInDay(now());
         }
 
         $convenio = 'Convênio não informado';

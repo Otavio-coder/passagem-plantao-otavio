@@ -139,7 +139,7 @@ class PrescriptionPendingHandler extends AbstractPendingHandler
             )
             SELECT
                 b.*,
-                sa.ds_setor_atendimento AS setor_desc_raw,
+                NVL(sa.ds_prescricao, sa.ds_setor_atendimento) AS setor_desc_raw,
                 NULL AS ds_status_laudo,
                 -- Flag: procedimento registrado como executado em procedimento_paciente (prescrição não foi baixada)
                 CASE WHEN EXISTS (

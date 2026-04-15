@@ -1,6 +1,4 @@
-<?php
-// File: resources/views/livewire/sbar-report.blade.php
-?>
+{{-- File: resources/views/livewire/sbar-report.blade.php --}}
 <div class="w-full my-2 text-[#004D9D] relative font-montserrat">
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4">
@@ -10,18 +8,13 @@
                 <div class="flex items-center justify-center min-h-[60vh]">
                     <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 max-w-md text-center">
                         <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                            </svg>
+                            <x-heroicon-o-exclamation-triangle class="w-8 h-8 text-amber-600" />
                         </div>
                         <h2 class="text-xl font-bold text-gray-900 mb-2">Acesso Bloqueado</h2>
                         <p class="text-gray-600 mb-6">{{ $errorMessage }}</p>
                         <a href="{{ route('user.preferences.index') }}" 
                            class="inline-flex items-center px-6 py-3 bg-[#004D9D] text-white font-semibold rounded-lg hover:bg-[#003d7a] transition-colors shadow-sm">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            </svg>
+                            <x-heroicon-o-cog-6-tooth class="w-5 h-5 mr-2" />
                             Configurar Meus Setores
                         </a>
                     </div>
@@ -42,7 +35,7 @@
                                     <div class="flex items-center justify-center lg:justify-start gap-2 lg:flex-1 lg:min-w-0">
                                         <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white font-montserrat text-center lg:text-left">SBAR - Passagem de Plantão</h1>
                                         <button 
-                                            onclick="document.getElementById('sbar-legend').scrollIntoView({ behavior: 'smooth' }); setTimeout(() => document.querySelector('#sbar-legend button').click(), 300);"
+                                            onclick="window.dispatchEvent(new CustomEvent('open-sbar-legend'));"
                                             class="px-2 sm:px-3 py-1.5 sm:py-2 text-white text-lg sm:text-sm font-bold rounded hover:bg-white/20 transition-colors flex-shrink-0"
                                             title="Legenda e orientações"
                                         >
@@ -66,10 +59,7 @@
                                                     :disabled="isInitialLoading"
                                                     class="inline-flex items-center px-2.5 h-8 xl:px-3 xl:h-9 min-w-[110px] xl:min-w-[126px] rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs xl:text-sm font-medium leading-none">
                                                 <span class="inline-flex items-center gap-1.5" :class="isInitialLoading ? 'inline-flex' : 'hidden'">
-                                                    <svg class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                    </svg>
+                                                    <x-heroicon-o-arrow-path class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" />
                                                     <span>Carregando...</span>
                                                 </span>
                                                 <span x-show="!isInitialLoading" x-cloak wire:loading.remove wire:target="refreshData" class="inline-flex items-center gap-1.5">
@@ -77,10 +67,7 @@
                                                     <span>Atualizar</span>
                                                 </span>
                                                 <span x-show="!isInitialLoading" x-cloak wire:loading.inline-flex wire:target="refreshData" class="items-center gap-1.5">
-                                                    <svg class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                    </svg>
+                                                    <x-heroicon-o-arrow-path class="h-3.5 w-3.5 xl:h-4 xl:w-4 animate-spin" />
                                                     <span>Atualizando...</span>
                                                 </span>
                                             </button>
@@ -155,10 +142,7 @@
                                                             :disabled="isInitialLoading"
                                                             class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-xs sm:text-sm font-medium leading-none">
                                                         <span class="inline-flex items-center gap-1.5" :class="isInitialLoading ? 'inline-flex' : 'hidden'">
-                                                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                            </svg>
+                                                            <x-heroicon-o-arrow-path class="h-4 w-4 animate-spin" />
                                                             <span class="hidden sm:inline">Carregando...</span>
                                                         </span>
                                                         <span x-show="!isInitialLoading" x-cloak wire:loading.remove wire:target="refreshData" class="inline-flex items-center gap-1.5">
@@ -166,10 +150,7 @@
                                                             <span class="hidden sm:inline">Atualizar</span>
                                                         </span>
                                                         <span x-show="!isInitialLoading" x-cloak wire:loading.inline-flex wire:target="refreshData" class="items-center gap-1.5">
-                                                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                            </svg>
+                                                            <x-heroicon-o-arrow-path class="h-4 w-4 animate-spin" />
                                                             <span class="hidden sm:inline">Atualizando...</span>
                                                         </span>
                                                     </button>
@@ -287,17 +268,11 @@
                                                                         wire:target="changeHospital,changeSector,refreshData"
                                                                         class="h-9 px-2 inline-flex items-center justify-center bg-white/20 border border-white/40 rounded-lg text-white text-xs font-bold leading-none">
                                                                     <span x-show="isInitialLoading" class="inline-flex items-center justify-center">
-                                                                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                            <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                            <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                                        </svg>
+                                                                        <x-heroicon-o-arrow-path class="h-3 w-3 animate-spin" />
                                                                     </span>
                                                                     <span x-show="!isInitialLoading" wire:loading.remove wire:target="changeHospital,changeSector,refreshData" x-text="orderDir === 'asc' ? '↑' : '↓'"></span>
                                                                     <span x-show="!isInitialLoading" wire:loading.inline-flex wire:target="changeHospital,changeSector,refreshData" class="items-center justify-center">
-                                                                        <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                            <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                            <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                                        </svg>
+                                                                        <x-heroicon-o-arrow-path class="h-3 w-3 animate-spin" />
                                                                     </span>
                                                                 </button>
                                                             </div>
@@ -429,17 +404,11 @@
                                                                     wire:target="changeHospital,changeSector,refreshData"
                                                                     class="h-9 px-3 inline-flex items-center justify-center bg-white/20 hover:bg-white/30 border border-white/40 rounded-lg text-white text-sm font-bold transition-colors self-end leading-none disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20">
                                                                 <span x-show="isInitialLoading" class="inline-flex items-center justify-center">
-                                                                    <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                                    </svg>
+                                                                    <x-heroicon-o-arrow-path class="h-3.5 w-3.5 animate-spin" />
                                                                 </span>
                                                                 <i x-show="!isInitialLoading" wire:loading.remove wire:target="changeHospital,changeSector,refreshData" :class="orderDir === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down'" class="fas"></i>
                                                                 <span x-show="!isInitialLoading" wire:loading.inline-flex wire:target="changeHospital,changeSector,refreshData" class="items-center justify-center">
-                                                                    <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                        <circle cx="12" cy="12" r="10" stroke-opacity=".25" stroke-width="4"></circle>
-                                                                        <path d="M22 12a10 10 0 0 1-10 10" stroke-width="4"></path>
-                                                                    </svg>
+                                                                    <x-heroicon-o-arrow-path class="h-3.5 w-3.5 animate-spin" />
                                                                 </span>
                                                             </button>
                                                         </div>
@@ -470,9 +439,7 @@
                             @if(isset($errorMessage) && $errorMessage)
                                 <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">
                                     <div class="flex items-center">
-                                        <svg class="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
+                                        <x-heroicon-o-exclamation-triangle class="w-6 h-6 mr-2 text-red-500" />
                                         <strong>Erro:</strong>
                                         <span class="ml-2">{{ $errorMessage }}</span>
                                     </div>
@@ -480,14 +447,24 @@
                             @elseif(empty($patients))
                                 <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg">
                                     <div class="flex items-center">
-                                        <svg class="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
+                                        <x-heroicon-o-information-circle class="w-6 h-6 mr-2 text-yellow-600" />
                                         Nenhum paciente encontrado para o filtro aplicado.
                                     </div>
                                 </div>
                             @else
                                 {{-- Grid de pacientes --}}
+                                @php
+                                    $modalPatients = collect($patients)
+                                        ->filter(fn ($item) => ($item['has_patient'] ?? false) && !empty($item['nr_atendimento']))
+                                        ->map(fn ($item) => [
+                                            'nr_atendimento' => (int) $item['nr_atendimento'],
+                                            'nm_pessoa_fisica' => $item['nm_pessoa_fisica'] ?? null,
+                                            'nm_social' => $item['nm_social'] ?? null,
+                                            'cd_unidade_basica' => $item['cd_unidade_basica'] ?? null,
+                                        ])
+                                        ->values()
+                                        ->all();
+                                @endphp
                                 <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                                     @foreach($patients as $index => $patient)
                                         <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}"
@@ -509,6 +486,7 @@
                                                 'patient' => $patient,
                                                 'currentHospitalName' => $currentHospitalName,
                                                 'currentShiftName' => $currentShiftName,
+                                                'modalPatients' => $modalPatients,
                                             ])
                                         </div>
                                     @endforeach
@@ -518,9 +496,7 @@
                                 <div x-show="visibleCount === 0 && totalCount > 0"
                                      x-cloak
                                      class="mt-6 bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-lg flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
+                                    <x-heroicon-o-information-circle class="w-5 h-5 text-yellow-600 flex-shrink-0" />
                                     Nenhum paciente encontrado com os filtros aplicados.
                                     <button @click="resetFilters()" class="ml-auto text-sm font-medium underline">Limpar filtros</button>
                                 </div>

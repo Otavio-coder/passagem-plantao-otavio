@@ -415,7 +415,7 @@ class ChatArchiveController extends Controller
                 SELECT DISTINCT ua.nr_atendimento
                 FROM tasy.unidade_atendimento ua
                 JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
-                WHERE UPPER(sa.ds_setor_atendimento) LIKE UPPER(:search)
+                WHERE UPPER(NVL(sa.ds_prescricao, sa.ds_setor_atendimento)) LIKE UPPER(:search)
             ', ['search' => '%'.$search.'%']);
 
             return array_map(fn ($r) => (int) $r->nr_atendimento, $rows);
@@ -443,9 +443,9 @@ class ChatArchiveController extends Controller
                     pf.nm_pessoa_fisica,
                     ap.dt_entrada,
                     ap.dt_alta,
-                    tasy.obter_ds_setor_atendimento(
-                        tasy.Obter_Setor_Atendimento(ap.nr_atendimento)
-                    ) AS ds_setor
+                    (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                     FROM tasy.setor_atendimento sa
+                     WHERE sa.cd_setor_atendimento = tasy.Obter_Setor_Atendimento(ap.nr_atendimento)) AS ds_setor
                 FROM tasy.atendimento_paciente ap
                 LEFT JOIN tasy.pessoa_fisica pf
                        ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
@@ -665,7 +665,7 @@ class ChatArchiveController extends Controller
 
         $users = DB::table('users')
             ->whereIn('username', array_keys($top20))
-            ->get(['username', 'name', 'photo'])
+            ->get(['username', 'name', 'role', 'photo'])
             ->keyBy('username');
 
         $topAnnotators = [];
@@ -679,9 +679,11 @@ class ChatArchiveController extends Controller
                     $photo = $rawPhoto;
                 }
             }
+            $displayName = $u ? $this->fullName($u->name) : $username;
+            $role = $u ? trim((string) ($u->role ?? '')) : '';
             $topAnnotators[] = [
                 'username' => $username,
-                'name' => $u ? $this->fullName($u->name) : $username,
+                'name' => $role !== '' ? $displayName.' - '.$role : $displayName,
                 'count' => $count,
                 'tier' => match (true) {
                     $count >= 100 => 'ouro',

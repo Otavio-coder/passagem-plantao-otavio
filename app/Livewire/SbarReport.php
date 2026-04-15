@@ -6,6 +6,7 @@ use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
+use App\Services\UserDisplayNameResolver;
 use App\View\Presenters\PatientCardPresenter;
 use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
@@ -35,15 +36,18 @@ class SbarReport extends Component
     // Services
     protected TasyService $tasyService;
 
+    protected UserDisplayNameResolver $userDisplayNameResolver;
+
     protected $listeners = [
         'refreshData' => 'refreshData',
         'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
         'handover-updated' => 'onHandoverUpdated',
     ];
 
-    public function boot(TasyService $tasyService)
+    public function boot(TasyService $tasyService, UserDisplayNameResolver $userDisplayNameResolver)
     {
         $this->tasyService = $tasyService;
+        $this->userDisplayNameResolver = $userDisplayNameResolver;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -80,13 +84,17 @@ class SbarReport extends Component
             return [];
         }
 
+        $freshNames = collect(Sector::allowedForPreferences())
+            ->keyBy('sector_code')
+            ->map(fn ($s) => $s['sector_name']);
+
         return Auth::user()->sectorPreferences()
             ->where('hospital_code', $this->selectedHospital)
             ->orderBy('sector_name')
             ->get()
             ->map(fn ($p) => [
                 'cd_setor_atendimento' => (int) $p->sector_code,
-                'ds_setor_atendimento' => $p->sector_name,
+                'ds_setor_atendimento' => $freshNames->get((string) $p->sector_code, $p->sector_name),
             ])
             ->toArray();
     }
@@ -515,6 +523,7 @@ class SbarReport extends Component
                     'cm.nr_atendimento',
                     'cm.content',
                     'cm.created_at',
+                    'u.id as user_id',
                     'u.name as user_name',
                     'u.photo',
                 ])
@@ -533,7 +542,10 @@ class SbarReport extends Component
                     'created_at_formatted' => $latestRow->created_at
                         ? Carbon::parse($latestRow->created_at)->format('d/m H:i')
                         : null,
-                    'user_name' => $latestRow->user_name,
+                    'user_name' => $this->userDisplayNameResolver->fromUserId(
+                        isset($latestRow->user_id) ? (int) $latestRow->user_id : null,
+                        $latestRow->user_name ?? 'Desconhecido'
+                    ),
                     'photo' => (string) ($latestRow->photo ?? ''),
                 ];
             }

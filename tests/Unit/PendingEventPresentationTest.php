@@ -10,6 +10,21 @@ use Tests\TestCase;
 class PendingEventPresentationTest extends TestCase
 {
     #[Test]
+    public function it_uses_alta_icon_for_all_discharge_pending_types(): void
+    {
+        $data = PendingEventPresenter::buildPendingModalData([
+            ['tipo' => 'alta', 'descricao' => 'Alta efetivada', 'icone' => 'alert.svg'],
+            ['tipo' => 'alta_medica', 'descricao' => 'Alta médica', 'icone' => 'something-else.svg'],
+            ['tipo' => 'previsao_alta', 'descricao' => 'Previsão de alta', 'icone' => 'clock.svg'],
+        ]);
+
+        $icons = collect($data['events'])->pluck('icone')->all();
+
+        $this->assertSame(['alta.svg', 'alta.svg', 'alta.svg'], $icons);
+        $this->assertSame('alta.svg', PendingEventPresenter::firstEventCardStyle($data['events'][0])['icon']);
+    }
+
+    #[Test]
     public function prefers_explicit_execution_sector_label(): void
     {
         $label = PendingEventPresenter::executionSectorLabel([

@@ -106,13 +106,12 @@ window.chatComponent = function() {
             const content = this.editText.trim();
             if (!content) return;
 
-            // Optimistically close edit form
-            this.editingId = null;
-            this.editText  = '';
-
             try {
                 const response = await this.$wire.editMessage(messageId, content);
-                if (!response?.success) {
+                if (response?.success) {
+                    this.editingId = null;
+                    this.editText  = '';
+                } else {
                     this.showErrorToast(response?.error || 'Erro ao editar mensagem');
                 }
             } catch (error) {

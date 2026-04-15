@@ -92,17 +92,23 @@ class PatientClinicalRepository
                 ) AS ds_queda,
 
                 -- Diagnósticos SAE
-                COALESCE(
-                    (SELECT SUBSTR(LISTAGG(SUBSTR(tasy.PE_obter_desc_diag(d.nr_seq_diag, 'DI'), 1, 100), ' | ')
-                            WITHIN GROUP (ORDER BY 1), 1, 400)
+                NVL(
+                    (SELECT RTRIM(
+                        XMLCAST(
+                            XMLAGG(
+                                XMLELEMENT(e, tasy.PE_obter_desc_diag(d.nr_seq_diag, 'DI') || ' | ')
+                                ORDER BY 1
+                            ) AS CLOB
+                        ),
+                        ' | '
+                    )
                      FROM tasy.pe_prescr_diag d
                      JOIN tasy.pe_prescricao p ON d.nr_seq_prescr = p.nr_sequencia
                      WHERE p.nr_atendimento = atp.nr_atendimento
                        AND p.dt_prescricao = (SELECT MAX(c.dt_prescricao)
                                               FROM tasy.pe_prescricao c
-                                              WHERE c.nr_atendimento = atp.nr_atendimento)
-                     AND ROWNUM <= 3),
-                    'Sem diagnósticos SAE'
+                                              WHERE c.nr_atendimento = atp.nr_atendimento)),
+                    TO_CLOB('Sem diagnósticos SAE')
                 ) AS diag,
 
                 -- Dispositivos
@@ -247,17 +253,23 @@ class PatientClinicalRepository
                 ) AS ds_queda,
 
                 -- Diagnósticos SAE
-                COALESCE(
-                    (SELECT SUBSTR(LISTAGG(SUBSTR(tasy.PE_obter_desc_diag(d.nr_seq_diag, 'DI'), 1, 100), ' | ')
-                            WITHIN GROUP (ORDER BY 1), 1, 400)
+                NVL(
+                    (SELECT RTRIM(
+                        XMLCAST(
+                            XMLAGG(
+                                XMLELEMENT(e, tasy.PE_obter_desc_diag(d.nr_seq_diag, 'DI') || ' | ')
+                                ORDER BY 1
+                            ) AS CLOB
+                        ),
+                        ' | '
+                    )
                      FROM tasy.pe_prescr_diag d
                      JOIN tasy.pe_prescricao p ON d.nr_seq_prescr = p.nr_sequencia
                      WHERE p.nr_atendimento = atp.nr_atendimento
                        AND p.dt_prescricao = (SELECT MAX(c.dt_prescricao)
                                               FROM tasy.pe_prescricao c
-                                              WHERE c.nr_atendimento = atp.nr_atendimento)
-                     AND ROWNUM <= 3),
-                    'Sem diagnósticos SAE'
+                                              WHERE c.nr_atendimento = atp.nr_atendimento)),
+                    TO_CLOB('Sem diagnósticos SAE')
                 ) AS diag,
 
                 -- Dispositivos
@@ -486,13 +498,50 @@ class PatientClinicalRepository
             return $desc;
         }
 
-        $codeNoDot = str_replace('.', '', $code);
+        $normalizedCode = strtoupper((string) preg_replace('/[^A-Z0-9]/i', '', $code));
+        $variants = [];
 
-        return trim((string) preg_replace(
-            '/^(?:'.preg_quote($codeNoDot, '/').'[\s]*)?(?:'.preg_quote($code, '/').'[\s]*)?\s*/i',
-            '',
-            $desc
-        ));
+        if ($normalizedCode !== '') {
+            $variants[] = $normalizedCode;
+
+            if (strlen($normalizedCode) > 3) {
+                $variants[] = substr($normalizedCode, 0, 3).'.'.substr($normalizedCode, 3);
+            }
+        }
+
+        $codeUpper = strtoupper($code);
+        if ($codeUpper !== '') {
+            $variants[] = $codeUpper;
+        }
+
+        $variants = array_values(array_unique(array_filter($variants)));
+
+        if (empty($variants)) {
+            return $desc;
+        }
+
+        $cleanedDescription = preg_replace('/\s+/', ' ', $desc) ?? $desc;
+
+        // Some records repeat code tokens at the start (e.g., "R520 R52.0 ...").
+        // Remove only leading tokens that match the CID variants, preserving the clinical text.
+        for ($i = 0; $i < 3; $i++) {
+            $stripped = false;
+
+            foreach ($variants as $variant) {
+                $pattern = '/^'.preg_quote($variant, '/').'(?=\s|$)\s*/i';
+                if (preg_match($pattern, $cleanedDescription) === 1) {
+                    $cleanedDescription = (string) preg_replace($pattern, '', $cleanedDescription);
+                    $stripped = true;
+                    break;
+                }
+            }
+
+            if (! $stripped) {
+                break;
+            }
+        }
+
+        return trim($cleanedDescription);
     }
 
     private function getDiagnosticsAndComorbidities(int $attendanceNumber): string

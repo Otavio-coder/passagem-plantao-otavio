@@ -15,10 +15,8 @@
     @elseif($currentPatient && (is_array($currentPatient) ? (isset($currentPatient['has_patient']) && !$currentPatient['has_patient']) : (property_exists($currentPatient, 'has_patient') && !$currentPatient->has_patient)))
         <!-- Empty Bed -->
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <p class="text-gray-700 text-base sm:text-lg">Leito Vazio</p>
+            <x-healthicons-o-inpatient class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" />
+            <p class="text-gray-700 text-base sm:text-lg">Leito Vago</p>
             <p class="text-gray-500 mt-2 text-sm sm:text-base">Este leito não possui paciente internado no momento.</p>
         </div>
     @elseif(isset($patientDetails) && $patientDetails)
@@ -95,7 +93,7 @@
                     <h5 class="text-xs font-semibold text-gray-700 mb-1.5 border-l-4 border-green-500 pl-2 bg-green-50 py-1 rounded-r">
                         Avaliações e Status Clínico
                     </h5>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                         <div class="bg-gray-50 p-2 rounded-lg border">
                             <label class="block text-xs font-bold text-gray-600 mb-0.5">Medida Bloqueio:</label>
                             <p class="text-sm font-medium {{ ($patientDetails->medida_bloqueio ?? 'Não') === 'Sim' ? 'text-red-700' : 'text-green-700' }}">
@@ -108,16 +106,21 @@
                         </div>
                         <div class="bg-gray-50 p-2 rounded-lg border">
                             <label class="block text-xs font-bold text-gray-600 mb-0.5">Plano Educ.:</label>
-                            <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->plano_educ ?? 'Não realizado' }}</p>
-                        </div>
-                        <div class="bg-gray-50 p-2 rounded-lg border">
-                            <label class="block text-xs font-bold text-gray-600 mb-0.5">PE:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->pe_data ?? 'Não realizado' }}</p>
                         </div>
                         <div class="bg-gray-50 p-2 rounded-lg border">
-                            <label class="block text-xs font-bold text-gray-600 mb-0.5">Queda:</label>
-                            <p class="text-sm font-medium {{ ($patientDetails->ds_queda ?? 'Não') !== 'Não' ? 'text-red-700' : 'text-green-700' }}">
-                                {{ $patientDetails->ds_queda ?? 'Não avaliado' }}
+                            <label class="block text-xs font-bold text-gray-600 mb-0.5">Hemocultura:</label>
+                            <p class="text-sm font-semibold {{ ($patientDetails->hemocultura_pendente ?? false) ? 'text-purple-700' : 'text-gray-800' }}">
+                                @if($patientDetails->hemocultura_pendente ?? false)
+                                    Pendente
+                                    @if(!empty($patientDetails->ultima_hemocultura ?? null))
+                                        <span class="text-xs font-normal text-purple-500">(últ. {{ $patientDetails->ultima_hemocultura }})</span>
+                                    @endif
+                                @elseif(!empty($patientDetails->ultima_hemocultura ?? null))
+                                    {{ $patientDetails->ultima_hemocultura }}
+                                @else
+                                    Não coletada
+                                @endif
                             </p>
                         </div>
                     </div>
@@ -143,9 +146,7 @@
     @else
         <!-- Error State -->
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <x-heroicon-o-exclamation-triangle class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" />
             <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
             <p class="text-gray-500 mt-2 text-sm">Por favor, tente novamente</p>
         </div>

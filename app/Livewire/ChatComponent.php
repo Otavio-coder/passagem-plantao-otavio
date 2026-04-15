@@ -23,6 +23,8 @@ class ChatComponent extends Component
 
     public $bedUnit;
 
+    public ?int $internmentDays = null;
+
     /** Array plano de itens: ['type'=>'separator',...] ou ['type'=>'message',...] */
     public $messages = [];
 
@@ -49,16 +51,19 @@ class ChatComponent extends Component
         'refreshChat' => 'refreshCurrentMessages',
     ];
 
-    public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null)
+    public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null, $internmentDays = null)
     {
         $this->patientId = $patientId;
         $this->cdPessoaFisica = $cdPessoaFisica;
         $this->bedUnit = $bedUnit;
+        $this->internmentDays = is_numeric($internmentDays) ? (int) $internmentDays : null;
 
         $user = Auth::user();
         $this->currentUser = [
             'id' => $user->id,
             'name' => $user->name,
+            'display_name' => $this->buildUserDisplayName($user),
+            'role' => $this->buildUserRole($user),
             'photo' => $this->getUserPhotoBase64($user),
         ];
     }
@@ -141,7 +146,7 @@ class ChatComponent extends Component
 
             Log::channel('audit')->info('chat.message.sent', [
                 'user_id' => $this->currentUser['id'],
-                'user' => $this->currentUser['name'],
+                'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $newMessage->id,
                 'patient_id' => $this->patientId,
                 'bed' => $this->bedUnit,
@@ -177,7 +182,7 @@ class ChatComponent extends Component
 
             Log::channel('audit')->info($isPinned ? 'chat.message.pinned' : 'chat.message.unpinned', [
                 'user_id' => $this->currentUser['id'],
-                'user' => $this->currentUser['name'],
+                'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $messageId,
                 'patient_id' => $this->patientId,
                 'bed' => $this->bedUnit,
@@ -229,7 +234,7 @@ class ChatComponent extends Component
 
             Log::channel('audit')->info('chat.message.edited', [
                 'user_id' => $this->currentUser['id'],
-                'user' => $this->currentUser['name'],
+                'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $messageId,
                 'patient_id' => $this->patientId,
                 'bed' => $this->bedUnit,
@@ -360,7 +365,7 @@ class ChatComponent extends Component
             $users = collect();
             if ($userIds->isNotEmpty()) {
                 $users = User::whereIn('id', $userIds)
-                    ->select(['id', 'name'])
+                    ->select(['id', 'name', 'username', 'role', 'role_synced_at'])
                     ->get()
                     ->keyBy('id');
                 foreach ($users as $user) {
@@ -449,16 +454,17 @@ class ChatComponent extends Component
         $photo = $msg['_photo'] ?? null;
         $author = $msg['_author'] ?? null;
 
-        if ($author === null || $photo === null) {
-            if ($users && $userId) {
-                $user = $users->get($userId);
-                $author = $author ?? ($user?->name ?? 'Usuário');
-                $photo = $photo ?? ($user ? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user)) : '');
-            } elseif ($userId) {
-                $user = $this->getUserFromCache($userId);
-                $author = $author ?? ($user?->name ?? 'Usuário');
-                $photo = $photo ?? ($user ? $this->getUserPhotoBase64($user) : '');
-            }
+        if ($users && $userId) {
+            $user = $users->get($userId);
+        } elseif ($userId) {
+            $user = $this->getUserFromCache($userId);
+        }
+
+        if ($user) {
+            $author = $this->buildUserDisplayName($user);
+            $photo = $photo ?? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user));
+        } else {
+            $author = $author ?? 'Usuário';
         }
 
         $author = $author ?? 'Usuário';
@@ -478,6 +484,7 @@ class ChatComponent extends Component
         }
 
         $rawReactions = $msg['reactions'] ?? [];
+        $reactions = $this->formatReactions(is_array($rawReactions) ? $rawReactions : []);
 
         $content = $msg['content'] ?? '';
         $id = $msg['id'] ?? null;
@@ -488,7 +495,6 @@ class ChatComponent extends Component
         $isEdited = ! empty($msg['updated_at']);
         $isReal = ! $isTemporary && ! str_starts_with((string) $id, 'temp-');
         $rawReactions = is_array($rawReactions) ? $rawReactions : [];
-        $reactions = $this->formatReactions($rawReactions);
         $userReacted = $this->currentUserReacted($rawReactions);
 
         return [
@@ -516,12 +522,27 @@ class ChatComponent extends Component
 
     private function formatReactions(array $rawReactions): array
     {
-        return collect($rawReactions)->map(fn ($r) => [
-            'user_id' => is_array($r) ? ($r['user_id'] ?? null) : ($r->user_id ?? null),
-            'name' => is_array($r) ? ($r['name'] ?? 'Usuário') : ($r->name ?? 'Usuário'),
-            'initial' => strtoupper(substr(is_array($r) ? ($r['name'] ?? 'U') : ($r->name ?? 'U'), 0, 1)),
-            'photo' => is_array($r) ? ($r['photo'] ?? '') : ($r->photo ?? ''),
-        ])->values()->toArray();
+        return collect($rawReactions)->map(function ($reaction) {
+            $userId = is_array($reaction) ? ($reaction['user_id'] ?? null) : ($reaction->user_id ?? null);
+            $name = is_array($reaction) ? ($reaction['name'] ?? 'Usuário') : ($reaction->name ?? 'Usuário');
+            $photo = is_array($reaction) ? ($reaction['photo'] ?? '') : ($reaction->photo ?? '');
+
+            if ($userId) {
+                $user = $this->getUserFromCache($userId);
+
+                if ($user) {
+                    $name = $this->buildUserDisplayName($user);
+                    $photo = $photo ?: $this->getUserPhotoBase64($user);
+                }
+            }
+
+            return [
+                'user_id' => $userId,
+                'name' => $name,
+                'initial' => strtoupper(substr($name ?: 'U', 0, 1)),
+                'photo' => $photo,
+            ];
+        })->values()->toArray();
     }
 
     private function currentUserReacted(array $rawReactions): bool
@@ -698,13 +719,34 @@ class ChatComponent extends Component
         }
 
         try {
-            $user = User::select(['id', 'name'])->find($userId);
+            $user = User::select(['id', 'name', 'username', 'role', 'role_synced_at'])->find($userId);
             $this->userCache[$userId] = $user;
 
             return $user;
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    private function buildUserDisplayName(?User $user): string
+    {
+        if (! $user) {
+            return 'Usuário';
+        }
+
+        $name = trim((string) ($user->name ?: 'Usuário'));
+        $role = $this->buildUserRole($user);
+
+        return $role !== '' ? $name.' - '.$role : $name;
+    }
+
+    private function buildUserRole(?User $user): string
+    {
+        if (! $user || ! method_exists($user, 'getUserRole')) {
+            return '';
+        }
+
+        return trim((string) $user->getUserRole());
     }
 
     public function getSessionStats(): array
@@ -732,14 +774,15 @@ class ChatComponent extends Component
 
         $iconPulse = in_array($shift, ['morning', 'night'], true);
 
+        $hexColor = match ($shift) {
+            'morning' => '#f97316',
+            'afternoon' => '#0ea5e9',
+            'night' => '#6366f1',
+            default => '#6b7280',
+        };
+
         return [
             'shift' => $shift,
-            'gradient' => match ($shift) {
-                'morning' => 'from-amber-400 via-orange-400 to-red-400',
-                'afternoon' => 'from-sky-400 via-blue-400 to-cyan-400',
-                'night' => 'from-indigo-500 via-purple-500 to-violet-600',
-                default => 'from-gray-400 to-gray-500',
-            },
             'gradient_style' => match ($shift) {
                 'morning' => 'linear-gradient(90deg, #fbbf24 0%, #fb923c 50%, #f87171 100%)',
                 'afternoon' => 'linear-gradient(90deg, #38bdf8 0%, #60a5fa 50%, #22d3ee 100%)',
@@ -754,8 +797,9 @@ class ChatComponent extends Component
             },
             'icon' => $iconClass,
             'icon_pulse' => $iconPulse,
-            'icon_html' => '<i class="fas '.$iconClass.' text-white text-sm sm:text-base'.($iconPulse ? ' animate-pulse' : '').'"></i>',
+            'icon_html' => '<i class="fas '.$iconClass.' text-white text-sm'.($iconPulse ? ' animate-pulse' : '').'"></i>',
             'accent' => $colors['accentColor'],
+            'hex_color' => $hexColor,
             'light_accent' => $colors['lightAccent'],
             'dark_accent' => $colors['darkAccent'],
         ];
@@ -767,10 +811,41 @@ class ChatComponent extends Component
         $items = collect($this->messages)->filter(fn ($m) => ($m['type'] ?? '') === 'message');
         $pinned = $items->filter(fn ($m) => (bool) ($m['is_pinned'] ?? false));
 
+        // Current shift window
+        [$shiftStart] = ShiftService::getShiftWindow();
+
+        $shiftItems = $items->filter(function ($m) use ($shiftStart) {
+            $raw = $m['dt_criacao_raw'] ?? null;
+            if (! $raw) {
+                return false;
+            }
+
+            try {
+                return Carbon::parse($raw)->gte($shiftStart);
+            } catch (\Exception) {
+                return false;
+            }
+        });
+
+        $shiftCount = $shiftItems->count();
+        $confirmedCount = $shiftItems->filter(fn ($m) => ($m['reactions_count'] ?? 0) > 0)->count();
+
+        $uniqueContributors = $shiftItems
+            ->pluck('author')
+            ->filter()
+            ->unique()
+            ->count();
+
+        $reactionRate = $shiftCount > 0 ? (int) round($confirmedCount / $shiftCount * 100) : null;
+
         return [
             'count' => $items->count(),
             'has_messages' => $items->isNotEmpty(),
             'pinned_first' => $pinned->first(),
+            'pinned_count' => $pinned->count(),
+            'shift_count' => $shiftCount,
+            'unique_contributors' => $uniqueContributors,
+            'reaction_rate' => $reactionRate,
         ];
     }
 

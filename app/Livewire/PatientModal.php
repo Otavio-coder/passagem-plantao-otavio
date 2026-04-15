@@ -31,6 +31,11 @@ class PatientModal extends Component
 
     public $loadingPatient = false;
 
+    /** @var array<int, array{nr_atendimento:int,label:string}> */
+    public array $modalPatients = [];
+
+    public ?int $currentPatientIndex = null;
+
     /** @var array|null Prescriptions data (medications, nutrition, orders, interventions, procedures, etc.) */
     public $prescriptions = null;
 
@@ -62,7 +67,7 @@ class PatientModal extends Component
     }
 
     #[On('openModal')]
-    public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null)
+    public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
     {
         if (! $attendanceNumber || $attendanceNumber == 0) {
             Log::warning('PatientModal: Invalid attendanceNumber', [
@@ -74,6 +79,7 @@ class PatientModal extends Component
 
         try {
             $this->resetModalState();
+            $this->setModalPatients(is_array($patients) ? $patients : [], (int) $attendanceNumber);
             $this->loadingPatient = true;
             $this->showModal = true;
             $this->dispatch('modal-opened');
@@ -104,6 +110,76 @@ class PatientModal extends Component
             $this->loadingPatient = false;
             $this->showModal = false;
         }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $patients
+     */
+    private function setModalPatients(array $patients, int $currentAttendance): void
+    {
+        $normalized = collect($patients)
+            ->filter(fn ($patient) => is_array($patient))
+            ->map(function (array $patient): array {
+                $attendance = (int) ($patient['nr_atendimento'] ?? 0);
+                $existingLabel = trim((string) ($patient['label'] ?? ''));
+
+                return [
+                    'nr_atendimento' => $attendance,
+                    'label' => $existingLabel !== ''
+                        ? $existingLabel
+                        : $this->buildPatientNavigationLabel($patient, $attendance),
+                ];
+            })
+            ->filter(fn (array $patient) => $patient['nr_atendimento'] > 0)
+            ->unique('nr_atendimento')
+            ->values()
+            ->all();
+
+        if (empty($normalized) && $currentAttendance > 0) {
+            $normalized[] = [
+                'nr_atendimento' => $currentAttendance,
+                'label' => sprintf('Atendimento %d', $currentAttendance),
+            ];
+        }
+
+        $this->modalPatients = $normalized;
+
+        $currentIndex = collect($this->modalPatients)
+            ->search(fn (array $patient) => (int) $patient['nr_atendimento'] === $currentAttendance);
+
+        if ($currentIndex === false && $currentAttendance > 0) {
+            $this->modalPatients[] = [
+                'nr_atendimento' => $currentAttendance,
+                'label' => sprintf('Atendimento %d', $currentAttendance),
+            ];
+            $currentIndex = count($this->modalPatients) - 1;
+        }
+
+        $this->currentPatientIndex = $currentIndex === false ? null : (int) $currentIndex;
+    }
+
+    /**
+     * @param  array<string, mixed>  $patient
+     */
+    private function buildPatientNavigationLabel(array $patient, int $attendance): string
+    {
+        $patientName = trim((string) ($patient['nm_social'] ?? $patient['nm_pessoa_fisica'] ?? ''));
+        $bed = trim((string) ($patient['cd_unidade_basica'] ?? ''));
+
+        $parts = [];
+        if ($bed !== '') {
+            $parts[] = 'Leito '.$bed;
+        }
+
+        if ($patientName !== '') {
+            $parts[] = $patientName;
+        }
+
+        if (empty($parts)) {
+            $parts[] = 'Paciente';
+        }
+
+        return $attendance.' - '.implode(' - ', $parts);
     }
 
     private function loadFromSbarData(array $sbarData, int $attendanceNumber): void
@@ -421,6 +497,58 @@ class PatientModal extends Component
         $this->planError = false;
         $this->scheduleDate = now()->format('Y-m-d');
         $this->medicationSchedule = [];
+        $this->modalPatients = [];
+        $this->currentPatientIndex = null;
+    }
+
+    public function goToPreviousPatient(): void
+    {
+        if (! $this->canGoPrevious) {
+            return;
+        }
+
+        $this->goToPatientByIndex((int) $this->currentPatientIndex - 1);
+    }
+
+    public function goToNextPatient(): void
+    {
+        if (! $this->canGoNext) {
+            return;
+        }
+
+        $this->goToPatientByIndex((int) $this->currentPatientIndex + 1);
+    }
+
+    public function goToPatientByAttendance(int|string $attendanceNumber): void
+    {
+        $attendance = (int) $attendanceNumber;
+        if ($attendance <= 0) {
+            return;
+        }
+
+        if ((int) ($this->currentPatient['nr_atendimento'] ?? 0) === $attendance) {
+            return;
+        }
+
+        $targetIndex = collect($this->modalPatients)
+            ->search(fn (array $patient) => (int) ($patient['nr_atendimento'] ?? 0) === $attendance);
+
+        if ($targetIndex === false) {
+            return;
+        }
+
+        $this->goToPatientByIndex((int) $targetIndex);
+    }
+
+    private function goToPatientByIndex(int $targetIndex): void
+    {
+        $targetPatient = $this->modalPatients[$targetIndex] ?? null;
+        if (! $targetPatient) {
+            return;
+        }
+
+        $this->currentPatientIndex = $targetIndex;
+        $this->openModal((int) $targetPatient['nr_atendimento'], $this->currentHospitalName, null, $this->modalPatients);
     }
 
     public function refreshPatientData()
@@ -456,6 +584,15 @@ class PatientModal extends Component
         $this->showAlertsModal = false;
     }
 
+    public function openAlertsModal(): void
+    {
+        if ($this->activeAlerts->isEmpty()) {
+            return;
+        }
+
+        $this->showAlertsModal = true;
+    }
+
     public function hasPatientData()
     {
         return $this->patientDetails !== null;
@@ -474,10 +611,22 @@ class PatientModal extends Component
         })->count();
     }
 
+    public function getCanGoPreviousProperty(): bool
+    {
+        return $this->currentPatientIndex !== null && $this->currentPatientIndex > 0;
+    }
+
+    public function getCanGoNextProperty(): bool
+    {
+        return $this->currentPatientIndex !== null
+            && $this->currentPatientIndex < (count($this->modalPatients) - 1);
+    }
+
     public function getAlertsGroupedByTypeProperty(): array
     {
         return $this->activeAlerts
             ->map(function ($alert) {
+                $alert['sent_date_formatted'] = $this->formatAlertDateTime($alert['sent_date'] ?? null);
                 $alert['start_date_formatted'] = $this->formatAlertDate($alert['start_date'] ?? null);
                 $alert['end_date_formatted'] = $this->formatAlertDate($alert['end_date'] ?? null);
 
@@ -496,6 +645,19 @@ class PatientModal extends Component
 
         try {
             return Carbon::parse((string) $value)->format('d/m/Y');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function formatAlertDateTime(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('d/m/Y H:i');
         } catch (\Throwable) {
             return null;
         }
@@ -706,6 +868,10 @@ class PatientModal extends Component
             'scalesData' => $this->scalesData,
             'clinicalData' => $this->clinicalData,
             'planDisplayData' => $this->planDisplayData,
+            'modalPatients' => $this->modalPatients,
+            'currentPatientIndex' => $this->currentPatientIndex,
+            'canGoPrevious' => $this->canGoPrevious,
+            'canGoNext' => $this->canGoNext,
         ]);
     }
 }

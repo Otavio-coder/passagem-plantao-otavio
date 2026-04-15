@@ -107,56 +107,79 @@
         <div class="flex-shrink-0 relative overflow-hidden rounded-none sm:rounded-t-lg">
             <div class="absolute inset-0" style="background: {{ $this->shiftDisplay['gradient_style'] ?? 'linear-gradient(90deg, #9ca3af 0%, #6b7280 100%)' }};"></div>
 
-            <div class="relative z-10 text-white p-2 sm:p-3">
-                <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center space-x-2 min-w-0 flex-1">
-                        <div class="flex-shrink-0 p-1.5 sm:p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                            {!! $this->shiftDisplay['icon_html'] !!}
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-center space-x-2">
-                                <h3 class="text-sm sm:text-base font-bold tracking-wide">PLANTÃO</h3>
-                                <span class="px-1.5 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium border border-white/30">
-                                    {{ $this->shiftDisplay['badge'] }}
+            <div class="relative z-10 text-white px-3 py-2.5">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    {{-- Shift icon --}}
+                    <div class="flex-shrink-0 p-2 bg-white/20 rounded-xl border border-white/20">
+                        {!! $this->shiftDisplay['icon_html'] !!}
+                    </div>
+
+                    {{-- Shift name + user info --}}
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[11px] font-bold uppercase tracking-widest text-white/80 leading-none">
+                            Turno {{ $this->shiftDisplay['badge'] }}
+                        </p>
+                        <div class="flex items-center gap-1.5 mt-1 min-w-0">
+                            <x-ui.user-avatar
+                                :photo="$currentUser['photo'] ?? null"
+                                :name="$currentUser['name'] ?? 'U'"
+                                class="w-4 h-4 flex-shrink-0 border border-white/40"
+                            />
+                            <div class="flex items-center gap-1 bg-white/15 rounded-lg px-2 py-0.5 min-w-0">
+                                <span class="text-white text-xs font-semibold leading-none">
+                                    {{ $currentUser['name'] ?? 'Usuário' }}
                                 </span>
+                                @if(!empty($currentUser['role']))
+                                    <span class="text-white/70 text-[11px] leading-none">· {{ $currentUser['role'] }}</span>
+                                @endif
                             </div>
-                            <p class="text-xs text-white/90 font-medium">
-                                At: {{ $patientId }} | Lt: {{ $bedUnit ?? 'N/A' }}
-                            </p>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <!-- User badge (desktop) -->
-                        <div class="hidden sm:flex items-center space-x-1.5 bg-white/15 backdrop-blur-sm rounded-full px-2 py-1 border border-white/20">
-                            <x-ui.user-avatar :photo="$currentUser['photo'] ?? null" :name="$currentUser['name'] ?? 'U'" class="w-4 h-4 border border-white/40" />
-                            <span class="text-white/90 text-xs font-medium">
-                                {{ Str::limit($currentUser['name'] ?? 'Usuário', 14) }}
+                    {{-- Time + stats --}}
+                    <div class="flex-shrink-0 flex flex-col items-end gap-0.5">
+                        <div id="current-time-display" class="text-white text-sm font-bold tracking-wide leading-none">
+                            {{ now()->format('H:i') }}
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                            @if($this->messageStats['count'] > 0)
+                                <span class="text-white/80 text-[10px] font-medium">
+                                    {{ $this->messageStats['count'] }} {{ $this->messageStats['count'] === 1 ? 'anotação' : 'anotações' }}
+                                </span>
+                            @else
+                                <span class="text-white/60 text-[10px]">Sem anotações</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Metrics strip --}}
+                @php
+                    $stats = $this->messageStats;
+                    $metricChips = [];
+                    if ($internmentDays !== null && $internmentDays >= 0) {
+                        $metricChips[] = ['icon' => 'fa-hospital-user', 'value' => $internmentDays.'d internado'];
+                    }
+                    if (($stats['shift_count'] ?? 0) > 0 && ($stats['unique_contributors'] ?? 0) > 0) {
+                        $metricChips[] = ['icon' => 'fa-users', 'value' => $stats['unique_contributors'].' '.($stats['unique_contributors'] === 1 ? 'colaborador' : 'colaboradores')];
+                    }
+                    if ($stats['reaction_rate'] !== null && ($stats['shift_count'] ?? 0) > 0) {
+                        $metricChips[] = ['icon' => 'fa-check-double', 'value' => $stats['reaction_rate'].'% confirmado'];
+                    }
+                    if (($stats['pinned_count'] ?? 0) > 0) {
+                        $metricChips[] = ['icon' => 'fa-thumbtack', 'value' => $stats['pinned_count'].' '.($stats['pinned_count'] === 1 ? 'fixada' : 'fixadas')];
+                    }
+                @endphp
+                @if(!empty($metricChips))
+                    <div class="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-white/15 pt-1.5">
+                        @foreach($metricChips as $chip)
+                            <span class="inline-flex items-center gap-1 bg-white/10 rounded-full px-2 py-0.5 text-[10px] text-white/80">
+                                <i class="fas {{ $chip['icon'] }} text-[9px]"></i>
+                                {{ $chip['value'] }}
                             </span>
-                        </div>
-
-                        <!-- Clock -->
-                        <div class="flex-shrink-0 bg-white/15 backdrop-blur-sm rounded-lg px-2 py-1 sm:px-3 sm:py-2 border border-white/20">
-                            <div id="current-time-display" class="text-white text-sm sm:text-lg font-bold tracking-wider">
-                                {{ now()->format('H:i') }}
-                            </div>
-                            <div class="text-white/80 text-xs font-medium hidden sm:block">{{ now()->format('d/m') }}</div>
-                        </div>
+                        @endforeach
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Status bar -->
-        <div class="flex-shrink-0 px-2 py-1.5 sm:px-3 sm:py-2 border-b border-gray-200 bg-gray-50">
-            <div class="flex items-center gap-2">
-                <div class="inline-flex items-center space-x-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="font-medium">Ativo</span>
-                </div>
-
-                @if($this->messageStats['count'] > 0)
-                    <span class="text-xs text-gray-400">{{ $this->messageStats['count'] }} {{ $this->messageStats['count'] === 1 ? 'anotação' : 'anotações' }}</span>
                 @endif
             </div>
         </div>
@@ -336,7 +359,7 @@
                                         {{-- Reactions row --}}
                                         @if($item['is_real'] ?? false)
                                             <div class="flex items-center mt-0.5 {{ ($item['is_own'] ?? false) ? 'justify-end' : 'justify-start' }} gap-1.5">
-                                                @if(true)
+                                                @if(!($item['is_own'] ?? false))
                                                     <button
                                                         @click="toggleReaction({{ $item['msg_id'] ?? 0 }})"
                                                         class="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-all duration-150
@@ -391,36 +414,42 @@
         </div>
 
         <!-- Message input -->
-        <div class="flex-shrink-0 border-t border-gray-200 bg-white p-2 sm:p-3">
+        <div class="flex-shrink-0 border-t border-slate-200 bg-white p-2.5 sm:p-3">
             <form @submit.prevent="sendMessage()">
-                <div class="flex items-end gap-2">
-                    <textarea
-                        x-model="messageText"
-                        x-ref="textarea"
-                        placeholder="Digite sua anotação..."
-                        class="p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-{{ $this->shiftDisplay['accent'] }} focus:border-{{ $this->shiftDisplay['accent'] }} resize-none flex-1 transition-all duration-200 min-h-[40px] leading-snug"
-                        rows="1"
-                        maxlength="1000"
-                        :disabled="isSendingMessage()"
-                        @input="autoResize()"
-                        @keydown.enter.exact="
-                            if (!$event.shiftKey && !isSendingMessage()) {
-                                $event.preventDefault();
-                                sendMessage();
-                            }
-                        "
-                    ></textarea>
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <textarea
+                            x-model="messageText"
+                            x-ref="textarea"
+                            placeholder="Digite sua anotação..."
+                            class="w-full min-h-[40px] max-h-40 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm transition duration-200 placeholder:text-slate-400 focus:ring-2 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                            style="--focus-color: {{ $this->shiftDisplay['hex_color'] }}; box-shadow: none;"
+                            rows="1"
+                            maxlength="1000"
+                            :disabled="isSendingMessage()"
+                            @input="autoResize()"
+                            @focus="$el.style.borderColor = '{{ $this->shiftDisplay['hex_color'] }}'; $el.style.boxShadow = '0 0 0 3px {{ $this->shiftDisplay['hex_color'] }}26';"
+                            @blur="$el.style.borderColor = ''; $el.style.boxShadow = 'none';"
+                            @keydown.enter.exact="
+                                if (!$event.shiftKey && !isSendingMessage()) {
+                                    $event.preventDefault();
+                                    sendMessage();
+                                }
+                            "
+                        ></textarea>
+                    </div>
                     <button
                         type="submit"
                         :disabled="!messageText.trim() || isSendingMessage()"
                         :class="{ 'send-btn-loading': isSendingMessage() }"
-                        class="relative px-3 py-2.5 h-[40px] rounded-lg transition bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:hover:bg-gray-300 flex-shrink-0 flex items-center justify-center"
+                        class="relative flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition duration-200 focus:outline-none disabled:cursor-not-allowed disabled:hover:brightness-100"
+                        style="background-color: {{ $this->shiftDisplay['hex_color'] }};"
+                        :style="(!messageText.trim() || isSendingMessage()) ? 'background-color: #94a3b8;' : 'background-color: {{ $this->shiftDisplay['hex_color'] }};'"
                     >
-                        <div class="btn-spinner"></div>
-                        <div class="btn-text flex items-center gap-1.5">
-                            <span>Enviar</span>
-                            <i class="fas fa-paper-plane text-white fa-sm"></i>
-                        </div>
+                        <div class="btn-spinner absolute"></div>
+                        <span class="btn-text inline-flex items-center justify-center">
+                            <i class="fas fa-paper-plane text-sm"></i>
+                        </span>
                     </button>
                 </div>
             </form>

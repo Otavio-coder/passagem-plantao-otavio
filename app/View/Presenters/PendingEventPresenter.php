@@ -2,11 +2,14 @@
 
 namespace App\View\Presenters;
 
+use App\Services\UserDisplayNameResolver;
 use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 
 class PendingEventPresenter
 {
+    private const DISCHARGE_TYPES = ['alta', 'alta_medica', 'previsao_alta'];
+
     private const ALWAYS_NEAR_TYPES = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
 
     private const FRONT_NEAR_TYPES = ['procedimento', 'exame', 'proc_exame'];
@@ -36,6 +39,11 @@ class PendingEventPresenter
     ];
 
     /**
+     * @var array<int, string>
+     */
+    private static array $userDisplayCache = [];
+
+    /**
      * @return array{events: array<int, array<string, mixed>>, groups: array<int, array<string, mixed>>, first_event: array<string, mixed>|null}
      */
     public static function buildPendingModalData(array $pendingEvents): array
@@ -44,6 +52,8 @@ class PendingEventPresenter
         $groups = [];
 
         foreach ($events as $event) {
+            $event['icone'] = self::resolveEventIcon($event);
+            $event = self::enrichUserDisplay($event);
             $type = self::normalizeGroupType((string) ($event['tipo'] ?? 'outros'));
             if (! isset($groups[$type])) {
                 $groups[$type] = [
@@ -78,6 +88,7 @@ class PendingEventPresenter
     public static function withNearFlag(array $events): array
     {
         return array_map(function (array $event): array {
+            $event['icone'] = self::resolveEventIcon($event);
             $event['is_near'] = self::isNear($event);
 
             return $event;
@@ -220,7 +231,7 @@ class PendingEventPresenter
         };
 
         return [
-            'icon' => $event['icone'] ?? 'alert-circle.svg',
+            'icon' => self::resolveEventIcon($event),
             'card_bg' => $cardBg,
             'card_style' => $cardStyle,
             'description_class' => $descriptionClass,
@@ -228,6 +239,23 @@ class PendingEventPresenter
             'pulse_color' => $pulseColor,
             'show_pulse' => $urgent || in_array($type, ['alta', 'aviso'], true),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    private static function resolveEventIcon(array $event): string
+    {
+        if (self::isDischargeType((string) ($event['tipo'] ?? ''))) {
+            return 'alta.svg';
+        }
+
+        return (string) ($event['icone'] ?? 'alert-circle.svg');
+    }
+
+    private static function isDischargeType(string $type): bool
+    {
+        return in_array($type, self::DISCHARGE_TYPES, true);
     }
 
     /**
@@ -253,6 +281,40 @@ class PendingEventPresenter
         }
 
         return '-';
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    public static function userDisplayLabel(array $event, string $fallbackKey = 'nm_prescritor'): string
+    {
+        $fallbackName = trim((string) ($event[$fallbackKey] ?? ''));
+        $userId = (int) ($event[$fallbackKey.'_user_id'] ?? 0);
+
+        if ($userId > 0) {
+            if (isset(self::$userDisplayCache[$userId])) {
+                return self::$userDisplayCache[$userId];
+            }
+
+            $resolver = app(UserDisplayNameResolver::class);
+            $display = $resolver->fromUserId($userId, $fallbackName !== '' ? $fallbackName : null);
+
+            return self::$userDisplayCache[$userId] = $display;
+        }
+
+        $resolver = app(UserDisplayNameResolver::class);
+
+        return $resolver->fromName($fallbackName);
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    public static function enrichUserDisplay(array $event, string $sourceKey = 'nm_prescritor', string $targetKey = 'nm_prescritor_display'): array
+    {
+        $event[$targetKey] = self::userDisplayLabel($event, $sourceKey);
+
+        return $event;
     }
 
     /**

@@ -9,7 +9,7 @@
         <template x-for="o in ord.items" :key="String(o.id ?? o.text ?? 'ord') + '-' + String(o.dt_start ?? '')">
             <div class="bg-white rounded-md border border-slate-200 px-2 py-1.5 min-h-auto xl:min-h-[80px] flex flex-col">
                 <div class="flex items-start gap-1.5 min-w-0 mb-1">
-                    <img src="{{ asset('images/icons/patient-card/notes.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 mt-0.5">
+                    <x-ui.patient-icon name="notes" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 mt-0.5 text-gray-600" />
                     <div class="flex-1 min-w-0">
                         <p class="text-[12px] font-semibold text-gray-800 leading-snug" x-text="o.text || 'Recomendação não especificada'"></p>
                         <span x-show="o.type && o.type !== o.text" class="inline-block text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-1 py-0.5 rounded mt-0.5" x-text="o.type"></span>

@@ -9,6 +9,7 @@
         "andreiio/blade-iconoir": "^4.7",
         "blade-ui-kit/blade-heroicons": "^2.6",
         "directorytree/ldaprecord-laravel": "^3.3",
+        "itsgoingd/clockwork": "^5.3",
         "laravel/framework": "^11.9",
         "laravel/horizon": "^5.33",
         "laravel/reverb": "^1.9",

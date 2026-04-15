@@ -215,7 +215,7 @@ class Sector extends Model
                 ->whereIn('nr_seq_agrupamento', $allowedHospitalIds)
                 ->whereIn('cd_classif_setor', [1, 3, 4])
                 ->where('ie_situacao', 'A')
-                ->orderBy('ds_setor_atendimento')
+                ->orderByRaw('NVL(ds_prescricao, ds_setor_atendimento)')
                 ->get();
 
             if ($sectors->isEmpty()) {
@@ -234,7 +234,7 @@ class Sector extends Model
                 ->filter(fn (Sector $sector) => isset($codesWithBeds[$sector->cd_setor_atendimento]))
                 ->map(fn (Sector $sector) => [
                     'sector_code' => (string) $sector->cd_setor_atendimento,
-                    'sector_name' => (string) $sector->ds_setor_atendimento,
+                    'sector_name' => (string) ($sector->ds_prescricao ?? $sector->ds_setor_atendimento),
                     'hospital_code' => (string) $sector->nr_seq_agrupamento,
                     'hospital_name' => (string) $hospitals->get((string) $sector->nr_seq_agrupamento, 'Hospital'),
                 ])

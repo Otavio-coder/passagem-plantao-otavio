@@ -11,7 +11,7 @@
                  :class="g.urgente ? 'bg-red-50/30 border-red-200' : ''">
                 <div class="flex items-start justify-between gap-2">
                     <div class="flex items-center gap-1.5 min-w-0">
-                        <img src="{{ asset('images/icons/patient-card/lungs.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75">
+                        <x-ui.patient-icon name="lungs" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 text-cyan-700" />
                         <p class="text-[12px] font-semibold text-gray-800 leading-tight line-clamp-2" x-text="g.tipo_gas || g.modalidade || 'Gasoterapia'"></p>
                     </div>
                     <div class="flex flex-wrap justify-end gap-1">

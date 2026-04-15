@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\System\UserSectorPreference;
 use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\Tasy\TasyService;
+use App\Services\UserDisplayNameResolver;
 use App\Support\PendingEventTypeClassifier;
 use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
@@ -15,6 +16,8 @@ use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
 {
+    public function __construct(private readonly UserDisplayNameResolver $userDisplayNameResolver) {}
+
     public function index(Request $request): View
     {
         $user = Auth::user();
@@ -83,7 +86,9 @@ class PendingEventsReportController extends Controller
                 return $patient;
             }, $patients);
 
-            $sectorName = $patients[0]['ds_setor_atendimento'] ?? ($sectors->firstWhere('sector_code', $selectedSector)['sector_name'] ?? null);
+            $sectorName = $patients[0]['ds_prescricao']
+                ?? $patients[0]['ds_setor_atendimento']
+                ?? ($sectors->firstWhere('sector_code', $selectedSector)['sector_name'] ?? null);
 
             $rows = $this->buildRows(collect($patients))->sortByDesc('sort_ts')->values();
         }
@@ -109,7 +114,7 @@ class PendingEventsReportController extends Controller
                 continue;
             }
 
-            $sector = $patient['ds_setor_atendimento'] ?? '-';
+            $sector = $patient['ds_prescricao'] ?? $patient['ds_setor_atendimento'] ?? '-';
             $base = [
                 'atendimento' => $patient['nr_atendimento'] ?? '-',
                 'paciente' => $patient['nm_pessoa_fisica'] ?? '-',
@@ -188,6 +193,9 @@ class PendingEventsReportController extends Controller
                     'status' => $status,
                     'motivo_pendente' => 'Aguardando resposta',
                     'laudo' => ! empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',
+                    'nm_responsavel_resposta_display' => $this->userDisplayNameResolver->fromName(
+                        $req['nm_responsavel_resposta'] ?? null
+                    ),
                     'sort_ts' => $sortTs,
                 ]));
             }

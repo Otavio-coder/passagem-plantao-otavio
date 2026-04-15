@@ -162,6 +162,11 @@
                         :currentHospitalName="$currentHospitalName"
                         :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails"
+                        :modalPatients="$modalPatients"
+                        :currentPatientIndex="$currentPatientIndex"
+                        :canGoPrevious="$canGoPrevious"
+                        :canGoNext="$canGoNext"
+                        :activeAlertsCount="count($activeAlerts)"
                     />
                 </div>
 

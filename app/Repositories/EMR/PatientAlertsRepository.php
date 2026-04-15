@@ -3,7 +3,6 @@
 namespace App\Repositories\EMR;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class PatientAlertsRepository
 {
@@ -16,12 +15,15 @@ class PatientAlertsRepository
             SELECT DISTINCT
                 alp.ds_alerta,
                 alp.nr_seq_tipo_alerta,
+                taa.ds_tipo_alerta,
+                taa.ie_situacao AS tipo_alerta_situacao,
+                alp.dt_alerta,
                 alp.dt_fim_alerta,
                 mi.ds_motivo AS motivo_isolamento,
                 apc.dt_inicio AS dt_inicio_precaucao,
                 apc.dt_termino AS dt_termino_precaucao,
                 CASE
-                    WHEN alp.ds_alerta IS NOT NULL THEN 1
+                    WHEN alp.ds_alerta IS NOT NULL AND taa.nr_sequencia IS NOT NULL THEN 1
                     WHEN mi.ds_motivo IS NOT NULL THEN 2
                     ELSE 3
                 END AS alert_priority
@@ -31,6 +33,9 @@ class PatientAlertsRepository
                 AND alp.ds_alerta IS NOT NULL
                 AND LENGTH(TRIM(alp.ds_alerta)) > 0
                 AND (alp.dt_fim_alerta IS NULL OR TRUNC(alp.dt_fim_alerta) > TRUNC(SYSDATE))
+            LEFT JOIN tasy.tipo_alerta_atend taa
+                ON taa.nr_sequencia = alp.nr_seq_tipo_alerta
+                AND taa.ie_situacao = 'A'
             LEFT JOIN tasy.atendimento_precaucao apc
                 ON atp.nr_atendimento = apc.nr_atendimento
                 AND apc.dt_liberacao IS NOT NULL
@@ -41,39 +46,41 @@ class PatientAlertsRepository
             WHERE atp.nr_atendimento = :attendance
               AND atp.cd_pessoa_fisica = :person_id
               AND atp.dt_alta IS NULL
-              AND (alp.ds_alerta IS NOT NULL OR mi.ds_motivo IS NOT NULL)
+                            AND ((alp.ds_alerta IS NOT NULL AND taa.nr_sequencia IS NOT NULL) OR mi.ds_motivo IS NOT NULL)
             ORDER BY alert_priority
         ", [
             'attendance' => $attendanceNumber,
-            'person_id'  => $personId,
+            'person_id' => $personId,
         ]);
 
         $alerts = [];
         $processedAlerts = [];
 
         foreach ($results as $result) {
-            if (!empty($result->ds_alerta)) {
-                $alertKey = 'alert_' . md5(trim($result->ds_alerta));
-                if (!isset($processedAlerts[$alertKey])) {
+            if (! empty($result->ds_alerta)) {
+                $alertType = mb_strtoupper(trim((string) ($result->ds_tipo_alerta ?? 'ALERTA')));
+                $alertTypeCode = (int) ($result->nr_seq_tipo_alerta ?? 0);
+                $alertKey = 'alert_'.md5($alertTypeCode.'|'.trim($result->ds_alerta));
+                if (! isset($processedAlerts[$alertKey])) {
                     $alerts[] = [
-                        'type'     => 'ALERTA',
-                        'message'  => trim($result->ds_alerta),
+                        'type' => $alertType,
+                        'type_code' => $alertTypeCode,
+                        'message' => trim($result->ds_alerta),
+                        'sent_date' => $result->dt_alerta,
                         'end_date' => $result->dt_fim_alerta,
-                        'severity' => 'warning',
                     ];
                     $processedAlerts[$alertKey] = true;
                 }
             }
 
-            if (!empty($result->motivo_isolamento)) {
-                $isolationKey = 'isolation_' . md5(trim($result->motivo_isolamento));
-                if (!isset($processedAlerts[$isolationKey])) {
+            if (! empty($result->motivo_isolamento)) {
+                $isolationKey = 'isolation_'.md5(trim($result->motivo_isolamento));
+                if (! isset($processedAlerts[$isolationKey])) {
                     $alerts[] = [
-                        'type'       => 'ISOLAMENTO',
-                        'message'    => trim($result->motivo_isolamento),
+                        'type' => 'ISOLAMENTO',
+                        'message' => trim($result->motivo_isolamento),
                         'start_date' => $result->dt_inicio_precaucao,
-                        'end_date'   => $result->dt_termino_precaucao,
-                        'severity'   => 'danger',
+                        'end_date' => $result->dt_termino_precaucao,
                     ];
                     $processedAlerts[$isolationKey] = true;
                 }

@@ -46,6 +46,11 @@ class PatientClinicalRepositoryTest extends TestCase
                 'D729 Transt NE dos globulos brancos',
                 'Transt NE dos globulos brancos',
             ],
+            'undotted code with dotted prefix in description' => [
+                'R520',
+                'R52.0 Dor aguda',
+                'Dor aguda',
+            ],
             'empty code returns desc unchanged' => [
                 '',
                 'D729 D72.9 Transt NE',

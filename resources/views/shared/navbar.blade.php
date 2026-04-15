@@ -128,8 +128,16 @@
             </div>
 
             {{-- Right: user greeting + avatar --}}
+            @php
+                $navUserRole = trim((string) auth()->user()->getUserRole());
+            @endphp
             <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
-                <span class="hidden lg:block text-white font-medium mr-3 text-sm">Olá, {{ strtok(auth()->user()->name, ' ') }}</span>
+                <div class="hidden lg:flex flex-col items-end mr-3">
+                    <span class="text-white font-medium text-sm leading-tight">Olá, {{ strtok(auth()->user()->name, ' ') }}</span>
+                    @if($navUserRole !== '')
+                        <span class="text-white/70 text-[11px] leading-tight">{{ $navUserRole }}</span>
+                    @endif
+                </div>
 
                 <div class="ml-3 relative">
                     {{-- Mobile avatar button --}}
@@ -150,16 +158,21 @@
                     </button>
 
                     {{-- Desktop dropdown --}}
-                    <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 hidden"
+                    <div class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 hidden"
                          role="menu"
                          id="user-options">
-                        <span class="block md:hidden text-gray-500 text-xs font-medium px-3 py-2">Olá, {{ strtok(auth()->user()->name, ' ') }}</span>
-                        <a class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-4 lg:py-2 flex items-center text-xs rounded"
+                        <div class="px-3 py-2.5 border-b border-gray-100">
+                            <p class="text-sm font-semibold text-gray-800 leading-tight">{{ auth()->user()->name }}</p>
+                            @if($navUserRole !== '')
+                                <p class="text-xs text-gray-500 mt-0.5">{{ $navUserRole }}</p>
+                            @endif
+                        </div>
+                        <a class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2.5 flex items-center text-xs rounded"
                            role="menuitem"
                            href="#"
                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                            <i class="fas fa-sign-out-alt h-5 w-5"></i>
-                            <p class="ml-3">Sair</p>
+                            <i class="fas fa-sign-out-alt h-4 w-4"></i>
+                            <p class="ml-2.5">Sair</p>
                         </a>
                         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">@csrf</form>
                     </div>
@@ -289,6 +302,9 @@
         <div class="flex flex-col divide-y mt-4">
             <div class="px-2 pt-2 pb-3">
                 <span class="text-sm font-semibold text-gray-700">{{ auth()->user()->name }}</span>
+                @if($navUserRole !== '')
+                    <p class="text-xs text-gray-400 mt-0.5">{{ $navUserRole }}</p>
+                @endif
             </div>
 
             <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-mobile').submit();"

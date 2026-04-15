@@ -84,7 +84,7 @@ class TasyFormatter
             'bed_display_order' => (int) ($bed->bed_display_order ?? $bed->bed_sequence ?? 0),
             'bed_status' => $bed->bed_status ?? 'A',
             'cd_setor_atendimento' => $bed->cd_setor_atendimento ?? null,
-            'ds_setor_atendimento' => $bed->ds_setor_atendimento ?? 'Setor não identificado',
+            'ds_setor_atendimento' => $bed->ds_prescricao ?? $bed->ds_setor_atendimento ?? 'Setor não identificado',
             'hospital_id' => $sectorContext['hospital_id'] ?? null,
             'hospital_name' => $sectorContext['hospital_name'] ?? 'Hospital não identificado',
             'nr_atendimento' => $attendanceNumber,

@@ -3,6 +3,7 @@
 namespace App\Models\System;
 
 use App\Services\MSGraph\GetUserPhoto;
+use App\Services\MSGraph\GetUserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,10 +17,11 @@ use Spatie\Permission\Traits\HasRoles;
 /**
  * @method \Illuminate\Support\Collection getRoleNames()
  * @method string getUserPhoto(string $size = "64x64")
+ * @method string getUserRole(bool $forceRefresh = false)
  */
 class User extends Authenticatable implements LdapAuthenticatable
 {
-    use AuthenticatesWithLdap, GetUserPhoto, HasFactory, HasLdapUser, HasRoles, Notifiable;
+    use AuthenticatesWithLdap, GetUserPhoto, GetUserRole, HasFactory, HasLdapUser, HasRoles, Notifiable;
 
     protected static function newFactory(): UserFactory
     {
@@ -43,6 +45,8 @@ class User extends Authenticatable implements LdapAuthenticatable
         'guid',
         'domain',
         'photo',
+        'role',
+        'role_synced_at',
     ];
 
     /**
@@ -65,6 +69,7 @@ class User extends Authenticatable implements LdapAuthenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_access_at' => 'datetime',
+            'role_synced_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -166,6 +171,19 @@ class User extends Authenticatable implements LdapAuthenticatable
 
         // Usa o trait para buscar nova foto
         return $this->photo($size);
+    }
+
+    public function getUserRole($forceRefresh = false): string
+    {
+        return $this->role($forceRefresh);
+    }
+
+    public function getDisplayNameWithRoleAttribute(): string
+    {
+        $name = trim((string) ($this->name ?: 'Usuário'));
+        $role = trim($this->getUserRole());
+
+        return $role !== '' ? $name.' - '.$role : $name;
     }
 
     /**

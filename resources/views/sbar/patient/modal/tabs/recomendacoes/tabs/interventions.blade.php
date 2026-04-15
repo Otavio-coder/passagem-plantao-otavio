@@ -10,7 +10,7 @@
               <div class="bg-white rounded-md border border-amber-200 px-2 py-1.5 min-h-auto xl:min-h-[92px] flex flex-col"
                  :class="(i.labels || []).includes('Urgent') ? 'bg-red-50/30 border-red-200' : ''">
                 <div class="flex items-start gap-1.5 min-w-0 mb-1">
-                    <img src="{{ asset('images/icons/patient-card/alert.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 mt-0.5">
+                    <x-ui.patient-icon name="alert" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 mt-0.5 text-amber-700" />
                     <div class="flex-1 min-w-0">
                         <p class="text-[13px] font-semibold text-gray-800 leading-snug" x-text="i.name || 'Intervenção não identificada'"></p>
                         <div x-show="(i.labels || []).length > 0" class="flex flex-wrap gap-1 mt-0.5">

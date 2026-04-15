@@ -9,7 +9,7 @@
         <template x-for="d in dial.items" :key="String(d.id ?? d.modalidade ?? 'dial') + '-' + String(d.dt_inicio ?? '')">
             <div class="bg-white rounded-md border border-rose-200 px-2 py-2 min-h-[145px] flex flex-col">
                 <div class="flex items-center gap-1.5 min-w-0">
-                    <img src="{{ asset('images/icons/patient-card/blood-drop.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75">
+                    <x-ui.patient-icon name="blood-drop" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 text-rose-700" />
                     <p class="text-[12px] font-semibold text-gray-800 leading-tight" x-text="d.modalidade || 'Diálise'"></p>
                 </div>
 

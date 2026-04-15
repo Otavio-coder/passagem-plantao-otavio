@@ -2,6 +2,7 @@
 
 namespace App\View\Presenters;
 
+use App\Services\UserDisplayNameResolver;
 use Carbon\Carbon;
 
 class PatientCardPresenter
@@ -59,7 +60,7 @@ class PatientCardPresenter
         return [
             'show' => true,
             'type' => $type,
-            'label' => $type === 'alta' ? 'Alta Efetivada' : 'Alta Médica',
+            'label' => $type === 'alta' ? 'Alta Efetivada' : 'Prev. Alta',
             'bg' => 'bg-gray-100',
             'icon' => 'alta.svg',
         ];
@@ -84,7 +85,9 @@ class PatientCardPresenter
      */
     public static function buildMultidisciplinaryRequests(array $requests): array
     {
-        return array_values(array_map(function (array $request): array {
+        $userDisplayNameResolver = app(UserDisplayNameResolver::class);
+
+        return array_values(array_map(function (array $request) use ($userDisplayNameResolver): array {
             $teamName = mb_strtolower((string) ($request['ds_equipe_destino'] ?? ''));
 
             $icon = match (true) {
@@ -110,6 +113,8 @@ class PatientCardPresenter
             $request['dt_registro_formatted'] = self::formatDateTime($request['dt_registro'] ?? null);
             $request['dt_liberacao_formatted'] = self::formatDateTime($request['dt_liberacao'] ?? null);
             $request['dt_resposta_formatted'] = self::formatDateTime($request['dt_resposta'] ?? null);
+            $request['nm_requisitante_display'] = $userDisplayNameResolver->fromName($request['nm_requisitante'] ?? null);
+            $request['nm_responsavel_resposta_display'] = $userDisplayNameResolver->fromName($request['nm_responsavel_resposta'] ?? null);
 
             return $request;
         }, $requests));
@@ -194,7 +199,7 @@ class PatientCardPresenter
 
     public static function buildSectorFallbackLabel(array $patient): string
     {
-        $sectorName = trim((string) ($patient['ds_setor_atendimento'] ?? ''));
+        $sectorName = trim((string) ($patient['ds_prescricao'] ?? $patient['ds_setor_atendimento'] ?? ''));
         if ($sectorName !== '') {
             return $sectorName;
         }

@@ -2,9 +2,11 @@
 
 namespace App\Livewire;
 
+use App\Models\System\User;
 use App\Repositories\MySQL\Chat\ChatRepository;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
+use App\Services\UserDisplayNameResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +17,8 @@ use Livewire\Component;
 #[Isolate]
 class ShiftEvaluationsModal extends Component
 {
+    private UserDisplayNameResolver $userDisplayNameResolver;
+
     public bool $isOpen = false;
 
     public ?int $sectorId = null;
@@ -34,6 +38,11 @@ class ShiftEvaluationsModal extends Component
     public string $previousShiftLabel = '';
 
     protected $listeners = ['openEvaluationsModal' => 'open'];
+
+    public function boot(UserDisplayNameResolver $userDisplayNameResolver): void
+    {
+        $this->userDisplayNameResolver = $userDisplayNameResolver;
+    }
 
     public function open($sectorId = null): void
     {
@@ -92,7 +101,7 @@ class ShiftEvaluationsModal extends Component
                 return;
             }
 
-            $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
+            $this->sectorName = $patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? 'Setor';
             $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
 
             [$from, $to] = $this->resolveShiftWindow();
@@ -111,8 +120,8 @@ class ShiftEvaluationsModal extends Component
                         'cm.nr_atendimento',
                         'cm.content',
                         'cm.created_at',
+                        'u.id as user_id',
                         'u.name as user_name',
-                        'u.photo as user_photo',
                         DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
                     ])
                     ->orderBy('cm.created_at', 'asc')
@@ -120,6 +129,21 @@ class ShiftEvaluationsModal extends Component
                 : collect();
 
             $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
+
+            // Batch-load photos for all unique users in the messages.
+            $userIds = $rawMessages->pluck('user_id')->filter()->unique()->values()->all();
+            $photoByUserId = [];
+            if (! empty($userIds)) {
+                User::whereIn('id', $userIds)
+                    ->select(['id', 'photo', 'role', 'role_synced_at', 'name', 'username'])
+                    ->get()
+                    ->each(function (User $user) use (&$photoByUserId): void {
+                        $photo = $user->getUserPhoto('64x64');
+                        if (! empty($photo) && $user->hasValidPhoto()) {
+                            $photoByUserId[$user->id] = $photo;
+                        }
+                    });
+            }
 
             // Batch-load reactions for all messages in the window.
             $messageIds = $rawMessages->pluck('id')->filter()->values()->all();
@@ -170,20 +194,15 @@ class ShiftEvaluationsModal extends Component
 
                 // Format messages
                 $formattedMessages = [];
-                $photoMap = [];
 
                 if ($nrAtendimento && isset($messagesByAttendance[$nrAtendimento])) {
                     foreach ($messagesByAttendance[$nrAtendimento] as $message) {
                         $dt = Carbon::parse($message->created_at);
-                        $userName = $message->user_name ?? 'Desconhecido';
-
-                        if (! isset($photoMap[$userName]) && ! empty($message->user_photo)) {
-                            $raw = $message->user_photo;
-                            $decoded = base64_decode($raw, true);
-                            if ($decoded !== false && strlen($decoded) > 50 && strpos($decoded, '"error"') === false) {
-                                $photoMap[$userName] = $raw;
-                            }
-                        }
+                        $userId = isset($message->user_id) ? (int) $message->user_id : null;
+                        $userName = $this->userDisplayNameResolver->fromUserId(
+                            $userId,
+                            $message->user_name ?? 'Desconhecido'
+                        );
 
                         $msgReactions = $reactionsByMessage->get($message->id, collect());
 
@@ -192,7 +211,7 @@ class ShiftEvaluationsModal extends Component
                             'content' => nl2br(e($message->content)),
                             'user_name' => $userName,
                             'user_initials' => $this->getInitials($userName),
-                            'photo' => $photoMap[$userName] ?? '',
+                            'photo' => $userId !== null ? ($photoByUserId[$userId] ?? '') : '',
                             'time' => $dt->format('H:i'),
                             'is_pinned' => (bool) $message->is_pinned,
                             'reactions_count' => $msgReactions->count(),

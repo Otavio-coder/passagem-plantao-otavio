@@ -16,10 +16,8 @@
     @elseif($currentPatient && !$currentPatient['has_patient'])
         <!-- Empty Bed -->
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-            <p class="text-gray-700 text-base sm:text-lg">Leito Vazio</p>
+            <x-healthicons-o-inpatient class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" />
+            <p class="text-gray-700 text-base sm:text-lg">Leito Vago</p>
             <p class="text-gray-500 mt-2 text-sm sm:text-base">Este leito não possui paciente internado no momento.</p>
         </div>
     @elseif($patientDetails)
@@ -100,9 +98,7 @@
                 <!-- Alergias -->
                 <div>
                     <h5 class="text-xs font-semibold text-gray-700 mb-1.5 border-l-4 border-red-500 pl-2 bg-red-50 py-1 rounded-r flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1.5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
+                        <x-heroicon-o-exclamation-triangle class="h-3 w-3 mr-1.5 text-red-600 flex-shrink-0" />
                         Alergias Conhecidas
                     </h5>
                     <div class="bg-gray-50 p-2 rounded-lg border">
@@ -135,9 +131,7 @@
     @else
         <!-- Error State -->
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-            <svg class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <x-heroicon-o-exclamation-triangle class="w-12 h-12 sm:w-16 sm:h-16 text-red-500 mb-4" />
             <p class="text-gray-700 text-base sm:text-lg">Erro ao carregar detalhes do paciente</p>
             
             <button 

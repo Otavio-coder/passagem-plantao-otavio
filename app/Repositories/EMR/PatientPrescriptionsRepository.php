@@ -347,7 +347,9 @@ class PatientPrescriptionsRepository
                 ci.IE_LADO                                 AS flag4,
                 ci.DS_OBSERVACAO                           AS observation,
                                 ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
-                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
+                                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                                 FROM tasy.setor_atendimento sa
+                                 WHERE sa.cd_setor_atendimento = ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_INTERVENCAO ci
                         JOIN tasy.UNIDADE_ATENDIMENTO ua
@@ -556,19 +558,19 @@ class PatientPrescriptionsRepository
                     ),
                     NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
                 )                                                  AS setor_raw,
-                tasy.OBTER_DS_SETOR_ATENDIMENTO(
-                    NVL(
-                        TASY.OBTER_SETOR_CIRURGIA(
-                            ap.NR_ATENDIMENTO,
-                            (
-                                SELECT MAX(apu.DT_ENTRADA_UNIDADE)
-                                FROM tasy.ATEND_PACIENTE_UNIDADE apu
-                                WHERE apu.NR_ATENDIMENTO = ap.NR_ATENDIMENTO
-                            )
-                        ),
-                        NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
-                    )
-                )                                                  AS setor_desc_raw,
+                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                 FROM tasy.setor_atendimento sa
+                 WHERE sa.cd_setor_atendimento = NVL(
+                     TASY.OBTER_SETOR_CIRURGIA(
+                         ap.NR_ATENDIMENTO,
+                         (
+                             SELECT MAX(apu.DT_ENTRADA_UNIDADE)
+                             FROM tasy.ATEND_PACIENTE_UNIDADE apu
+                             WHERE apu.NR_ATENDIMENTO = ap.NR_ATENDIMENTO
+                         )
+                     ),
+                     NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                 ))                                                 AS setor_desc_raw,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE)     THEN 1 ELSE 0 END AS is_today,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE - 1) THEN 1 ELSE 0 END AS is_yesterday,
                 CASE WHEN TRUNC(ap.DT_AGENDA) = TRUNC(SYSDATE + 1) THEN 1 ELSE 0 END AS is_tomorrow,
@@ -622,7 +624,9 @@ class PatientPrescriptionsRepository
                 TO_CHAR(ch.QT_VOL_HEMOCOMP)               AS qty,
                                 ch.IE_UNID_MED_HEMO                        AS unit_measure,
                                 ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
-                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw
+                                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                                 FROM tasy.setor_atendimento sa
+                                 WHERE sa.cd_setor_atendimento = ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw
             FROM tasy.CPOE_HEMOTERAPIA ch
                         JOIN tasy.UNIDADE_ATENDIMENTO ua
                             ON ua.NR_ATENDIMENTO = ch.NR_ATENDIMENTO
@@ -664,12 +668,12 @@ class PatientPrescriptionsRepository
                     TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
                     NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
                 )                                                  AS setor_raw,
-                tasy.OBTER_DS_SETOR_ATENDIMENTO(
-                    NVL(
-                        TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
-                        NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
-                    )
-                )                                                  AS setor_desc_raw,
+                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                 FROM tasy.setor_atendimento sa
+                 WHERE sa.cd_setor_atendimento = NVL(
+                     TASY.OBTER_SETOR_PRESCR_AGENDA(ap.NR_SEQUENCIA),
+                     NVL(tasy.OBTER_SETOR_AGENDA(ap.CD_AGENDA), ap.CD_SETOR_ATENDIMENTO)
+                 ))                                                 AS setor_desc_raw,
                 TO_CHAR(ap.DT_AGENDA, 'DD/MM/YY')
                     || CASE WHEN ap.HR_INICIO IS NOT NULL
                        THEN ' ' || SUBSTR(TO_CHAR(ap.HR_INICIO,'HH24:MI'), 1, 5)
@@ -729,7 +733,9 @@ class PatientPrescriptionsRepository
                 aq.DS_PROTOCOLO_MEDIC                              AS extra1,
                 TO_CHAR(aq.NR_CICLO)                               AS extra2,
                 ua.CD_SETOR_ATENDIMENTO                            AS setor_raw,
-                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw
+                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                 FROM tasy.setor_atendimento sa
+                 WHERE sa.cd_setor_atendimento = ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw
             FROM tasy.AGENDA_QUIMIOTERAPIA_PEP_V aq
             JOIN tasy.ATENDIMENTO_PACIENTE ap2
               ON ap2.CD_PESSOA_FISICA = aq.CD_PESSOA_FISICA
@@ -783,7 +789,9 @@ class PatientPrescriptionsRepository
                 cg.DS_OBSERVACAO                           AS observacao,
                 cg.DS_JUSTIFICATIVA                        AS justificativa,
                                 ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
-                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
+                                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                                 FROM tasy.setor_atendimento sa
+                                 WHERE sa.cd_setor_atendimento = ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_GASOTERAPIA cg
                         JOIN tasy.UNIDADE_ATENDIMENTO ua
@@ -825,7 +833,9 @@ class PatientPrescriptionsRepository
                 cd.DS_OBSERVACAO                           AS observacao,
                 cd.DS_JUSTIFICATIVA                        AS justificativa,
                                 ua.CD_SETOR_ATENDIMENTO                    AS setor_raw,
-                                tasy.OBTER_DS_SETOR_ATENDIMENTO(ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
+                                (SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento)
+                                 FROM tasy.setor_atendimento sa
+                                 WHERE sa.cd_setor_atendimento = ua.CD_SETOR_ATENDIMENTO) AS setor_desc_raw,
                 {$prescriberName}                          AS professional_name
             FROM tasy.CPOE_DIALISE cd
                         JOIN tasy.UNIDADE_ATENDIMENTO ua

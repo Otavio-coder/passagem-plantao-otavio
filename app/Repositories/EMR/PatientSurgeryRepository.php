@@ -45,7 +45,7 @@ class PatientSurgeryRepository
             ->with(['patient.sector'])
             ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
             ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
-            ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
+            ->addSelect(DB::raw('(SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento) FROM tasy.setor_atendimento sa WHERE sa.cd_setor_atendimento = NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
             ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 83 AND vd.vl_dominio = agenda_paciente.ie_status_agenda) AS ds_status_agenda_label'))
             ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 1016 AND vd.vl_dominio = agenda_paciente.ie_carater_cirurgia) AS ds_carater_label'))
             ->whereIn('cd_pessoa_fisica', $personIds)
@@ -83,7 +83,7 @@ class PatientSurgeryRepository
                 ->with(['patient.sector'])
                 ->addSelect(DB::raw('COALESCE(TASY.OBTER_TIPO_CIRUR_PROC(nr_seq_proc_interno), (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p WHERE p.cd_procedimento = agenda_paciente.cd_procedimento AND p.ie_origem_proced = agenda_paciente.ie_origem_proced)) AS cd_tipo_cirurgia_proc'))
                 ->addSelect(DB::raw('NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento)) AS cd_setor_execucao'))
-                ->addSelect(DB::raw('TASY.OBTER_DS_SETOR_ATENDIMENTO(NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
+                ->addSelect(DB::raw('(SELECT NVL(sa.ds_prescricao, sa.ds_setor_atendimento) FROM tasy.setor_atendimento sa WHERE sa.cd_setor_atendimento = NVL(TASY.OBTER_SETOR_PRESCR_AGENDA(nr_sequencia), NVL(TASY.OBTER_SETOR_AGENDA(cd_agenda), cd_setor_atendimento))) AS ds_setor_execucao'))
                 ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 83 AND vd.vl_dominio = agenda_paciente.ie_status_agenda) AS ds_status_agenda_label'))
                 ->addSelect(DB::raw('(SELECT MAX(vd.ds_valor_dominio) FROM tasy.valor_dominio vd WHERE vd.cd_dominio = 1016 AND vd.vl_dominio = agenda_paciente.ie_carater_cirurgia) AS ds_carater_label'))
                 ->where('nr_atendimento', $attendanceNumber)
@@ -153,7 +153,7 @@ class PatientSurgeryRepository
         $descricao = $this->normalizeSurgeryDescription($descricaoOriginal);
         $local = trim((string) ($appointment->ds_cirurgia ?? ''));
         $sala = trim((string) ($appointment->nr_seq_sala ?? ''));
-        $sectorLabel = trim((string) ($appointment->ds_setor_execucao ?? $appointment->cd_setor_execucao ?? $appointment->sector?->ds_setor_atendimento ?? $appointment->cd_setor_atendimento ?? ''));
+        $sectorLabel = trim((string) ($appointment->ds_setor_execucao ?? $appointment->cd_setor_execucao ?? $appointment->sector?->ds_prescricao ?? $appointment->sector?->ds_setor_atendimento ?? $appointment->cd_setor_atendimento ?? ''));
         $dataAgendada = $appointment->dt_agenda ? Carbon::parse($appointment->dt_agenda)->format('d/m/Y') : 'Data não informada';
         $horaAgendada = $appointment->hr_inicio ? Carbon::parse($appointment->hr_inicio)->format('H:i') : '00:00';
 

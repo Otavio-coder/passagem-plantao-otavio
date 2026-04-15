@@ -135,4 +135,98 @@ class PatientModalTest extends TestCase
             'E119 E11.9 Diabetes mellitus tipo 2',
         ], $clinicalData['diagnosticos_list']);
     }
+
+    #[Test]
+    public function it_builds_modal_patient_list_and_tracks_current_index(): void
+    {
+        $component = new PatientModal;
+
+        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [
+            [
+                'nr_atendimento' => 1001,
+                'nm_pessoa_fisica' => 'Paciente Um',
+                'cd_unidade_basica' => 'A1',
+            ],
+            [
+                'nr_atendimento' => 1002,
+                'nm_social' => 'Paciente Dois Social',
+                'nm_pessoa_fisica' => 'Paciente Dois',
+                'cd_unidade_basica' => 'A2',
+            ],
+            [
+                'nr_atendimento' => 1002,
+                'nm_pessoa_fisica' => 'Duplicado',
+                'cd_unidade_basica' => 'A2',
+            ],
+        ], 1002);
+
+        $this->assertCount(2, $component->modalPatients);
+        $this->assertSame(1, $component->currentPatientIndex);
+        $this->assertSame('1001 - Leito A1 - Paciente Um', $component->modalPatients[0]['label']);
+        $this->assertSame('1002 - Leito A2 - Paciente Dois Social', $component->modalPatients[1]['label']);
+        $this->assertTrue($component->canGoPrevious);
+        $this->assertFalse($component->canGoNext);
+    }
+
+    #[Test]
+    public function it_falls_back_to_current_attendance_when_modal_list_is_empty(): void
+    {
+        $component = new PatientModal;
+
+        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [], 9999);
+
+        $this->assertSame([
+            [
+                'nr_atendimento' => 9999,
+                'label' => 'Atendimento 9999',
+            ],
+        ], $component->modalPatients);
+        $this->assertSame(0, $component->currentPatientIndex);
+        $this->assertFalse($component->canGoPrevious);
+        $this->assertFalse($component->canGoNext);
+    }
+
+    #[Test]
+    public function it_preserves_existing_labels_when_reusing_modal_patient_list(): void
+    {
+        $component = new PatientModal;
+
+        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [
+            [
+                'nr_atendimento' => 1001,
+                'label' => '1001 - Leito A1 - Paciente Um',
+            ],
+            [
+                'nr_atendimento' => 1002,
+                'label' => '1002 - Leito A2 - Paciente Dois',
+            ],
+        ], 1002);
+
+        $this->assertSame('1001 - Leito A1 - Paciente Um', $component->modalPatients[0]['label']);
+        $this->assertSame('1002 - Leito A2 - Paciente Dois', $component->modalPatients[1]['label']);
+    }
+
+    #[Test]
+    public function it_reopens_active_alerts_modal_when_requested(): void
+    {
+        $component = new PatientModal;
+        $component->patientAlerts = [
+            [
+                'type' => 'ALERTA',
+                'severity' => 'danger',
+                'end_date' => null,
+            ],
+        ];
+        $component->showAlertsModal = false;
+
+        $component->openAlertsModal();
+
+        $this->assertTrue($component->showAlertsModal);
+    }
 }

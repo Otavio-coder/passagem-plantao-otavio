@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\System\User;
+
 class ChatArchiveUserResolver
 {
     /**
@@ -37,27 +39,33 @@ class ChatArchiveUserResolver
 
         if (isset($usersByKey[$rawKey])) {
             $user = $usersByKey[$rawKey];
-            if (! empty($user['username'])) {
-                return (string) $user['username'];
-            }
+            $name = (string) ($user['name'] ?? $user['username'] ?? $rawKey);
+            $role = trim((string) ($user['role'] ?? ''));
 
-            if (! empty($user['name'])) {
-                return (string) $user['name'];
-            }
+            return $role !== '' ? $name.' - '.$role : $name;
         }
 
         if (is_numeric($rawUser)) {
             $numericKey = (string) ((int) $rawUser);
             if (isset($usersByKey[$numericKey])) {
                 $user = $usersByKey[$numericKey];
-                if (! empty($user['username'])) {
-                    return (string) $user['username'];
-                }
+                $name = (string) ($user['name'] ?? $user['username'] ?? $rawKey);
+                $role = trim((string) ($user['role'] ?? ''));
 
-                if (! empty($user['name'])) {
-                    return (string) $user['name'];
-                }
+                return $role !== '' ? $name.' - '.$role : $name;
             }
+        }
+
+        // Fallback: look up by username in DB
+        $dbUser = User::select(['id', 'name', 'role', 'role_synced_at'])
+            ->where('username', $rawKey)
+            ->first();
+
+        if ($dbUser) {
+            $name = trim((string) ($dbUser->name ?: $rawKey));
+            $role = trim((string) $dbUser->getUserRole());
+
+            return $role !== '' ? $name.' - '.$role : $name;
         }
 
         return $rawKey;

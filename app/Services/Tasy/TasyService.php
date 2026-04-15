@@ -21,9 +21,9 @@ class TasyService
 
     private const CACHE_TTL_PATIENT = 600;  // 10 minutos
 
-    private const SBAR_CACHE_VERSION = 2;
+    private const SBAR_CACHE_VERSION = 3;
 
-    private const PRESCRIPTIONS_CACHE_VERSION = 4;
+    private const PRESCRIPTIONS_CACHE_VERSION = 5;
 
     private TasyFormatter $formatter;
 
@@ -294,7 +294,7 @@ class TasyService
                 ua.nr_seq_apresent as bed_display_order,
                 ua.ie_situacao as bed_status,
                 ua.cd_setor_atendimento,
-                sa.ds_setor_atendimento,
+                NVL(sa.ds_prescricao, sa.ds_setor_atendimento) AS ds_setor_atendimento,
                 sa.nr_seq_agrupamento as hospital_id,
                 CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
                 CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END as has_patient,
@@ -517,6 +517,8 @@ class TasyService
                 'dispositivos' => null,
                 'alergias_detalhadas' => null,
                 'materiais' => null,
+                'ultima_hemocultura' => null,
+                'hemocultura_pendente' => false,
                 'procedimentos_cirurgicos' => [],
                 'alerts' => [],
                 'multidisciplinary' => $this->formatter->getDefaultMultidisciplinary(),
@@ -572,6 +574,8 @@ class TasyService
             'dispositivos' => $details->dispositivos ?? null,
             'alergias_detalhadas' => $details->alergias_detalhadas ?? null,
             'materiais' => $details->materiais ?? null,
+            'ultima_hemocultura' => $details->ultima_hemocultura ?? null,
+            'hemocultura_pendente' => (int) ($details->hemocultura_pendente ?? 0) === 1,
             'procedimentos_cirurgicos' => $batchData['surgery_detailed'][$attendanceNumber] ?? [],
             'alerts' => $alerts,
             'multidisciplinary' => $multidisciplinaryEval ?? $this->formatter->getDefaultMultidisciplinary(),
@@ -670,7 +674,9 @@ class TasyService
             'internment_days' => $internmentDays,
             'is_new_patient' => $internmentDays === null || $internmentDays < 1,
             'hospital_name' => $patient->bed?->sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
-            'sector_name' => $patient->bed?->sector?->ds_setor_atendimento ?? 'Setor não identificado',
+            'sector_name' => $patient->bed?->sector?->ds_prescricao
+                ?? $patient->bed?->sector?->ds_setor_atendimento
+                ?? 'Setor não identificado',
             'cd_setor_atendimento' => $patient->bed?->sector?->cd_setor_atendimento ?? null,
             'bed_name' => $patient->bed?->cd_unidade_basica ?? 'N/A',
             'is_pediatric' => $patient->isPediatric(),
@@ -697,6 +703,8 @@ class TasyService
                 'dispositivos' => $clinicalData->dispositivos,
                 'alergias_detalhadas' => $clinicalData->alergias_detalhadas,
                 'materiais' => $clinicalData->materiais,
+                'ultima_hemocultura' => $clinicalData->ultima_hemocultura,
+                'hemocultura_pendente' => $clinicalData->hemocultura_pendente,
                 'procedimentos_cirurgicos' => $clinicalData->procedimentos_cirurgicos,
                 'alerts' => $clinicalData->alerts,
                 'multidisciplinary' => $clinicalData->multidisciplinary,
@@ -722,7 +730,7 @@ class TasyService
 
         return [
             'sector_id' => $sectorId,
-            'sector_name' => $sector?->ds_setor_atendimento ?? '',
+            'sector_name' => $sector?->ds_prescricao ?? $sector?->ds_setor_atendimento ?? '',
             'hospital_id' => $sector?->hospital?->nr_sequencia ?? null,
             'hospital_name' => $sector?->hospital?->ds_estabelecimento ?? 'Hospital não identificado',
         ];

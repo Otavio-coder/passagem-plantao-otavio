@@ -10,7 +10,7 @@
                     <div class="flex items-start justify-between gap-2">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1.5 flex-wrap">
-                                <img src="{{ asset('images/icons/patient-card/quimioterapia.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75">
+                                <x-ui.patient-icon name="quimioterapia" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 text-[#0A4700]" />
                                 <p class="text-[12px] font-semibold text-gray-800 leading-snug" x-text="c.name"></p>
                                 <template x-if="c.cycle">
                                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#0A4700]/15 text-[#0A4700] ring-1 ring-[#0A4700]/30"

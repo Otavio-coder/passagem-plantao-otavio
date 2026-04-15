@@ -11,7 +11,7 @@
                     <div class="flex items-start justify-between gap-2">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1.5 flex-wrap">
-                                <img src="{{ asset('images/icons/patient-card/hemoterapia.svg') }}" alt="" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75">
+                                <x-ui.patient-icon name="hemoterapia" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 text-red-700" />
                                 <p class="text-[12px] font-semibold text-gray-800 leading-snug" x-text="h.name"></p>
                                 <span x-show="h.is_urgent"
                                       class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 ring-1 ring-red-300">

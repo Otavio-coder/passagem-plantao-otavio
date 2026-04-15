@@ -33,17 +33,15 @@
                  x-transition:leave-end="opacity-0 scale-95 translate-y-4">
 
                 {{-- Header --}}
-                <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 flex-shrink-0">
+                <div class="bg-amber-500 px-4 py-3 flex-shrink-0 border-b border-amber-600/40">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="bg-white/20 rounded-lg p-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
+                                <x-heroicon-o-exclamation-triangle class="h-5 w-5 text-white" />
                             </div>
                             <div>
-                                <h3 class="text-base font-bold text-white">ALERTAS ATIVOS</h3>
-                                <p class="text-white/90 text-xs">Atendimento: {{ $currentPatient['nr_atendimento'] ?? 'N/A' }}</p>
+                                <h3 class="text-base font-semibold text-white">Alertas Ativos</h3>
+                                <p class="text-white/90 text-xs">Atendimento {{ $currentPatient['nr_atendimento'] ?? 'N/A' }}</p>
                             </div>
                         </div>
 
@@ -52,9 +50,7 @@
                             class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors"
                             title="Fechar alertas"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <x-heroicon-o-x-mark class="h-4 w-4" />
                         </button>
                     </div>
                 </div>
@@ -63,57 +59,63 @@
                 <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
                     <div class="space-y-4">
                         @foreach($alertsGroupedByType as $type => $alerts)
+                            @php
+                                $normalizedType = strtoupper((string) $type);
+                                $isIsolation = $normalizedType === 'ISOLAMENTO';
+                                $typeLabel = mb_strtoupper($isIsolation ? 'ISOLAMENTO' : $normalizedType);
+                                $typeBadgeClass = $isIsolation
+                                    ? 'text-amber-700'
+                                    : 'text-blue-700';
+                            @endphp
                             <div>
                                 {{-- Type Header --}}
-                                <div class="flex items-center gap-2 mb-3">
-                                    @if($type === 'ISOLAMENTO')
-                                        <div class="bg-yellow-100 rounded-lg p-1.5">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                            </svg>
-                                        </div>
-                                        <h4 class="text-sm font-semibold text-yellow-800">Precauções de Isolamento</h4>
-                                    @else
-                                        <div class="bg-red-100 rounded-lg p-1.5">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                        </div>
-                                        <h4 class="text-sm font-semibold text-red-800">Alertas do Paciente</h4>
-                                    @endif
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-semibold {{ $typeBadgeClass }}">{{ $typeLabel }}</span>
+                                    </div>
+                                    <span class="text-xs text-gray-500">
+                                        {{ count($alerts) }} alerta(s)
+                                    </span>
                                 </div>
 
                                 {{-- Alerts List — all entries are already active (filtered in PatientModal) --}}
                                 @foreach($alerts as $alert)
-                                    <div class="border-l-4 {{ $alert['type'] === 'ISOLAMENTO' ? 'border-yellow-500 bg-yellow-50' : 'border-red-500 bg-red-50' }} p-3 rounded-r-lg mb-2 shadow-sm">
+                                    @php
+                                        $rowClass = $isIsolation
+                                            ? 'border-amber-300 bg-amber-50'
+                                            : 'border-blue-200 bg-blue-50';
+                                        $messageClass = $isIsolation
+                                            ? 'bg-white/80 border-amber-100 text-amber-900'
+                                            : 'bg-white/90 border-blue-100 text-gray-800';
+                                    @endphp
+                                    <div class="border-l-4 border {{ $rowClass }} p-3 rounded-r-lg rounded-l-sm mb-2 shadow-sm">
                                         {{-- Alert Header --}}
-                                        <div class="flex items-center justify-between mb-2">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                                                {{ $alert['type'] === 'ISOLAMENTO' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800' }}">
-                                                {{ $alert['type'] }}
-                                            </span>
+                                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                            <div></div>
 
-                                            <div class="text-xs text-gray-500">
-                                                @if($alert['type'] === 'ISOLAMENTO' && !empty($alert['start_date_formatted']))
-                                                    <span class="bg-white px-2 py-0.5 rounded mr-1 border border-gray-200">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                @if(!empty($alert['sent_date_formatted']))
+                                                    <span class="text-xs text-gray-500">
+                                                        Comunicado: {{ $alert['sent_date_formatted'] }}
+                                                    </span>
+                                                @endif
+
+                                                @if(!empty($alert['start_date_formatted']))
+                                                    <span class="text-xs text-gray-500">
                                                         Início: {{ $alert['start_date_formatted'] }}
                                                     </span>
                                                 @endif
 
                                                 @if(!empty($alert['end_date_formatted']))
-                                                    <span class="bg-white px-2 py-0.5 rounded border border-gray-200">
+                                                    <span class="text-xs text-gray-500">
                                                         Até: {{ $alert['end_date_formatted'] }}
-                                                    </span>
-                                                @else
-                                                    <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium border border-green-200">
-                                                        Ativo
                                                     </span>
                                                 @endif
                                             </div>
                                         </div>
 
                                         {{-- Alert Message --}}
-                                        <div class="text-sm {{ $alert['type'] === 'ISOLAMENTO' ? 'text-yellow-800' : 'text-red-800' }} leading-relaxed bg-white/60 p-2 rounded border border-gray-100">
+                                        <div class="text-sm leading-relaxed p-2 rounded border {{ $messageClass }}">
                                             {{ $alert['message'] }}
                                         </div>
                                     </div>
@@ -127,15 +129,13 @@
                 <div class="bg-gray-100 px-4 py-3 border-t border-gray-200 flex-shrink-0">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center text-xs text-gray-500">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                            <x-heroicon-o-information-circle class="h-4 w-4 mr-1" />
                             Total: {{ $activeAlertsCount }} alerta(s) ativo(s)
                         </div>
 
                         <button
                             @click="show = false; setTimeout(() => $wire.closeAlertsModal(), 250)"
-                            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                            class="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 rounded-md text-sm font-medium transition-colors"
                             title="Fechar alertas"
                         >
                             Fechar

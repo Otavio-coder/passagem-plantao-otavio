@@ -223,14 +223,14 @@
                 <table id="pendencias-table" class="w-full min-w-[560px]" style="width:100%">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200">
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[65px]">Atend.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[110px]">Paciente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[44px] hidden md:table-cell">Leito</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[90px]">Tipo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Pendência</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-[88px]">Data / Prazo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[160px] hidden lg:table-cell">Motivo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-[100px] hidden xl:table-cell">Setor exec.</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="width:65px">Atend.</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:120px">Paciente</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap hidden md:table-cell" style="width:50px">Leito</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:90px">Tipo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:180px">Pendência</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="width:88px">Data / Prazo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell" style="width:150px">Motivo</th>
+                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide hidden xl:table-cell" style="width:100px">Setor exec.</th>
                             <th class="hidden">Tipo bruto</th>
                         </tr>
                     </thead>
@@ -266,7 +266,7 @@
                                     @endif
                                 </td>
                                 {{-- 4: Pendência + status badge abaixo --}}
-                                <td class="px-2 py-1.5 text-[11px] max-w-[200px]">
+                                <td class="px-2 py-1.5 text-[11px]" style="max-width:180px">
                                     <div class="truncate text-gray-700" title="{{ $row['item'] }}">{{ $row['item'] }}</div>
                                     @if($statusRaw !== '')
                                         <span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight {{ $statusBadge }}">{{ $statusRaw }}</span>
@@ -323,6 +323,7 @@ $(document).ready(function () {
     var table = $('#pendencias-table').DataTable({
         pageLength: 15,
         lengthMenu: [15, 50, 100, 200],
+        autoWidth: false,
         order: [],
         language: {
             url: '',

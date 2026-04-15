@@ -257,13 +257,23 @@ class PatientModalTest extends TestCase
         $setModalPatients->invoke($component, [
             [
                 'nr_atendimento' => 1001,
-                'nm_pessoa_fisica' => 'Paciente Um',
-                'ds_setor_atendimento' => 'UTI A',
+                'label' => '1001 - Leito A1 - Paciente Um',
+                'sbar_payload' => [
+                    'nr_atendimento' => 1001,
+                    'nm_pessoa_fisica' => 'Paciente Um',
+                    'cd_pessoa_fisica' => 501,
+                    'ds_setor_atendimento' => 'UTI A',
+                ],
             ],
             [
                 'nr_atendimento' => 1002,
-                'nm_pessoa_fisica' => 'Paciente Dois',
-                'ds_setor_atendimento' => 'UTI B',
+                'label' => '1002 - Leito A2 - Paciente Dois',
+                'sbar_payload' => [
+                    'nr_atendimento' => 1002,
+                    'nm_pessoa_fisica' => 'Paciente Dois',
+                    'cd_pessoa_fisica' => 502,
+                    'ds_setor_atendimento' => 'UTI B',
+                ],
             ],
         ], 1001);
 
@@ -274,5 +284,46 @@ class PatientModalTest extends TestCase
         $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
         $this->assertIsArray($component->capturedOpenModalArgs['sbar']);
         $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
+    }
+
+    #[Test]
+    public function it_does_not_forward_minimal_payload_when_switching_attendance_inside_modal(): void
+    {
+        $component = new class extends PatientModal
+        {
+            public ?array $capturedOpenModalArgs = null;
+
+            public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
+            {
+                $this->capturedOpenModalArgs = [
+                    'attendance' => (int) $attendanceNumber,
+                    'hospital' => $hospital,
+                    'sbar' => $sbarPatient,
+                ];
+            }
+        };
+
+        $component->currentHospitalName = 'Hospital Teste';
+        $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
+
+        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [
+            [
+                'nr_atendimento' => 1001,
+                'label' => '1001 - Leito A1 - Paciente Um',
+            ],
+            [
+                'nr_atendimento' => 1002,
+                'label' => '1002 - Leito A2 - Paciente Dois',
+            ],
+        ], 1001);
+
+        $component->goToPatientByAttendance(1002);
+
+        $this->assertNotNull($component->capturedOpenModalArgs);
+        $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
+        $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
+        $this->assertSame([], $component->capturedOpenModalArgs['sbar']);
     }
 }

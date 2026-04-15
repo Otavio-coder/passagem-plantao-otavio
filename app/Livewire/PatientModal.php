@@ -95,8 +95,9 @@ class PatientModal extends Component
                 'shift' => $this->currentShift,
             ]);
 
-            // Se o payload do SBAR foi passado, usa diretamente (evita re-fetch)
-            if (! empty($sbarPatient) && is_array($sbarPatient)) {
+            // Usa payload SBAR apenas quando for suficientemente rico.
+            // Payloads mínimos de navegação devem cair no fetch normal para evitar empty states.
+            if (is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
                 $this->loadFromSbarData($sbarPatient, $attendanceNumber);
             } else {
                 $this->loadPatientData($attendanceNumber);
@@ -122,7 +123,14 @@ class PatientModal extends Component
             ->map(function (array $patient): array {
                 $attendance = (int) ($patient['nr_atendimento'] ?? 0);
                 $existingLabel = trim((string) ($patient['label'] ?? ''));
-                $sbarPayload = $patient['sbar_payload'] ?? $patient;
+                $sbarPayload = $patient['sbar_payload'] ?? [];
+                if (! is_array($sbarPayload)) {
+                    $sbarPayload = [];
+                }
+
+                if (empty($sbarPayload) && $this->isUsableSbarPayload($patient)) {
+                    $sbarPayload = $patient;
+                }
 
                 return [
                     'nr_atendimento' => $attendance,
@@ -160,6 +168,27 @@ class PatientModal extends Component
         }
 
         $this->currentPatientIndex = $currentIndex === false ? null : (int) $currentIndex;
+    }
+
+    /**
+     * Payload mínimo (somente identificação/label/leito) não deve ser usado como snapshot completo.
+     * Isso evita que a UI fique sem dados ao navegar entre atendimentos no modal.
+     */
+    private function isUsableSbarPayload(array $payload): bool
+    {
+        if ((int) ($payload['cd_pessoa_fisica'] ?? 0) > 0) {
+            return true;
+        }
+
+        if (! empty($payload['nr_prontuario'])) {
+            return true;
+        }
+
+        if (! empty($payload['age_detailed']) || ! empty($payload['sexo']) || ! empty($payload['convenio'])) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

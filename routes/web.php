@@ -29,6 +29,8 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     // Rotas SBAR - Fora do grupo de administração
     Route::view('/sbar', 'sbar.report.page')->name('sbar.report');
 
+    Route::view('/huddle', 'huddle.report.page')->name('huddle.report');
+
     // Prescriptions – batch cache warm (called by SBAR page after sector loads)
     Route::post('/patient-care/prescriptions/warm',
         [PatientPrescriptionsController::class, 'warmCache'])

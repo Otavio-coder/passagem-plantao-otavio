@@ -42,7 +42,7 @@ class SectorWarmController extends Controller
                 continue;
             }
 
-            if ($this->tasyService->warmSectorCache($sectorId)) {
+            if ($this->tasyService->warmSbarSectorCache($sectorId)) {
                 $warmed++;
             } else {
                 $skipped++; // already cached

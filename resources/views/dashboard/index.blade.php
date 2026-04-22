@@ -27,14 +27,6 @@
                 <p class="mt-3 sm:mt-4 md:mt-6 max-w-2xl mx-auto text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed">
                     Facilitando uma passagem de plantão segura, clara e padronizada para garantir a continuidade do cuidado.
                 </p>
-                <div class="mt-4 sm:mt-6 md:mt-8 inline-flex items-start gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-lg bg-yellow-50 border border-yellow-200">
-                    <svg class="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    <span class="text-xs sm:text-sm text-yellow-800">
-                        <strong>Atenção:</strong> o sistema é apenas um visualizador de dados do Tasy com recursos extras separados e não tem integração direta. Ou seja, todas as baixas e atualizações do quadro do paciente deve seguir sendo registradas no sistema principal até que haja uma integração futura.
-                    </span>
-                </div>
             </div>
 
             <div class="mt-4 sm:mt-8 md:mt-12">
@@ -140,39 +132,20 @@
                         </a>
                     </div>
                     @endcan
-
-                    {{-- Perfis — Administrador --}}
-                    @can('ver perfis')
+                    {{-- Usuários — Coordenador + Administrador --}}
+                    @can('ver usuarios')
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
-                        <a href="{{ route('profiles.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                        <a href="{{ route('huddle.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                <svg class="w-5 h-5 sm:w-6 sm:h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
-                                </svg>
+                                <x-healthicons-o-discharge class="text-sm sm:text-lg" />
                             </div>
                             <div class="text-center sm:text-left">
-                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Perfis</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Gerencie perfis e permissões de acesso ao sistema</p>
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Huddle de Alta</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Painel de leitos para gereciamento de alta e Red2Green</p>
                             </div>
                         </a>
                     </div>
                     @endcan
-
-                    {{-- Logs — Administrador --}}
-                    @can('ver logs')
-                    <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
-                        <a href="{{ route('log-viewer.index') }}" target="_blank" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
-                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
-                                <i class="fa fa-file-lines text-sm sm:text-lg"></i>
-                            </div>
-                            <div class="text-center sm:text-left">
-                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Logs do Sistema</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Visualize registros de erros e eventos do sistema</p>
-                            </div>
-                        </a>
-                    </div>
-                    @endcan
-
                 </div>
             </div>
         </div>

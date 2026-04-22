@@ -15,7 +15,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
-class ChatComponent extends Component
+class SbarChatComponent extends Component
 {
     public $patientId;
 

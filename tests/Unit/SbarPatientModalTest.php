@@ -2,14 +2,14 @@
 
 namespace Tests\Unit;
 
-use App\Livewire\PatientModal;
+use App\Livewire\SbarPatientModal;
 use App\Services\Tasy\TasyService;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
 use Tests\TestCase;
 
-class PatientModalTest extends TestCase
+class SbarPatientModalTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -38,7 +38,7 @@ class PatientModalTest extends TestCase
             ->with($attendanceNumber, Mockery::type('string'))
             ->andReturn([]);
 
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
         $component->boot($tasyService);
         $component->currentPatient = [
             'nr_atendimento' => $attendanceNumber,
@@ -50,7 +50,7 @@ class PatientModalTest extends TestCase
             'nm_pessoa_fisica' => 'Paciente Teste',
         ];
 
-        $loadFromSbarData = new ReflectionMethod(PatientModal::class, 'loadFromSbarData');
+        $loadFromSbarData = new ReflectionMethod(SbarPatientModal::class, 'loadFromSbarData');
         $loadFromSbarData->setAccessible(true);
         $loadFromSbarData->invoke($component, $payload, $attendanceNumber);
 
@@ -60,7 +60,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_uses_pews_for_pediatric_patient_in_scales_data(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
         $component->patientDetails = (object) [
             'age' => 17,
@@ -86,7 +86,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_uses_mews_for_adult_patient_in_scales_data(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
         $component->patientDetails = (object) [
             'age' => 18,
@@ -112,7 +112,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_removes_duplicate_cid_entries_from_clinical_diagnostics_list(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
         $component->patientDetails = (object) [
             'diagnosticos_comorbidades' => 'D729 D72.9 Transt NE dos globulos brancos (Principal) | D729 D72.9 Transt NE dos globulos brancos (Principal) | E119 E11.9 Diabetes mellitus tipo 2',
@@ -139,9 +139,9 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_builds_modal_patient_list_and_tracks_current_index(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
-        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
         $setModalPatients->setAccessible(true);
         $setModalPatients->invoke($component, [
             [
@@ -173,9 +173,9 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_falls_back_to_current_attendance_when_modal_list_is_empty(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
-        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
         $setModalPatients->setAccessible(true);
         $setModalPatients->invoke($component, [], 9999);
 
@@ -194,9 +194,9 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_preserves_existing_labels_when_reusing_modal_patient_list(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
-        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
         $setModalPatients->setAccessible(true);
         $setModalPatients->invoke($component, [
             [
@@ -216,7 +216,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_reopens_active_alerts_modal_when_requested(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
         $component->patientAlerts = [
             [
                 'type' => 'ALERTA',
@@ -234,7 +234,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_forwards_sbar_payload_when_switching_attendance_inside_modal(): void
     {
-        $component = new class extends PatientModal
+        $component = new class extends SbarPatientModal
         {
             public ?array $capturedOpenModalArgs = null;
 
@@ -252,7 +252,7 @@ class PatientModalTest extends TestCase
         $component->currentHospitalName = 'Hospital Teste';
         $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
 
-        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
         $setModalPatients->setAccessible(true);
         $setModalPatients->invoke($component, [
             [
@@ -289,7 +289,7 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_does_not_forward_minimal_payload_when_switching_attendance_inside_modal(): void
     {
-        $component = new class extends PatientModal
+        $component = new class extends SbarPatientModal
         {
             public ?array $capturedOpenModalArgs = null;
 
@@ -306,7 +306,7 @@ class PatientModalTest extends TestCase
         $component->currentHospitalName = 'Hospital Teste';
         $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
 
-        $setModalPatients = new ReflectionMethod(PatientModal::class, 'setModalPatients');
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
         $setModalPatients->setAccessible(true);
         $setModalPatients->invoke($component, [
             [
@@ -341,7 +341,7 @@ class PatientModalTest extends TestCase
         $tasyService->shouldReceive('getPatientPrescriptions')->zeroOrMoreTimes()->andReturn([]);
         $tasyService->shouldReceive('getMedicationSchedule')->zeroOrMoreTimes()->andReturn([]);
 
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
         $component->boot($tasyService);
 
         $component->openModal(
@@ -366,9 +366,9 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_marks_navigation_payload_as_not_usable_sbar_snapshot(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
-        $isUsablePayload = new ReflectionMethod(PatientModal::class, 'isUsableSbarPayload');
+        $isUsablePayload = new ReflectionMethod(SbarPatientModal::class, 'isUsableSbarPayload');
         $isUsablePayload->setAccessible(true);
 
         $result = $isUsablePayload->invoke($component, [
@@ -386,9 +386,9 @@ class PatientModalTest extends TestCase
     #[Test]
     public function it_marks_full_sbar_payload_as_usable_snapshot(): void
     {
-        $component = new PatientModal;
+        $component = new SbarPatientModal;
 
-        $isUsablePayload = new ReflectionMethod(PatientModal::class, 'isUsableSbarPayload');
+        $isUsablePayload = new ReflectionMethod(SbarPatientModal::class, 'isUsableSbarPayload');
         $isUsablePayload->setAccessible(true);
 
         $result = $isUsablePayload->invoke($component, [

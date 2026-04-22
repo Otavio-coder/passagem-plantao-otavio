@@ -39,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Blaze::optimize()->in(resource_path('views/components'));
 
-        Blade::anonymousComponentNamespace('sbar.patient.modal', 'patient-modal');
+        Blade::anonymousComponentNamespace('sbar.patient.modal', 'sbar-patient-modal');
         Blade::anonymousComponentNamespace('sbar.patient.modal.tabs', 'sbar');
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {

@@ -15,7 +15,7 @@ use Livewire\Attributes\Isolate;
 use Livewire\Component;
 
 #[Isolate]
-class ShiftEvaluationsModal extends Component
+class SbarShiftEvaluationsModal extends Component
 {
     private UserDisplayNameResolver $userDisplayNameResolver;
 
@@ -37,7 +37,7 @@ class ShiftEvaluationsModal extends Component
 
     public string $previousShiftLabel = '';
 
-    protected $listeners = ['openEvaluationsModal' => 'open'];
+    protected $listeners = ['openSbarEvaluationsModal' => 'open'];
 
     public function boot(UserDisplayNameResolver $userDisplayNameResolver): void
     {
@@ -244,7 +244,7 @@ class ShiftEvaluationsModal extends Component
             $this->totalMessages = $totalMessages;
 
         } catch (\Exception $e) {
-            Log::error('[ShiftEvaluationsModal] Error loading evaluations', [
+            Log::error('[SbarShiftEvaluationsModal] Error loading evaluations', [
                 'sector_id' => $this->sectorId,
                 'error' => $e->getMessage(),
             ]);
@@ -353,6 +353,6 @@ class ShiftEvaluationsModal extends Component
 
     public function render()
     {
-        return view('sbar.report.filters.evaluations.modal');
+        return view('sbar.report.shift-evaluations-modal');
     }
 }

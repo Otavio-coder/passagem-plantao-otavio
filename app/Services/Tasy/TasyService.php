@@ -42,51 +42,28 @@ class TasyService
         $cacheKey = $this->sectorPatientsCacheKey($sectorId);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_SECTOR, function () use ($sectorId) {
-            $t0 = microtime(true);
-
             $sectorContext = $this->getSectorContext($sectorId);
-
-            $t1 = microtime(true);
             $rawBeds = $this->fetchSectorBedsRaw($sectorId);
-            $t2 = microtime(true);
-
             $attendanceNumbers = $this->extractAttendanceNumbers($rawBeds);
-
-            $t3 = microtime(true);
             $batchData = $this->fetchBatchData($sectorId, $attendanceNumbers);
-            $t4 = microtime(true);
 
-            $result = $rawBeds->map(function ($bed) use ($sectorContext, $batchData) {
+            return $rawBeds->map(function ($bed) use ($sectorContext, $batchData) {
                 return $this->formatter->formatPatientForSbar($bed, $sectorContext, $batchData);
             })->values()->toArray();
-            $t5 = microtime(true);
-
-            try {
-                Log::debug('[TasyService] getSectorPatientsForSbar timing', [
-                    'sector_id' => $sectorId,
-                    'patient_count' => count($result),
-                    'beds_ms' => round(($t2 - $t1) * 1000),
-                    'batch_ms' => round(($t4 - $t3) * 1000),
-                    'format_ms' => round(($t5 - $t4) * 1000),
-                    'total_ms' => round(($t5 - $t0) * 1000),
-                ]);
-            } catch (\Throwable) {
-            }
-
-            return $result;
         });
     }
 
     /**
-     * Busca dados básicos do paciente para Patient Modal
+     * Monta o payload completo de um paciente para o modal SBAR:
+     * dados demográficos, dados clínicos (isolamento, dispositivos, alergias) e escalas (MEWS/PEWS, Braden, Morse, Dor, TEV).
      */
-    public function getPatientBasicData(int $attendanceNumber): ?object
+    public function getSbarPatientDetails(int $attendanceNumber): ?object
     {
         if (! $attendanceNumber) {
             return null;
         }
 
-        $cacheKey = $this->patientModalCacheKey($attendanceNumber);
+        $cacheKey = $this->sbarPatientDetailsCacheKey($attendanceNumber);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             $patient = $this->loadPatientWithRelations($attendanceNumber);
@@ -189,10 +166,10 @@ class TasyService
     }
 
     /**
-     * Pre-warms the sector patients cache in the background.
+     * Pre-warms the SBAR sector patients cache in the background.
      * Skips sectors whose cache is already populated.
      */
-    public function warmSectorCache(int $sectorId): bool
+    public function warmSbarSectorCache(int $sectorId): bool
     {
         if (Cache::has($this->sectorPatientsCacheKey($sectorId))) {
             return false;
@@ -223,10 +200,8 @@ class TasyService
     public function clearPatientCache(int $attendanceNumber): void
     {
         $keys = [
-            $this->patientModalCacheKey($attendanceNumber),
+            $this->sbarPatientDetailsCacheKey($attendanceNumber),
             $this->prescriptionsCacheKey($attendanceNumber),
-            "patient_therapeutic_plan_{$attendanceNumber}", // legacy key (kept for cache eviction)
-            "patient_therapeutic_plan_v4_{$attendanceNumber}", // legacy key (kept for cache eviction)
         ];
 
         foreach ($keys as $key) {
@@ -258,9 +233,9 @@ class TasyService
         return 'sector_patients_sbar_v'.self::SBAR_CACHE_VERSION."_{$sectorId}";
     }
 
-    private function patientModalCacheKey(int $attendanceNumber): string
+    private function sbarPatientDetailsCacheKey(int $attendanceNumber): string
     {
-        return 'patient_basic_modal_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
+        return 'sbar_patient_details_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
     }
 
     private function prescriptionsCacheKey(int $attendanceNumber): string
@@ -338,16 +313,8 @@ class TasyService
 
     private function fetchBatchData(int $sectorId, array $attendanceNumbers): array
     {
-        $ta = microtime(true);
-        $mode = 'sequential';
-        $clinicalMs = 0;
-        $scalesMs = 0;
-        $pendingMs = 0;
-
         if (function_exists('pcntl_fork')) {
-            $mode = 'parallel_fork';
-
-            [$clinicalPayload, $scalesPayload, $pendingPayload] = Fork::new()
+            [$clinicalBatch, $scales, $pendingRaw] = Fork::new()
                 ->after(child: function () {
                     DB::connection('tasy')->reconnect();
                     DB::connection('mysql')->reconnect();
@@ -357,78 +324,14 @@ class TasyService
                     }
                 })
                 ->run(
-                    function () use ($attendanceNumbers) {
-                        $tStart = microtime(true);
-                        $data = $this->fetchBatchClinicalData($attendanceNumbers);
-
-                        return [
-                            'data' => $data,
-                            'ms' => round((microtime(true) - $tStart) * 1000),
-                        ];
-                    },
-                    function () use ($attendanceNumbers) {
-                        $tStart = microtime(true);
-                        $data = $this->fetchBatchScales($attendanceNumbers);
-
-                        return [
-                            'data' => $data,
-                            'ms' => round((microtime(true) - $tStart) * 1000),
-                        ];
-                    },
-                    function () use ($sectorId) {
-                        $tStart = microtime(true);
-                        $data = (new PatientPendingEventsService)->getPendingEventsForSector($sectorId);
-
-                        return [
-                            'data' => $data,
-                            'ms' => round((microtime(true) - $tStart) * 1000),
-                        ];
-                    },
+                    fn () => $this->fetchBatchClinicalData($attendanceNumbers),
+                    fn () => $this->fetchBatchScales($attendanceNumbers),
+                    fn () => (new PatientPendingEventsService)->getPendingEventsForSector($sectorId),
                 );
-
-            $clinicalBatch = $clinicalPayload['data'] ?? [];
-            $scales = $scalesPayload['data'] ?? [];
-            $pendingRaw = $pendingPayload['data'] ?? [];
-
-            $clinicalMs = (int) ($clinicalPayload['ms'] ?? 0);
-            $scalesMs = (int) ($scalesPayload['ms'] ?? 0);
-            $pendingMs = (int) ($pendingPayload['ms'] ?? 0);
         } else {
-            $tClinical = microtime(true);
             $clinicalBatch = $this->fetchBatchClinicalData($attendanceNumbers);
-            $clinicalMs = (int) round((microtime(true) - $tClinical) * 1000);
-
-            $tScales = microtime(true);
             $scales = $this->fetchBatchScales($attendanceNumbers);
-            $scalesMs = (int) round((microtime(true) - $tScales) * 1000);
-
-            $tPending = microtime(true);
             $pendingRaw = (new PatientPendingEventsService)->getPendingEventsForSector($sectorId);
-            $pendingMs = (int) round((microtime(true) - $tPending) * 1000);
-        }
-
-        $tb = microtime(true);
-        $parallelMs = (int) round(($tb - $ta) * 1000);
-        $maxBranchMs = max($clinicalMs, $scalesMs, $pendingMs);
-        $sumBranchMs = $clinicalMs + $scalesMs + $pendingMs;
-        $estimatedOverheadMs = $mode === 'parallel_fork'
-            ? max(0, $parallelMs - $maxBranchMs)
-            : max(0, $parallelMs - $sumBranchMs);
-
-        try {
-            Log::debug('[TasyService] fetchBatchData breakdown', [
-                'sector_id' => $sectorId,
-                'nr_count' => count($attendanceNumbers),
-                'mode' => $mode,
-                'parallel_ms' => $parallelMs,
-                'clinical_branch_ms' => $clinicalMs,
-                'scales_branch_ms' => $scalesMs,
-                'pending_branch_ms' => $pendingMs,
-                'max_branch_ms' => $maxBranchMs,
-                'sum_branch_ms' => $sumBranchMs,
-                'estimated_overhead_ms' => $estimatedOverheadMs,
-            ]);
-        } catch (\Throwable) {
         }
 
         $pendingEventsMap = [];
@@ -462,25 +365,10 @@ class TasyService
             ];
         }
 
-        $t1 = microtime(true);
         $clinicalDetails = $this->clinical()->getBatchClinicalDetails($attendanceNumbers);
-        $t2 = microtime(true);
         $surgeries = $this->surgery()->getFutureSurgeriesForAttendances($attendanceNumbers);
-        $t3 = microtime(true);
         $multidisciplinary = $this->multidisciplinary()->getMultidisciplinaryTeams($attendanceNumbers);
-        $t4 = microtime(true);
         $multidisciplinaryReqs = $this->multidisciplinary()->getMultidisciplinaryRequestsBatch($attendanceNumbers);
-        $t5 = microtime(true);
-
-        try {
-            Log::debug('[TasyService] fetchBatchClinicalData breakdown', [
-                'clinical_details_ms' => round(($t2 - $t1) * 1000),
-                'surgeries_ms' => round(($t3 - $t2) * 1000),
-                'multi_teams_ms' => round(($t4 - $t3) * 1000),
-                'multi_requests_ms' => round(($t5 - $t4) * 1000),
-            ]);
-        } catch (\Throwable) {
-        }
 
         return [
             'surgery' => $surgeries['surgery'] ?? [],

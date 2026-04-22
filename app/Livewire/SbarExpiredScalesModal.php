@@ -10,7 +10,7 @@ use Livewire\Attributes\Isolate;
 use Livewire\Component;
 
 #[Isolate]
-class ExpiredScalesModal extends Component
+class SbarExpiredScalesModal extends Component
 {
     public bool $isOpen = false;
 
@@ -22,7 +22,7 @@ class ExpiredScalesModal extends Component
 
     public int $totalExpired = 0;
 
-    protected $listeners = ['openExpiredScalesModal' => 'open'];
+    protected $listeners = ['openSbarExpiredScalesModal' => 'open'];
 
     public function open($sectorId = null)
     {
@@ -170,7 +170,7 @@ class ExpiredScalesModal extends Component
             $this->totalExpired = count($this->patientsWithExpiredScales);
 
         } catch (\Exception $e) {
-            Log::error('[ExpiredScalesModal] Error loading scales', [
+            Log::error('[SbarExpiredScalesModal] Error loading scales', [
                 'sector_id' => $this->sectorId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

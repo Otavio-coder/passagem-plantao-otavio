@@ -116,7 +116,7 @@ class Patient extends Model
     }
 
     /**
-     * Busca dados básicos do paciente para o modal.
+     * Monta o payload completo do paciente para o modal SBAR.
      * Delega para TasyService.
      */
     public function getFullPatientDataWithoutCPOE(int $attendanceNumber): ?object
@@ -125,7 +125,7 @@ class Patient extends Model
             return null;
         }
 
-        return $this->tasyService->getPatientBasicData($attendanceNumber);
+        return $this->tasyService->getSbarPatientDetails($attendanceNumber);
     }
 
     /**

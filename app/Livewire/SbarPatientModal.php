@@ -13,7 +13,7 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Isolate]
-class PatientModal extends Component
+class SbarPatientModal extends Component
 {
     public $showModal = false;
 

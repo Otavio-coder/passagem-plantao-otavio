@@ -17,7 +17,7 @@
     @elseif($patientDetails)
         <!-- Use the dedicated chat component -->
         <div class="flex-1 min-h-0">
-            @livewire('chat-component', [
+            @livewire('sbar-chat-component', [
                 'patientId' => $currentPatient['nr_atendimento'] ?? '',
                 'cdPessoaFisica' => $currentPatient['cd_pessoa_fisica'] ?? null,
                 'bedUnit' => $patientDetails->bed_name ?? $patientDetails->cd_unidade_basica ?? null,

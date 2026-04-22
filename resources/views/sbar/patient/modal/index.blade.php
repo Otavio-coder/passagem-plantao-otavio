@@ -34,7 +34,7 @@
 }">
 
     {{-- Modal de Alertas --}}
-    <x-patient-modal::alerts-modal
+    <x-sbar-patient-modal::alerts-modal
         :showAlertsModal="$showAlertsModal"
         :alertsGroupedByType="$alertsGroupedByType"
         :activeAlertsCount="count($activeAlerts)"
@@ -158,7 +158,7 @@
 
                 {{-- Header - ALTURA FIXA --}}
                 <div class="flex-shrink-0">
-                    <x-patient-modal::header
+                    <x-sbar-patient-modal::header
                         :currentHospitalName="$currentHospitalName"
                         :currentPatient="$currentPatient"
                         :patientDetails="$patientDetails"
@@ -172,7 +172,7 @@
 
                 {{-- Tabs Navigation - ALTURA FIXA --}}
                 <div class="flex-shrink-0 border-b border-gray-200">
-                    <x-patient-modal::tabs />
+                    <x-sbar-patient-modal::tabs />
                 </div>
 
                 {{-- Content Area - FLEX-1 COM OVERFLOW --}}

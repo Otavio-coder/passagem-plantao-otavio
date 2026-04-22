@@ -2,14 +2,14 @@
 
 namespace Tests\Unit;
 
-use App\Livewire\ChatComponent;
+use App\Livewire\SbarChatComponent;
 use App\Models\System\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class ChatComponentTest extends TestCase
+class SbarChatComponentTest extends TestCase
 {
     use DatabaseTransactions;
 
@@ -30,7 +30,7 @@ class ChatComponentTest extends TestCase
         $this->mockAccessToken();
         $this->actingAs($user);
 
-        $component = new ChatComponent;
+        $component = new SbarChatComponent;
         $component->mount(123, 456, 'A-01');
 
         $currentUser = $component->currentUser;

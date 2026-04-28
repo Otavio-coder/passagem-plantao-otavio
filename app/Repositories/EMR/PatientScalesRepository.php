@@ -1,15 +1,8 @@
 <?php
 
-// File: `app/Repositories/EMR/PatientScalesRepository.php`
-
 namespace App\Repositories\EMR;
 
-use App\Models\EMR\Scales\Braden;
-use App\Models\EMR\Scales\Mews;
-use App\Models\EMR\Scales\Morse;
-use App\Models\EMR\Scales\Pain;
-use App\Models\EMR\Scales\Pews;
-use App\Models\EMR\Scales\VteThrombosis;
+use App\Support\Scales\ScaleStyleHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,14 +13,13 @@ class PatientScalesRepository
 
     protected const CHUNK_SIZE = 200;
 
-    /** @var array<string, array{class: class-string, period: string, val: string, dt: string}> */
     private const SCALE_CONFIG = [
-        'mews' => ['class' => Mews::class,          'period' => 'turno', 'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
-        'pews' => ['class' => Pews::class,          'period' => 'turno', 'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
-        'braden' => ['class' => Braden::class,        'period' => '24h',   'val' => 'qt_ponto',      'dt' => 'dt_avaliacao'],
-        'morse' => ['class' => Morse::class,         'period' => '24h',   'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
-        'pain' => ['class' => Pain::class,          'period' => 'turno', 'val' => 'qt_escala_dor', 'dt' => 'dt_sinal_vital'],
-        'vte' => ['class' => VteThrombosis::class, 'period' => '24h',   'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
+        'mews' => ['period' => 'turno', 'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
+        'pews' => ['period' => 'turno', 'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
+        'braden' => ['period' => '24h',   'val' => 'qt_ponto',      'dt' => 'dt_avaliacao'],
+        'morse' => ['period' => '24h',   'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
+        'pain' => ['period' => 'turno', 'val' => 'qt_escala_dor', 'dt' => 'dt_sinal_vital'],
+        'vte' => ['period' => '24h',   'val' => 'qt_pontuacao',  'dt' => 'dt_avaliacao'],
     ];
 
     public function getPatientsScalesUnified(array $attendanceNumbers, array $isNewPatientMap = []): array
@@ -42,7 +34,6 @@ class PatientScalesRepository
             try {
                 $p = implode(',', array_fill(0, count($chunk), '?'));
 
-                // Single UNION ALL + ROW_NUMBER: 1 Oracle round-trip instead of 6
                 $rows = DB::connection('tasy')->select("
                     SELECT scale_type, nr_atendimento, score_value, dt_ref, rn
                     FROM (
@@ -79,7 +70,6 @@ class PatientScalesRepository
                     WHERE rn <= 2
                 ", array_merge($chunk, $chunk, $chunk, $chunk, $chunk, $chunk));
 
-                // Index by attendance → scale_type → rn (1=current, 2=previous)
                 $index = [];
                 foreach ($rows as $row) {
                     $index[$row->nr_atendimento][$row->scale_type][$row->rn] = $row;
@@ -92,7 +82,7 @@ class PatientScalesRepository
                     foreach (self::SCALE_CONFIG as $key => $cfg) {
                         $current = $this->toScaleObject($index[$attendance][$key][1] ?? null, $cfg['val'], $cfg['dt']);
                         $previous = $this->toScaleObject($index[$attendance][$key][2] ?? null, $cfg['val'], $cfg['dt']);
-                        $scaleData[$key] = $cfg['class']::buildStructure($current, $previous, $cfg['period'], $isNew);
+                        $scaleData[$key] = $this->buildScaleEntry($key, $current, $previous, $cfg['period'], $isNew);
                     }
 
                     $result[$attendance] = $scaleData;
@@ -109,10 +99,20 @@ class PatientScalesRepository
         return $result;
     }
 
-    /**
-     * Builds a minimal stdClass that BaseScale::buildStructure() can consume.
-     * buildStructure() only reads $model->{$valueCol} and $model->{$dateCol}.
-     */
+    public function getPatientScalesUnified(int $attendanceNumber, bool $isNewPatient = false): ?array
+    {
+        if (! $attendanceNumber) {
+            return null;
+        }
+
+        $map = $this->getPatientsScalesUnified(
+            [$attendanceNumber],
+            [$attendanceNumber => $isNewPatient]
+        );
+
+        return $map[$attendanceNumber] ?? null;
+    }
+
     private function toScaleObject(?object $raw, string $valueCol, string $dateCol): ?object
     {
         if ($raw === null) {
@@ -126,82 +126,176 @@ class PatientScalesRepository
         return $obj;
     }
 
-    /**
-     * Extrai current e previous de uma collection agrupada
-     * Retorna o registro mais recente como current e o segundo mais recente como previous
-     */
-    private function pickCurrentAndPrevious($grouped, $attendanceKey): array
+    private function buildScaleEntry(string $scale, ?object $current, ?object $previous, string $period, bool $isNew): array
     {
-        if (! isset($grouped[$attendanceKey])) {
-            return [null, null];
+        $cfg = self::SCALE_CONFIG[$scale];
+        $valueCol = $cfg['val'];
+        $dateCol = $cfg['dt'];
+
+        $currentValue = $current !== null ? ($current->{$valueCol} ?? null) : null;
+        $currentTs = ($current !== null && ! empty($current->{$dateCol})) ? $this->formatTimestamp($current->{$dateCol}) : null;
+
+        $previousValue = $previous !== null ? ($previous->{$valueCol} ?? null) : null;
+        $previousTs = ($previous !== null && ! empty($previous->{$dateCol})) ? $this->formatTimestamp($previous->{$dateCol}) : null;
+
+        if ($currentValue !== null && $currentValue !== '') {
+            $pickedValue = $currentValue;
+            $pickedTs = $currentTs;
+            $isFallback = false;
+        } elseif ($previousValue !== null && $previousValue !== '') {
+            $pickedValue = $previousValue;
+            $pickedTs = $previousTs;
+            $isFallback = true;
+        } else {
+            $pickedValue = null;
+            $pickedTs = null;
+            $isFallback = false;
         }
 
-        $collection = $grouped[$attendanceKey]->values();
-        $current = $collection->get(0) ?? null;
+        $score = $this->extractScore($pickedValue);
+        $shift = $this->getShiftFromTimestamp($pickedTs);
+        $previousScore = ($previousValue !== null && $previousValue !== '') ? $this->extractScore($previousValue) : null;
 
-        if (! $current) {
-            return [null, null];
-        }
-
-        $previous = null;
-
-        // Busca o primeiro registro que seja anterior ao current
-        for ($i = 1; $i < $collection->count(); $i++) {
-            $candidate = $collection->get($i);
-
-            if ($this->isBeforeCurrent($current, $candidate)) {
-                $previous = $candidate;
-                break;
+        $increased = false;
+        if ($currentValue !== null && $currentValue !== '' && $previousValue !== null && $previousValue !== '') {
+            $cs = $this->extractScore($currentValue);
+            $ps = $this->extractScore($previousValue);
+            if ($cs !== null && $ps !== null) {
+                $increased = $cs > $ps;
             }
         }
 
-        return [$current, $previous];
+        return [
+            'score' => $score,
+            'timestamp' => $pickedTs,
+            'previous_score' => $previousScore,
+            'previous_timestamp' => $previousTs,
+            'classification' => $this->classify($scale, $score),
+            'styling' => $this->style($scale, $score),
+            'shift' => $shift,
+            'period' => $period,
+            'increased' => $increased,
+            'needs_assessment' => $this->needsAssessment($pickedTs, $period),
+            'is_fallback' => $isFallback,
+        ];
     }
 
-    /**
-     * Verifica se candidate é anterior ao current baseado na data
-     */
-    private function isBeforeCurrent($current, $candidate): bool
+    private function classify(string $scale, ?int $score): ?string
     {
-        if (! $current || ! $candidate) {
-            return false;
-        }
-
-        $dateCol = get_class($candidate) === Pain::class
-            ? 'dt_sinal_vital'
-            : 'dt_avaliacao';
-
-        $currentTs = $current->{$dateCol} ?? null;
-        $candidateTs = $candidate->{$dateCol} ?? null;
-
-        if (! $currentTs || ! $candidateTs) {
-            return false;
-        }
-
-        try {
-            $currentCarbon = Carbon::parse($currentTs);
-            $candidateCarbon = Carbon::parse($candidateTs);
-
-            return $candidateCarbon < $currentCarbon;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Backwards compatibility helper
-     */
-    public function getPatientScalesUnified(int $attendanceNumber, bool $isNewPatient = false): ?array
-    {
-        if (! $attendanceNumber) {
+        if ($score === null) {
             return null;
         }
 
-        $map = $this->getPatientsScalesUnified(
-            [$attendanceNumber],
-            [$attendanceNumber => $isNewPatient]
-        );
+        return match ($scale) {
+            'mews' => $score >= 5 ? 'Crítico' : ($score >= 3 ? 'Alerta' : 'Normal'),
+            'pews' => $score >= 7 ? 'Crítico' : ($score >= 4 ? 'Alerta' : 'Normal'),
+            'braden' => $score <= 12 ? 'Alto Risco' : ($score <= 14 ? 'Risco Moderado' : 'Baixo Risco'),
+            'morse' => $score >= 45 ? 'Alto Risco' : ($score >= 25 ? 'Risco Moderado' : 'Baixo Risco'),
+            'pain' => $score === 0 ? 'Sem Dor' : ($score >= 7 ? 'Dor Intensa' : ($score >= 4 ? 'Dor Moderada' : 'Dor Leve')),
+            'vte' => $score >= 5 ? 'Alto Risco' : ($score >= 2 ? 'Risco Moderado' : 'Baixo Risco'),
+            default => null,
+        };
+    }
 
-        return $map[$attendanceNumber] ?? null;
+    private function style(string $scale, ?int $score): array
+    {
+        $default = ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'];
+
+        if ($score === null) {
+            return $default;
+        }
+
+        return match ($scale) {
+            'mews' => ScaleStyleHelper::mewsRisk($score, false),
+            'pews' => ScaleStyleHelper::pewsRisk($score, false),
+            'braden' => ScaleStyleHelper::bradenRisk($score, false),
+            'morse' => ScaleStyleHelper::morseRisk($score, false),
+            'pain' => ScaleStyleHelper::painRisk($score, false),
+            'vte' => ScaleStyleHelper::tevRisk($score, false),
+            default => $default,
+        };
+    }
+
+    private function extractScore(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+        if (preg_match('/(\d+)/', (string) $value, $m)) {
+            return (int) $m[1];
+        }
+
+        return null;
+    }
+
+    private function formatTimestamp(mixed $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+        try {
+            if (is_string($value) && preg_match('/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/', $value)) {
+                return $value;
+            }
+
+            return Carbon::parse($value)->format('d/m/Y H:i');
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    private function getShiftFromTimestamp(?string $timestamp): ?string
+    {
+        if (! $timestamp) {
+            return null;
+        }
+        try {
+            $dt = Carbon::createFromFormat('d/m/Y H:i', $timestamp);
+        } catch (\Exception) {
+            try {
+                $dt = new Carbon($timestamp);
+            } catch (\Exception) {
+                return null;
+            }
+        }
+
+        $minutes = $dt->hour * 60 + $dt->minute;
+
+        if ($minutes >= 435 && $minutes <= 794) {
+            return 'M';
+        }
+        if ($minutes >= 795 && $minutes <= 1154) {
+            return 'T';
+        }
+
+        return 'N';
+    }
+
+    private function needsAssessment(?string $timestamp, string $period): bool
+    {
+        if (! $timestamp) {
+            return true;
+        }
+
+        try {
+            $lastTime = preg_match('/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/', $timestamp)
+                ? Carbon::createFromFormat('d/m/Y H:i', $timestamp)
+                : Carbon::parse($timestamp);
+        } catch (\Exception) {
+            return true;
+        }
+
+        if ($period === 'turno') {
+            return $this->getShiftFromTimestamp($timestamp) !== $this->getShiftFromTimestamp(now()->format('d/m/Y H:i'));
+        }
+
+        if ($period === '24h') {
+            return $lastTime->diffInHours(now()) >= 24;
+        }
+
+        return true;
     }
 }

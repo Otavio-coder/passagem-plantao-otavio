@@ -30,6 +30,7 @@
         "yajra/laravel-oci8": "^11.6"
     },
     "require-dev": {
+        "barryvdh/laravel-debugbar": "^4.2",
         "fakerphp/faker": "^1.23",
         "icanhazstring/composer-unused": "^0.9.3",
         "kitloong/laravel-migrations-generator": "^7.2",

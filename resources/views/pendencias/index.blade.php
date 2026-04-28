@@ -1,307 +1,270 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="w-full px-3 my-2 text-gray-600">
-    <div class="flex justify-between items-center mb-3">
-        <div class="flex items-center gap-3">
-            <span class="text-md md:text-2xl font-medium text-santacasa-100">
-                <i class="fas fa-list-check mr-1"></i>
-                Relatório de Pendências
-            </span>
-            @if($totalRows > 0)
-                <span class="hidden sm:inline text-xs text-gray-500">
-                    {{ $totalRows }} {{ $totalRows === 1 ? 'registro' : 'registros' }}
-                </span>
-            @endif
-        </div>
-        <div class="flex items-center gap-2">
-            <button type="button" onclick="document.getElementById('modal-criterios').classList.remove('hidden')"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition">
-                <i class="fas fa-circle-question"></i>
-                <span class="hidden sm:inline">Critérios de pendência</span>
-            </button>
-            <a href="{{ route('sbar.report') }}"
-               class="inline-flex items-center px-3 py-2 text-santacasa-100 hover:text-santacasa-200 transition text-sm font-medium">
-                <i class="fas fa-arrow-left mr-1"></i>
-                <span class="hidden md:inline">Voltar</span>
-            </a>
-        </div>
-    </div>
+@push('head')
+<style>
+    /* This page uses natural page scroll — override the locked viewport layout */
+    html, body { height: auto !important; min-height: 100vh; overflow-y: auto !important; }
+    main { overflow-y: visible !important; }
+    /* Coluna Unidade: visível apenas com múltiplos setores selecionados */
+    .col-unidade-hidden { display: none !important; }
+</style>
+@endpush
 
-    {{-- Modal: Critérios de pendência --}}
-    <div id="modal-criterios" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3" style="background:rgba(0,0,0,0.4)">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[84vh] flex flex-col">
-            <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-100">
-                <h2 class="text-[13px] font-semibold text-gray-800">
-                    <i class="fas fa-circle-question text-santacasa-100 mr-1.5"></i>
-                    Critérios para definição de pendências
-                </h2>
-                <button type="button" onclick="document.getElementById('modal-criterios').classList.add('hidden')"
-                    class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">&times;</button>
-            </div>
-            <div class="overflow-y-auto px-3 py-2.5 text-[11px] text-gray-600 space-y-2.5">
-                <p class="text-gray-500">
-                    Um item aparece como <strong class="text-gray-700">pendente</strong> quando existe uma ação assistencial ainda não concluída.
-                    Abaixo estão os critérios de forma simples, por tipo de pendência.
-                </p>
-                <div>
-                    <h3 class="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-1">Critérios por tipo de pendência</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[10px] leading-tight">
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Exames</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Aguardando coleta:</span> exame pendente sem coleta vinculada.</li>
-                                <li><span class="font-semibold text-gray-700">Aguardando laudo:</span> exame coletado sem resultado liberado.</li>
-                                <li><span class="font-semibold text-gray-700">Material em análise:</span> exame em processamento.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Procedimentos</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Aguardando execução:</span> procedimento prescrito e ainda não realizado.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cirurgias</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Eletiva pendente:</span> caráter eletivo com agenda pendente.</li>
-                                <li><span class="font-semibold text-gray-700">Urgência pendente:</span> urgência/emergência ainda não executada.</li>
-                                <li><span class="font-semibold text-gray-700">Eletiva confirmada:</span> confirmada e aguardando execução.</li>
-                                <li><span class="font-semibold text-gray-700">Em preparo:</span> paciente em preparo pré-operatório.</li>
-                                <li><span class="font-semibold text-gray-700">Paciente em sala:</span> paciente já no centro cirúrgico.</li>
-                                <li><span class="font-semibold text-gray-700">Aguardando remarcação:</span> cirurgia desmarcada.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Hemoterapia</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Aguardando transfusão:</span> programada nas próximas 48h e não administrada.</li>
-                                <li><span class="font-semibold text-gray-700">Urgente:</span> mesma situação com prioridade imediata.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quimioterapia</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Sessão agendada:</span> sessão nos próximos 30 dias.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Antimicrobianos</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Dose não administrada:</span> horário aprazado hoje sem registro de administração.</li>
-                                <li><span class="font-semibold text-gray-700">Dose reaprazada:</span> horário reagendado e ainda não administrado.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-gray-100 bg-gray-50 p-1.5">
-                            <p class="text-[9px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Consultorias</p>
-                            <ul class="space-y-0.5 text-gray-600">
-                                <li><span class="font-semibold text-gray-700">Aguardando resposta:</span> solicitação sem parecer registrado.</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-lg border border-amber-100 bg-amber-50 p-1.5 md:col-span-2">
-                            <p class="text-[9px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Inconsistências no sistema</p>
-                            <ul class="space-y-0.5 text-amber-700">
-                                <li><span class="font-semibold text-amber-800">Realizado sem baixa:</span> item executado mas prescrição não foi baixada no sistema.</li>
-                                <li><span class="font-semibold text-amber-800">Pedido mais recente em aberto:</span> existe uma solicitação mais nova do mesmo exame ainda pendente — indica que a anterior pode ter sido superada.</li>
-                            </ul>
-                        </div>
-                    </div>
+@section('content')
+<div id="report-root" class="font-montserrat flex flex-col w-full">
+
+    {{-- Header --}}
+    <div class="flex-shrink-0 bg-[#004D9D]/90 px-3 sm:px-4 lg:px-6 py-3 shadow-lg rounded-t-xl">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+            {{-- Title --}}
+            <div class="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+                <img src="{{ asset('images/santacasa-horizontal-branco.svg') }}" alt="Santa Casa" class="h-6 sm:h-7 w-auto opacity-90">
+                <div class="sm:border-l sm:border-white/30 sm:pl-4">
+                    <h1 class="text-base sm:text-lg font-bold text-white leading-tight">Relatório de Pendências</h1>
+                    @if($sectorName)
+                        <p class="text-xs text-blue-100/75 mt-0.5 hidden sm:block">{{ $sectorName }}</p>
+                    @endif
                 </div>
             </div>
+
+            {{-- Filters --}}
+            <div class="flex flex-wrap items-center gap-2">
+
+                <form method="GET" action="{{ route('pending.report') }}" id="form-hospital">
+                    <select name="hospital_id"
+                        class="bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/40 min-w-[110px]"
+                        onchange="showPendingLoader(); this.form.submit()">
+                        @foreach($hospitals as $h)
+                            <option value="{{ $h['hospital_id'] }}" class="text-gray-900"
+                                {{ (int)$selectedHospital === (int)$h['hospital_id'] ? 'selected' : '' }}>
+                                {{ $h['hospital_name'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                </form>
+
+                {{-- Dropdown multi-setor --}}
+                @php
+                    $selectedNames = collect($sectorsForFilter)
+                        ->filter(fn($s) => in_array($s['code'], $selectedSectors))
+                        ->pluck('name');
+                    $sectorBtnLabel = match(true) {
+                        count($selectedSectors) === 0 => 'Nenhum setor',
+                        count($selectedSectors) === 1 => $selectedNames->first() ?? '1 setor',
+                        default => count($selectedSectors).' setores',
+                    };
+                @endphp
+                <div class="relative" id="sector-dropdown-wrap">
+                    <button type="button"
+                            id="sector-dropdown-btn"
+                            class="flex items-center gap-1.5 bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 hover:bg-white/20 transition min-w-[140px] max-w-[220px]">
+                        <span class="truncate flex-1 text-left">{{ $sectorBtnLabel }}</span>
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div id="sector-dropdown-panel"
+                         style="display:none"
+                         class="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] max-w-[280px]">
+
+                        <form method="GET" action="{{ route('pending.report') }}" id="form-sectors">
+                            @if($selectedHospital)
+                                <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
+                            @endif
+
+                            <div class="p-1 max-h-56 overflow-y-auto">
+                                @foreach($sectorsForFilter as $s)
+                                    <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                                        <input type="checkbox"
+                                               name="sector_ids[]"
+                                               value="{{ $s['code'] }}"
+                                               {{ in_array($s['code'], $selectedSectors) ? 'checked' : '' }}
+                                               class="rounded border-gray-300 text-[#004D9D]">
+                                        <span class="truncate">{{ $s['name'] }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <div class="border-t border-gray-100 p-2 flex items-center justify-between gap-2">
+                                <button type="button"
+                                        onclick="document.querySelectorAll('#form-sectors input[type=checkbox]').forEach(c=>c.checked=true)"
+                                        class="text-[10px] text-[#004D9D] hover:underline">Todos</button>
+                                <button type="button"
+                                        onclick="document.querySelectorAll('#form-sectors input[type=checkbox]').forEach(c=>c.checked=false)"
+                                        class="text-[10px] text-gray-400 hover:underline">Limpar</button>
+                                <button type="submit"
+                                        onclick="showPendingLoader()"
+                                        class="px-3 py-1 bg-[#004D9D] text-white text-[10px] font-semibold rounded-md hover:bg-[#003d7a] transition">
+                                    Aplicar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    (function() {
+                        var btn = document.getElementById('sector-dropdown-btn');
+                        var panel = document.getElementById('sector-dropdown-panel');
+                        btn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                        });
+                        document.addEventListener('click', function(e) {
+                            if (!document.getElementById('sector-dropdown-wrap').contains(e.target)) {
+                                panel.style.display = 'none';
+                            }
+                        });
+                    })();
+                </script>
+
+                @if($rows->count() > 0)
+                    <select id="filter-tipo"
+                        class="bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/40 min-w-[110px]">
+                        <option value="" class="text-gray-900 bg-white">Todos os tipos</option>
+                    </select>
+                @endif
+
+                @if(!empty($selectedSectors))
+                <form method="POST" action="{{ route('pending.report.refresh') }}">
+                    @csrf
+                    <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
+                    @foreach($selectedSectors as $sid)
+                        <input type="hidden" name="sector_ids[]" value="{{ $sid }}">
+                    @endforeach
+                    <button type="submit"
+                        class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-md transition"
+                        title="Limpar cache e recarregar">
+                        <x-heroicon-o-arrow-path class="w-3.5 h-3.5" />
+                        <span class="hidden sm:inline">Atualizar</span>
+                    </button>
+                </form>
+                @endif
+            </div>
         </div>
     </div>
-
-    @if(!empty($errorMessage))
-        <div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg mb-3">
-            {{ $errorMessage }}
-        </div>
-    @endif
 
     {{-- Loading overlay --}}
     <div id="pending-loading"
-         class="fixed inset-0 z-50 flex items-center justify-center"
-         style="background: rgba(0,20,70,0.55); backdrop-filter: blur(3px);">
-        <div class="flex flex-col items-center gap-3">
+         class="fixed inset-0 z-50 items-center justify-center"
+         style="background:rgba(0,20,70,0.55);backdrop-filter:blur(3px);display:{{ $rows->count() > 0 ? 'flex' : 'none' }}">
+        <div class="flex flex-col items-center gap-3 mt-32">
             <div class="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
             <span class="text-white text-sm font-medium tracking-wide">Carregando pendências...</span>
         </div>
     </div>
 
-    {{-- Filtros --}}
-    <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
-        <div class="flex flex-wrap gap-2 items-end">
-            <div class="flex flex-col gap-1 min-w-44">
-                <label class="text-xs text-gray-500 font-medium">Hospital</label>
-                <form method="GET" action="{{ route('pending.report') }}" id="pending-filter-form">
-                <select name="hospital_id"
-                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100"
-                    onchange="showPendingLoader(); this.form.submit()">
-                    @foreach($hospitals as $hospital)
-                        <option value="{{ $hospital['hospital_id'] }}" {{ (int)$selectedHospital === (int)$hospital['hospital_id'] ? 'selected' : '' }}>
-                            {{ $hospital['hospital_name'] }}
-                        </option>
-                    @endforeach
-                </select>
-                </form>
+    {{-- Body --}}
+    <div class="bg-white rounded-b-xl">
+
+        @if(!empty($errorMessage))
+            <div class="mx-3 mt-3 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
+                <x-heroicon-o-exclamation-triangle class="w-4 h-4 flex-shrink-0" />
+                {{ $errorMessage }}
             </div>
+        @endif
 
-            <div class="flex flex-col gap-1 min-w-52">
-                <label class="text-xs text-gray-500 font-medium">Setor</label>
-                <form method="GET" action="{{ route('pending.report') }}" id="pending-filter-form-sector">
-                    @if($selectedHospital)
-                        <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
-                    @endif
-                    <select name="sector_id"
-                        class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100"
-                        onchange="showPendingLoader(); this.form.submit()">
-                        @foreach($sectors as $sector)
-                            <option value="{{ $sector['sector_code'] }}" {{ (int)$selectedSector === (int)$sector['sector_code'] ? 'selected' : '' }}>
-                                {{ $sector['sector_name'] }}
-                            </option>
-                        @endforeach
-                    </select>
-                </form>
-            </div>
-
-            @if($rows->count() > 0)
-            <div class="hidden md:block self-stretch w-px bg-gray-200 mx-1"></div>
-
-            <div class="flex flex-col gap-1 w-44">
-                <label class="text-xs text-gray-500 font-medium">Tipo</label>
-                <select id="filter-tipo"
-                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
-                    <option value="">Todos os tipos</option>
-                </select>
-            </div>
-
-            <div class="flex flex-col gap-1 w-56">
-                <label class="text-xs text-gray-500 font-medium">Período / Turno</label>
-                <select id="filter-tempo"
-                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100">
-                    <option value="">Qualquer período</option>
-                    <optgroup label="Por turno — Prev. exec. hoje">
-                        <option value="turno:manha">Manhã · 07h–13h</option>
-                        <option value="turno:tarde">Tarde · 13h–19h</option>
-                        <option value="turno:noite">Noite · 19h–07h</option>
-                    </optgroup>
-                    <optgroup label="Por data — Prev. exec.">
-                        <option value="data:hoje">Hoje (qualquer turno)</option>
-                    </optgroup>
-                    <optgroup label="Tempo pendente (Pend. há)">
-                        <option value="pendente:0:24">Menos de 24h</option>
-                        <option value="pendente:24:">Mais de 24h</option>
-                        <option value="pendente:48:">Mais de 2 dias</option>
-                        <option value="pendente:168:">Mais de 7 dias</option>
-                        <option value="pendente:720:">Mais de 30 dias</option>
-                    </optgroup>
-                </select>
-            </div>
-
-            <button type="button" id="filter-limpar"
-                class="self-end px-3 py-1.5 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition hidden">
-                <i class="fas fa-times mr-1"></i>Limpar
-            </button>
-            @endif
-        </div>
-    </div>
-
-    @if($rows->count() > 0)
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-3">
-            <div class="overflow-x-auto">
+        @if($rows->count() > 0)
+            <div class="px-2 pb-4 pt-2" id="dt-wrapper">
                 {{--
                     Colunas (índices DataTables):
-                     0  Atend.
-                     1  Paciente
-                     2  Leito          (md+)
-                     3  Tipo + Classif. (concatenados)
-                     4  Pendência + badge de status abaixo
-                     5  Data / Prazo   (data-date + data-order — prev.exec. empilhado com pend.há)
-                     6  Motivo         (lg+)
-                     7  Setor exec.    (xl+)
-                     8  Tipo bruto     (hidden, usado nos filtros JS)
+                     0  Paciente          1  Leito (md+)      2  Atend.
+                     3  Tipo              4  Status (lg+)     5  Pendência
+                     6  Data Prescrição   7  Lib. médica (lg+) 8  Liberado
+                     9  Prev. exec.      10  Coletado (lg+)   11 Em aberto
+                     12 Setor exec.(xl+) 13 Unidade          14  Tipo bruto (hidden)
                 --}}
-                <table id="pendencias-table" class="w-full min-w-[560px]" style="width:100%">
+                <table id="pendencias-table" class="w-full" style="width:100%">
                     <thead>
-                        <tr class="bg-gray-50 border-b border-gray-200">
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="width:65px">Atend.</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:120px">Paciente</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap hidden md:table-cell" style="width:50px">Leito</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:90px">Tipo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide" style="width:180px">Pendência</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="width:88px">Data / Prazo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell" style="width:150px">Motivo</th>
-                            <th class="px-2 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide hidden xl:table-cell" style="width:100px">Setor exec.</th>
+                        <tr class="bg-[#004D9D]/5 border-b border-[#004D9D]/10">
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider">Paciente</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Leito</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Atend.</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Tipo</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider hidden lg:table-cell">Status</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider">Pendência</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Data Prescrição</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Lib. médica</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Liberado</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Prev. exec.</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Coletado</th>
+                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Em aberto</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider hidden xl:table-cell whitespace-nowrap">Setor exec.</th>
+                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
                             <th class="hidden">Tipo bruto</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($rows as $row)
                             @php
-                                $statusRaw   = trim((string) ($row['status'] ?? ''));
-                                $statusLower = mb_strtolower($statusRaw);
-                                if (str_contains($statusLower, 'urgent') || str_contains($statusLower, 'emergê')) {
-                                    $statusBadge = 'bg-red-50 text-red-700 border-red-200';
-                                } elseif (str_contains($statusLower, 'análise') || str_contains($statusLower, 'analise') || str_contains($statusLower, 'coleta') || str_contains($statusLower, 'preparo') || str_contains($statusLower, 'sala')) {
-                                    $statusBadge = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-                                } elseif (str_contains($statusLower, 'laudo') || str_contains($statusLower, 'aguardando')) {
-                                    $statusBadge = 'bg-blue-50 text-blue-700 border-blue-200';
-                                } elseif (str_contains($statusLower, 'execuç') || str_contains($statusLower, 'execuc') || str_contains($statusLower, 'andamento') || str_contains($statusLower, 'progresso')) {
-                                    $statusBadge = 'bg-purple-50 text-purple-700 border-purple-200';
-                                } else {
-                                    $statusBadge = 'bg-gray-100 text-gray-600 border-gray-200';
-                                }
+                                $statusExec = $row['status_execucao'] ?? '';
+                                $isExam = in_array($row['tipo_evento'] ?? '', ['exame', 'proc_exame']);
                             @endphp
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                {{-- 0: Atend. --}}
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 font-medium whitespace-nowrap">{{ $row['atendimento'] }}</td>
-                                {{-- 1: Paciente --}}
-                                <td class="px-2 py-1.5 text-[11px] text-gray-700 max-w-[110px] truncate" title="{{ $row['paciente'] }}">{{ $row['paciente'] }}</td>
-                                {{-- 2: Leito (md+) --}}
-                                <td class="px-2 py-1.5 text-[11px] text-gray-600 whitespace-nowrap hidden md:table-cell">{{ $row['ugb'] }}</td>
-                                {{-- 3: Tipo + Classif. --}}
-                                <td class="px-2 py-1.5 text-[11px] w-[90px] max-w-[90px]">
-                                    <div class="truncate text-gray-700 font-medium">{{ $row['tipo_label'] ?? '-' }}</div>
+                            <tr class="hover:bg-[#004D9D]/[0.03] transition-colors">
+                                <td class="px-3 py-1.5 text-[11px] text-gray-800 font-medium max-w-[130px] truncate" title="{{ $row['paciente'] }}">{{ $row['paciente'] }}</td>
+                                <td class="px-3 py-1.5 text-[11px] text-gray-600 font-mono whitespace-nowrap hidden md:table-cell">{{ $row['ugb'] }}</td>
+                                <td class="px-3 py-1.5 text-[11px] text-gray-700 font-mono font-medium whitespace-nowrap">{{ $row['atendimento'] }}</td>
+                                <td class="px-3 py-1.5 text-[11px]">
+                                    <div class="truncate text-gray-700 font-semibold">{{ $row['tipo_label'] ?? '-' }}</div>
                                     @if(!empty($row['classificacao']) && $row['classificacao'] !== '-')
-                                        <div class="truncate text-[10px] text-gray-400">{{ $row['classificacao'] }}</div>
+                                        <div class="truncate text-[10px] text-gray-400 mt-0.5">{{ $row['classificacao'] }}</div>
                                     @endif
                                 </td>
-                                {{-- 4: Pendência + status badge abaixo --}}
-                                <td class="px-2 py-1.5 text-[11px]" style="max-width:180px">
-                                    <div class="truncate text-gray-700" title="{{ $row['item'] }}">{{ $row['item'] }}</div>
-                                    @if($statusRaw !== '')
-                                        <span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight {{ $statusBadge }}">{{ $statusRaw }}</span>
+                                <td class="px-3 py-1.5 text-[11px] text-gray-600 hidden lg:table-cell">
+                                    @if(!empty($row['motivo_pendente']))
+                                        <div class="flex items-start gap-1 text-[10px]">
+                                            <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" />
+                                            <span class="text-gray-500 font-medium mr-0.5">Tasy:</span>
+                                            <span>{{ $row['motivo_pendente'] }}</span>
+                                        </div>
+                                    @endif
+                                    @if($isExam && !empty($row['scola_status']))
+                                        <div class="flex items-start gap-1 text-[10px] mt-0.5">
+                                            <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" />
+                                            <span class="text-gray-500 font-medium mr-0.5">SCOLA:</span>
+                                            <span>{{ $row['scola_status'] }}</span>
+                                        </div>
                                     @endif
                                 </td>
-                                {{-- 5: Data / Prazo (data-date + data-order para filtros JS) --}}
-                                <td class="px-2 py-1.5 text-[11px] whitespace-nowrap"
-                                    data-date="{{ $row['data_prev_execucao'] }}"
-                                    data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">
-                                    <div class="text-gray-600">{{ $row['data_prev_execucao'] }}</div>
-                                    @if(!empty($row['tempo_pendente']))
-                                        <div class="text-[10px] text-gray-400">{{ $row['tempo_pendente'] }}</div>
+                                <td class="px-3 py-1.5 text-[11px]" style="max-width:200px">
+                                    <div class="truncate text-gray-700 font-medium" title="{{ $row['item'] }}">{{ $row['item'] }}</div>
+                                    @if(!empty($row['nr_prescricao']))
+                                        <div class="text-[10px] text-gray-400 font-mono mt-0.5">Prescr. {{ $row['nr_prescricao'] }}</div>
+                                    @endif
+                                    @if($statusExec !== '')
+                                        <span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight bg-gray-50 text-gray-600 border-gray-200">{{ $statusExec }}</span>
                                     @endif
                                 </td>
-                                {{-- 6: Motivo (lg+) --}}
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[160px] truncate hidden lg:table-cell" title="{{ $row['motivo_pendente'] ?? '-' }}">{{ $row['motivo_pendente'] ?? '-' }}</td>
-                                {{-- 7: Setor exec. (xl+) --}}
-                                <td class="px-2 py-1.5 text-[11px] text-gray-500 max-w-[100px] truncate hidden xl:table-cell" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
-                                {{-- 8: Tipo bruto (hidden — usado nos filtros JS) --}}
+                                <td class="px-1.5 py-1.5 text-[10px] text-gray-500 whitespace-nowrap font-mono"
+                                    data-order="{{ $row['data_solicitacao_sort'] ?? 0 }}">{{ $row['data_solicitacao'] ?? '-' }}</td>
+                                <td class="px-1.5 py-1.5 text-[10px] text-gray-500 whitespace-nowrap font-mono hidden lg:table-cell"
+                                    data-order="{{ $row['data_lib_medica_sort'] ?? 0 }}">{{ $row['data_lib_medica'] ?? '-' }}</td>
+                                <td class="px-1.5 py-1.5 text-[10px] text-gray-500 whitespace-nowrap font-mono"
+                                    data-order="{{ $row['data_lib_prescricao_sort'] ?? 0 }}">{{ $row['data_lib_prescricao'] ?? '-' }}</td>
+                                <td class="px-1.5 py-1.5 text-[10px] text-gray-500 whitespace-nowrap font-mono"
+                                    data-order="{{ $row['data_prev_execucao_sort'] ?? 0 }}">{{ $row['data_prev_execucao'] ?? '-' }}</td>
+                                <td class="px-1.5 py-1.5 text-[10px] text-gray-500 whitespace-nowrap font-mono hidden lg:table-cell"
+                                    data-order="{{ $row['data_coleta_sort'] ?? 0 }}">{{ $row['data_coleta'] ?? '-' }}</td>
+                                <td class="px-1.5 py-1.5 text-[10px] whitespace-nowrap font-semibold font-mono text-[#0071B9]"
+                                    data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">{{ $row['tempo_pendente'] ?? '-' }}</td>
+                                <td class="px-3 py-1.5 text-[11px] text-gray-500 max-w-[110px] truncate hidden xl:table-cell" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
+                                <td class="px-3 py-1.5 text-[11px] text-gray-700 font-medium max-w-[120px] truncate col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}" title="{{ $row['setor_origem'] ?? '-' }}">{{ $row['setor_origem'] ?? '-' }}</td>
                                 <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
-        </div>
-    @else
-        @if($selectedSector > 0)
-            <div class="bg-white rounded-lg shadow-sm p-12 text-center">
-                <i class="fas fa-inbox text-gray-300 text-4xl mb-4"></i>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Nenhuma pendência encontrada</h3>
-                <p class="text-sm text-gray-500">Não há pendências em aberto para este setor.</p>
-            </div>
+
+        @else
+            @if(!empty($selectedSectors))
+                <div class="flex flex-col items-center justify-center py-20 text-center">
+                    <x-heroicon-o-check-circle class="w-12 h-12 text-emerald-300 mb-4" />
+                    <h3 class="text-base font-semibold text-gray-700 mb-1">Nenhuma pendência encontrada</h3>
+                    <p class="text-sm text-gray-400">Não há pendências em aberto para este setor.</p>
+                </div>
+            @endif
         @endif
-    @endif
+    </div>
 </div>
 
 @push('scripts')
@@ -312,181 +275,100 @@ function showPendingLoader() {
 function hidePendingLoader() {
     document.getElementById('pending-loading').style.display = 'none';
 }
-@if($totalRows === 0)
-document.addEventListener('DOMContentLoaded', hidePendingLoader);
-@endif
+
+// Expand report edge-to-edge by cancelling the layout's horizontal padding
+function fitReport() {
+    var root = document.getElementById('report-root');
+    if (!root) return;
+    var el = root.parentElement;
+    while (el && el.tagName !== 'MAIN') {
+        var cs = getComputedStyle(el);
+        var px = parseFloat(cs.paddingLeft) || 0;
+        if (px > 0 && el === root.parentElement) {
+            root.style.marginLeft  = '-' + px + 'px';
+            root.style.marginRight = '-' + px + 'px';
+            root.style.width       = 'calc(100% + ' + (px * 2) + 'px)';
+        }
+        el = el.parentElement;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', fitReport);
+window.addEventListener('resize', fitReport);
 </script>
+
+@if($rows->count() > 0)
 <script>
 $(document).ready(function () {
-    var activePendingTypeTab = 'all';
+    fitReport();
 
     var table = $('#pendencias-table').DataTable({
-        pageLength: 15,
-        lengthMenu: [15, 50, 100, 200],
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }],
         autoWidth: false,
         order: [],
+        columns: [
+            { width: '110px' },  // 0  Paciente
+            { width: '45px'  },  // 1  Leito
+            { width: '70px'  },  // 2  Atend.
+            { width: '80px'  },  // 3  Tipo
+            { width: '180px' },  // 4  Status
+            { width: '160px' },  // 5  Pendência
+            { width: '72px'  },  // 6  Data Prescrição
+            { width: '72px'  },  // 7  Lib. médica
+            { width: '72px'  },  // 8  Liberado
+            { width: '72px'  },  // 9  Prev. exec.
+            { width: '72px'  },  // 10 Coletado
+            { width: '70px'  },  // 11 Em aberto
+            { width: '90px'  },  // 12 Setor exec.
+            { width: '110px' },  // 13 Unidade
+            { width: '0'     },  // 14 Tipo bruto (hidden)
+        ],
         language: {
-            url: '',
-            decimal: ',',
-            thousands: '.',
+            url: '', decimal: ',', thousands: '.',
             emptyTable: 'Nenhuma pendência encontrada',
-            info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
-            infoEmpty: 'Mostrando 0 a 0 de 0 registros',
-            infoFiltered: '(filtrado de _MAX_ registros)',
-            lengthMenu: 'Mostrar _MENU_ por página',
-            loadingRecords: 'Carregando...',
-            processing: 'Processando...',
-            search: 'Buscar:',
-            zeroRecords: 'Nenhum registro encontrado',
-            paginate: {
-                first: 'Primeiro',
-                last: 'Último',
-                next: 'Próximo',
-                previous: 'Anterior'
-            }
+            info: '_START_–_END_ de _TOTAL_',
+            infoEmpty: '0 registros', infoFiltered: '(de _MAX_)',
+            lengthMenu: '_MENU_ por página',
+            loadingRecords: 'Carregando...', processing: 'Processando...',
+            search: 'Buscar:', zeroRecords: 'Nenhum registro encontrado',
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
         },
-        dom: '<"flex flex-wrap items-center justify-between gap-2 mb-3"lf>rt<"flex flex-wrap items-center justify-between gap-2 mt-3"ip>',
+        dom: '<"flex flex-wrap items-center justify-between gap-2 mb-2 px-3"lf>t<"flex flex-wrap items-center justify-between gap-2 mt-2 px-3"ip>',
         initComplete: function () {
             var api = this.api();
+            $('#pendencias-table_filter input').addClass('px-2 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#004D9D]/30 focus:border-[#004D9D]');
+            $('#pendencias-table_length select').addClass('px-2 py-1 border border-gray-300 rounded-lg text-xs');
+            $('#pendencias-table_filter label, #pendencias-table_length label').addClass('text-xs text-gray-500 flex items-center gap-1.5');
+            $('#pendencias-table_info, #pendencias-table_paginate').addClass('text-xs text-gray-500');
 
-            function titleCase(text) {
-                return String(text || '')
-                    .toLowerCase()
-                    .split(' ')
-                    .filter(function (part) { return part !== ''; })
-                    .map(function (part) {
-                        return part.charAt(0).toUpperCase() + part.slice(1);
-                    })
-                    .join(' ');
-            }
-
-            $('#pendencias-table_filter input').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-santacasa-100 focus:border-santacasa-100');
-            $('#pendencias-table_length select').addClass('px-2 py-1.5 border border-gray-300 rounded-lg text-xs');
-
-            // Popula o filtro de Tipo a partir da coluna 8 (tipo bruto, hidden)
             var tiposSet = {};
-            api.column(8).data().each(function (val) {
-                var label = String(val || '').trim();
-                if (label) { tiposSet[label] = true; }
+            api.column(14).data().each(function (val) {
+                var v = String(val || '').trim();
+                if (v) tiposSet[v] = true;
             });
+            function titleCase(t) {
+                return String(t || '').toLowerCase().split(' ').filter(Boolean)
+                    .map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join(' ');
+            }
             Object.keys(tiposSet).sort().forEach(function (tipo) {
-                $('#filter-tipo').append('<option value="' + tipo + '">' + titleCase(tipo) + '</option>');
+                $('#filter-tipo').append('<option value="' + tipo + '" class="text-gray-900">' + titleCase(tipo) + '</option>');
             });
 
             hidePendingLoader();
         }
     });
 
-    // Parseia "dd/mm/yyyy HH:mm" → Date (ou null)
-    function parseRowDate(val) {
-        if (!val || val === '-') { return null; }
-        var m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
-        if (!m) { return null; }
-        return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
-    }
+    window._pendenciasTable = table;
 
-    function isDateToday(d) {
-        var now = new Date();
-        return d.getFullYear() === now.getFullYear()
-            && d.getMonth() === now.getMonth()
-            && d.getDate() === now.getDate();
-    }
+    // Fallback: garante que o loader some mesmo se initComplete não disparar
+    setTimeout(hidePendingLoader, 8000);
 
-    // col 5 = Data / Prazo (data-date + data-order)
-    function getPrevExecDate(row) {
-        var cell = row && row.anCells && row.anCells[5] ? row.anCells[5] : null;
-        if (!cell) { return null; }
-        return parseRowDate(cell.getAttribute('data-date') || '');
-    }
-
-    function getPendingSeconds(row) {
-        var cell = row && row.anCells && row.anCells[5] ? row.anCells[5] : null;
-        if (!cell) { return null; }
-        var v = parseFloat(cell.getAttribute('data-order') || '');
-        return isNaN(v) || v < 0 ? null : v;
-    }
-
-    $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
-        if (settings.nTable.id !== 'pendencias-table') { return true; }
-
-        var filter = $('#filter-tempo').val();
-        var row = settings.aoData[dataIndex];
-
-        if (filter) {
-            var passed = false;
-
-            if (filter.indexOf('turno:') === 0 || filter === 'data:hoje') {
-                var d = getPrevExecDate(row);
-                if (!d) { return false; }
-
-                if (filter === 'data:hoje') {
-                    passed = isDateToday(d);
-                } else {
-                    var h = d.getHours();
-                    if (filter === 'turno:manha')  { passed = isDateToday(d) && h >= 7  && h < 13; }
-                    else if (filter === 'turno:tarde') { passed = isDateToday(d) && h >= 13 && h < 19; }
-                    else if (filter === 'turno:noite') { passed = isDateToday(d) && (h >= 19 || h < 7); }
-                }
-            } else if (filter.indexOf('pendente:') === 0) {
-                var secs = getPendingSeconds(row);
-                if (secs === null) { return false; }
-                var parts = filter.split(':');
-                var minH = parseFloat(parts[1]);
-                var maxH = (parts[2] !== '' && parts[2] !== undefined) ? parseFloat(parts[2]) : Infinity;
-                passed = (secs / 3600) >= minH && (secs / 3600) < maxH;
-            }
-
-            if (!passed) { return false; }
-        }
-
-        if (activePendingTypeTab === 'all') { return true; }
-
-        // col 8 = tipo bruto
-        var tipo = String(data[8] || '').toLowerCase();
-        if (activePendingTypeTab === 'exame')         { return tipo.indexOf('exame') !== -1 || tipo.indexOf('laboratório') !== -1 || tipo.indexOf('laboratorio') !== -1; }
-        if (activePendingTypeTab === 'procedimento')  { return tipo === 'procedimento'; }
-        if (activePendingTypeTab === 'cirurgia')      { return tipo === 'cirurgia'; }
-
-        return true;
-    });
-
-    function updateLimparBtn() {
-        var hasFilter = $('#filter-tipo').val() !== '' || $('#filter-tempo').val() !== '';
-        $('#filter-limpar').toggleClass('hidden', !hasFilter);
-    }
-
-    // Filtro Tipo → coluna 8 (tipo bruto)
     $('#filter-tipo').on('change', function () {
-        table.column(8).search(
-            this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '',
-            true, false
-        ).draw();
-        updateLimparBtn();
-    });
-
-    $('#filter-tempo').on('change', function () {
-        table.draw();
-        updateLimparBtn();
-    });
-
-    $('#filter-limpar').on('click', function () {
-        $('#filter-tipo').val('');
-        $('#filter-tempo').val('');
-        table.column(8).search('', false, false).draw();
-        updateLimparBtn();
-    });
-
-    $('#pending-type-tabs').on('click', '.pending-tab', function () {
-        activePendingTypeTab = $(this).data('type');
-        $('.pending-tab')
-            .removeClass('border-santacasa-100 bg-santacasa-100 text-white')
-            .addClass('border-gray-300 text-gray-600');
-        $(this)
-            .removeClass('border-gray-300 text-gray-600')
-            .addClass('border-santacasa-100 bg-santacasa-100 text-white');
-        table.draw();
+        table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '', true, false).draw();
     });
 });
 </script>
+@endif
 @endpush
 @endsection

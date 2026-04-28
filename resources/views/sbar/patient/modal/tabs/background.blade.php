@@ -16,7 +16,7 @@
     @elseif($currentPatient && !$currentPatient['has_patient'])
         <!-- Empty Bed -->
         <div class="flex flex-col items-center justify-center py-8 sm:py-12 text-gray-700">
-            <x-healthicons-o-inpatient class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" />
+            <x-healthicons-o-inpatient class="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4 animate-pulse" />
             <p class="text-gray-700 text-base sm:text-lg">Leito Vago</p>
             <p class="text-gray-500 mt-2 text-sm sm:text-base">Este leito não possui paciente internado no momento.</p>
         </div>

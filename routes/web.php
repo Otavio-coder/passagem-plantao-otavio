@@ -29,6 +29,9 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     // Rotas SBAR - Fora do grupo de administração
     Route::view('/sbar', 'sbar.report.page')->name('sbar.report');
 
+    Route::get('/huddle', fn () => view('huddle.coming-soon'))
+        ->name('huddle.report');
+
     // Prescriptions – batch cache warm (called by SBAR page after sector loads)
     Route::post('/patient-care/prescriptions/warm',
         [PatientPrescriptionsController::class, 'warmCache'])
@@ -52,6 +55,8 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
         // Relatório de Pendências
         Route::get('/pendencias', [PendingEventsReportController::class, 'index'])
             ->name('pending.report');
+        Route::post('/pendencias/refresh', [PendingEventsReportController::class, 'refresh'])
+            ->name('pending.report.refresh');
 
         // Histórico de anotações arquivadas
         Route::middleware('can:ver historico chat')->prefix('historico')->group(function () {

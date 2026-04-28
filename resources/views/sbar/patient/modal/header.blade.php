@@ -9,190 +9,347 @@
     'activeAlertsCount' => 0,
 ])
 
-<div class="bg-[#004D9D] px-3 sm:px-6 py-3 sm:py-4 relative">
+@php
+    $patientName = $currentPatient['nm_social']
+        ?? $currentPatient['nm_pessoa_fisica']
+        ?? (is_object($patientDetails) ? ($patientDetails->nm_social ?? $patientDetails->nm_pessoa_fisica ?? null) : null);
+    $bed = $currentPatient['cd_unidade_basica']
+        ?? (is_object($patientDetails) ? ($patientDetails->cd_unidade_basica ?? null) : null);
+    $sector = (is_object($patientDetails) ? ($patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? null) : null)
+        ?? ($currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? null);
+    $prontuario = is_object($patientDetails) ? ($patientDetails->nr_prontuario ?? null) : null;
+    $hasPatient = $currentPatient && ($currentPatient['has_patient'] ?? false);
+@endphp
+
+<div class="bg-[#004D9D] px-3 sm:px-6 py-2.5 sm:py-3 relative"
+     x-data="{
+        expanded: false,
+        tipDismissed: true,
+        init() {
+            const saved = localStorage.getItem('patient_modal_header_expanded');
+            if (saved === 'true') { this.expanded = true; }
+            else if (saved === 'false') { this.expanded = false; }
+            else { this.expanded = window.innerHeight >= 720; }
+            this.tipDismissed = localStorage.getItem('patient_modal_header_tip_seen') === '1';
+        },
+        toggle() {
+            this.expanded = !this.expanded;
+            localStorage.setItem('patient_modal_header_expanded', this.expanded ? 'true' : 'false');
+            if (!this.tipDismissed) { this.dismissTip(); }
+        },
+        dismissTip() {
+            this.tipDismissed = true;
+            localStorage.setItem('patient_modal_header_tip_seen', '1');
+        }
+     }">
     {{-- Close Button --}}
-    <button 
+    <button
         @click="showModal = false; $wire.closeModal();"
-        class="absolute top-3 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
+        class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-8 h-8 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
         aria-label="Fechar modal"
     >
         <x-heroicon-o-x-mark class="w-5 h-5" />
     </button>
-    
+
     {{-- Header Content --}}
-    <div class="pr-14 sm:pr-10">
-        {{-- Logo e Título --}}
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3">
-            <img src="{{ asset('images/santacasa-horizontal-branco.svg') }}" 
-                 alt="Santa Casa" 
-                 class="h-6 sm:h-7 w-auto opacity-90">
-            
-            <div class="sm:border-l sm:border-white/30 sm:pl-4">
-                <h3 class="text-xs sm:text-sm text-blue-100 font-medium leading-tight">
-                    Modelo de Comunicação SBAR para Passagem de Plantão
-                </h3>
-            </div>
-        </div>
-        
-        {{-- Informações em Grid (mobile 3 colunas) --}}
-        <div class="sm:hidden px-1">
-            <div class="grid grid-cols-3 gap-2 text-[11px] text-blue-100">
-                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                    <span class="opacity-80 leading-tight">Hospital</span>
-                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $currentHospitalName ?? 'Carregando...' }}</span>
-                </div>
+    <div class="pr-12 sm:pr-12">
 
-                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                    <span class="opacity-80 leading-tight">Setor</span>
-                    <span class="text-white font-semibold leading-tight mt-0.5 truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? ($currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? 'Não informado') }}</span>
-                </div>
+        {{-- ─── PEEK LINE (sempre visível) ─── --}}
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <img src="{{ asset('images/santacasa-horizontal-branco.svg') }}"
+                 alt="Santa Casa"
+                 class="h-5 sm:h-6 w-auto opacity-90 flex-shrink-0">
 
-                <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                    <span class="opacity-80 leading-tight">Data</span>
-                    <span class="text-white font-semibold font-mono leading-tight mt-0.5">{{ date('d/m/Y') }}</span>
-                </div>
+            {{-- Identificadores essenciais --}}
+            <div class="flex items-center flex-wrap gap-x-2 gap-y-1 text-white min-w-0 flex-1">
+                @if($bed)
+                    <span class="inline-flex items-center gap-1 text-xs sm:text-sm font-mono font-semibold whitespace-nowrap">
+                        <i class="fas fa-bed text-white/60 text-[10px]"></i>{{ $bed }}
+                    </span>
+                @endif
 
-                @if($currentPatient && $currentPatient['has_patient'] && $patientDetails)
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                        <span class="opacity-80 leading-tight">Prontuário</span>
-                        <span class="text-white font-semibold font-mono leading-tight mt-0.5 truncate">{{ $patientDetails->nr_prontuario ?? 'N/A' }}</span>
-                    </div>
+                @if($patientName)
+                    @if($bed)<span class="text-white/30 hidden sm:inline">·</span>@endif
+                    <span class="text-xs sm:text-sm font-medium truncate max-w-[10rem] sm:max-w-[18rem] lg:max-w-[24rem]">{{ $patientName }}</span>
+                @endif
 
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                        <span class="opacity-80 leading-tight">Atendimento</span>
-                        <span class="text-white font-semibold font-mono leading-tight mt-0.5 truncate">{{ $currentPatient['nr_atendimento'] }}</span>
-                    </div>
+                @if($hasPatient)
+                    <span class="text-white/30 hidden sm:inline">·</span>
+                    <span class="text-[11px] sm:text-xs font-mono text-white/80 whitespace-nowrap" title="Atendimento">
+                        #{{ $currentPatient['nr_atendimento'] }}
+                    </span>
+                @endif
 
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col items-center justify-center">
-                        @if($activeAlertsCount > 0)
-                            <button
-                                type="button"
-                                wire:click="openAlertsModal"
-                                class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-white text-[#004D9D] border border-blue-200 hover:bg-blue-50 transition-colors"
-                            >
-                                <span>Alertas</span>
-                                <span class="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[#004D9D] text-white text-[10px]">{{ $activeAlertsCount }}</span>
-                            </button>
-                        @else
-                            <span class="opacity-80 leading-tight">Alertas</span>
-                            <span class="text-white font-semibold leading-tight mt-0.5">0 ativos</span>
-                        @endif
-                    </div>
-                @else
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                        <span class="opacity-80 leading-tight">Prontuário</span>
-                        <span class="text-white font-semibold font-mono leading-tight mt-0.5">N/A</span>
-                    </div>
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                        <span class="opacity-80 leading-tight">Atendimento</span>
-                        <span class="text-white font-semibold font-mono leading-tight mt-0.5">N/A</span>
-                    </div>
-                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5 text-center min-h-[56px] flex flex-col justify-center">
-                        <span class="opacity-80 leading-tight">Alertas</span>
-                        <span class="text-white font-semibold leading-tight mt-0.5">0 ativos</span>
-                    </div>
+                @if($activeAlertsCount > 0)
+                    <button
+                        type="button"
+                        wire:click="openAlertsModal"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-white text-[#004D9D] border border-blue-200 hover:bg-blue-50 transition-colors whitespace-nowrap"
+                        title="Ver alertas ativos"
+                    >
+                        <i class="fas fa-triangle-exclamation text-amber-600"></i>
+                        {{ $activeAlertsCount }} {{ $activeAlertsCount === 1 ? 'alerta' : 'alertas' }}
+                    </button>
+                @endif
+
+                @if(!$hasPatient && !$patientName)
+                    <span class="text-xs sm:text-sm text-white/70">Carregando paciente...</span>
                 @endif
             </div>
-        </div>
 
-        {{-- Informações em Grid (tablet/desktop) --}}
-        <div class="hidden sm:grid sm:grid-cols-2 lg:grid-cols-6 gap-x-3 gap-y-1.5 px-1 sm:px-2 text-xs sm:text-sm text-blue-100">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
-                <span class="opacity-80 whitespace-nowrap">Hospital:</span>
-                <span class="text-white font-medium truncate">{{ $currentHospitalName ?? 'Carregando...' }}</span>
-            </div>
+            {{-- Toggle button --}}
+            <div class="relative flex-shrink-0">
+                <button
+                    type="button"
+                    @click="toggle()"
+                    :aria-expanded="expanded"
+                    aria-controls="patient-modal-header-details"
+                    x-bind:class="!tipDismissed && !expanded ? 'ring-2 ring-amber-300 animate-pulse' : ''"
+                    class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] sm:text-xs font-medium transition-all focus:outline-none focus:ring-2 focus:ring-white/50"
+                    title="Mostrar ou ocultar dados completos do paciente"
+                >
+                    <span x-show="!expanded" class="hidden sm:inline">Mais detalhes</span>
+                    <span x-show="expanded" class="hidden sm:inline">Menos detalhes</span>
+                    <span x-show="!expanded" class="sm:hidden">Detalhes</span>
+                    <span x-show="expanded" class="sm:hidden">Recolher</span>
+                    <x-heroicon-o-chevron-down class="w-3.5 h-3.5 transition-transform" x-bind:class="expanded ? 'rotate-180' : ''" />
+                </button>
 
-            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
-                <span class="opacity-80 whitespace-nowrap">Setor:</span>
-                <span class="text-white font-medium truncate">{{ $patientDetails->ds_prescricao ?? $patientDetails->ds_setor_atendimento ?? ($currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? 'Não informado') }}</span>
-            </div>
-
-            <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
-                <span class="opacity-80 whitespace-nowrap">Data:</span>
-                <span class="text-white font-medium font-mono">{{ date('d/m/Y') }}</span>
-            </div>
-
-            @if($currentPatient && $currentPatient['has_patient'] && $patientDetails)
-                <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
-                    <span class="opacity-80 whitespace-nowrap">Prontuário:</span>
-                    <span class="text-white font-medium font-mono">{{ $patientDetails->nr_prontuario ?? 'N/A' }}</span>
-                </div>
-
-                <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0">
-                    <span class="opacity-80 whitespace-nowrap">Atendimento:</span>
-                    <span class="text-white font-medium font-mono">{{ $currentPatient['nr_atendimento'] }}</span>
-                </div>
-
-                <div class="flex items-center min-w-0">
-                    @if($activeAlertsCount > 0)
-                        <button
-                            type="button"
-                            wire:click="openAlertsModal"
-                            class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-white text-[#004D9D] border border-blue-200 hover:bg-blue-50 transition-colors"
-                        >
-                            <span>Alertas Ativos</span>
-                            <span class="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-[#004D9D] text-white text-[10px]">{{ $activeAlertsCount }}</span>
-                        </button>
-                    @endif
-                </div>
-            @endif
-        </div>
-
-        @if(!empty($modalPatients))
-        <div class="mt-2 pt-2 border-t border-white/20">
-            <div class="flex flex-col items-center sm:items-start gap-2 sm:gap-3">
-                <span class="text-[11px] sm:text-xs text-blue-100/90 font-medium text-center sm:text-left whitespace-nowrap">Trocar atendimento:</span>
-
-                <div class="w-full max-w-xs sm:max-w-none flex items-stretch sm:items-center justify-center sm:justify-start gap-2 min-w-0 sm:flex-1">
-                    <button
-                        type="button"
-                        wire:click="goToPreviousPatient"
-                        @disabled(! $canGoPrevious)
-                        class="inline-flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        aria-label="Atendimento anterior"
-                    >
-                        <x-heroicon-o-chevron-up class="w-4 h-4" />
-                    </button>
-
-                    <div class="relative min-w-0 flex-1">
-                        <select
-                            wire:change="goToPatientByAttendance($event.target.value)"
-                            class="w-full bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-2.5 sm:py-2 pr-9 focus:outline-none focus:ring-2 focus:ring-white/40"
-                        >
-                            @foreach($modalPatients as $modalPatient)
-                                <option
-                                    value="{{ $modalPatient['nr_atendimento'] }}"
-                                    @selected(($currentPatient['nr_atendimento'] ?? null) == $modalPatient['nr_atendimento'])
-                                    class="text-gray-900"
-                                >
-                                    {{ $modalPatient['label'] }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-white/80">
-                            <x-heroicon-o-chevron-down class="w-4 h-4" />
+                {{-- Onboarding tooltip --}}
+                <div
+                    x-show="!tipDismissed && !expanded"
+                    x-transition.opacity.duration.300ms
+                    x-cloak
+                    class="absolute right-0 mt-2 w-64 sm:w-72 bg-amber-50 text-amber-900 text-xs rounded-lg shadow-xl ring-1 ring-amber-300 px-3 py-2.5 z-50"
+                    style="top: 100%;"
+                    role="tooltip"
+                >
+                    <div class="absolute -top-1.5 right-6 w-3 h-3 bg-amber-50 ring-1 ring-amber-300 rotate-45"></div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-circle-info text-amber-600 mt-0.5"></i>
+                        <div class="flex-1">
+                            <p class="font-semibold leading-snug">Toque aqui para ver mais</p>
+                            <p class="text-[11px] mt-1 leading-snug text-amber-800">
+                                Hospital, setor, prontuário e outras informações estão ocultos para liberar espaço da tela.
+                            </p>
+                            <button
+                                type="button"
+                                @click.stop="dismissTip()"
+                                class="mt-2 text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline"
+                            >
+                                Entendi, não mostrar de novo
+                            </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
+        {{-- ─── Trocar atendimento (sempre visível, no topo) ─── --}}
+        @if(!empty($modalPatients))
+        <div class="mt-2 pt-2 border-t border-white/15"
+             x-data="{
+                open: false,
+                search: '',
+                patients: @js(collect($modalPatients)->map(fn ($p) => [
+                    'nr_atendimento' => (int) ($p['nr_atendimento'] ?? 0),
+                    'label' => (string) ($p['label'] ?? ''),
+                ])->values()->all()),
+                currentNr: {{ (int) ($currentPatient['nr_atendimento'] ?? 0) }},
+                get filtered() {
+                    const q = String(this.search || '').trim().toLowerCase();
+                    if (!q) return this.patients;
+                    return this.patients.filter(p =>
+                        String(p.label || '').toLowerCase().includes(q) ||
+                        String(p.nr_atendimento).includes(q)
+                    );
+                },
+                get currentLabel() {
+                    const c = this.patients.find(p => p.nr_atendimento === this.currentNr);
+                    return c ? c.label : 'Selecionar atendimento';
+                },
+                toggle() {
+                    this.open = !this.open;
+                    if (this.open) this.$nextTick(() => this.$refs.searchInput && this.$refs.searchInput.focus());
+                    else this.search = '';
+                },
+                select(nr) {
+                    this.open = false;
+                    this.search = '';
+                    if (nr === this.currentNr) return;
+                    this.$wire.goToPatientByAttendance(nr);
+                },
+                selectFirst() {
+                    if (this.filtered.length > 0) this.select(this.filtered[0].nr_atendimento);
+                }
+             }"
+             @keydown.escape.window="open = false"
+             @click.outside="open = false">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] text-blue-100/80 font-medium uppercase tracking-wide whitespace-nowrap flex-shrink-0">
+                    <x-heroicon-o-arrows-up-down class="w-3 h-3" />
+                    Trocar
+                </span>
+
+                <button
+                    type="button"
+                    wire:click="goToPreviousPatient"
+                    @disabled(! $canGoPrevious)
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    aria-label="Atendimento anterior"
+                    title="Atendimento anterior"
+                >
+                    <x-heroicon-o-chevron-up class="w-4 h-4" />
+                </button>
+
+                <div class="relative min-w-0 flex-1">
                     <button
                         type="button"
-                        wire:click="goToNextPatient"
-                        @disabled(! $canGoNext)
-                        class="inline-flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        aria-label="Próximo atendimento"
+                        @click="toggle()"
+                        :aria-expanded="open"
+                        aria-haspopup="listbox"
+                        class="w-full flex items-center justify-between gap-2 bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-1.5 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40"
                     >
-                        <x-heroicon-o-chevron-down class="w-4 h-4" />
+                        <span class="truncate text-left flex-1" x-text="currentLabel"></span>
+                        <x-heroicon-o-chevron-down class="w-4 h-4 flex-shrink-0 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
                     </button>
+
+                    <div
+                        x-show="open"
+                        x-transition.opacity.duration.150ms
+                        x-cloak
+                        class="absolute z-50 mt-1 left-0 right-0 bg-white rounded-md shadow-xl ring-1 ring-black/10 overflow-hidden flex flex-col max-h-80"
+                    >
+                        <div class="p-2 border-b border-gray-100">
+                            <div class="relative">
+                                <x-heroicon-o-magnifying-glass class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                <input
+                                    x-ref="searchInput"
+                                    type="search"
+                                    x-model="search"
+                                    @keydown.enter.prevent="selectFirst()"
+                                    placeholder="Buscar por nome ou nº atendimento..."
+                                    class="w-full pl-12 pr-16 py-1.5 text-sm text-gray-900 placeholder-gray-400 bg-gray-50 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30 focus:border-[#004D9D]/50"
+                                />
+                                <button
+                                    type="button"
+                                    x-show="search"
+                                    @click="search = ''; $refs.searchInput.focus()"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 hover:text-gray-600 bg-gray-100 rounded px-2 py-0.5"
+                                    aria-label="Limpar busca"
+                                >
+                                    Limpar
+                                </button>
+                            </div>
+                        </div>
+                        <ul class="overflow-y-auto flex-1 py-1" role="listbox">
+                            <template x-for="p in filtered" :key="p.nr_atendimento">
+                                <li>
+                                    <button
+                                        type="button"
+                                        @click="select(p.nr_atendimento)"
+                                        x-bind:class="p.nr_atendimento === currentNr ? 'bg-blue-50 text-[#004D9D] font-medium' : 'text-gray-800 hover:bg-gray-50'"
+                                        class="w-full text-left text-sm px-3 py-2 truncate"
+                                        role="option"
+                                        x-bind:aria-selected="p.nr_atendimento === currentNr"
+                                        x-text="p.label"
+                                    ></button>
+                                </li>
+                            </template>
+                            <li x-show="filtered.length === 0" class="px-3 py-4 text-center text-xs text-gray-500">
+                                Nenhum paciente encontrado.
+                            </li>
+                        </ul>
+                    </div>
                 </div>
 
+                <button
+                    type="button"
+                    wire:click="goToNextPatient"
+                    @disabled(! $canGoNext)
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    aria-label="Próximo atendimento"
+                    title="Próximo atendimento"
+                >
+                    <x-heroicon-o-chevron-down class="w-4 h-4" />
+                </button>
+
                 @if($currentPatientIndex !== null)
-                    <span class="text-[10px] sm:text-xs text-blue-100/80 text-center sm:text-left whitespace-nowrap">
-                        {{ $currentPatientIndex + 1 }} de {{ count($modalPatients) }}
+                    <span class="text-[10px] sm:text-[11px] text-blue-100/80 whitespace-nowrap font-mono flex-shrink-0">
+                        {{ $currentPatientIndex + 1 }}/{{ count($modalPatients) }}
                     </span>
                 @endif
             </div>
         </div>
         @endif
+
+        {{-- ─── EXPANDED DETAILS (toggle) ─── --}}
+        <div
+            id="patient-modal-header-details"
+            x-show="expanded"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 -translate-y-1"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            x-cloak
+            class="mt-2 pt-2 border-t border-white/15"
+        >
+            {{-- Título institucional --}}
+            <div class="mb-2.5">
+                <h3 class="text-xs sm:text-sm text-blue-100 font-medium leading-tight">
+                    Modelo de Comunicação SBAR para Passagem de Plantão
+                </h3>
+            </div>
+
+            {{-- Grid de informações (mobile chips) --}}
+            <div class="sm:hidden">
+                <div class="grid grid-cols-2 gap-2 text-[11px] text-blue-100">
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5">
+                        <span class="opacity-80 leading-tight block">Hospital</span>
+                        <span class="text-white font-semibold leading-tight truncate block">{{ $currentHospitalName ?? 'Carregando...' }}</span>
+                    </div>
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5">
+                        <span class="opacity-80 leading-tight block">Setor</span>
+                        <span class="text-white font-semibold leading-tight truncate block">{{ $sector ?? 'Não informado' }}</span>
+                    </div>
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5">
+                        <span class="opacity-80 leading-tight block">Prontuário</span>
+                        <span class="text-white font-semibold font-mono leading-tight truncate block">{{ $prontuario ?? 'N/A' }}</span>
+                    </div>
+                    <div class="rounded-lg border border-white/20 bg-white/10 px-2 py-1.5">
+                        <span class="opacity-80 leading-tight block">Data</span>
+                        <span class="text-white font-semibold font-mono leading-tight block">{{ date('d/m/Y') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Grid de informações (tablet/desktop inline) --}}
+            <div class="hidden sm:flex flex-wrap gap-x-6 gap-y-1.5 text-xs sm:text-sm text-blue-100">
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="opacity-80 whitespace-nowrap">Hospital:</span>
+                    <span class="text-white font-medium truncate max-w-[16rem] lg:max-w-xs">{{ $currentHospitalName ?? 'Carregando...' }}</span>
+                </div>
+
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="opacity-80 whitespace-nowrap">Setor:</span>
+                    <span class="text-white font-medium truncate max-w-[16rem] lg:max-w-xs">{{ $sector ?? 'Não informado' }}</span>
+                </div>
+
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="opacity-80 whitespace-nowrap">Data:</span>
+                    <span class="text-white font-medium font-mono">{{ date('d/m/Y') }}</span>
+                </div>
+
+                @if($hasPatient)
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="opacity-80 whitespace-nowrap">Prontuário:</span>
+                        <span class="text-white font-medium font-mono">{{ $prontuario ?? 'N/A' }}</span>
+                    </div>
+                @endif
+            </div>
+        </div>
 
         @php
             $dischargeInfo = $currentPatient['discharge_info'] ?? null;
@@ -218,7 +375,7 @@
         @endphp
 
         @if(!empty($dischargeBadges))
-            <div class="mt-2 pt-2 border-t border-white/20 flex flex-wrap items-center gap-2">
+            <div class="mt-2 pt-2 border-t border-white/15 flex flex-wrap items-center gap-2">
                 @foreach($dischargeBadges as $badge)
                     <span class="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold {{ $badge['class'] }}">
                         {{ $badge['label'] }}

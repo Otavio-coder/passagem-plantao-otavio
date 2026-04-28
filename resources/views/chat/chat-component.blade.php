@@ -117,9 +117,21 @@
 
                     {{-- Shift name + user info --}}
                     <div class="min-w-0 flex-1">
-                        <p class="text-[11px] font-bold uppercase tracking-widest text-white/80 leading-none">
-                            Turno {{ $this->shiftDisplay['badge'] }}
-                        </p>
+                        <div class="flex items-center gap-1.5 leading-none">
+                            <p class="text-[11px] font-bold uppercase tracking-widest text-white/80 leading-none">
+                                Turno {{ $this->shiftDisplay['badge'] }}
+                            </p>
+                            @if(($this->messageStats['pinned_count'] ?? 0) > 0)
+                                <button
+                                    type="button"
+                                    @click="document.getElementById('messages-container')?.scrollTo({ top: 0, behavior: 'smooth' })"
+                                    title="Ir para anotação fixada"
+                                    class="inline-flex items-center justify-center text-yellow-300 hover:text-yellow-200 focus:outline-none"
+                                >
+                                    <i class="fas fa-thumbtack text-[10px]"></i>
+                                </button>
+                            @endif
+                        </div>
                         <div class="flex items-center gap-1.5 mt-1 min-w-0">
                             <x-ui.user-avatar
                                 :photo="$currentUser['photo'] ?? null"
@@ -144,12 +156,12 @@
                         </div>
                         <div class="flex items-center gap-1.5">
                             <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                            @if($this->messageStats['count'] > 0)
+                            @if(($this->messageStats['shift_count'] ?? 0) > 0)
                                 <span class="text-white/80 text-[10px] font-medium">
-                                    {{ $this->messageStats['count'] }} {{ $this->messageStats['count'] === 1 ? 'anotação' : 'anotações' }}
+                                    {{ $this->messageStats['shift_count'] }} {{ $this->messageStats['shift_count'] === 1 ? 'no turno' : 'no turno' }}
                                 </span>
                             @else
-                                <span class="text-white/60 text-[10px]">Sem anotações</span>
+                                <span class="text-white/60 text-[10px]">Sem anotações no turno</span>
                             @endif
                         </div>
                     </div>
@@ -159,23 +171,48 @@
                 @php
                     $stats = $this->messageStats;
                     $metricChips = [];
+
                     if ($internmentDays !== null && $internmentDays >= 0) {
-                        $metricChips[] = ['icon' => 'fa-hospital-user', 'value' => $internmentDays.'d internado'];
+                        $metricChips[] = [
+                            'icon' => 'fa-hospital-user',
+                            'value' => $internmentDays.'d internado',
+                            'title' => 'Tempo de internação do paciente',
+                        ];
                     }
+
                     if (($stats['shift_count'] ?? 0) > 0 && ($stats['unique_contributors'] ?? 0) > 0) {
-                        $metricChips[] = ['icon' => 'fa-users', 'value' => $stats['unique_contributors'].' '.($stats['unique_contributors'] === 1 ? 'colaborador' : 'colaboradores')];
+                        $metricChips[] = [
+                            'icon' => 'fa-users',
+                            'value' => $stats['unique_contributors'].' '.($stats['unique_contributors'] === 1 ? 'participante' : 'participantes'),
+                            'title' => 'Profissionais que anotaram neste turno',
+                        ];
                     }
-                    if ($stats['reaction_rate'] !== null && ($stats['shift_count'] ?? 0) > 0) {
-                        $metricChips[] = ['icon' => 'fa-check-double', 'value' => $stats['reaction_rate'].'% confirmado'];
-                    }
-                    if (($stats['pinned_count'] ?? 0) > 0) {
-                        $metricChips[] = ['icon' => 'fa-thumbtack', 'value' => $stats['pinned_count'].' '.($stats['pinned_count'] === 1 ? 'fixada' : 'fixadas')];
+
+                    $minutesAgo = $stats['last_message_minutes_ago'] ?? null;
+                    if ($minutesAgo !== null && $stats['has_messages']) {
+                        if ($minutesAgo < 1) {
+                            $lastLabel = 'agora';
+                        } elseif ($minutesAgo < 60) {
+                            $lastLabel = 'há '.$minutesAgo.'min';
+                        } elseif ($minutesAgo < 60 * 24) {
+                            $lastLabel = 'há '.intdiv($minutesAgo, 60).'h';
+                        } else {
+                            $lastLabel = 'há '.intdiv($minutesAgo, 60 * 24).'d';
+                        }
+                        $metricChips[] = [
+                            'icon' => 'fa-clock',
+                            'value' => 'Última: '.$lastLabel,
+                            'title' => 'Tempo desde a última anotação',
+                        ];
                     }
                 @endphp
                 @if(!empty($metricChips))
-                    <div class="mt-1.5 flex flex-wrap items-center gap-1.5 border-t border-white/15 pt-1.5">
+                    <div class="mt-1.5 flex flex-nowrap sm:flex-wrap items-center gap-1.5 border-t border-white/15 pt-1.5 overflow-x-auto sm:overflow-visible -mx-1 px-1 sm:mx-0 sm:px-0">
                         @foreach($metricChips as $chip)
-                            <span class="inline-flex items-center gap-1 bg-white/10 rounded-full px-2 py-0.5 text-[10px] text-white/80">
+                            <span
+                                class="inline-flex items-center gap-1 bg-white/10 rounded-full px-2 py-0.5 text-[10px] text-white/80 whitespace-nowrap flex-shrink-0"
+                                title="{{ $chip['title'] ?? '' }}"
+                            >
                                 <i class="fas {{ $chip['icon'] }} text-[9px]"></i>
                                 {{ $chip['value'] }}
                             </span>

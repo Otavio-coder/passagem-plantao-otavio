@@ -321,6 +321,11 @@ class TasyFormatter
             ->all();
     }
 
+    public function parseAllergyItemsPublic(?string $allergies): array
+    {
+        return $this->parseAllergyItems($allergies);
+    }
+
     private function parseAllergyItems(?string $allergies): array
     {
         $cleaned = trim((string) ($allergies ?? ''));

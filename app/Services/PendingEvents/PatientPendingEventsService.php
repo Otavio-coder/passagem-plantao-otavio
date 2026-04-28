@@ -2,14 +2,11 @@
 
 namespace App\Services\PendingEvents;
 
-use App\Repositories\EMR\PatientPrescriptionsRepository;
-use App\Services\PendingEvents\Handlers\AgendaPendingHandler;
-use App\Services\PendingEvents\Handlers\AntibioticPendingHandler;
-use App\Services\PendingEvents\Handlers\ChemotherapyPendingHandler;
-use App\Services\PendingEvents\Handlers\HemotherapyPendingHandler;
-use App\Services\PendingEvents\Handlers\PrescriptionPendingHandler;
+use App\Services\Scola\ScolaExamStatusService;
 use App\Services\Tasy\TasyFormatter;
-use App\View\Presenters\PendingEventPresenter;
+use App\Services\UsesRepositories;
+use App\Support\PendingEventHelper;
+use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -18,35 +15,16 @@ use Illuminate\Support\Facades\Log;
 /**
  * Coordenador de eventos pendentes por setor.
  *
- * A query principal carrega os dados básicos por paciente.
- * Cada handler especializado enriquece os resultados com seu tipo de evento.
- *
  * Retorna: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
  */
 class PatientPendingEventsService
 {
-    private const CACHE_TTL = 180; // 3 minutos
+    use UsesRepositories;
 
-    /** @var AbstractPendingHandler[] */
-    private array $handlers;
+    private const CACHE_TTL = 600; // 10 minutos
 
-    public function __construct()
-    {
-        $repo = app(PatientPrescriptionsRepository::class);
+    private const CHUNK_SIZE = 200;
 
-        $this->handlers = [
-            new PrescriptionPendingHandler,
-            new HemotherapyPendingHandler($repo),
-            new AntibioticPendingHandler($repo),
-            new ChemotherapyPendingHandler($repo),
-            new AgendaPendingHandler($repo),
-        ];
-    }
-
-    /**
-     * Busca pendências do setor em batch.
-     * Retorna [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
-     */
     public function getPendingEventsForSector(int $sectorId): array
     {
         $cacheKey = "sector_pending_fast_{$sectorId}";
@@ -54,41 +32,114 @@ class PatientPendingEventsService
         return Cache::remember($cacheKey, self::CACHE_TTL, fn () => $this->fetchEventsForSector($sectorId));
     }
 
-    /**
-     * Busca pendências sem cache — usar em relatórios que exigem dados sempre frescos.
-     */
     public function getFreshEventsForSector(int $sectorId): array
     {
         return $this->fetchEventsForSector($sectorId);
     }
 
+    public function getPatientChecklistForAttendance(int $sectorId, int $attendanceNumber): array
+    {
+        $sectorEvents = $this->getPendingEventsForSector($sectorId);
+        $patientEvents = $sectorEvents[$attendanceNumber] ?? ['events' => [], 'discharge' => null];
+
+        $events = is_array($patientEvents['events'] ?? null) ? $patientEvents['events'] : [];
+        $discharge = is_array($patientEvents['discharge'] ?? null) ? $patientEvents['discharge'] : null;
+
+        $multidisciplinaryRequests = $this->multidisciplinary()->getDetailedMultidisciplinaryRequests($attendanceNumber);
+        $openMultidisciplinaryRequests = array_values(array_filter(
+            $multidisciplinaryRequests,
+            fn (array $request): bool => ($request['ds_status'] ?? '') === 'Aberto'
+        ));
+
+        $exams = $this->buildChecklistSection(
+            'Exames pendentes',
+            $this->filterEventsByTypes($events, ['exame']),
+            'Sem exames pendentes.',
+            'blue'
+        );
+
+        $procedures = $this->buildChecklistSection(
+            'Procedimentos pendentes',
+            $this->filterEventsByTypes($events, ['procedimento', 'cirurgia', 'quimioterapia', 'hemoterapia']),
+            'Sem procedimentos pendentes.',
+            'amber'
+        );
+
+        $antibiotics = $this->buildChecklistSection(
+            'Tratamentos antimicrobianos pendentes',
+            $this->filterEventsByTypes($events, ['antibiotico']),
+            'Sem antimicrobianos pendentes.',
+            'emerald'
+        );
+
+        $multidisciplinary = $this->buildChecklistSection(
+            'Avaliações multidisciplinares abertas',
+            array_map(
+                fn (array $request): array => [
+                    'headline' => $request['ds_equipe_destino'] ?? 'Avaliação multidisciplinar',
+                    'detail' => trim((string) ($request['ds_motivo_consulta'] ?? '')) ?: null,
+                    'meta' => trim(sprintf(
+                        '%s%s',
+                        ! empty($request['nm_requisitante']) ? 'Solicitante: '.$request['nm_requisitante'] : '',
+                        ! empty($request['nm_responsavel_resposta']) ? ($request['nm_requisitante'] ? ' · ' : '').'Resposta: '.$request['nm_responsavel_resposta'] : ''
+                    )),
+                    'status' => $request['ds_status'] ?? 'Aberto',
+                    'tone' => ($request['ds_status'] ?? '') === 'Aberto' ? 'danger' : 'neutral',
+                ],
+                $openMultidisciplinaryRequests
+            ),
+            'Sem avaliações multidisciplinares abertas.',
+            'violet'
+        );
+
+        $dischargeSection = $this->buildDischargeSection($discharge);
+
+        return [
+            'counts' => [
+                'exams' => count($exams['items']),
+                'procedures' => count($procedures['items']),
+                'antibiotics' => count($antibiotics['items']),
+                'multidisciplinary' => count($multidisciplinary['items']),
+                'discharge' => $dischargeSection['has_item'],
+            ],
+            'sections' => [
+                $exams,
+                $procedures,
+                $antibiotics,
+                $multidisciplinary,
+                $dischargeSection,
+            ],
+        ];
+    }
+
+    // ==================== FETCHING ====================
+
     private function fetchEventsForSector(int $sectorId): array
     {
         $start = microtime(true);
 
-        // Query principal otimizada: traz dados básicos e contexto de alta médica.
         $rows = DB::connection('tasy')->select("
-                SELECT
-                    ua.nr_atendimento,
-                    ap.cd_pessoa_fisica,
-                    pf.dt_obito,
-                    ap.dt_alta,
-                    ap.dt_alta_medico,
-                    ma2.ds_motivo_alta,
-                    apa.dt_previsto_alta AS apa_dt_previsto_alta
-                FROM tasy.unidade_atendimento ua
-                INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
-                INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
-                LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
-                LEFT JOIN (
-                    SELECT nr_atendimento, dt_previsto_alta,
-                        ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
-                    FROM tasy.atend_previsao_alta
-                ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
-                WHERE ua.cd_setor_atendimento = :sector_id
-                    AND ua.ie_situacao = 'A'
-                    AND ap.dt_alta IS NULL
-            ", ['sector_id' => $sectorId]);
+            SELECT
+                ua.nr_atendimento,
+                ap.cd_pessoa_fisica,
+                pf.dt_obito,
+                ap.dt_alta,
+                ap.dt_alta_medico,
+                ma2.ds_motivo_alta,
+                apa.dt_previsto_alta AS apa_dt_previsto_alta
+            FROM tasy.unidade_atendimento ua
+            INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
+            INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
+            LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
+            LEFT JOIN (
+                SELECT nr_atendimento, dt_previsto_alta,
+                    ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
+                FROM tasy.atend_previsao_alta
+            ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
+            WHERE ua.cd_setor_atendimento = :sector_id
+                AND ua.ie_situacao = 'A'
+                AND ap.dt_alta IS NULL
+        ", ['sector_id' => $sectorId]);
 
         try {
             Log::debug('[PendingEvents] Query principal', [
@@ -106,7 +157,6 @@ class PatientPendingEventsService
             $nr = $row->nr_atendimento;
             $events = [];
 
-            // ÓBITO
             if (! empty($row->dt_obito)) {
                 $events[] = [
                     'tipo' => 'aviso',
@@ -124,14 +174,28 @@ class PatientPendingEventsService
             $results[$nr] = ['events' => $events, 'discharge' => $discharge];
         }
 
-        // Executa handlers especializados — todos recebem $allNrs;
-        // cada handler filtra internamente quais atendimentos têm dados.
-        foreach ($this->handlers as $handler) {
-            $handler->handle($results, $allNrs);
+        $t = microtime(true);
+        foreach (array_chunk($allNrs, self::CHUNK_SIZE) as $chunk) {
+            $this->processPrescriptionChunk($results, $chunk);
+        }
+        try {
+            Log::debug('[PendingEvents] Step prescricao', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
+        } catch (\Throwable) {
         }
 
-        // Deduplica: remove eventos de prescrição cujo nr_seq_proc_interno já está
-        // representado por um evento de agenda (mais informativo: data agendada, sala, setor).
+        $t = microtime(true);
+        foreach (array_chunk($allNrs, self::CHUNK_SIZE) as $chunk) {
+            $this->processHemotherapyChunk($results, $chunk);
+            $this->processAntibioticChunk($results, $chunk);
+            $this->processChemotherapyChunk($results, $chunk);
+            $this->processAgendaChunk($results, $chunk);
+        }
+        try {
+            Log::debug('[PendingEvents] Step outros chunks', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
+        } catch (\Throwable) {
+        }
+
+        // Deduplica: remove prescrição quando agenda tem o mesmo proc_interno (mais informativo)
         foreach ($results as &$data) {
             $agendaProcs = [];
             foreach ($data['events'] as $event) {
@@ -151,8 +215,8 @@ class PatientPendingEventsService
         }
         unset($data);
 
-        // Ordena eventos: urgentes primeiro, depois por proximidade ao momento atual
         $now = now()->timestamp;
+
         foreach ($results as &$data) {
             usort($data['events'], function ($a, $b) use ($now) {
                 $urgA = $a['urgente'] ?? false;
@@ -178,10 +242,16 @@ class PatientPendingEventsService
         }
         unset($data);
 
-        // Adiciona motivo_pendente a todos os eventos (fonte única: PendingEventPresentation)
+        $t = microtime(true);
+        (new ScolaExamStatusService)->enrichEvents($results);
+        try {
+            Log::debug('[PendingEvents] Step scola', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
+        } catch (\Throwable) {
+        }
+
         foreach ($results as &$data) {
             foreach ($data['events'] as &$event) {
-                $event['motivo_pendente'] = PendingEventPresenter::motivoPendente($event);
+                $event['motivo_pendente'] = PendingEventHelper::motivoPendente($event);
             }
             unset($event);
         }
@@ -198,10 +268,645 @@ class PatientPendingEventsService
         return $this->sanitizeUtf8($results);
     }
 
-    /**
-     * Recursively scrub invalid UTF-8 sequences from Oracle strings.
-     * MySQL utf8mb4 rejects invalid byte sequences that some Oracle charsets produce.
-     */
+    // ==================== HANDLERS (collapsed) ====================
+
+    private function processPrescriptionChunk(array &$results, array $chunk): void
+    {
+        $p = $this->placeholders($chunk);
+
+        try {
+            $rows = DB::connection('tasy')->select("
+                WITH base AS (
+                    SELECT
+                        pm.nr_atendimento,
+                        pm.nr_prescricao,
+                        pp.nr_sequencia                              AS nr_sequencia_pp,
+                        pp.nr_seq_exame,
+                        pp.nr_seq_proc_interno,
+                        pp.dt_prev_execucao                         AS dt_evento,
+                        pp.dt_coleta,
+                        pp.dt_resultado,
+                        pp.ie_amostra,
+                        pm.dt_prescricao                            AS dt_solicitacao,
+                        pm.dt_liberacao                             AS dt_autorizacao,
+                        pm.dt_liberacao_medico                      AS dt_liberacao_medico,
+                        NVL(pf.nm_pessoa_fisica, pm.nm_usuario)     AS nm_prescritor,
+                        pp.ie_status_execucao,
+                        NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
+                        dv.ds_valor_dominio                         AS ds_subtipo,
+                        COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
+                        COALESCE(vd_exam.ds_valor_dominio, vd_proc.ds_valor_dominio) AS ds_status_execucao_label,
+                        NVL(
+                            pis.cd_setor_atendimento,
+                            NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
+                        ) AS cd_setor_execucao,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY pm.nr_prescricao,
+                                         pp.nr_seq_proc_interno,
+                                         pp.dt_prev_execucao
+                            ORDER BY pp.nr_sequencia
+                        ) AS rn_proc_dup
+                    FROM tasy.prescr_medica pm
+                    JOIN tasy.prescr_procedimento pp
+                        ON pp.nr_prescricao = pm.nr_prescricao
+                    LEFT JOIN tasy.result_laboratorio rl
+                        ON  rl.nr_prescricao     = pm.nr_prescricao
+                        AND rl.nr_seq_prescricao = pp.nr_sequencia
+                        AND rl.dt_coleta         IS NOT NULL
+                    LEFT JOIN tasy.pessoa_fisica pf
+                        ON pf.cd_pessoa_fisica = pm.cd_prescritor
+                    LEFT JOIN tasy.proc_interno pi
+                        ON pi.nr_sequencia = pp.nr_seq_proc_interno
+                    LEFT JOIN tasy.proc_interno_classif pic
+                        ON pic.nr_sequencia = pi.nr_seq_classif
+                    LEFT JOIN tasy.cih_tipo_cirurgia cih
+                        ON cih.cd_tipo_cirurgia = pi.cd_tipo_cirurgia
+                    LEFT JOIN tasy.exame_laboratorio el
+                        ON el.nr_seq_exame = pp.nr_seq_exame
+                    LEFT JOIN tasy.grupo_exame_lab gel
+                        ON gel.nr_sequencia = el.nr_seq_grupo
+                    LEFT JOIN (
+                        SELECT cd_procedimento,
+                               MIN(ds_procedimento)      AS ds_procedimento,
+                               MIN(cd_tipo_procedimento) AS cd_tipo_procedimento,
+                               MIN(cd_setor_exclusivo)   AS cd_setor_exclusivo
+                        FROM tasy.procedimento
+                        GROUP BY cd_procedimento
+                    ) proced ON proced.cd_procedimento = pp.cd_procedimento
+                             AND pp.nr_seq_proc_interno IS NULL
+                    LEFT JOIN tasy.valor_dominio dv
+                        ON dv.cd_dominio = 95
+                       AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
+                    LEFT JOIN tasy.valor_dominio vd_exam
+                        ON vd_exam.cd_dominio = 1030
+                       AND vd_exam.vl_dominio = pp.ie_status_execucao
+                       AND pp.nr_seq_exame IS NOT NULL
+                    LEFT JOIN tasy.valor_dominio vd_proc
+                        ON vd_proc.cd_dominio = 1226
+                       AND vd_proc.vl_dominio = pp.ie_status_execucao
+                       AND pp.nr_seq_exame IS NULL
+                    LEFT JOIN (
+                        SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento
+                        FROM (
+                            SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY nr_seq_proc_interno, cd_estabelecimento
+                                       ORDER BY nr_prioridade
+                                   ) AS rn
+                            FROM tasy.proc_interno_setor
+                        ) WHERE rn = 1
+                    ) pis ON pis.nr_seq_proc_interno = pp.nr_seq_proc_interno
+                          AND pis.cd_estabelecimento  = pm.cd_estabelecimento
+                    WHERE pm.nr_atendimento IN ({$p})
+                        AND pp.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
+                        AND pp.dt_baixa        IS NULL
+                        AND pp.dt_cancelamento IS NULL
+                        AND pp.ie_suspenso     <> 'S'
+                        AND pp.ie_status_atend < 35
+                        AND pm.dt_liberacao    IS NOT NULL
+                        AND pm.dt_suspensao    IS NULL
+                        AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
+                        -- AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
+                        AND rl.nr_prescricao IS NULL
+                        AND NOT EXISTS (
+                            SELECT 1 FROM tasy.procedimento_paciente pp_laudo
+                            WHERE pp_laudo.nr_prescricao          = pm.nr_prescricao
+                              AND pp_laudo.nr_sequencia_prescricao = pp.nr_sequencia
+                              AND pp_laudo.nr_laudo               IS NOT NULL
+                        )
+                )
+                SELECT
+                    b.*,
+                    NVL(sa.ds_prescricao, sa.ds_setor_atendimento) AS setor_desc_raw,
+                    NULL AS ds_status_laudo,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM tasy.procedimento_paciente pp_exec
+                        WHERE pp_exec.nr_prescricao           = b.nr_prescricao
+                          AND pp_exec.nr_sequencia_prescricao = b.nr_sequencia_pp
+                    ) THEN 1 ELSE 0 END AS foi_executado_sem_baixa,
+                    CASE WHEN b.dt_resultado IS NOT NULL AND b.dt_coleta IS NOT NULL AND b.nr_seq_exame IS NOT NULL THEN 1 ELSE 0 END AS tem_resultado_sem_baixa,
+                    CASE WHEN b.nr_seq_exame IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM tasy.procedimento_paciente pp_dup
+                        WHERE pp_dup.nr_atendimento = b.nr_atendimento
+                          AND pp_dup.nr_seq_exame   = b.nr_seq_exame
+                          AND pp_dup.nr_prescricao  > b.nr_prescricao
+                    ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova,
+                    CASE WHEN b.nr_seq_exame IS NULL AND b.nr_seq_proc_interno IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM tasy.prescr_procedimento pp_n
+                        JOIN tasy.procedimento_paciente ppac
+                            ON ppac.nr_prescricao          = pp_n.nr_prescricao
+                           AND ppac.nr_sequencia_prescricao = pp_n.nr_sequencia
+                        WHERE ppac.nr_atendimento      = b.nr_atendimento
+                          AND pp_n.nr_seq_proc_interno  = b.nr_seq_proc_interno
+                          AND pp_n.nr_prescricao        > b.nr_prescricao
+                    ) THEN 1 ELSE 0 END AS proc_realizado_em_nova_prescricao,
+                    CASE WHEN b.nr_seq_exame IS NOT NULL THEN (
+                        SELECT nova.nr_prescricao || ' — ' || TO_CHAR(nova.dt_prescricao, 'DD/MM/YYYY')
+                        FROM (
+                            SELECT pm2.nr_prescricao, pm2.dt_prescricao
+                            FROM tasy.prescr_medica pm2
+                            JOIN tasy.prescr_procedimento pp2
+                                ON pp2.nr_prescricao = pm2.nr_prescricao
+                            WHERE pm2.nr_atendimento = b.nr_atendimento
+                              AND pp2.nr_seq_exame   = b.nr_seq_exame
+                              AND pm2.nr_prescricao  > b.nr_prescricao
+                              AND pp2.ie_status_execucao NOT IN ('40','R','C','BE')
+                              AND pp2.dt_baixa        IS NULL
+                              AND pp2.dt_cancelamento IS NULL
+                              AND pp2.ie_suspenso     <> 'S'
+                              AND pm2.dt_suspensao    IS NULL
+                              AND pm2.dt_liberacao    IS NOT NULL
+                            ORDER BY pm2.nr_prescricao DESC
+                        ) nova WHERE ROWNUM = 1
+                    ) ELSE NULL END AS prescricao_mais_nova_pendente_info
+                FROM base b
+                LEFT JOIN tasy.setor_atendimento sa
+                    ON sa.cd_setor_atendimento = b.cd_setor_execucao
+                WHERE b.rn_proc_dup = 1
+                ORDER BY b.nr_atendimento, b.dt_evento NULLS LAST
+            ", $chunk);
+        } catch (\Throwable $e) {
+            Log::warning('[PendingEvents] processPrescriptionChunk failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $now = time();
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $isExam = ! empty($row->nr_seq_exame);
+            $tempo = $this->calcTempo($row->dt_evento ?? null, $row->dt_autorizacao ?? null, $now);
+            // Códigos 13/14/15/16/26/27 são etapas internas do LIMS (impressão de etiquetas,
+            // mapa de trabalho, passagem de lote, etc.) — não aparecem no prontuário clínico.
+            $lims_internal = ['13', '14', '15', '16', '26', '27'];
+            $ieStatus = (string) ($row->ie_status_execucao ?? '');
+            $statusLabel = ($isExam && in_array($ieStatus, $lims_internal, true))
+                ? null
+                : ($row->ds_status_execucao_label ?? null);
+            $tipo = PendingEventTypeClassifier::fromPrescriptionRow($isExam, $row->ds_grupo_lab ?? null);
+
+            $results[$row->nr_atendimento]['events'][] = [
+                'tipo' => $tipo,
+                'icone' => match ($tipo) {
+                    PendingEventTypeClassifier::HEMOTHERAPY => 'hemoterapia.svg',
+                    PendingEventTypeClassifier::EXAM => 'outpatient-department.svg',
+                    default => 'tac.svg',
+                },
+                'descricao' => substr($row->descricao ?? '', 0, 80),
+                'ds_subtipo' => $row->ds_subtipo ?? null,
+                'ds_grupo_lab' => $row->ds_grupo_lab ?? null,
+                'nm_prescritor' => $row->nm_prescritor ?? null,
+                'nr_prescricao' => $row->nr_prescricao ?? null,
+                'dt_evento' => $row->dt_evento,
+                'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
+                'dt_solicitacao' => $row->dt_solicitacao ? date('d/m/Y H:i', strtotime($row->dt_solicitacao)) : null,
+                'dt_autorizacao' => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
+                'dt_liberacao_medico' => $row->dt_liberacao_medico ? date('d/m/Y H:i', strtotime($row->dt_liberacao_medico)) : null,
+                'dt_coleta' => $row->dt_coleta ? date('d/m/Y H:i', strtotime($row->dt_coleta)) : null,
+                'dt_resultado' => $row->dt_resultado ? date('d/m/Y H:i', strtotime($row->dt_resultado)) : null,
+                'ie_amostra' => $isExam ? ($row->ie_amostra ?? null) : null,
+                'setor_execucao' => $row->setor_desc_raw ?? ($row->cd_setor_execucao ?? null),
+                'tempo_pendente' => $tempo,
+                'status_laudo' => $statusLabel,
+                'ie_status_execucao' => $row->ie_status_execucao ?? null,
+                'ds_status_laudo' => $row->ds_status_laudo ?? null,
+                'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1 || (int) ($row->tem_resultado_sem_baixa ?? 0) === 1,
+                'exame_coletado_em_prescricao_mais_nova' => (int) ($row->exame_coletado_em_prescricao_mais_nova ?? 0) === 1,
+                'proc_realizado_em_nova_prescricao' => (int) ($row->proc_realizado_em_nova_prescricao ?? 0) === 1,
+                'prescricao_mais_nova_pendente_info' => $row->prescricao_mais_nova_pendente_info ?? null,
+                'urgente' => false,
+                'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                '_fonte' => 'prescricao',
+            ];
+        }
+    }
+
+    private function processHemotherapyChunk(array &$results, array $chunk): void
+    {
+        $p = $this->placeholders($chunk);
+
+        try {
+            $rows = DB::connection('tasy')->select("
+                SELECT
+                    ch.nr_atendimento,
+                    ch.dt_programada AS dt_evento,
+                    ch.ie_tipo_hemoterap,
+                    ch.ds_procedimento_prescrito,
+                    ch.ds_observacao,
+                    ch.ds_observacao_proc,
+                    ch.ds_horarios,
+                    ch.qt_vol_hemocomp,
+                    ch.ie_via_aplicacao,
+                    va.ds_via_aplicacao AS via_aplicacao,
+                    ch.ie_urgencia,
+                    sa.ds_setor_atendimento AS setor_execucao
+                FROM tasy.cpoe_hemoterapia ch
+                LEFT JOIN tasy.via_aplicacao va
+                    ON va.ie_via_aplicacao = ch.ie_via_aplicacao
+                   AND va.ie_situacao = 'A'
+                LEFT JOIN tasy.setor_atendimento sa
+                    ON sa.cd_setor_atendimento = ch.cd_setor_atendimento
+                WHERE ch.nr_atendimento IN ({$p})
+                  AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
+                  AND ch.dt_suspensao IS NULL
+            ", $chunk);
+        } catch (\Throwable $e) {
+            Log::warning('[PendingEvents] processHemotherapyChunk failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $tipoMap = [
+            '0' => 'Hemocomponente', '1' => 'Concentrado de Hemácias',
+            '2' => 'Concentrado de Plaquetas', '3' => 'Plasma Fresco Congelado',
+            '4' => 'Crioprecipitado', '5' => 'Concentrado de Granulócitos',
+        ];
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $tipo = $tipoMap[(string) ($row->ie_tipo_hemoterap ?? '')] ?? 'Hemocomponente';
+
+            $results[$row->nr_atendimento]['events'][] = [
+                'tipo' => 'hemoterapia',
+                'icone' => 'hemoterapia.svg',
+                'descricao' => PendingEventHelper::hemotherapyDescription([
+                    'tipo_label' => $tipo,
+                    'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
+                    'ds_procedimento_prescrito' => $row->ds_procedimento_prescrito ?? null,
+                    'ds_observacao' => $row->ds_observacao ?? null,
+                    'ds_observacao_proc' => $row->ds_observacao_proc ?? null,
+                    'ds_horarios' => $row->ds_horarios ?? null,
+                    'qt_vol_hemocomp' => $row->qt_vol_hemocomp ?? null,
+                    'via_aplicacao' => $row->via_aplicacao ?? null,
+                    'ie_via_aplicacao' => $row->ie_via_aplicacao ?? null,
+                ]),
+                'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
+                'tipo_label' => $tipo,
+                'dt_evento' => $row->dt_evento,
+                'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
+                'setor_execucao' => $row->setor_execucao ?? null,
+                'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
+            ];
+        }
+    }
+
+    private function processAntibioticChunk(array &$results, array $chunk): void
+    {
+        $p = $this->placeholders($chunk);
+
+        try {
+            $rows = DB::connection('tasy')->select("
+                WITH base AS (
+                    SELECT
+                        cm.nr_atendimento,
+                        cm.nr_sequencia                                                          AS med_id,
+                        INITCAP(TRIM(REGEXP_REPLACE(m.ds_material, '\\s*&&\\s*\$', '')))        AS descricao,
+                        pmh.dt_horario,
+                        cm.qt_dose,
+                        cm.cd_unidade_medida                                                     AS cd_unidade_medida_dose,
+                        cm.ie_via_aplicacao,
+                        cm.nr_dia_util,
+                        pma.ie_alteracao,
+                        CASE pma.ie_alteracao
+                            WHEN 3  THEN 600  WHEN 58 THEN 500  WHEN 8  THEN 400
+                            WHEN 38 THEN 300  WHEN 4  THEN 200  WHEN 10 THEN  30
+                            WHEN 15 THEN  20  ELSE           1
+                        END AS priority
+                    FROM tasy.cpoe_material cm
+                    JOIN tasy.material m          ON m.cd_material       = cm.cd_material
+                    JOIN tasy.material m_stock    ON m_stock.cd_material = m.cd_material_estoque
+                    JOIN tasy.medic_ficha_tecnica mf ON mf.nr_sequencia  = m_stock.nr_seq_ficha_tecnica
+                    JOIN tasy.prescr_material pm  ON pm.nr_seq_mat_cpoe  = cm.nr_sequencia
+                    JOIN tasy.prescr_mat_hor pmh
+                        ON pmh.nr_prescricao  = pm.nr_prescricao
+                       AND pmh.nr_seq_material = pm.nr_sequencia
+                    LEFT JOIN tasy.prescr_mat_alteracao pma
+                        ON pma.nr_seq_horario  = pmh.nr_sequencia
+                       AND pma.nr_prescricao   = pmh.nr_prescricao
+                       AND pma.nr_seq_prescricao = pm.nr_sequencia
+                       AND NVL(pma.ie_alteracao, 0) NOT IN (5, 12)
+                    WHERE cm.nr_atendimento IN ({$p})
+                      AND mf.ie_antimicrobiano = 'S'
+                      AND cm.dt_liberacao      IS NOT NULL
+                      AND cm.dt_suspensao      IS NULL
+                      AND TRUNC(pmh.dt_horario) = TRUNC(SYSDATE)
+                ),
+                grouped AS (
+                    SELECT
+                        nr_atendimento, med_id, descricao, dt_horario,
+                        qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util,
+                        MAX(priority) AS priority,
+                        MAX(ie_alteracao) KEEP (DENSE_RANK LAST ORDER BY priority NULLS FIRST) AS ie_alteracao_code
+                    FROM base
+                    GROUP BY nr_atendimento, med_id, descricao, dt_horario,
+                             qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
+                    HAVING MAX(priority) < 400
+                )
+                SELECT g.*, vd.ds_valor_dominio AS ds_alteracao_label
+                FROM grouped g
+                LEFT JOIN tasy.valor_dominio vd
+                    ON vd.cd_dominio = 1620
+                   AND vd.vl_dominio = TO_CHAR(g.ie_alteracao_code)
+                ORDER BY g.nr_atendimento, g.dt_horario
+            ", $chunk);
+        } catch (\Throwable $e) {
+            Log::warning('[PendingEvents] processAntibioticChunk failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $now = time();
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $dose = '';
+            if (! empty($row->qt_dose)) {
+                $dose = (string) (int) $row->qt_dose;
+                if (! empty($row->cd_unidade_medida_dose)) {
+                    $dose .= $row->cd_unidade_medida_dose;
+                }
+            }
+
+            $parts = array_filter([
+                $row->nr_dia_util ? 'Dia '.$row->nr_dia_util : null,
+                $dose ?: null,
+                ! empty($row->ie_via_aplicacao) ? $row->ie_via_aplicacao : null,
+            ]);
+
+            $dtTs = $row->dt_horario ? strtotime($row->dt_horario) : null;
+            $tempo = '';
+            if ($dtTs) {
+                $diff = $dtTs - $now;
+                $absDiff = abs($diff);
+                if ($diff > 0) {
+                    $tempo = $absDiff < 3600
+                        ? 'em '.(int) round($absDiff / 60).'min'
+                        : 'em '.(int) round($absDiff / 3600).'h';
+                } else {
+                    $tempo = $absDiff < 3600
+                        ? (int) round($absDiff / 60).'min em atraso'
+                        : (int) round($absDiff / 3600).'h em atraso';
+                }
+            }
+
+            $results[$row->nr_atendimento]['events'][] = [
+                'tipo' => 'antibiotico',
+                'icone' => 'antimicrobiano.svg',
+                'descricao' => substr($row->descricao ?? 'Antimicrobiano', 0, 60),
+                'ds_subtipo' => 'Antimicrobiano',
+                'ds_complemento' => implode(' · ', $parts),
+                'dt_evento' => $row->dt_horario,
+                'dt_evento_formatted' => $dtTs ? date('d/m/Y H:i', $dtTs) : null,
+                'tempo_pendente' => $tempo,
+                'status_laudo' => ! empty($row->ds_alteracao_label)
+                    ? trim((string) $row->ds_alteracao_label)
+                    : 'Pendente',
+                'urgente' => false,
+            ];
+        }
+    }
+
+    private function processChemotherapyChunk(array &$results, array $chunk): void
+    {
+        $p = $this->placeholders($chunk);
+
+        try {
+            $rows = DB::connection('tasy')->select("
+                SELECT
+                    ap.nr_atendimento,
+                    aq.dt_agenda            AS dt_evento,
+                    aq.ds_local,
+                    aq.nm_medico_resp,
+                    aq.ds_protocolo_medic,
+                    aq.nr_ciclo,
+                    aq.ie_status_agenda,
+                    vd.ds_valor_dominio     AS ds_status_agenda_label
+                FROM tasy.atendimento_paciente ap
+                JOIN tasy.agenda_quimioterapia_pep_v aq
+                    ON aq.cd_pessoa_fisica = ap.cd_pessoa_fisica
+                LEFT JOIN tasy.valor_dominio vd
+                    ON vd.cd_dominio = 83
+                   AND vd.vl_dominio = aq.ie_status_agenda
+                WHERE ap.nr_atendimento IN ({$p})
+                    AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 30
+                ORDER BY ap.nr_atendimento, aq.dt_agenda
+            ", $chunk);
+        } catch (\Throwable $e) {
+            Log::warning('[PendingEvents] processChemotherapyChunk failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $parts = array_filter([
+                ! empty($row->ds_protocolo_medic) ? $row->ds_protocolo_medic : null,
+                ! empty($row->nr_ciclo) ? 'Ciclo '.$row->nr_ciclo : null,
+                ! empty($row->ds_status_agenda_label) ? $row->ds_status_agenda_label : null,
+                ! empty($row->ds_local) ? $row->ds_local : null,
+                ! empty($row->nm_medico_resp) ? $row->nm_medico_resp : null,
+            ]);
+
+            $results[$row->nr_atendimento]['events'][] = [
+                'tipo' => 'quimioterapia',
+                'icone' => 'quimioterapia.svg',
+                'descricao' => ! empty($row->ds_protocolo_medic)
+                    ? substr($row->ds_protocolo_medic, 0, 60)
+                    : 'Quimioterapia',
+                'ds_subtipo' => 'Quimioterapia',
+                'ds_complemento' => implode(' · ', $parts),
+                'dt_evento' => $row->dt_evento,
+                'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
+                'ie_status_agenda' => $row->ie_status_agenda ?? null,
+                'urgente' => false,
+            ];
+        }
+    }
+
+    private function processAgendaChunk(array &$results, array $chunk): void
+    {
+        $p = $this->placeholders($chunk);
+
+        try {
+            $rows = DB::connection('tasy')->select("
+                SELECT
+                    atp.nr_atendimento,
+                    CASE
+                        WHEN ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X'
+                        THEN 'cirurgia' ELSE 'exame'
+                    END                                      AS tipo,
+                    CASE
+                        WHEN ap.hr_inicio IS NOT NULL
+                        THEN TRUNC(ap.dt_agenda) + (ap.hr_inicio - TRUNC(ap.hr_inicio))
+                        ELSE ap.dt_agenda
+                    END                                      AS dt_evento,
+                    ap.hr_inicio,
+                    ap.ds_cirurgia,
+                    ap.ds_observacao,
+                    ap.ie_carater_cirurgia,
+                    ap.ie_status_agenda,
+                    vd_ag_stat.ds_valor_dominio AS ds_status_agenda_label,
+                    vd_ag_car.ds_valor_dominio  AS ds_carater_label,
+                    ap.nr_seq_proc_interno,
+                    ap.nr_seq_sala,
+                    ap.cd_setor_atendimento      AS cd_setor_execucao,
+                    NVL(sa_exec.ds_prescricao, sa_exec.ds_setor_atendimento) AS ds_setor_execucao,
+                    NVL(pi.cd_tipo_cirurgia,
+                        (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p
+                         WHERE p.cd_procedimento = ap.cd_procedimento
+                           AND p.ie_origem_proced = ap.ie_origem_proced)
+                    ) AS cd_tipo_cirurgia,
+                    COALESCE(pi.ds_proc_exame, proced.ds_procedimento, ap.ds_cirurgia) AS descricao_proc,
+                    pi.nr_seq_exame_lab
+                FROM tasy.agenda_paciente ap
+                JOIN tasy.atendimento_paciente atp ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
+                LEFT JOIN tasy.setor_atendimento sa_exec ON sa_exec.cd_setor_atendimento = ap.cd_setor_atendimento
+                LEFT JOIN tasy.valor_dominio vd_ag_stat ON vd_ag_stat.cd_dominio = 83 AND vd_ag_stat.vl_dominio = ap.ie_status_agenda
+                LEFT JOIN tasy.valor_dominio vd_ag_car  ON vd_ag_car.cd_dominio  = 1016 AND vd_ag_car.vl_dominio  = ap.ie_carater_cirurgia
+                LEFT JOIN tasy.proc_interno pi ON pi.nr_sequencia = ap.nr_seq_proc_interno
+                LEFT JOIN (SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento FROM tasy.procedimento GROUP BY cd_procedimento) proced
+                    ON proced.cd_procedimento = ap.cd_procedimento AND ap.nr_seq_proc_interno IS NULL
+                WHERE atp.nr_atendimento IN ({$p})
+                    AND ap.dt_agenda >= TRUNC(SYSDATE)
+                    AND ap.dt_agenda <= SYSDATE + 30
+                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
+                    AND ap.dt_executada IS NULL
+                    AND (
+                        (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')
+                        OR (ap.ie_carater_cirurgia IS NULL AND (ap.nr_seq_proc_interno IS NOT NULL OR ap.cd_procedimento IS NOT NULL))
+                    )
+                ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
+            ", $chunk);
+        } catch (\Throwable $e) {
+            Log::warning('[PendingEvents] processAgendaChunk failed', ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        foreach ($rows as $row) {
+            if (! isset($results[$row->nr_atendimento])) {
+                continue;
+            }
+
+            $tipo = $row->tipo ?? 'exame';
+            $isSurgery = $tipo === 'cirurgia';
+            $isUrgent = $isSurgery && in_array($row->ie_carater_cirurgia ?? '', ['U', 'M'], true);
+
+            $results[$row->nr_atendimento]['events'][] = [
+                'tipo' => $tipo,
+                'icone' => $isSurgery ? 'general-surgery.svg' : 'outpatient-department.svg',
+                'descricao' => substr($row->descricao_proc ?? $row->ds_cirurgia ?? 'Procedimento', 0, 80),
+                'ds_subtipo' => $isSurgery
+                    ? ('Cirurgia'.($row->ds_carater_label ? ' – '.$row->ds_carater_label : ''))
+                    : 'Exame/Procedimento',
+                'dt_evento' => $row->dt_evento,
+                'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
+                'ie_status_agenda' => $row->ie_status_agenda ?? null,
+                'setor_execucao' => $row->ds_setor_execucao ?? null,
+                'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                'urgente' => $isUrgent,
+                '_fonte' => 'agenda',
+            ];
+        }
+    }
+
+    // ==================== HELPERS ====================
+
+    private function placeholders(array $chunk): string
+    {
+        return implode(',', array_fill(0, count($chunk), '?'));
+    }
+
+    private function calcTempo(?string $dtEvento, ?string $dtAutorizacao, int $now): string
+    {
+        if ($dtEvento) {
+            $diff = strtotime($dtEvento) - $now;
+            if ($diff > 0) {
+                return $diff < 3600
+                    ? 'em '.(int) round($diff / 60).'min'
+                    : ($diff < 86400
+                        ? 'em '.(int) round($diff / 3600).'h'
+                        : 'em '.(int) floor($diff / 86400).'d');
+            }
+
+            $diff = abs($diff);
+
+            return $diff < 3600
+                ? (int) round($diff / 60).'min em aberto'
+                : ($diff < 86400
+                    ? (int) round($diff / 3600).'h em aberto'
+                    : (int) floor($diff / 86400).'d em aberto');
+        }
+
+        if ($dtAutorizacao) {
+            $diff = $now - strtotime($dtAutorizacao);
+
+            return $diff < 3600
+                ? (int) round($diff / 60).'min em aberto'
+                : ($diff < 86400
+                    ? (int) round($diff / 3600).'h em aberto'
+                    : (int) floor($diff / 86400).'d em aberto');
+        }
+
+        return '';
+    }
+
+    private function buildDischarge(object $row, array &$events): ?array
+    {
+        if (! empty($row->dt_alta)) {
+            $events[] = [
+                'tipo' => 'alta', 'icone' => 'alta.svg',
+                'descricao' => 'Alta Efetivada'.(! empty($row->ds_motivo_alta) ? ' - '.$row->ds_motivo_alta : ''),
+                'ds_subtipo' => 'Alta',
+                'dt_evento' => $row->dt_alta,
+                'dt_evento_formatted' => Carbon::parse($row->dt_alta)->format('d/m/Y H:i'),
+                'urgente' => true,
+            ];
+
+            return TasyFormatter::buildDischargeInfo(
+                (string) $row->dt_alta, null, null,
+                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
+            );
+        }
+
+        if (! empty($row->dt_alta_medico)) {
+            $descAltaMedica = 'Alta Médica';
+            if (! empty($row->apa_dt_previsto_alta)) {
+                $descAltaMedica .= ' | Prev. Alta: '.Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
+            }
+
+            $events[] = [
+                'tipo' => 'alta_medica', 'icone' => 'alta.svg',
+                'descricao' => $descAltaMedica,
+                'ds_subtipo' => 'Alta Médica',
+                'dt_evento' => $row->dt_alta_medico,
+                'dt_evento_formatted' => Carbon::parse($row->dt_alta_medico)->format('d/m/Y H:i'),
+                'urgente' => true,
+            ];
+
+            return TasyFormatter::buildDischargeInfo(
+                null, (string) $row->dt_alta_medico,
+                ! empty($row->apa_dt_previsto_alta) ? (string) $row->apa_dt_previsto_alta : null,
+                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
+            );
+        }
+
+        return null;
+    }
+
     private function sanitizeUtf8(mixed $value): mixed
     {
         if (is_string($value)) {
@@ -215,50 +920,72 @@ class PatientPendingEventsService
         return $value;
     }
 
-    private function buildDischarge(object $row, array &$events): ?array
+    private function filterEventsByTypes(array $events, array $types): array
     {
-        if (! empty($row->dt_alta)) {
-            $events[] = [
-                'tipo' => 'alta',
-                'icone' => 'alta.svg',
-                'descricao' => 'Alta Efetivada'.(! empty($row->ds_motivo_alta) ? ' - '.$row->ds_motivo_alta : ''),
-                'ds_subtipo' => 'Alta',
-                'dt_evento' => $row->dt_alta,
-                'dt_evento_formatted' => Carbon::parse($row->dt_alta)->format('d/m/Y H:i'),
-                'urgente' => true,
-            ];
+        return array_values(array_filter($events, fn (array $event): bool => in_array((string) ($event['tipo'] ?? ''), $types, true)));
+    }
 
-            return TasyFormatter::buildDischargeInfo(
-                (string) $row->dt_alta,
-                null,
-                null,
-                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
-            );
+    private function buildChecklistSection(string $title, array $items, string $emptyMessage, string $tone): array
+    {
+        $mappedItems = array_map(function (array $item) use ($tone): array {
+            $detailParts = array_filter([
+                $item['ds_subtipo'] ?? null,
+                $item['dt_evento_formatted'] ?? null,
+                $item['tempo_pendente'] ?? null,
+                $item['ds_complemento'] ?? null,
+            ]);
+
+            return [
+                'headline' => trim((string) ($item['descricao'] ?? 'Sem descrição')),
+                'detail' => ! empty($detailParts) ? implode(' · ', $detailParts) : null,
+                'meta' => trim((string) ($item['status_laudo'] ?? $item['ie_status_execucao'] ?? $item['ie_status_agenda'] ?? '')) ?: null,
+                'urgent' => (bool) ($item['urgente'] ?? false),
+                'tone' => (string) (($item['urgent'] ?? false) ? 'danger' : $tone),
+            ];
+        }, $items);
+
+        return [
+            'title' => $title,
+            'tone' => $tone,
+            'items' => $mappedItems,
+            'empty_message' => $emptyMessage,
+            'has_items' => ! empty($mappedItems),
+        ];
+    }
+
+    private function buildDischargeSection(?array $discharge): array
+    {
+        if (! is_array($discharge) || empty($discharge)) {
+            return [
+                'title' => 'Alta / previsão de alta', 'tone' => 'green',
+                'items' => [], 'empty_message' => 'Sem previsão de alta registrada.',
+                'has_item' => false,
+            ];
         }
 
-        if (! empty($row->dt_alta_medico)) {
-            $descAltaMedica = 'Alta Médica';
-            if (! empty($row->apa_dt_previsto_alta)) {
-                $descAltaMedica .= ' | Prev. Alta: '.Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
-            }
-            $events[] = [
-                'tipo' => 'alta_medica',
-                'icone' => 'alta.svg',
-                'descricao' => $descAltaMedica,
-                'ds_subtipo' => 'Alta Médica',
-                'dt_evento' => $row->dt_alta_medico,
-                'dt_evento_formatted' => Carbon::parse($row->dt_alta_medico)->format('d/m/Y H:i'),
-                'urgente' => true,
-            ];
+        $title = match ($discharge['tipo'] ?? null) {
+            'alta' => 'Alta efetivada', 'alta_medica' => 'Alta médica', default => 'Previsão de alta',
+        };
 
-            return TasyFormatter::buildDischargeInfo(
-                null,
-                (string) $row->dt_alta_medico,
-                ! empty($row->apa_dt_previsto_alta) ? (string) $row->apa_dt_previsto_alta : null,
-                ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
-            );
-        }
+        $mainDate = $discharge['dt_alta_formatted']
+            ?? $discharge['dt_alta_medico_formatted']
+            ?? $discharge['dt_previsto_alta_formatted']
+            ?? null;
 
-        return null;
+        $metaParts = array_filter([
+            $mainDate,
+            ! empty($discharge['ds_motivo_alta']) ? 'Motivo: '.$discharge['ds_motivo_alta'] : null,
+        ]);
+
+        return [
+            'title' => 'Alta / previsão de alta', 'tone' => 'green',
+            'items' => [[
+                'headline' => $title, 'detail' => $mainDate,
+                'meta' => ! empty($metaParts) ? implode(' · ', $metaParts) : null,
+                'urgent' => true, 'tone' => 'green',
+            ]],
+            'empty_message' => 'Sem previsão de alta registrada.',
+            'has_item' => true,
+        ];
     }
 }

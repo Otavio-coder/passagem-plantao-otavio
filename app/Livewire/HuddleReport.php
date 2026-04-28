@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\EMR\Core\Bed;
 use App\Models\EMR\Core\Person;
 use App\Models\EMR\Core\Sector;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -61,7 +62,6 @@ class HuddleReport extends Component
             return [];
         }
 
-        // Load beds and patients without nested Person eager loading (avoids 300ms overhead)
         $beds = Bed::with([
             'currentPatient' => fn ($q) => $q->whereNull('dt_alta'),
         ])
@@ -79,9 +79,13 @@ class HuddleReport extends Component
         $personsByIdFromTasy = Person::whereIn('cd_pessoa_fisica', $personIds)
             ->get()
             ->keyBy('cd_pessoa_fisica');
+        $selectedSectorName = data_get(
+            collect($this->sectors)->firstWhere('cd_setor_atendimento', $this->selectedSector),
+            'ds_setor_atendimento'
+        );
 
         // Map beds to response, attaching Person data
-        return $beds->map(function ($bed) use ($personsByIdFromTasy) {
+        return $beds->map(function ($bed) use ($personsByIdFromTasy, $selectedSectorName) {
             $patient = $bed->currentPatient;
             $person = $patient ? $personsByIdFromTasy->get($patient->cd_pessoa_fisica) : null;
             $hasPatient = ! is_null($patient);
@@ -89,8 +93,10 @@ class HuddleReport extends Component
             return [
                 // ── Card identity ─────────────────────────────────────
                 'cd_unidade_basica' => $bed->cd_unidade_basica,
+                'cd_setor_atendimento' => $this->selectedSector,
                 'has_patient' => $hasPatient,
                 'nr_atendimento' => $patient?->nr_atendimento,
+                'ds_setor_atendimento' => $selectedSectorName,
 
                 // ── Card styling (required by x-patient-card) ─────────
                 'gradient_style' => $hasPatient
@@ -98,7 +104,6 @@ class HuddleReport extends Component
                     : 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);',
                 'border_class' => '',
                 'text_color_class' => '',
-                'ews_display' => ['prefix' => 'mews', 'label' => 'MEWS'],
 
                 // ── Patient basic data ─────────────────────────────────
                 'nm_pessoa_fisica' => $person?->name ?? $patient?->nm_pessoa_fisica,
@@ -109,7 +114,7 @@ class HuddleReport extends Component
                     : null,
                 'birth_date' => $person?->birth_date?->format('d/m/Y'),
                 'internment_days' => $patient?->dt_entrada
-                    ? (int) now()->diffInDays($patient->dt_entrada)
+                    ? (int) Carbon::parse($patient->dt_entrada)->diffInDays(now())
                     : null,
                 'is_new_patient' => $patient?->dt_entrada
                     ? now()->isSameDay($patient->dt_entrada)

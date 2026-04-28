@@ -53,7 +53,7 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                             @foreach($this->patients as $index => $patient)
                                 <div wire:key="huddle-bed-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}">
-                                    <x-patient-card :patient="$patient" :current-hospital-name="$currentHospitalName" />
+                                    <x-patient-card :patient="$patient" :current-hospital-name="$currentHospitalName" :modal-patients="$this->patients" />
                                 </div>
                             @endforeach
                         </div>

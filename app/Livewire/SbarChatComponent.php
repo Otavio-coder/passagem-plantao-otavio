@@ -838,7 +838,6 @@ class SbarChatComponent extends Component
         });
 
         $shiftCount = $shiftItems->count();
-        $confirmedCount = $shiftItems->filter(fn ($m) => ($m['reactions_count'] ?? 0) > 0)->count();
 
         $uniqueContributors = $shiftItems
             ->pluck('author')
@@ -846,7 +845,19 @@ class SbarChatComponent extends Component
             ->unique()
             ->count();
 
-        $reactionRate = $shiftCount > 0 ? (int) round($confirmedCount / $shiftCount * 100) : null;
+        $lastMessage = $items
+            ->filter(fn ($m) => ! empty($m['dt_criacao_raw']))
+            ->sortByDesc('dt_criacao_raw')
+            ->first();
+
+        $lastMessageMinutesAgo = null;
+        if ($lastMessage) {
+            try {
+                $lastMessageMinutesAgo = (int) Carbon::parse($lastMessage['dt_criacao_raw'])->diffInMinutes(now());
+            } catch (\Exception) {
+                $lastMessageMinutesAgo = null;
+            }
+        }
 
         return [
             'count' => $items->count(),
@@ -855,7 +866,7 @@ class SbarChatComponent extends Component
             'pinned_count' => $pinned->count(),
             'shift_count' => $shiftCount,
             'unique_contributors' => $uniqueContributors,
-            'reaction_rate' => $reactionRate,
+            'last_message_minutes_ago' => $lastMessageMinutesAgo,
         ];
     }
 

@@ -1,7 +1,6 @@
 @props(['patient'])
 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col"
-     x-data="{ showPendingModal: false, pendingShowAll: false, cardSlide: 0 }"
-     @pending-filter.window="pendingShowAll = $event.detail.v">
+     x-data="{ showPendingModal: false, cardSlide: 0 }">
 
     @if(!empty($patient['first_pending_event']) || !empty($patient['latest_evaluation']['content'] ?? null))
         <div class="rounded-lg p-2 border {{ !empty($patient['first_pending_event']) ? '' : 'bg-blue-50/60 border-blue-200' }}"
@@ -19,7 +18,7 @@
                 <div class="flex items-center gap-1.5">
                     @if(!empty($patient['pending_events'] ?? []))
                         <button
-                            @click="showPendingModal = true; document.body.style.overflow = 'hidden'; $dispatch('pending-filter', { v: false })"
+                            @click="showPendingModal = true; document.body.style.overflow = 'hidden'"
                             class="inline-flex items-center rounded-md border border-[#004D9D]/25 bg-[#004D9D]/10 px-2 py-0.5
                                    text-[10px] font-medium text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
                             title="Ver todas as pendências"
@@ -165,27 +164,9 @@
                 </button>
             </div>
 
-            <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50/80 flex-shrink-0">
-                <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wide mr-1">Período:</span>
-                <button @click="$dispatch('pending-filter', { v: false })"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap"
-                        :class="!pendingShowAll ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]'">
-                    Ontem – Hoje – Amanhã
-                </button>
-                <button @click="$dispatch('pending-filter', { v: true })"
-                        class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap"
-                        :class="pendingShowAll ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]'">
-                    Todas as Pendências
-                </button>
-            </div>
-            <div class="px-3 py-1.5 border-b border-gray-100 bg-gray-50/60 flex-shrink-0">
-                <p class="text-[10px] text-gray-500 leading-tight">
-                    Filtro padrão: janela de 1 dia (ontem, hoje e amanhã) + itens priorizados do sistema.
-                </p>
-            </div>
 
             <div class="flex-1 overflow-y-auto min-h-0 p-3 space-y-3">
-                <div x-show="pendingShowAll ? {{ (($patient['pending_modal_meta']['all_count'] ?? 0) === 0) ? 'true' : 'false' }} : {{ (($patient['pending_modal_meta']['near_count'] ?? 0) === 0) ? 'true' : 'false' }}"
+                <div x-show="{{ (($patient['pending_modal_meta']['all_count'] ?? 0) === 0) ? 'true' : 'false' }}"
                      class="rounded-xl border border-gray-200 bg-gray-50/60 p-6 text-center">
                     <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
                     <p class="text-xs text-gray-500 font-medium mt-2">Nenhuma pendência para este filtro.</p>
@@ -195,7 +176,6 @@
                 @foreach(($patient['pending_groups'] ?? []) as $group)
                     <div x-data="{
                             allItems: @js(array_values($group['events'] ?? [])),
-                            showAll: false,
                             page: 1,
                             perPage: 8,
                             calcPerPage() {
@@ -208,9 +188,7 @@
                                 if (this.page > this.pages) this.page = this.pages;
                             },
                             get items() {
-                                return this.showAll
-                                    ? this.allItems
-                                    : this.allItems.filter(i => i.is_near);
+                                return this.allItems;
                             },
                             get paged() {
                                 return this.items.slice((this.page-1)*this.perPage, this.page*this.perPage);
@@ -221,7 +199,6 @@
                          }"
                          x-init="calcPerPage()"
                          @resize.window="calcPerPage()"
-                         @pending-filter.window="showAll = $event.detail.v; page = 1"
                          x-show="items.length > 0"
                          class="rounded-xl border {{ $group['style']['border_header'] ?? 'border-gray-200' }} overflow-hidden">
 
@@ -259,31 +236,37 @@
                                     <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-gray-500">
                                         <template x-if="ev.dt_evento_formatted">
                                             <span>
-                                                <span class="font-medium text-gray-600">Previsto: </span>
+                                                <span class="font-medium text-gray-600">Prev. exec.: </span>
                                                 <span x-text="ev.dt_evento_formatted"></span>
                                             </span>
                                         </template>
                                         <template x-if="ev.dt_solicitacao">
                                             <span>
-                                                <span class="font-medium text-gray-600">Solicitado: </span>
+                                                <span class="font-medium text-gray-600">Prescrição: </span>
                                                 <span x-text="ev.dt_solicitacao"></span>
                                             </span>
                                         </template>
                                         <template x-if="ev.dt_autorizacao">
                                             <span>
-                                                <span class="font-medium text-gray-600">Liberado: </span>
+                                                <span class="font-medium text-gray-600">Lib. prescrição: </span>
                                                 <span x-text="ev.dt_autorizacao"></span>
+                                            </span>
+                                        </template>
+                                        <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.dt_liberacao_medico">
+                                            <span>
+                                                <span class="font-medium text-gray-600">Lib. médica: </span>
+                                                <span x-text="ev.dt_liberacao_medico"></span>
                                             </span>
                                         </template>
                                         <template x-if="ev.nr_prescricao">
                                             <span>
-                                                <span class="font-medium text-gray-600">Prescrição: </span>
+                                                <span class="font-medium text-gray-600">Nr. prescrição: </span>
                                                 <span x-text="ev.nr_prescricao"></span>
                                             </span>
                                         </template>
                                         <template x-if="ev.dt_coleta">
                                             <span>
-                                                <span class="font-medium text-gray-600">Coletado: </span>
+                                                <span class="font-medium text-gray-600">Coleta: </span>
                                                 <span x-text="ev.dt_coleta"></span>
                                             </span>
                                         </template>
@@ -300,14 +283,22 @@
                                               x-text="ev.ds_complemento"
                                               class="text-gray-500 italic"></span>
                                     </div>
-                                    <template x-if="ev.motivo_pendente">
-                                        <div class="mt-1 flex items-center gap-1 text-[10px]"
-                                             :class="{
-                                                'text-orange-700': ev.foi_executado_sem_baixa || ev.exame_coletado_em_prescricao_mais_nova,
-                                                'text-gray-500': !(ev.foi_executado_sem_baixa || ev.exame_coletado_em_prescricao_mais_nova)
-                                             }">
-                                            <x-heroicon-o-information-circle class="w-3 h-3 flex-shrink-0" />
-                                            <span x-text="ev.motivo_pendente"></span>
+                                    <template x-if="ev.motivo_pendente || ev.scola_status">
+                                        <div class="mt-1 space-y-0.5">
+                                            <template x-if="ev.motivo_pendente">
+                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                    <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
+                                                    <span class="font-medium text-gray-500">Tasy:</span>
+                                                    <span x-text="ev.motivo_pendente"></span>
+                                                </div>
+                                            </template>
+                                            <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.scola_status">
+                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                    <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0" />
+                                                    <span class="font-medium text-gray-500">SCOLA:</span>
+                                                    <span x-text="ev.scola_status"></span>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
                                 </div>
@@ -315,11 +306,7 @@
 
                             <div x-show="items.length === 0"
                                  class="px-3 py-4 text-center">
-                                <p class="text-[11px] text-gray-400">Nenhum item nos próximos 3 dias.</p>
-                                <button @click="$dispatch('pending-filter', { v: true })"
-                                        class="text-[11px] text-[#004D9D] font-semibold underline mt-1">
-                                    Ver todas
-                                </button>
+                                <p class="text-[11px] text-gray-400">Nenhuma pendência neste grupo.</p>
                             </div>
                         </div>
 

@@ -4,13 +4,14 @@ namespace App\Livewire;
 
 use App\Models\EMR\Core\Sector;
 use App\Models\System\UserSectorPreference;
+use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use App\Services\UserDisplayNameResolver;
-use App\View\Presenters\PatientCardPresenter;
-use App\View\Presenters\PendingEventPresenter;
+use App\Support\PendingEventHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
@@ -115,9 +116,17 @@ class SbarReport extends Component
         }
 
         try {
-            $patients = $this->tasyService->getSectorPatientsForSbar($this->selectedSector);
+            $patients = PatientDataLoader::forSector($this->selectedSector)
+                ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
+                ->get();
 
-            return $this->preparePatientsForView($this->injectHandoverStatus($patients));
+            $withHandover = Cache::remember(
+                "sector_handover_{$this->selectedSector}_".ShiftService::getCurrentShift(),
+                300, // 5 min — refreshes within same shift without re-querying MySQL chat tables
+                fn () => $this->injectHandoverStatus($patients)
+            );
+
+            return $this->preparePatientsForView($withHandover);
         } catch (\Exception $e) {
             Log::error('Error loading patients', [
                 'exception' => $e,
@@ -275,7 +284,7 @@ class SbarReport extends Component
     {
         try {
             if ($this->selectedSector) {
-                $this->tasyService->clearSectorCache($this->selectedSector);
+                PatientDataLoader::forSector($this->selectedSector)->clearCache();
             }
 
             unset($this->patients); // force recompute after cache clear
@@ -582,7 +591,7 @@ class SbarReport extends Component
                 $pendingEvents = [];
             }
 
-            $structured = PendingEventPresenter::buildPendingModalData($pendingEvents);
+            $structured = PendingEventHelper::buildPendingModalData($pendingEvents);
             $surgeries = $patient['procedimentos_cirurgicos'] ?? [];
             if (! is_array($surgeries)) {
                 $surgeries = [];
@@ -601,16 +610,16 @@ class SbarReport extends Component
             $patient['pending_events'] = $structured['events'];
             $patient['pending_groups'] = $structured['groups'];
             $patient['first_pending_event'] = $structured['first_event'];
-            $patient['allergy_items'] = PatientCardPresenter::buildAllergyItems($patient);
-            $patient['isolation_items'] = PatientCardPresenter::buildIsolationItems($patient['motivos_isolamento'] ?? null);
-            $patient['first_pending_style'] = PendingEventPresenter::firstEventCardStyle($structured['first_event']);
-            $patient['sector_exec_fallback'] = PatientCardPresenter::buildSectorFallbackLabel($patient);
-            $patient['handover_shift_name'] = PatientCardPresenter::shiftDisplayName($this->currentShiftName);
-            $patient['procedimentos_cirurgicos'] = PatientCardPresenter::buildSurgeryItems($surgeries);
-            $patient['discharge_display'] = PatientCardPresenter::buildDischargeDisplay($dischargeInfo);
-            $patient['ews_display'] = PatientCardPresenter::buildEwsDisplay($patient);
-            $patient['multidisciplinary_requests'] = PatientCardPresenter::buildMultidisciplinaryRequests($multidisciplinaryRequests);
-            $patient['pending_modal_meta'] = PatientCardPresenter::buildPendingModalMeta($structured['events']);
+            $patient['allergy_items'] = self::buildAllergyItems($patient);
+            $patient['isolation_items'] = self::buildIsolationItems($patient['motivos_isolamento'] ?? null);
+            $patient['first_pending_style'] = PendingEventHelper::firstEventCardStyle($structured['first_event']);
+            $patient['sector_exec_fallback'] = self::buildSectorFallbackLabel($patient);
+            $patient['handover_shift_name'] = self::shiftDisplayName($this->currentShiftName);
+            $patient['procedimentos_cirurgicos'] = self::buildSurgeryItems($surgeries);
+            $patient['discharge_display'] = self::buildDischargeDisplay($dischargeInfo);
+            $patient['ews_display'] = self::buildEwsDisplay($patient);
+            $patient['multidisciplinary_requests'] = self::buildMultidisciplinaryRequests($multidisciplinaryRequests);
+            $patient['pending_modal_meta'] = self::buildPendingModalMeta($structured['events']);
             $patient['pending_type_filter'] = collect($structured['events'])
                 ->pluck('tipo')
                 ->map(fn ($type) => $type === 'proc_exame' ? 'exame' : $type)
@@ -627,5 +636,163 @@ class SbarReport extends Component
 
             return $patient;
         }, $patients);
+    }
+
+    // ── Patient card helpers (display-only, only used here) ───────────────────
+
+    private static function shiftDisplayName(?string $shift): string
+    {
+        return match ($shift) {
+            'morning' => 'manhã', 'afternoon' => 'tarde', 'night' => 'noite',
+            default => 'turno atual',
+        };
+    }
+
+    private static function buildEwsDisplay(array $patient): array
+    {
+        $isPediatric = (bool) ($patient['is_pediatric'] ?? false);
+
+        return ['prefix' => $isPediatric ? 'pews' : 'mews', 'label' => $isPediatric ? 'PEWS' : 'MEWS'];
+    }
+
+    private static function buildSurgeryItems(array $surgeries): array
+    {
+        return array_values(array_map(function (array $surgery): array {
+            $raw = trim((string) ($surgery['descricao_padronizada'] ?? $surgery['procedimento'] ?? 'Procedimento'));
+            $surgery['display_description'] = trim((string) (preg_replace('/\s*\(\s*Cirurgia\s+agenda\s+para\s+[^\)]*\)\s*$/iu', '', $raw) ?? $raw));
+
+            return $surgery;
+        }, $surgeries));
+    }
+
+    private static function buildDischargeDisplay(?array $dischargeInfo): array
+    {
+        $type = (string) ($dischargeInfo['tipo'] ?? '');
+        $show = in_array($type, ['alta', 'alta_medica'], true);
+
+        return [
+            'show' => $show,
+            'type' => $type,
+            'label' => $show ? ($type === 'alta' ? 'Alta Efetivada' : 'Prev. Alta') : '',
+            'bg' => 'bg-gray-100',
+            'icon' => 'alta.svg',
+        ];
+    }
+
+    private static function buildPendingModalMeta(array $pendingEvents): array
+    {
+        return [
+            'all_count' => count($pendingEvents),
+            'near_count' => count(array_filter($pendingEvents, static fn (array $e): bool => (bool) ($e['is_near'] ?? false))),
+        ];
+    }
+
+    private static function buildAllergyItems(array $patient): array
+    {
+        $items = $patient['alergias_items'] ?? [];
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return array_values(array_map(function (array $item): array {
+            $severity = trim((string) ($item['grav'] ?? ''));
+            $textClass = 'text-gray-500';
+            $bgClass = 'bg-gray-100';
+
+            if ($severity !== '') {
+                $lower = mb_strtolower($severity);
+                if (str_contains($lower, 'grave') || str_contains($lower, 'severa')) {
+                    $textClass = 'text-red-700 font-semibold';
+                    $bgClass = 'bg-red-100';
+                } elseif (str_contains($lower, 'moderada')) {
+                    $textClass = 'text-yellow-700';
+                    $bgClass = 'bg-yellow-100';
+                }
+            }
+
+            return [
+                'med' => $item['med'] ?? null,
+                'grav' => $item['grav'] ?? null,
+                'text' => $item['text'] ?? null,
+                'severity_text_class' => $textClass,
+                'severity_bg_class' => $bgClass,
+            ];
+        }, $items));
+    }
+
+    private static function buildIsolationItems(?string $rawValue): array
+    {
+        $raw = trim(strip_tags((string) ($rawValue ?? '')));
+        if ($raw === '' || mb_strtolower($raw) === 'não') {
+            return [];
+        }
+
+        $items = [];
+        foreach (preg_split('/[;|\r\n]+/', $raw) ?: [] as $part) {
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+
+            if (preg_match('/^(.+?)\s*[-–]\s*(.+)$/u', $part, $m)) {
+                $items[] = ['label' => trim($m[1]), 'value' => trim($m[2])];
+            } else {
+                $items[] = ['text' => $part];
+            }
+        }
+
+        return $items;
+    }
+
+    private static function buildSectorFallbackLabel(array $patient): string
+    {
+        $name = trim((string) ($patient['ds_prescricao'] ?? $patient['ds_setor_atendimento'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+        $code = $patient['cd_setor_atendimento'] ?? null;
+
+        return $code ? 'Setor '.$code : 'Setor não informado';
+    }
+
+    private static function buildMultidisciplinaryRequests(array $requests): array
+    {
+        $resolver = app(UserDisplayNameResolver::class);
+
+        return array_values(array_map(function (array $req) use ($resolver): array {
+            $team = mb_strtolower((string) ($req['ds_equipe_destino'] ?? ''));
+            $req['team_icon'] = match (true) {
+                str_contains($team, 'fisio') => 'fisioterapia.svg',
+                str_contains($team, 'psico') => 'psicologia.svg',
+                str_contains($team, 'nutri') => 'nutricao.svg',
+                str_contains($team, 'fono') => 'fonoaudiologia.svg',
+                str_contains($team, 'social') => 'servico-social.svg',
+                str_contains($team, 'acesso'), str_contains($team, 'picc') => 'catheter-svgrepo-com.svg',
+                default => null,
+            };
+            $status = (string) ($req['ie_status'] ?? '');
+            $req['status_badge_class'] = $status === 'R' ? 'bg-green-500 text-white' : 'bg-amber-500 text-white';
+            $req['card_class'] = $status === 'R' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200';
+            $req['dt_registro_formatted'] = self::formatCardDateTime($req['dt_registro'] ?? null);
+            $req['dt_liberacao_formatted'] = self::formatCardDateTime($req['dt_liberacao'] ?? null);
+            $req['dt_resposta_formatted'] = self::formatCardDateTime($req['dt_resposta'] ?? null);
+            $req['nm_requisitante_display'] = $resolver->fromName($req['nm_requisitante'] ?? null);
+            $req['nm_responsavel_resposta_display'] = $resolver->fromName($req['nm_responsavel_resposta'] ?? null);
+
+            return $req;
+        }, $requests));
+    }
+
+    private static function formatCardDateTime(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $value)->format('d/m/Y H:i');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

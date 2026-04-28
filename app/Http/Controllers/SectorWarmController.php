@@ -2,22 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\Tasy\TasyService;
+use App\Services\PatientData\PatientDataLoader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class SectorWarmController extends Controller
 {
-    public function __construct(protected TasyService $tasyService) {}
-
     /**
-     * Pre-warms the sector patients cache for a list of sector IDs.
+     * Pre-warms all PatientDataLoader caches for a list of sector IDs.
      *
-     * Called by the SBAR page (fire-and-forget) for all user sectors after the
-     * active sector loads, so subsequent sector switches are instant (~5ms cache hit).
-     *
-     * Only sectors belonging to the authenticated user are warmed.
+     * Called fire-and-forget by the SBAR page after the active sector loads,
+     * so subsequent sector switches hit cache and are near-instant.
      *
      * POST /sectors/warm
      * Body: { "sector_ids": [123, 456, ...] }  (max 20)
@@ -29,23 +26,36 @@ class SectorWarmController extends Controller
             'sector_ids.*' => 'required|integer|min:1',
         ]);
 
-        // Validate against user's allowed sectors
-        $user = Auth::user();
-        $allowedCodes = $user->sectorPreferences()->pluck('sector_code')->map('intval')->toArray();
+        $allowedCodes = Auth::user()
+            ->sectorPreferences()
+            ->pluck('sector_code')
+            ->map('intval')
+            ->toArray();
 
         $warmed = 0;
         $skipped = 0;
 
-        foreach ($validated['sector_ids'] as $sectorId) {
-            $sectorId = (int) $sectorId;
+        foreach ($validated['sector_ids'] as $rawId) {
+            $sectorId = (int) $rawId;
+
             if (! in_array($sectorId, $allowedCodes)) {
                 continue;
             }
 
-            if ($this->tasyService->warmSbarSectorCache($sectorId)) {
+            // Skip if demographics cache already warm — all other caches are likely warm too
+            if (Cache::has("sector_demographics_{$sectorId}")) {
+                $skipped++;
+
+                continue;
+            }
+
+            try {
+                PatientDataLoader::forSector($sectorId)
+                    ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
+                    ->get();
                 $warmed++;
-            } else {
-                $skipped++; // already cached
+            } catch (\Throwable) {
+                // ignore — warm is best-effort
             }
         }
 

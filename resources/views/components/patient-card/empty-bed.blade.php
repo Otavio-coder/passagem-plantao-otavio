@@ -9,7 +9,7 @@
             </div>
             <div class="flex-grow flex items-center justify-center">
                 <div class="text-center">
-                    <x-healthicons-o-inpatient class="mx-auto h-12 w-12 text-gray-400 mb-2" />
+                    <x-healthicons-o-inpatient class="mx-auto h-12 w-12 text-gray-400 mb-2 animate-pulse" />
                     <p class="text-gray-500 text-base font-medium">Leito Vago</p>
                 </div>
             </div>

@@ -133,7 +133,7 @@
                     </div>
                     @endcan
                     {{-- Usuários — Coordenador + Administrador --}}
-                    @can('ver usuarios')
+                    @role('Administrador')
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
                         <a href="{{ route('huddle.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
@@ -141,11 +141,11 @@
                             </div>
                             <div class="text-center sm:text-left">
                                 <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Huddle de Alta</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Painel de leitos para gereciamento de alta e Red2Green</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Em breve — área em desenvolvimento</p>
                             </div>
                         </a>
                     </div>
-                    @endcan
+                    @endrole
                 </div>
             </div>
         </div>

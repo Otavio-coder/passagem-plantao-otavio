@@ -23,8 +23,18 @@
     #archive-table_wrapper .dt-length select {
         border: 1px solid #D1D5DB;
         border-radius: 0.375rem;
-        padding: 0.25rem 0.5rem;
+        padding: 0.25rem 1.5rem 0.25rem 0.5rem; /* aumenta o padding à direita */
         font-size: 0.875rem;
+        margin-right: 0.5rem; /* afasta o ícone do número */
+    }
+
+    /* Ajuste global para todos os DataTables do projeto */
+    .dataTables_length select {
+        border: 1px solid #D1D5DB;
+        border-radius: 0.375rem;
+        padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        margin-right: 0.5rem;
     }
     #archive-table_wrapper .dt-paging button {
         border: 1px solid #E5E7EB;
@@ -469,7 +479,7 @@ document.addEventListener('DOMContentLoaded', function () {
             search: 'Buscar:',
         },
         pageLength: 25,
-        lengthMenu: [10, 25, 50, 100],
+        lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }]
         order: [[7, 'desc']],
         columns: [
             { data: 'nr_atendimento', render: (v) => `<span class="font-mono font-semibold text-gray-700">${v}</span>` },

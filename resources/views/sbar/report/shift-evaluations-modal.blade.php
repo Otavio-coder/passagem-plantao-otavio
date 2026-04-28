@@ -167,7 +167,7 @@
                                         {{-- Leito vazio --}}
                                         <template x-if="bed.status === 'empty'">
                                             <span class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-400 italic">
-                                                <x-healthicons-o-inpatient class="w-4 h-4" />
+                                                <x-healthicons-o-inpatient class="w-4 h-4 animate-pulse" />
                                                 Leito Vago
                                             </span>
                                         </template>

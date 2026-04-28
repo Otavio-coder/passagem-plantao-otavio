@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\System\UserSectorPreference;
+use App\Services\PatientData\PatientDataLoader;
 use App\Services\PendingEvents\PatientPendingEventsService;
-use App\Services\Tasy\TasyService;
 use App\Services\UserDisplayNameResolver;
+use App\Support\PendingEventHelper;
 use App\Support\PendingEventTypeClassifier;
-use App\View\Presenters\PendingEventPresenter;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
@@ -32,9 +34,10 @@ class PendingEventsReportController extends Controller
             return view('pendencias.index', [
                 'hospitals' => collect(),
                 'sectors' => collect(),
+                'sectorsForFilter' => [],
                 'rows' => collect(),
                 'selectedHospital' => null,
-                'selectedSector' => null,
+                'selectedSectors' => [],
                 'sectorName' => null,
                 'totalRows' => 0,
                 'errorMessage' => 'Nenhum setor configurado no sistema. Solicite ao administrador.',
@@ -66,43 +69,91 @@ class PendingEventsReportController extends Controller
             ->sortBy('sector_name')
             ->values();
 
-        $selectedSector = (int) $request->integer('sector_id', (int) ($sectors->first()['sector_code'] ?? 0));
-        if (! $sectors->pluck('sector_code')->contains($selectedSector)) {
-            $selectedSector = (int) ($sectors->first()['sector_code'] ?? 0);
+        $allowedSectorCodes = $sectors->pluck('sector_code')->map(fn ($c) => (int) $c);
+
+        // Aceita sector_ids[] (multi) ou sector_id (legado single)
+        $rawIds = $request->input('sector_ids', []);
+        if (empty($rawIds) && $request->has('sector_id')) {
+            $rawIds = [$request->integer('sector_id')];
+        }
+
+        $selectedSectors = collect($rawIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allowedSectorCodes->contains($id))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($selectedSectors) && $allowedSectorCodes->isNotEmpty()) {
+            $selectedSectors = [$allowedSectorCodes->first()];
         }
 
         $rows = collect();
-        $sectorName = null;
+        $service = new PatientPendingEventsService;
 
-        if ($selectedSector > 0) {
-            $tasy = new TasyService;
-            $patients = $tasy->getSectorPatientsForSbar($selectedSector);
+        foreach ($selectedSectors as $sectorId) {
+            $patients = PatientDataLoader::forSector($sectorId)
+                ->include('demographics')
+                ->get();
 
-            // Substitui pending_events com dados frescos (sem cache) para o relatório
-            $freshPending = (new PatientPendingEventsService)->getFreshEventsForSector($selectedSector);
-            $patients = array_map(function (array $patient) use ($freshPending) {
-                $patient['pending_events'] = $freshPending[$patient['nr_atendimento']]['events'] ?? [];
+            $pending = $service->getPendingEventsForSector($sectorId);
+            $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null)
+                ?? $sectors->firstWhere('sector_code', $sectorId)['sector_name']
+                ?? (string) $sectorId;
+
+            $patients = array_map(function (array $patient) use ($pending, $sectorLabel) {
+                $patient['pending_events'] = $pending[$patient['nr_atendimento']]['events'] ?? [];
+                $patient['_setor_label'] = $sectorLabel;
 
                 return $patient;
             }, $patients);
 
-            $sectorName = $patients[0]['ds_prescricao']
-                ?? $patients[0]['ds_setor_atendimento']
-                ?? ($sectors->firstWhere('sector_code', $selectedSector)['sector_name'] ?? null);
-
-            $rows = $this->buildRows(collect($patients))->sortByDesc('sort_ts')->values();
+            $rows = $rows->merge($this->buildRows(collect($patients)));
         }
+
+        $rows = $rows->sortByDesc('sort_ts')->values();
+
+        $sectorName = count($selectedSectors) === 1
+            ? ($sectors->firstWhere('sector_code', $selectedSectors[0])['sector_name'] ?? null)
+            : count($selectedSectors).' setores selecionados';
+
+        // Pré-computa array simples para o Alpine.js — evita expressões complexas no Blade
+        $sectorsForFilter = $sectors
+            ->map(fn ($s) => ['code' => (int) $s['sector_code'], 'name' => (string) $s['sector_name']])
+            ->values()
+            ->all();
 
         return view('pendencias.index', [
             'hospitals' => $hospitals,
             'sectors' => $sectors,
+            'sectorsForFilter' => $sectorsForFilter,
             'rows' => $rows,
             'selectedHospital' => $selectedHospital,
-            'selectedSector' => $selectedSector,
+            'selectedSectors' => $selectedSectors,
             'sectorName' => $sectorName,
             'totalRows' => $rows->count(),
             'errorMessage' => null,
         ]);
+    }
+
+    public function refresh(Request $request): RedirectResponse
+    {
+        $sectorIds = array_map('intval', (array) $request->input('sector_ids', []));
+        if (empty($sectorIds) && $request->has('sector_id')) {
+            $sectorIds = [(int) $request->integer('sector_id')];
+        }
+
+        foreach (array_filter($sectorIds) as $sectorId) {
+            Cache::forget("sector_pending_fast_{$sectorId}");
+            Cache::forget("sector_demographics_{$sectorId}");
+        }
+
+        $params = array_filter(['hospital_id' => $request->integer('hospital_id') ?: null]);
+        foreach ($sectorIds as $id) {
+            $params['sector_ids'][] = $id;
+        }
+
+        return redirect()->route('pending.report', $params);
     }
 
     private function buildRows(Collection $patients): Collection
@@ -120,6 +171,7 @@ class PendingEventsReportController extends Controller
                 'paciente' => $patient['nm_pessoa_fisica'] ?? '-',
                 'ugb' => $patient['cd_unidade_basica'] ?? '-',
                 'uga' => $sector,
+                'setor_origem' => $patient['_setor_label'] ?? $sector,
             ];
 
             foreach (($patient['pending_events'] ?? []) as $event) {
@@ -128,43 +180,41 @@ class PendingEventsReportController extends Controller
                     continue;
                 }
 
-                $statusExecucao = trim((string) ($event['status_laudo'] ?? ''));
-                $statusLaudoExame = trim((string) ($event['ds_status_laudo'] ?? ''));
-
-                $status = ($statusExecucao !== '')
-                    ? $statusExecucao
-                    : (($event['urgente'] ?? false) ? 'Urgente' : 'Pendente');
-
-                // Para exames, prioriza o status do laudo quando disponível.
-                if (in_array($tipo, ['proc_exame', 'exame'], true) && $statusLaudoExame !== '') {
-                    $status = $statusLaudoExame;
-                }
-
                 $sortTs = $this->parseDateToTs($event['dt_evento'] ?? null)
                     ?? $this->parseDateToTs($event['dt_solicitacao'] ?? null)
                     ?? 0;
 
                 $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
 
+                $isOverdue = $sortTs > 0 && $sortTs < time();
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
-                    'setor_execucao' => PendingEventPresenter::executionSectorLabel($event),
+                    'setor_execucao' => PendingEventHelper::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
-                    'classificacao' => PendingEventPresenter::classificationLabel($event, $normalizedType),
-                    'data_solicitacao' => $event['dt_solicitacao'] ?? '-',
-                    'data_prev_execucao' => $event['dt_evento_formatted'] ?? '-',
+                    'classificacao' => PendingEventHelper::classificationLabel($event, $normalizedType),
+                    'data_prev_execucao' => $this->shortDate($event['dt_evento'] ?? null),
+                    'data_prev_execucao_sort' => $this->parseDateToTs($event['dt_evento'] ?? null) ?? 0,
+                    'data_solicitacao' => $this->shortDate($event['dt_solicitacao'] ?? null),
+                    'data_solicitacao_sort' => $this->parseDateToTs($event['dt_solicitacao'] ?? null) ?? 0,
+                    'data_lib_prescricao' => $this->shortDate($event['dt_autorizacao'] ?? null),
+                    'data_lib_prescricao_sort' => $this->parseDateToTs($event['dt_autorizacao'] ?? null) ?? 0,
+                    'data_lib_medica' => in_array($normalizedType, ['exame', 'proc_exame']) ? $this->shortDate($event['dt_liberacao_medico'] ?? null) : null,
+                    'data_lib_medica_sort' => in_array($normalizedType, ['exame', 'proc_exame']) ? ($this->parseDateToTs($event['dt_liberacao_medico'] ?? null) ?? 0) : 0,
+                    'data_coleta' => $this->shortDate($event['dt_coleta'] ?? null),
+                    'data_coleta_sort' => $this->parseDateToTs($event['dt_coleta'] ?? null) ?? 0,
                     'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
-                    'status' => $status,
-                    'motivo_pendente' => $this->computeMotivoPendente($normalizedType, $event, $status),
-                    'laudo' => $normalizedType === PendingEventTypeClassifier::SURGERY
-                        ? '-'
-                        : ($statusLaudoExame !== '' ? $statusLaudoExame : '-'),
+                    'status_execucao' => trim((string) ($event['status_laudo'] ?? '')),
+                    'motivo_pendente' => $this->computeMotivoPendente($normalizedType, $event),
+                    'nr_prescricao' => $event['nr_prescricao'] ?? null,
+                    'scola_status' => $event['scola_status'] ?? null,
+                    'scola_integration_issue' => $event['scola_integration_issue'] ?? false,
                     'sort_ts' => $sortTs,
+                    'is_overdue' => $isOverdue,
                 ]));
             }
 
@@ -211,8 +261,8 @@ class PendingEventsReportController extends Controller
         $descricao = trim((string) ($event['descricao'] ?? 'Sem descrição'));
 
         if ($type === PendingEventTypeClassifier::SURGERY) {
-            $base = PendingEventPresenter::surgeryDescription($event);
-            $statusDetail = PendingEventPresenter::surgeryDiagnosticLabel($event);
+            $base = PendingEventHelper::surgeryDescription($event);
+            $statusDetail = PendingEventHelper::surgeryDiagnosticLabel($event);
 
             if ($statusDetail !== '') {
                 return $this->truncate($base.' | '.$statusDetail, 120);
@@ -242,9 +292,21 @@ class PendingEventsReportController extends Controller
         return 'Pendência';
     }
 
-    private function computeMotivoPendente(string $normalizedType, array $event, string $status): string
+    private function computeMotivoPendente(string $normalizedType, array $event): string
     {
-        return PendingEventPresenter::motivoPendente($event);
+        return PendingEventHelper::motivoPendente($event);
+    }
+
+    private function shortDate(?string $date): ?string
+    {
+        if (empty($date)) {
+            return null;
+        }
+        try {
+            return Carbon::parse($date)->format('d/m H:i');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function parseDateToTs(?string $date): ?int

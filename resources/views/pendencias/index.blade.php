@@ -122,22 +122,38 @@
                         class="bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/40 min-w-[110px]">
                         <option value="" class="text-gray-900 bg-white">Todos os tipos</option>
                     </select>
+
+                    <label class="inline-flex items-center gap-1.5 text-xs text-white/80 cursor-pointer whitespace-nowrap select-none">
+                        <input type="checkbox" id="chk-overdue" class="rounded border-white/40 bg-white/10 text-amber-400 focus:ring-amber-400 cursor-pointer">
+                        Só vencidos
+                    </label>
                 @endif
 
                 @if(!empty($selectedSectors))
-                <form method="POST" action="{{ route('pending.report.refresh') }}">
+                <form method="POST" action="{{ route('pending.report.refresh') }}" id="form-refresh">
                     @csrf
                     <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
                     @foreach($selectedSectors as $sid)
                         <input type="hidden" name="sector_ids[]" value="{{ $sid }}">
                     @endforeach
-                    <button type="submit"
+                    <button type="submit" id="btn-refresh"
                         class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-md transition"
                         title="Limpar cache e recarregar">
-                        <x-heroicon-o-arrow-path class="w-3.5 h-3.5" />
-                        <span class="hidden sm:inline">Atualizar</span>
+                        <x-heroicon-o-arrow-path id="icon-refresh" class="w-3.5 h-3.5" />
+                        <span id="label-refresh" class="hidden sm:inline">Atualizar</span>
                     </button>
                 </form>
+                <script>
+                    document.getElementById('form-refresh').addEventListener('submit', function () {
+                        var icon = document.getElementById('icon-refresh');
+                        var label = document.getElementById('label-refresh');
+                        var btn = document.getElementById('btn-refresh');
+                        btn.disabled = true;
+                        btn.classList.add('opacity-60', 'cursor-not-allowed');
+                        icon.classList.add('animate-spin');
+                        if (label) label.textContent = 'Atualizando…';
+                    });
+                </script>
                 @endif
             </div>
         </div>
@@ -191,6 +207,7 @@
                             <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider hidden xl:table-cell whitespace-nowrap">Setor exec.</th>
                             <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
                             <th class="hidden">Tipo bruto</th>
+                            <th class="hidden">Vencido</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -249,6 +266,7 @@
                                 <td class="px-3 py-1.5 text-[11px] text-gray-500 max-w-[110px] truncate hidden xl:table-cell" title="{{ $row['setor_execucao'] ?? '-' }}">{{ $row['setor_execucao'] ?? '-' }}</td>
                                 <td class="px-3 py-1.5 text-[11px] text-gray-700 font-medium max-w-[120px] truncate col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}" title="{{ $row['setor_origem'] ?? '-' }}">{{ $row['setor_origem'] ?? '-' }}</td>
                                 <td class="hidden">{{ $row['tipo_evento'] ?? '-' }}</td>
+                                <td class="hidden">{{ ($row['is_overdue'] ?? false) ? '1' : '0' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -323,6 +341,7 @@ $(document).ready(function () {
             { width: '90px'  },  // 12 Setor exec.
             { width: '110px' },  // 13 Unidade
             { width: '0'     },  // 14 Tipo bruto (hidden)
+            { width: '0'     },  // 15 Vencido (hidden)
         ],
         language: {
             url: '', decimal: ',', thousands: '.',
@@ -366,6 +385,10 @@ $(document).ready(function () {
 
     $('#filter-tipo').on('change', function () {
         table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) : '', true, false).draw();
+    });
+
+    $('#chk-overdue').on('change', function () {
+        table.column(15).search(this.checked ? '^1$' : '', true, false).draw();
     });
 });
 </script>

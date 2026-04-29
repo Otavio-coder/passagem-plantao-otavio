@@ -387,8 +387,16 @@ class PendingEventHelper
 
             if ($scolaStatus !== '') {
                 // SCOLA disponível: usa como fonte de verdade, ignora dt_coleta/dt_resultado do TASY
+                if (str_contains($scolaStatus, 'laudo liberado') && str_contains($scolaStatus, 'aguardando integração')) {
+                    return 'Laudo liberado no Scola — aguardando integração com TASY';
+                }
+
                 if (str_contains($scolaStatus, 'laudo liberado')) {
                     return 'Laudo disponível — baixa não realizada';
+                }
+
+                if (str_contains($scolaStatus, 'nova coleta')) {
+                    return 'Nova coleta necessária';
                 }
 
                 // Nova lógica: coleta no SCOLA mas não no Tasy
@@ -400,12 +408,14 @@ class PendingEventHelper
                     return 'Coletado — aguardando resultado';
                 }
 
-                // SCOLA sem coleta (solicitado ou outro): dt_coleta do TASY não é confiável.
-                // Usa ie_status_execucao diretamente, sem o dt_coleta.
+                // SCOLA sem coleta (solicitado ou outro): usa ie_status_execucao do domínio 1226.
                 $code = trim((string) ($event['ie_status_execucao'] ?? ''));
                 $urgente = (bool) ($event['urgente'] ?? false);
-                if (in_array($code, ['29', '30', '35', '40', '45'], true)) {
-                    return 'Material em análise — aguardando laudo';
+                if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
+                    return 'Aguardando laudo';
+                }
+                if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
+                    return 'Em execução — aguardando resultado';
                 }
 
                 return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
@@ -540,18 +550,41 @@ class PendingEventHelper
 
     private static function motivoExame(string $status, bool $urgente, array $event): string
     {
-        // Domínio 1030 — Status do exame (exames de laboratório)
-        // Códigos confiáveis independentes de tradução do domínio:
-        // 20=Coleta do material, 29=Liberado pelo Interfaceamento, 30=Digitação do resultado,
-        // 35=Aprovação do resultado, 40=Liberação do exame, 45=Entrega do exame
+        // Para exames de laboratório, o SCOLA é fonte primária do estado real da coleta.
+        // O ie_status_execucao do TASY pode mostrar "Em exame" (dom. 1226 cód. 15) mesmo quando
+        // o LIMS está apenas no passo administrativo "Mapa de Trabalho impresso" (dom. 1030 cód. 15),
+        // antes de qualquer coleta física.
+        $scolaStatus = mb_strtolower(trim((string) ($event['scola_status'] ?? '')));
+        if ($scolaStatus !== '') {
+            if (str_contains($scolaStatus, 'laudo liberado')) {
+                return 'Laudo disponível — baixa não realizada';
+            }
+            if (str_contains($scolaStatus, 'nova coleta')) {
+                return 'Nova coleta necessária';
+            }
+            if (($event['scola_colheita_sem_tasy'] ?? false)) {
+                return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
+            }
+            if (str_contains($scolaStatus, 'coletado')) {
+                return 'Coletado — aguardando resultado';
+            }
+
+            // 'Solicitado (aguardando coleta)' ou outro: SCOLA ainda não registrou coleta
+            return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
+        }
+
+        // Sem integração SCOLA: usa domínio 1226 do TASY como fallback.
+        // 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento, 19=Exame concluído,
+        // 20=Executado, 22=Aguardando Laudo, 25=Laudo ditado, 26=Laudo em digitação,
+        // 28=Pré laudo, 29=Liberado por interfaceamento, 30=Laudo sem liberação, 35=Aguarda 2ª aprovação
         $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
-        if (! empty($event['dt_coleta']) || $code === '20' || $code === '25') {
+        if (! empty($event['dt_coleta']) || in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
             return 'Aguardando laudo';
         }
 
-        if (in_array($code, ['29', '30', '35', '40', '45'], true)) {
-            return 'Material em análise — aguardando laudo';
+        if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
+            return 'Em execução — aguardando resultado';
         }
 
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';

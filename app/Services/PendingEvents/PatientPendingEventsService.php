@@ -295,7 +295,7 @@ class PatientPendingEventsService
                         NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
                         dv.ds_valor_dominio                         AS ds_subtipo,
                         COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
-                        COALESCE(vd_exam.ds_valor_dominio, vd_proc.ds_valor_dominio) AS ds_status_execucao_label,
+                        vd_stat.ds_valor_dominio AS ds_status_execucao_label,
                         NVL(
                             pis.cd_setor_atendimento,
                             NVL(proced.cd_setor_exclusivo, pm.cd_setor_atendimento)
@@ -337,14 +337,9 @@ class PatientPendingEventsService
                     LEFT JOIN tasy.valor_dominio dv
                         ON dv.cd_dominio = 95
                        AND dv.vl_dominio = TO_CHAR(proced.cd_tipo_procedimento)
-                    LEFT JOIN tasy.valor_dominio vd_exam
-                        ON vd_exam.cd_dominio = 1030
-                       AND vd_exam.vl_dominio = pp.ie_status_execucao
-                       AND pp.nr_seq_exame IS NOT NULL
-                    LEFT JOIN tasy.valor_dominio vd_proc
-                        ON vd_proc.cd_dominio = 1226
-                       AND vd_proc.vl_dominio = pp.ie_status_execucao
-                       AND pp.nr_seq_exame IS NULL
+                    LEFT JOIN tasy.valor_dominio vd_stat
+                        ON vd_stat.cd_dominio = 1226
+                       AND vd_stat.vl_dominio = pp.ie_status_execucao
                     LEFT JOIN (
                         SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento
                         FROM (
@@ -440,13 +435,7 @@ class PatientPendingEventsService
 
             $isExam = ! empty($row->nr_seq_exame);
             $tempo = $this->calcTempo($row->dt_evento ?? null, $row->dt_autorizacao ?? null, $now);
-            // Códigos 13/14/15/16/26/27 são etapas internas do LIMS (impressão de etiquetas,
-            // mapa de trabalho, passagem de lote, etc.) — não aparecem no prontuário clínico.
-            $lims_internal = ['13', '14', '15', '16', '26', '27'];
-            $ieStatus = (string) ($row->ie_status_execucao ?? '');
-            $statusLabel = ($isExam && in_array($ieStatus, $lims_internal, true))
-                ? null
-                : ($row->ds_status_execucao_label ?? null);
+            $statusLabel = $row->ds_status_execucao_label ?? null;
             $tipo = PendingEventTypeClassifier::fromPrescriptionRow($isExam, $row->ds_grupo_lab ?? null);
 
             $results[$row->nr_atendimento]['events'][] = [
@@ -461,6 +450,7 @@ class PatientPendingEventsService
                 'ds_grupo_lab' => $row->ds_grupo_lab ?? null,
                 'nm_prescritor' => $row->nm_prescritor ?? null,
                 'nr_prescricao' => $row->nr_prescricao ?? null,
+                'nr_sequencia_pp' => $row->nr_sequencia_pp ?? null,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'dt_solicitacao' => $row->dt_solicitacao ? date('d/m/Y H:i', strtotime($row->dt_solicitacao)) : null,
@@ -578,7 +568,8 @@ class PatientPendingEventsService
                             WHEN 3  THEN 600  WHEN 58 THEN 500  WHEN 8  THEN 400
                             WHEN 38 THEN 300  WHEN 4  THEN 200  WHEN 10 THEN  30
                             WHEN 15 THEN  20  ELSE           1
-                        END AS priority
+                        END AS priority,
+                        NVL(pf.nm_pessoa_fisica, cm.nm_usuario) AS nm_prescritor
                     FROM tasy.cpoe_material cm
                     JOIN tasy.material m          ON m.cd_material       = cm.cd_material
                     JOIN tasy.material m_stock    ON m_stock.cd_material = m.cd_material_estoque
@@ -592,6 +583,7 @@ class PatientPendingEventsService
                        AND pma.nr_prescricao   = pmh.nr_prescricao
                        AND pma.nr_seq_prescricao = pm.nr_sequencia
                        AND NVL(pma.ie_alteracao, 0) NOT IN (5, 12)
+                    LEFT JOIN tasy.pessoa_fisica pf ON pf.cd_pessoa_fisica = cm.cd_medico
                     WHERE cm.nr_atendimento IN ({$p})
                       AND mf.ie_antimicrobiano = 'S'
                       AND cm.dt_liberacao      IS NOT NULL
@@ -603,7 +595,8 @@ class PatientPendingEventsService
                         nr_atendimento, med_id, descricao, dt_horario,
                         qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util,
                         MAX(priority) AS priority,
-                        MAX(ie_alteracao) KEEP (DENSE_RANK LAST ORDER BY priority NULLS FIRST) AS ie_alteracao_code
+                        MAX(ie_alteracao) KEEP (DENSE_RANK LAST ORDER BY priority NULLS FIRST) AS ie_alteracao_code,
+                        MAX(nm_prescritor) AS nm_prescritor
                     FROM base
                     GROUP BY nr_atendimento, med_id, descricao, dt_horario,
                              qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
@@ -665,6 +658,7 @@ class PatientPendingEventsService
                 'descricao' => substr($row->descricao ?? 'Antimicrobiano', 0, 60),
                 'ds_subtipo' => 'Antimicrobiano',
                 'ds_complemento' => implode(' · ', $parts),
+                'nm_prescritor' => $row->nm_prescritor ?? null,
                 'dt_evento' => $row->dt_horario,
                 'dt_evento_formatted' => $dtTs ? date('d/m/Y H:i', $dtTs) : null,
                 'tempo_pendente' => $tempo,
@@ -770,9 +764,11 @@ class PatientPendingEventsService
                            AND p.ie_origem_proced = ap.ie_origem_proced)
                     ) AS cd_tipo_cirurgia,
                     COALESCE(pi.ds_proc_exame, proced.ds_procedimento, ap.ds_cirurgia) AS descricao_proc,
-                    pi.nr_seq_exame_lab
+                    pi.nr_seq_exame_lab,
+                    NVL(pf_med.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
                 FROM tasy.agenda_paciente ap
                 JOIN tasy.atendimento_paciente atp ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
+                LEFT JOIN tasy.pessoa_fisica pf_med ON pf_med.cd_pessoa_fisica = ap.cd_medico
                 LEFT JOIN tasy.setor_atendimento sa_exec ON sa_exec.cd_setor_atendimento = ap.cd_setor_atendimento
                 LEFT JOIN tasy.valor_dominio vd_ag_stat ON vd_ag_stat.cd_dominio = 83 AND vd_ag_stat.vl_dominio = ap.ie_status_agenda
                 LEFT JOIN tasy.valor_dominio vd_ag_car  ON vd_ag_car.cd_dominio  = 1016 AND vd_ag_car.vl_dominio  = ap.ie_carater_cirurgia
@@ -817,6 +813,7 @@ class PatientPendingEventsService
                 'ie_status_agenda' => $row->ie_status_agenda ?? null,
                 'setor_execucao' => $row->ds_setor_execucao ?? null,
                 'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                'nm_prescritor' => $row->nm_prescritor ?? null,
                 'urgente' => $isUrgent,
                 '_fonte' => 'agenda',
             ];

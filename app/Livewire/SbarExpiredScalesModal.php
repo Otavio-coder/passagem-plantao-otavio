@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Services\Tasy\TasyService;
+use App\Services\PatientData\PatientDataLoader;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -53,8 +53,9 @@ class SbarExpiredScalesModal extends Component
             $cacheKey = "expired_scales_sector_{$this->sectorId}_".now()->format('YmdHi');
 
             $this->patientsWithExpiredScales = Cache::remember($cacheKey, 120, function () {
-                $tasy = new TasyService;
-                $patients = $tasy->getSectorPatientsForSbar($this->sectorId);
+                $patients = PatientDataLoader::forSector($this->sectorId)
+                    ->include('demographics', 'scales')
+                    ->get();
 
                 $expiredList = [];
 

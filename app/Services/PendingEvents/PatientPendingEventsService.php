@@ -722,6 +722,7 @@ class PatientPendingEventsService
                     : 'Quimioterapia',
                 'ds_subtipo' => 'Quimioterapia',
                 'ds_complemento' => implode(' · ', $parts),
+                'nm_prescritor' => $row->nm_medico_resp ?? null,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'ie_status_agenda' => $row->ie_status_agenda ?? null,

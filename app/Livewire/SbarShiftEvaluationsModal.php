@@ -4,8 +4,8 @@ namespace App\Livewire;
 
 use App\Models\System\User;
 use App\Repositories\MySQL\Chat\ChatRepository;
+use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
-use App\Services\Tasy\TasyService;
 use App\Services\UserDisplayNameResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -90,8 +90,9 @@ class SbarShiftEvaluationsModal extends Component
         $this->loading = true;
 
         try {
-            $tasy = new TasyService;
-            $patients = $tasy->getSectorPatientsForSbar($this->sectorId);
+            $patients = PatientDataLoader::forSector($this->sectorId)
+                ->include('demographics')
+                ->get();
 
             if (empty($patients)) {
                 $this->beds = [];

@@ -57,7 +57,7 @@
                             <span class="hidden lg:inline">Feedback</span>
                         </a>
 
-                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
+                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
                             <div class="relative">
                                 <button type="button"
                                         id="admin-dropdown-btn"
@@ -75,7 +75,7 @@
                                      class="hidden origin-top-left absolute left-0 mt-2 w-64 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-[1000]"
                                      role="menu">
                                     @can('ver usuarios')
-                                        <a href="{{ route('users.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded" role="menuitem">
+                                        <a href="{{ route('users.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('users.*') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
                                             <svg class="h-4 w-4 text-sky-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                                             </svg>
@@ -83,11 +83,23 @@
                                         </a>
                                     @endcan
                                     @can('ver perfis')
-                                        <a href="{{ route('profiles.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded" role="menuitem">
+                                        <a href="{{ route('profiles.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('profiles.*') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
                                             <svg class="w-4 h-4 text-sky-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
                                             </svg>
                                             <span class="ml-2">Perfis</span>
+                                        </a>
+                                    @endcan
+                                    @can('ver relatorio pendencias')
+                                        <a href="{{ route('pending.report') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('pending.report') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
+                                            <i class="fas fa-list-check w-4 text-sky-600 text-sm flex-shrink-0"></i>
+                                            <span class="ml-2">Relatório de Pendências</span>
+                                        </a>
+                                    @endcan
+                                    @can('ver historico chat')
+                                        <a href="{{ route('chat.archive.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('chat.archive.*') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
+                                            <i class="fas fa-clock-rotate-left w-4 text-sky-600 text-sm flex-shrink-0"></i>
+                                            <span class="ml-2">Histórico de Avaliações</span>
                                         </a>
                                     @endcan
                                     @can('ver logs')
@@ -98,22 +110,9 @@
                                             <span class="ml-2">Logs</span>
                                         </a>
                                     @endcan
-                                    @can('ver historico chat')
-                                        <a href="{{ route('chat.archive.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('chat.archive.*') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
-                                            <i class="fas fa-clock-rotate-left w-4 text-sky-600 text-sm flex-shrink-0"></i>
-                                            <span class="ml-2">Histórico de Avaliações</span>
-                                        </a>
-                                    @endcan
                                 </div>
                             </div>
                         @endcanany
-
-                        <a href="{{ route('pending.report') }}"
-                           title="Relatório de Pendências"
-                           class="nav-link {{ request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}">
-                            <i class="fas fa-list-check"></i>
-                            <span class="hidden xl:inline">Pendências</span>
-                        </a>
 
                         <a href="{{ route('manual.index') }}"
                            title="Manual do Sistema"
@@ -158,7 +157,7 @@
                     </button>
 
                     {{-- Desktop dropdown --}}
-                    <div class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 hidden"
+                    <div class="origin-top-right absolute right-0 mt-2 w-60 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 hidden"
                          role="menu"
                          id="user-options">
                         <div class="px-3 py-2.5 border-b border-gray-100">
@@ -166,13 +165,34 @@
                             @if($navUserRole !== '')
                                 <p class="text-xs text-gray-500 mt-0.5">{{ $navUserRole }}</p>
                             @endif
+                            <p class="text-[10px] text-gray-400 mt-1 font-mono">
+                                Sessão ativa até {{ now()->addMinutes((int) config('session.lifetime'))->format('H:i') }}
+                            </p>
                         </div>
-                        <a class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2.5 flex items-center text-xs rounded"
+
+                        {{-- Trocar Usuário (tablet handover) --}}
+                        <a class="text-gray-700 hover:text-gray-900 hover:bg-amber-50 px-3 py-2.5 flex items-center gap-2.5 text-xs border-b border-gray-100"
+                           role="menuitem"
+                           href="#"
+                           onclick="event.preventDefault(); document.getElementById('switch-user-form').submit();"
+                           title="Encerra sua sessão e abre o login para o próximo profissional">
+                            <i class="fas fa-user-circle text-amber-500 w-4 text-center"></i>
+                            <div>
+                                <p class="font-semibold text-amber-700">Trocar Usuário</p>
+                                <p class="text-[10px] text-gray-400 leading-none mt-0.5">Próximo profissional faz login</p>
+                            </div>
+                        </a>
+                        <form id="switch-user-form" action="{{ route('logout') }}" method="POST" class="hidden">
+                            @csrf
+                            <input type="hidden" name="tablet_mode" value="1">
+                        </form>
+
+                        <a class="text-gray-600 hover:text-gray-800 hover:bg-red-50 px-3 py-2.5 flex items-center gap-2.5 text-xs rounded"
                            role="menuitem"
                            href="#"
                            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                            <i class="fas fa-sign-out-alt h-4 w-4"></i>
-                            <p class="ml-2.5">Sair</p>
+                            <i class="fas fa-sign-out-alt text-red-400 w-4 text-center"></i>
+                            <p>Sair do sistema</p>
                         </a>
                         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">@csrf</form>
                     </div>
@@ -230,12 +250,12 @@
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
 
-            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
+            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
                 <div class="flex flex-col">
                     <button type="button" class="flex justify-between items-center text-sm text-gray-700 w-full" onclick="toggleNavbar('mobile-admin-menu')">
                         <div class="px-2 pt-2 pb-3 flex flex-col text-left">
                             <span class="font-semibold">Administração</span>
-                            <span class="text-xs text-gray-400">Usuários, perfis e logs</span>
+                            <span class="text-xs text-gray-400">Usuários, perfis e ferramentas</span>
                         </div>
                         <i class="fas fa-chevron-right text-sm text-gray-400"></i>
                     </button>
@@ -252,10 +272,10 @@
                                 <span>Perfis</span>
                             </a>
                         @endcan
-                        @can('ver logs')
-                            <a href="{{ route('log-viewer.index') }}" target="_blank" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
-                                <i class="fas fa-file-lines text-sky-600 w-5"></i>
-                                <span>Logs</span>
+                        @can('ver relatorio pendencias')
+                            <a href="{{ route('pending.report') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
+                                <i class="fas fa-list-check text-sky-600 w-5"></i>
+                                <span>Relatório de Pendências</span>
                             </a>
                         @endcan
                         @can('ver historico chat')
@@ -264,17 +284,15 @@
                                 <span>Histórico de Avaliações</span>
                             </a>
                         @endcan
+                        @can('ver logs')
+                            <a href="{{ route('log-viewer.index') }}" target="_blank" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
+                                <i class="fas fa-file-lines text-sky-600 w-5"></i>
+                                <span>Logs</span>
+                            </a>
+                        @endcan
                     </div>
                 </div>
             @endcanany
-
-            <a href="{{ route('pending.report') }}" class="flex justify-between items-center text-sm text-gray-700">
-                <div class="px-2 pt-2 pb-3 flex flex-col">
-                    <span class="font-semibold">Relatório de Pendências</span>
-                    <span class="text-xs text-gray-400">Pendências clínicas por setor</span>
-                </div>
-                <i class="fas fa-chevron-right text-sm text-gray-400"></i>
-            </a>
 
             <a href="{{ route('manual.index') }}" class="flex justify-between items-center text-sm text-gray-700">
                 <div class="px-2 pt-2 pb-3 flex flex-col">
@@ -307,11 +325,32 @@
                 @endif
             </div>
 
+            {{-- Sessão info --}}
+            <div class="px-2 py-2">
+                <p class="text-[10px] text-gray-400 font-mono">
+                    Sessão até {{ now()->addMinutes((int) config('session.lifetime'))->format('H:i') }}
+                </p>
+            </div>
+
+            {{-- Trocar Usuário --}}
+            <a href="#" onclick="event.preventDefault(); document.getElementById('switch-user-form-mobile').submit();"
+               class="flex justify-between items-center text-sm text-gray-700">
+                <div class="px-2 pt-2 pb-3 flex flex-col">
+                    <span class="font-semibold text-amber-600">Trocar Usuário</span>
+                    <span class="text-xs text-gray-400">Próximo profissional faz login</span>
+                </div>
+                <i class="fas fa-chevron-right text-sm text-amber-400"></i>
+            </a>
+            <form id="switch-user-form-mobile" action="{{ route('logout') }}" method="POST" class="hidden">
+                @csrf
+                <input type="hidden" name="tablet_mode" value="1">
+            </form>
+
             <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-mobile').submit();"
                class="flex justify-between items-center text-sm text-gray-700 mt-2">
                 <div class="px-2 pt-2 pb-3 flex flex-col">
-                    <span class="font-semibold text-red-600">Sair</span>
-                    <span class="text-xs text-gray-400">Encerrar a sessão no sistema</span>
+                    <span class="font-semibold text-red-600">Sair do sistema</span>
+                    <span class="text-xs text-gray-400">Encerrar a sessão completamente</span>
                 </div>
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>

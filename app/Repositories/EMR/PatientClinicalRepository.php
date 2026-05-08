@@ -8,6 +8,10 @@ class PatientClinicalRepository
 {
     protected const CHUNK_SIZE = 200;
 
+    protected const CLINICAL_CHUNK_SIZE = 200;
+
+    protected const ANTIMICROBIAL_CHUNK_SIZE = 100;
+
     protected $connection = 'tasy';
 
     /**
@@ -169,7 +173,7 @@ class PatientClinicalRepository
             return [];
         }
 
-        $chunks = array_chunk($attendanceNumbers, 100);
+        $chunks = array_chunk($attendanceNumbers, self::CLINICAL_CHUNK_SIZE);
         $allResults = [];
 
         foreach ($chunks as $chunk) {
@@ -304,6 +308,38 @@ class PatientClinicalRepository
                    AND pp_h.ie_suspenso <> 'S'
                    AND pp_h.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')) AS hemocultura_pendente,
 
+                -- Últimas 5 requisições de hemocultura com coleta (agrupadas por nr_prescricao)
+                -- Formato: nr_prescricao::data_max_coleta::nm_exame::ie_status_execucao::has_result::dt_prescricao
+                (SELECT LISTAGG(
+                            h.nr_prescricao || '::' ||
+                            TO_CHAR(h.max_coleta, 'DD/MM/YY HH24:MI') || '::' ||
+                            SUBSTR(h.nm_exame, 1, 50) || '::' ||
+                            h.status_exec || '::' ||
+                            h.has_result || '::' ||
+                            TO_CHAR(h.dt_prescricao, 'DD/MM/YY HH24:MI'),
+                            '||'
+                        ) WITHIN GROUP (ORDER BY h.max_coleta DESC)
+                 FROM (
+                    SELECT pm_h.nr_prescricao,
+                           MAX(pp_h.dt_coleta) AS max_coleta,
+                           MAX(UPPER(el_h.nm_exame)) AS nm_exame,
+                           MAX(pp_h.ie_status_execucao) AS status_exec,
+                           (SELECT COUNT(*) FROM tasy.result_laboratorio rl
+                            WHERE rl.nr_prescricao = pm_h.nr_prescricao) AS has_result,
+                           MAX(pm_h.dt_prescricao) AS dt_prescricao
+                    FROM tasy.prescr_procedimento pp_h
+                    JOIN tasy.prescr_medica pm_h ON pm_h.nr_prescricao = pp_h.nr_prescricao
+                    JOIN tasy.exame_laboratorio el_h ON el_h.nr_seq_exame = pp_h.nr_seq_exame
+                    WHERE pm_h.nr_atendimento = atp.nr_atendimento
+                      AND UPPER(el_h.nm_exame) LIKE '%HEMOCULTURA%'
+                      AND pp_h.dt_coleta IS NOT NULL
+                      AND pp_h.ie_suspenso <> 'S'
+                      AND pp_h.dt_cancelamento IS NULL
+                    GROUP BY pm_h.nr_prescricao
+                    ORDER BY MAX(pp_h.dt_coleta) DESC
+                    FETCH FIRST 5 ROWS ONLY
+                 ) h) AS hemoc_history,
+
                 -- Alergias (alergia_v: cascade de nomes + marcação de intolerância, sem truncamento)
                 COALESCE(
                     NULLIF((SELECT LISTAGG(
@@ -360,7 +396,7 @@ class PatientClinicalRepository
 
         $results = [];
 
-        foreach (array_chunk($attendanceNumbers, 100) as $chunk) {
+        foreach (array_chunk($attendanceNumbers, self::CLINICAL_CHUNK_SIZE) as $chunk) {
             $rows = DB::connection($this->connection)->select("
             SELECT
                 nr_atendimento,
@@ -387,38 +423,53 @@ class PatientClinicalRepository
 
         $results = [];
 
-        foreach (array_chunk($attendanceNumbers, 50) as $chunk) {
+        foreach (array_chunk($attendanceNumbers, self::ANTIMICROBIAL_CHUNK_SIZE) as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
+            // antimicrobial_mats: materializa o catálogo de antimicrobianos uma única vez via JOIN,
+            // evitando a scalar subquery original que executava SELECT por linha.
+            // ranked_prescr: ROW_NUMBER por (atendimento, material) substitui a correlated subquery
+            // de MAX(dt_prescricao) que disparava N queries para cada combinação atendimento × material.
             $rows = DB::connection($this->connection)->select("
-            SELECT
-                pm.nr_atendimento,
-                LISTAGG(INITCAP(m.ds_material) || ' ' || pt.nr_dia_util || ' Dia(s)', CHR(13))
-                    WITHIN GROUP(ORDER BY m.ds_material) AS materiais
-            FROM tasy.material m
-            JOIN tasy.medic_ficha_tecnica mf ON mf.nr_sequencia = (
-                SELECT nr_seq_ficha_tecnica
-                FROM tasy.material
-                WHERE cd_material = m.cd_material_estoque
-            )
-            JOIN tasy.prescr_material pt ON m.cd_material = pt.cd_material
-            JOIN tasy.prescr_medica pm ON pm.nr_prescricao = pt.nr_prescricao
-            WHERE mf.ie_antimicrobiano = 'S'
-            AND pm.nr_atendimento IN ($placeholders)
-            AND pm.dt_prescricao = (
-                SELECT MAX(dt_prescricao)
-                FROM tasy.prescr_medica a
-                JOIN tasy.prescr_material b ON a.nr_prescricao = b.nr_prescricao
-                WHERE a.nr_atendimento = pm.nr_atendimento
-                AND b.cd_material = pt.cd_material
-                AND a.dt_liberacao IS NOT NULL
-                AND a.dt_validade_prescr >= SYSDATE
-                AND a.dt_suspensao IS NULL
-            )
-            AND pt.dt_suspensao IS NULL
-            AND pt.nr_dia_util IS NOT NULL
-            GROUP BY pm.nr_atendimento
-        ", $chunk);
+                WITH antimicrobial_mats AS (
+                    SELECT m.cd_material,
+                           INITCAP(m.ds_material) AS ds_material
+                    FROM tasy.material m
+                    JOIN tasy.material m_stock
+                        ON m_stock.cd_material = m.cd_material_estoque
+                    JOIN tasy.medic_ficha_tecnica mf
+                        ON mf.nr_sequencia = m_stock.nr_seq_ficha_tecnica
+                    WHERE mf.ie_antimicrobiano = 'S'
+                ),
+                ranked_prescr AS (
+                    SELECT
+                        pm.nr_atendimento,
+                        pt.cd_material,
+                        pt.nr_dia_util,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY pm.nr_atendimento, pt.cd_material
+                            ORDER BY pm.dt_prescricao DESC
+                        ) AS rn
+                    FROM tasy.prescr_medica pm
+                    JOIN tasy.prescr_material pt
+                        ON pt.nr_prescricao = pm.nr_prescricao
+                    JOIN antimicrobial_mats am
+                        ON am.cd_material = pt.cd_material
+                    WHERE pm.nr_atendimento     IN ($placeholders)
+                      AND pm.dt_liberacao       IS NOT NULL
+                      AND pm.dt_validade_prescr >= SYSDATE
+                      AND pm.dt_suspensao       IS NULL
+                      AND pt.dt_suspensao       IS NULL
+                      AND pt.nr_dia_util        IS NOT NULL
+                )
+                SELECT rp.nr_atendimento,
+                       LISTAGG(am.ds_material || ' ' || rp.nr_dia_util || ' Dia(s)', CHR(13))
+                           WITHIN GROUP (ORDER BY am.ds_material) AS materiais
+                FROM ranked_prescr rp
+                JOIN antimicrobial_mats am ON am.cd_material = rp.cd_material
+                WHERE rp.rn = 1
+                GROUP BY rp.nr_atendimento
+            ", $chunk);
 
             foreach ($rows as $row) {
                 $results[$row->nr_atendimento] = $row->materiais;

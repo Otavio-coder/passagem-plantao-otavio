@@ -28,13 +28,6 @@ class VerifyAuthorization
             'username' => $user->username,
         ]);
 
-        Log::debug('VerifyAuthorization: Verificando usuário', [
-            'username' => $user->username,
-            'found_local' => (bool) $findUser,
-            'status' => $findUser?->status,
-            'url' => $request->url(),
-        ]);
-
         // Se encontrou o usuário localmente, verifica se está ativo
         if ($findUser && $findUser->status == 'I') {
             Log::warning('VerifyAuthorization: Usuário inativo', ['username' => $user->username]);

@@ -141,6 +141,39 @@ class TasyService
         return $warmed;
     }
 
+    /**
+     * Pre-warms the patient details cache for a batch of patients.
+     * Skips patients already cached. Returns count warmed.
+     */
+    public function batchWarmPatientDetails(array $attendanceNumbers): int
+    {
+        $warmed = 0;
+
+        foreach ($attendanceNumbers as $nr) {
+            $nr = (int) $nr;
+            if (! $nr) {
+                continue;
+            }
+
+            $cacheKey = $this->sbarPatientDetailsCacheKey($nr);
+            if (Cache::has($cacheKey)) {
+                continue;
+            }
+
+            try {
+                $this->getSbarPatientDetails($nr);
+                $warmed++;
+            } catch (\Throwable $e) {
+                Log::warning('TasyService: Failed to warm patient details', [
+                    'attendance' => $nr,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $warmed;
+    }
+
     // ==================== CACHE MANAGEMENT ====================
 
     public function clearPatientCache(int $attendanceNumber): void

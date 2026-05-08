@@ -61,9 +61,8 @@ class PatientSurgeryRepository
         foreach ($attToPerson as $nr => $personId) {
             $group = $surgeriesByPerson->get($personId, collect());
             if ($group->isNotEmpty()) {
-                $surgeryDescription = $this->getSurgeryDescription($nr, 'AA');
                 $hasMap[$nr] = true;
-                $detailed[$nr] = $group->map(fn (Appointment $appointment) => $this->mapSurgeryAppointment($appointment, $surgeryDescription))
+                $detailed[$nr] = $group->map(fn (Appointment $appointment) => $this->mapSurgeryAppointment($appointment))
                     ->values()
                     ->all();
             }

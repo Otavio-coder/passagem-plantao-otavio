@@ -11,38 +11,39 @@
 @endpush
 
 @section('content')
-<div id="report-root" class="font-montserrat flex flex-col w-full">
+<div id="report-root" class="font-montserrat space-y-4">
 
     {{-- Header --}}
-    <div class="flex-shrink-0 bg-[#004D9D]/90 px-3 sm:px-4 lg:px-6 py-3 shadow-lg rounded-t-xl">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-
-            {{-- Title --}}
-            <div class="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-                <img src="{{ asset('images/santacasa-horizontal-branco.svg') }}" alt="Santa Casa" class="h-6 sm:h-7 w-auto opacity-90">
-                <div class="sm:border-l sm:border-white/30 sm:pl-4">
-                    <h1 class="text-base sm:text-lg font-bold text-white leading-tight">Relatório de Pendências</h1>
-                    @if($sectorName)
-                        <p class="text-xs text-blue-100/75 mt-0.5 hidden sm:block">{{ $sectorName }}</p>
-                    @endif
-                </div>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[#004D9D]/10 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-list-check text-[#004D9D]"></i>
             </div>
+            <div>
+                <h1 class="text-xl font-bold text-gray-900 leading-tight">Relatório de Pendências</h1>
+                <p class="text-sm text-gray-500 mt-0.5">
+                    {{ $sectorName ?: 'Pendências em aberto por setor' }}
+                </p>
+            </div>
+        </div>
+    </div>
 
-            {{-- Filters --}}
-            <div class="flex flex-wrap items-center gap-2">
+    {{-- Filter toolbar --}}
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2">
 
-                <form method="GET" action="{{ route('pending.report') }}" id="form-hospital">
-                    <select name="hospital_id"
-                        class="bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/40 min-w-[110px]"
-                        onchange="showPendingLoader(); this.form.submit()">
-                        @foreach($hospitals as $h)
-                            <option value="{{ $h['hospital_id'] }}" class="text-gray-900"
-                                {{ (int)$selectedHospital === (int)$h['hospital_id'] ? 'selected' : '' }}>
-                                {{ $h['hospital_name'] }}
-                            </option>
-                        @endforeach
-                    </select>
-                </form>
+            <form method="GET" action="{{ route('pending.report') }}" id="form-hospital">
+                <select name="hospital_id"
+                    class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30 focus:border-[#004D9D] min-w-[120px]"
+                    onchange="showPendingLoader(); this.form.submit()">
+                    @foreach($hospitals as $h)
+                        <option value="{{ $h['hospital_id'] }}"
+                            {{ (int)$selectedHospital === (int)$h['hospital_id'] ? 'selected' : '' }}>
+                            {{ $h['hospital_name'] }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
 
                 {{-- Dropdown multi-setor --}}
                 @php
@@ -58,7 +59,7 @@
                 <div class="relative" id="sector-dropdown-wrap">
                     <button type="button"
                             id="sector-dropdown-btn"
-                            class="flex items-center gap-1.5 bg-white/10 border border-white/25 text-white text-xs rounded-md px-2 py-1.5 hover:bg-white/20 transition min-w-[140px] max-w-[220px]">
+                            class="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition min-w-[140px] max-w-[220px]">
                         <span class="truncate flex-1 text-left">{{ $sectorBtnLabel }}</span>
                         <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>

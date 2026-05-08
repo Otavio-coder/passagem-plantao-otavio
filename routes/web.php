@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ChatArchiveController;
+use App\Http\Controllers\HandoverMetricsController;
 use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
@@ -8,6 +9,9 @@ use App\Http\Controllers\SectorWarmController;
 use App\Http\Controllers\SystemConfigurationController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
+// Página offline do PWA (acessada pelo service worker quando sem conexão)
+Route::get('/offline', fn () => view('errors.offline'))->name('offline');
 
 // Rota pública para documentação do sistema
 Route::get('/doc-passagem.pdf', function () {
@@ -19,6 +23,13 @@ Route::get('/doc-passagem.pdf', function () {
 })->name('documentation');
 
 Route::middleware(['auth', 'verify.authorization'])->group(function () {
+
+    // Session heartbeat — keeps Redis session alive on idle tablets
+    Route::post('/session/heartbeat', function () {
+        session()->put('heartbeat_at', now()->toISOString());
+
+        return response()->json(['ok' => true]);
+    })->name('session.heartbeat');
 
     Route::view('/', 'dashboard.index')->name('home');
 
@@ -36,6 +47,11 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     Route::post('/patient-care/prescriptions/warm',
         [PatientPrescriptionsController::class, 'warmCache'])
         ->name('patient.prescriptions.warm');
+
+    // Patient details – batch cache warm (called by SBAR page so modal navigation is instant)
+    Route::post('/patient-care/details/warm',
+        [PatientPrescriptionsController::class, 'warmDetailsCache'])
+        ->name('patient.details.warm');
 
     // Sector cache warm – pre-warms other user sectors in the background
     Route::post('/sectors/warm',
@@ -63,6 +79,7 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
             Route::get('/', [ChatArchiveController::class, 'index'])->name('chat.archive.index');
             Route::get('/dt', [ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
             Route::get('/data', [ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
+            Route::get('/passagens/metricas', [HandoverMetricsController::class, 'index'])->name('handover.metrics');
             Route::get('/{nr}', [ChatArchiveController::class, 'show'])->name('chat.archive.show');
         });
 

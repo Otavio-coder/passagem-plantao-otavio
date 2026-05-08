@@ -38,6 +38,12 @@ class SbarChatComponent extends Component
 
     public $hasArchivedHistory = false;
 
+    /** Whether the initial 5-message preview has been expanded to show all messages. */
+    public bool $showAllMessages = false;
+
+    /** Total count of messages in the last 30 days, used to show the "load all" button. */
+    public int $totalMessageCount = 0;
+
     public $currentUser;
 
     public $initialized = false;
@@ -234,8 +240,8 @@ class SbarChatComponent extends Component
                 return ['success' => false, 'error' => 'Apenas o autor pode editar'];
             }
 
-            // Janela de 6 horas
-            if ($message->created_at && now()->diffInHours($message->created_at) >= 6) {
+            // Janela de 6 horas — use método que funciona corretamente com Carbon 3
+            if ($message->created_at && $message->created_at->addHours(6)->isPast()) {
                 return ['success' => false, 'error' => 'Tempo de edição expirado (6h após envio)'];
             }
 
@@ -303,7 +309,7 @@ class SbarChatComponent extends Component
         }
     }
 
-    public function refreshCurrentMessages()
+    public function refreshCurrentMessages(): void
     {
         if ($this->loadingMessages) {
             return;
@@ -351,7 +357,24 @@ class SbarChatComponent extends Component
 
     // ===================== Private helpers =====================
 
-    private function loadMessages()
+    public function loadAllMessages(): void
+    {
+        if ($this->showAllMessages) {
+            return;
+        }
+
+        $this->showAllMessages = true;
+        $this->loadingMessages = true;
+
+        try {
+            $this->loadMessages();
+            $this->dispatch('scroll-to-bottom');
+        } finally {
+            $this->loadingMessages = false;
+        }
+    }
+
+    private function loadMessages(): void
     {
         if (! $this->patientId) {
             return;
@@ -359,7 +382,11 @@ class SbarChatComponent extends Component
 
         try {
             $repo = new ChatRepository;
-            $allMessages = $repo->getAllMessages($this->patientId, 300);
+
+            $this->totalMessageCount = $repo->getMessageCount($this->patientId);
+            $allMessages = $this->showAllMessages
+                ? $repo->getAllMessages($this->patientId, 300)
+                : $repo->getRecentMessages($this->patientId, 5);
 
             $this->hasOlderMessages = $repo->hasOlderMessages($this->patientId);
             $this->hasArchivedHistory = $repo->hasArchivedHistory($this->patientId);
@@ -370,12 +397,12 @@ class SbarChatComponent extends Component
                 return;
             }
 
-            // Pré-carrega usuários
+            // Pré-carrega usuários (incluindo photo para evitar N+1 na renderização)
             $userIds = $allMessages->pluck('user_id')->unique()->filter();
             $users = collect();
             if ($userIds->isNotEmpty()) {
                 $users = User::whereIn('id', $userIds)
-                    ->select(['id', 'name', 'username', 'role', 'role_synced_at'])
+                    ->select(['id', 'name', 'username', 'role', 'role_synced_at', 'photo'])
                     ->get()
                     ->keyBy('id');
                 foreach ($users as $user) {
@@ -691,21 +718,22 @@ class SbarChatComponent extends Component
         try {
             $photo = '';
 
-            if (method_exists($user, 'getUserPhoto')) {
-                $photo = $user->getUserPhoto();
-            } elseif (isset($user->photo)) {
-                $photo = $user->photo;
+            // Use already-loaded photo attribute if available (avoids extra DB query)
+            $rawPhoto = isset($user->photo) ? $user->photo : null;
+
+            if (! $rawPhoto && method_exists($user, 'getUserPhoto')) {
+                $rawPhoto = $user->getUserPhoto();
             }
 
-            if (! $photo) {
-                $photoData = DB::table('users')->where('id', $userId)->value('photo');
+            if (! $rawPhoto) {
+                $rawPhoto = DB::table('users')->where('id', $userId)->value('photo');
+            }
 
-                if ($photoData) {
-                    if (! str_starts_with($photoData, 'data:')) {
-                        $photo = $photoData;
-                    } elseif (preg_match('/^data:image\/(\w+);base64,(.+)$/', $photoData, $matches)) {
-                        $photo = $matches[2];
-                    }
+            if ($rawPhoto) {
+                if (! str_starts_with((string) $rawPhoto, 'data:')) {
+                    $photo = $rawPhoto;
+                } elseif (preg_match('/^data:image\/(\w+);base64,(.+)$/', $rawPhoto, $matches)) {
+                    $photo = $matches[2];
                 }
             }
 

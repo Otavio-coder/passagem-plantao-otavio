@@ -72,6 +72,16 @@
             {{-- Card --}}
             <div class="bg-white rounded-2xl p-7 shadow-2xl">
 
+                @if(session('tablet_handover'))
+                    <div class="mb-5 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <i class="fas fa-user-circle text-amber-500 mt-0.5 flex-shrink-0"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-amber-800">Troca de profissional</p>
+                            <p class="text-xs text-amber-600 mt-0.5">O usuário anterior encerrou a sessão. Faça seu login para continuar.</p>
+                        </div>
+                    </div>
+                @endif
+
                 <h2 class="text-sm font-medium text-gray-600 text-center mb-6">Acesse com suas credenciais da rede</h2>
 
                 <form method="post" action="{{ route('login') }}" id="login-form">

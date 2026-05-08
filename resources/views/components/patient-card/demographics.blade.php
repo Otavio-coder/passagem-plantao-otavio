@@ -1,16 +1,16 @@
 @props(['patient', 'showAdminData' => false, 'showScales' => false])
 
 {{-- Row 2: Patient Name + Gender + Age --}}
-<div class="bg-white/70 rounded-lg px-2 py-1.5 shadow-sm">
-    <div class="flex items-center gap-2">
+<div class="bg-white/70 rounded-lg px-2 md:px-3 py-1.5 md:py-2 lg:py-1.5 shadow-sm">
+    <div class="flex items-center justify-center gap-2">
         @if(($patient['sexo'] ?? '') === 'F')
-            <x-iconoir-female class="text-pink-600 h-4 w-4 flex-shrink-0" />
+            <x-iconoir-female class="text-pink-600 h-4 w-4 md:h-5 md:w-5 lg:h-4 lg:w-4 flex-shrink-0" />
         @elseif(($patient['sexo'] ?? '') === 'M')
-            <x-iconoir-male class="text-blue-600 h-4 w-4 flex-shrink-0" />
+            <x-iconoir-male class="text-blue-600 h-4 w-4 md:h-5 md:w-5 lg:h-4 lg:w-4 flex-shrink-0" />
         @endif
-        <p class="text-gray-900 text-sm font-bold truncate flex-1 min-w-0">{{ $patient['nm_pessoa_fisica'] ?? 'N/A' }}</p>
-        <span class="text-gray-700 text-xs sm:text-sm font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
-        <span class="text-gray-700 text-xs font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
+        <p class="text-gray-900 text-sm md:text-base lg:text-sm font-bold truncate min-w-0">{{ $patient['nm_pessoa_fisica'] ?? 'N/A' }}</p>
+        <span class="text-gray-700 text-xs sm:text-sm md:text-base lg:text-sm font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
+        <span class="text-gray-700 text-xs md:text-sm lg:text-xs font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
     </div>
 </div>
 
@@ -33,16 +33,16 @@
         ? $medicoParts[0] . ' ' . $medicoParts[count($medicoParts) - 1]
         : ($medicoRaw ?? null);
 @endphp
-<div class="bg-white/70 rounded-lg px-2 py-0.5 shadow-sm">
-    <div class="grid grid-cols-3 gap-x-2 gap-y-0 text-[9px] leading-snug">
-        {{-- Row 1: Nº | Alta | Int --}}
+<div class="bg-white/70 rounded-lg px-2 md:px-3 py-0.5 md:py-1 lg:py-0.5 shadow-sm space-y-0">
+    {{-- Row 1: 5 colunas — Nº (1) | Prev. Alta (2) | Int (1) | Conv (1) --}}
+    <div class="grid grid-cols-5 gap-x-1.5 text-[9px] md:text-[11px] lg:text-[9px] leading-snug">
         <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
             <span class="text-gray-500 shrink-0">Nº:</span>
             <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['nr_atendimento'] ?? '—' }}</span>
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+        <div class="col-span-2 flex gap-0.5 overflow-hidden whitespace-nowrap">
             @if($hasPrevAlta)
-                <span class="text-orange-600 shrink-0"> Prev. Alta:</span>
+                <span class="text-orange-600 shrink-0">Prev. Alta:</span>
                 <span class="text-orange-700 font-semibold overflow-hidden">{{ $prevAlta }}</span>
             @else
                 <span class="text-gray-500 shrink-0">Prev. Alta:</span>
@@ -59,8 +59,15 @@
                 <span class="text-gray-400">—</span>
             @endif
         </div>
-        {{-- Row 2: Dr | Enf | Educ --}}
         <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+            <span class="text-gray-500 shrink-0">Conv:</span>
+            <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['convenio_short'] ?? '—' }}</span>
+        </div>
+    </div>
+
+    {{-- Row 2: 3 colunas — Dr | Enf | Educ --}}
+    <div class="grid grid-cols-3 gap-x-2 text-[9px] md:text-[11px] lg:text-[9px] leading-snug">
+        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap items-center">
             <span class="text-gray-500 shrink-0">Dr:</span>
             @if($medicoAbrev)
                 <span class="text-gray-900 font-medium overflow-hidden">{{ $medicoAbrev }}</span>
@@ -68,7 +75,7 @@
                 <span class="text-gray-400">—</span>
             @endif
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap justify-center items-center">
             <span class="text-gray-500 shrink-0">Enf:</span>
             @if($avalEnfOk)
                 <span class="text-gray-900 font-medium">{{ $avalEnfDisplay }}</span>
@@ -76,7 +83,7 @@
                 <span class="text-gray-400">N/A</span>
             @endif
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
+        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap justify-center items-center">
             <span class="text-gray-500 shrink-0">Educ:</span>
             @if($peOk)
                 <span class="text-gray-900 font-medium">{{ $peData }}</span>
@@ -84,38 +91,299 @@
                 <span class="text-gray-400">N/A</span>
             @endif
         </div>
-        {{-- Row 3: Hemoc (2 cols) | Conv --}}
-        <div class="col-span-2 flex gap-0.5 overflow-hidden whitespace-nowrap">
-            <span class="{{ $hemocPend ? 'text-purple-600 font-semibold shrink-0' : 'text-gray-500 shrink-0' }}">Hemoc:</span>
-            @if($hemocPend)
-                <span class="text-purple-700 font-semibold shrink-0">Pend.</span>
-                @if($hemocDate)<span class="text-purple-500 font-normal overflow-hidden"> últ.{{ $hemocDate }}</span>@endif
-            @elseif($hemocDate)
-                <span class="text-gray-900 font-medium overflow-hidden">{{ $hemocDate }}</span>
-            @else
-                <span class="text-gray-400">—</span>
+    </div>
+</div>
+
+{{-- Hemocultura: card clicável (cor única santacasa) --}}
+@php
+    $hemocEvents = collect($patient['pending_events'] ?? [])
+        ->filter(fn($e) => in_array($e['tipo'] ?? '', ['exame', 'proc_exame'], true)
+            && str_contains(strtoupper($e['descricao'] ?? ''), 'HEMOCULTURA'))
+        ->values()
+        ->all();
+    $hemocHistory = $patient['hemoc_history'] ?? [];
+    $hemocActiveCount = count($hemocEvents);
+
+    // Prescrições já exibidas nos eventos ativos → excluir do histórico (sem duplicação)
+    $activePrescricoes = collect($hemocEvents)
+        ->pluck('nr_prescricao')
+        ->map('strval')
+        ->filter()
+        ->values()
+        ->all();
+    $hemocHistoryFiltered = collect($hemocHistory)
+        ->reject(fn($h) => in_array((string)($h['nr_prescricao'] ?? ''), $activePrescricoes, true))
+        ->values()
+        ->all();
+
+    // Normaliza ISO ou DD/MM/YY para chave ordenável YYYYMMDDHHMMSS
+    $hemocSortKey = function (string $s): string {
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $s)) {
+            return str_replace(['-', ' ', ':'], '', $s);
+        }
+        if (preg_match('/^(\d{2})\/(\d{2})\/(\d{2,4})/', $s, $m)) {
+            $year = strlen($m[3]) === 2 ? '20'.$m[3] : $m[3];
+            return $year . $m[2] . $m[1] . preg_replace('/[^0-9]/', '', substr($s, 8));
+        }
+        return '0';
+    };
+
+    // Lista unificada: ativos + histórico, ordenada por data da prescrição desc
+    $hemocAllItems = [];
+    foreach ($hemocEvents as $ev) {
+        // dt_evento é ISO raw — usa como preferência sobre dt_solicitacao formatado
+        $sortDate = $hemocSortKey((string) ($ev['dt_evento'] ?? $ev['dt_solicitacao'] ?? $ev['dt_coleta'] ?? ''));
+        $hemocAllItems[] = ['type' => 'active', 'sort' => $sortDate, 'data' => $ev];
+    }
+    foreach ($hemocHistoryFiltered as $hist) {
+        $sortDate = $hemocSortKey(($hist['dt_prescricao'] ?? '') ?: ($hist['date'] ?? ''));
+        $hemocAllItems[] = ['type' => 'history', 'sort' => $sortDate, 'data' => $hist];
+    }
+    usort($hemocAllItems, fn($a, $b) => strcmp($b['sort'], $a['sort']));
+
+    // Não renderizar o card se não há nenhum dado de hemocultura
+    $hemocTemDados = $hemocDate !== null || $hemocActiveCount > 0 || !empty($hemocHistory);
+
+    // Badge do card: status da hemocultura mais recente (não contagem)
+    // Fonte primária: hemocHistory[0] (mais recente com coleta)
+    // Fonte secundária: primeiro evento ativo se não há histórico
+    $hemocCardBadge = null;
+    $hemocCardBadgeStyle = 'bg-gray-100 text-gray-600';
+
+    $latestResult    = $hemocHistory[0]['scola_resultado'] ?? null;
+    $latestHasResult = $hemocHistory[0]['has_result'] ?? false;
+    $latestTasyCode  = $hemocHistory[0]['status_execucao'] ?? null;
+
+    // Se não há histórico, tenta o evento ativo mais recente
+    if (empty($hemocHistory) && !empty($hemocEvents)) {
+        $latestResult    = $hemocEvents[0]['scola_resultado'] ?? null;
+        $latestHasResult = false;
+        $latestTasyCode  = null;
+        $latestScolaStatus = $hemocEvents[0]['scola_status'] ?? null;
+    } else {
+        $latestScolaStatus = null;
+    }
+
+    if ($latestResult === 'Laudo integrado') {
+        $hemocCardBadge      = 'Laudo integrado';
+        $hemocCardBadgeStyle = 'bg-santacasa-100/10 text-santacasa-200';
+    } elseif ($latestResult === 'Laudo liberado') {
+        $hemocCardBadge      = 'Laudo liberado';
+        $hemocCardBadgeStyle = 'bg-emerald-100 text-emerald-700';
+    } elseif ($latestResult === 'Resultado em análise') {
+        $hemocCardBadge      = 'Resultado em análise';
+        $hemocCardBadgeStyle = 'bg-amber-100 text-amber-700';
+    } elseif ($latestResult === 'Coletado') {
+        $hemocCardBadge      = 'Coletado · aguard. laudo';
+        $hemocCardBadgeStyle = 'bg-amber-100 text-amber-700';
+    } elseif ($latestHasResult) {
+        $hemocCardBadge      = 'Laudo integrado';
+        $hemocCardBadgeStyle = 'bg-santacasa-100/10 text-santacasa-200';
+    } elseif ($latestScolaStatus !== null && str_contains($latestScolaStatus, 'Laudo liberado')) {
+        $hemocCardBadge      = 'Laudo liberado';
+        $hemocCardBadgeStyle = 'bg-emerald-100 text-emerald-700';
+    } elseif ($latestScolaStatus === 'Coletado (aguardando resultado)' || $latestScolaStatus === 'Resultado inserido (aguardando laudo)') {
+        $hemocCardBadge      = 'Coletado · aguard. laudo';
+        $hemocCardBadgeStyle = 'bg-amber-100 text-amber-700';
+    } elseif ($latestTasyCode === '20') {
+        $hemocCardBadge      = 'Executado';
+        $hemocCardBadgeStyle = 'bg-gray-100 text-gray-600';
+    } elseif ($hemocPend || $hemocActiveCount > 0) {
+        $hemocCardBadge      = 'Aguard. coleta';
+        $hemocCardBadgeStyle = 'bg-santacasa-100/10 text-santacasa-200';
+    }
+@endphp
+@if($hemocTemDados)
+<div x-data="{ showHemocModal: false }">
+    <div class="rounded-lg px-2 md:px-3 py-1 md:py-1.5 lg:py-1 shadow-sm border-l-[3px] border-l-santacasa-100 bg-white/70 cursor-pointer hover:bg-white/90 transition-all"
+         @click="showHemocModal = true; document.body.style.overflow = 'hidden'">
+        <div class="flex items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0">
+                <i class="fas fa-vials text-[10px] md:text-xs lg:text-[10px] text-santacasa-100 flex-shrink-0"></i>
+                <span class="text-[9px] md:text-[11px] lg:text-[9px] font-semibold text-santacasa-200">Hemocultura</span>
+                @if(!empty($hemocHistory[0]['nr_prescricao']))
+                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-400 font-mono">#{{ $hemocHistory[0]['nr_prescricao'] }}</span>
+                @endif
+                @if($hemocDate)
+                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-500">{{ $hemocDate }}</span>
+                @endif
+            </div>
+            @if($hemocCardBadge)
+                <span class="text-[9px] md:text-[10px] lg:text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 {{ $hemocCardBadgeStyle }} whitespace-nowrap">
+                    {{ $hemocCardBadge }}
+                </span>
             @endif
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
-            <span class="text-gray-500 shrink-0">Conv:</span>
-            <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['convenio_short'] ?? '—' }}</span>
+    </div>
+
+    {{-- Modal de Hemoculturas --}}
+    <div x-show="showHemocModal"
+         x-cloak
+         class="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @keydown.escape.window="showHemocModal = false; document.body.style.overflow = ''">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+             @click="showHemocModal = false; document.body.style.overflow = ''"></div>
+
+        <div class="relative w-full h-full sm:w-[620px] sm:h-auto sm:max-w-[95vw] sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+             @click.stop
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+
+            {{-- Header --}}
+            <div class="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-santacasa-200 to-santacasa-100 flex-shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <i class="fas fa-vials text-white text-base flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h3 class="text-base font-bold text-white leading-tight">Hemoculturas</h3>
+                        <p class="text-white/70 text-xs leading-tight truncate">{{ $patient['nm_pessoa_fisica'] ?? '' }}</p>
+                    </div>
+                </div>
+                <button @click="showHemocModal = false; document.body.style.overflow = ''"
+                        title="Fechar"
+                        class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors flex-shrink-0">
+                    <x-heroicon-o-x-mark class="w-4 h-4" />
+                </button>
+            </div>
+
+            {{-- Body: lista unificada ordenada por data de prescrição --}}
+            <div class="flex-1 overflow-y-auto min-h-0 p-3 space-y-1">
+
+                @foreach($hemocAllItems as $item)
+                    @if($item['type'] === 'active')
+                        @php
+                            $hemocEv = $item['data'];
+                            $evScola = $hemocEv['scola_status'] ?? null;
+                            $evRes   = $hemocEv['scola_resultado'] ?? null;
+                            $evIsPos = str_starts_with($evRes ?? '', 'Positivo');
+                            if ($evIsPos) { $evBadgeText = $evRes; $evBadgeCls = 'bg-red-100 text-red-700'; }
+                            elseif ($evRes === 'Negativo') { $evBadgeText = 'Negativo'; $evBadgeCls = 'bg-emerald-100 text-emerald-700'; }
+                            elseif ($evRes !== null) { $evBadgeText = $evRes; $evBadgeCls = 'bg-amber-100 text-amber-700'; }
+                            elseif ($evScola !== null && str_contains($evScola, 'Laudo liberado')) { $evBadgeText = 'Laudo liberado'; $evBadgeCls = 'bg-santacasa-100/20 text-santacasa-200'; }
+                            elseif ($evScola !== null) { $evBadgeText = $evScola; $evBadgeCls = 'bg-gray-100 text-gray-600'; }
+                            else { $evBadgeText = 'Aguardando coleta'; $evBadgeCls = 'bg-gray-100 text-gray-500'; }
+
+                            $evDate = $hemocEv['dt_solicitacao'] ?? $hemocEv['dt_coleta'] ?? null;
+
+                            $evTasyCode = (string) ($hemocEv['ie_status_execucao'] ?? '');
+                            if ($evTasyCode === '10') { $evTasyLabel = 'Solicitado'; }
+                            elseif ($evTasyCode === '15') { $evTasyLabel = 'Em exame'; }
+                            elseif ($evTasyCode === '20') { $evTasyLabel = 'Executado'; }
+                            else { $evTasyLabel = $evTasyCode ?: 'Pendente'; }
+
+                            if ($evRes !== null) { $evScolaLabel = $evRes; }
+                            elseif ($evScola !== null && str_contains($evScola, 'Laudo liberado')) { $evScolaLabel = 'Laudo liberado (aguard. TASY)'; }
+                            elseif ($evScola === 'Resultado inserido (aguardando laudo)') { $evScolaLabel = 'Resultado inserido, aguard. laudo'; }
+                            elseif ($evScola === 'Coletado (aguardando resultado)') { $evScolaLabel = 'Coletado, aguard. resultado'; }
+                            elseif ($evScola === 'Nova coleta necessária') { $evScolaLabel = 'Nova coleta necessária'; }
+                            elseif ($evScola === 'Solicitado (aguardando coleta)') { $evScolaLabel = 'Aguardando coleta'; }
+                            elseif ($evScola !== null) { $evScolaLabel = $evScola; }
+                            else { $evScolaLabel = 'Sem info SCOLA'; }
+                        @endphp
+                        <div class="px-3 py-2 rounded-lg bg-white border border-gray-100 hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fas fa-vials text-santacasa-100 flex-shrink-0" style="font-size:10px;"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="text-[10px] font-semibold text-gray-700 truncate">
+                                            {{ ucwords(strtolower($hemocEv['descricao'] ?? 'Hemocultura')) }}
+                                        </span>
+                                        @if(!empty($hemocEv['nr_prescricao']))
+                                            <span class="text-[9px] text-gray-400 font-mono flex-shrink-0">#{{ $hemocEv['nr_prescricao'] }}</span>
+                                        @endif
+                                    </div>
+                                    @if($evDate)<div class="font-mono text-[9px] text-gray-400">{{ $evDate }}</div>@endif
+                                </div>
+                                <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap {{ $evBadgeCls }}">{{ $evBadgeText }}</span>
+                            </div>
+                            <div class="flex gap-x-3 mt-1 text-[9px] text-gray-500 pl-[22px]">
+                                <span><span class="font-medium text-gray-600">TASY:</span> {{ $evTasyLabel }}</span>
+                                <span><span class="font-medium text-gray-600">SCOLA:</span> {{ $evScolaLabel }}</span>
+                            </div>
+                        </div>
+                    @else
+                        @php
+                            $hist = $item['data'];
+                            $histRes   = $hist['scola_resultado'] ?? null;
+                            $histIsPos = str_starts_with($histRes ?? '', 'Positivo');
+                            if ($histIsPos) { $histBadgeText = $histRes; $histBadgeCls = 'bg-red-100 text-red-700'; }
+                            elseif ($histRes === 'Negativo') { $histBadgeText = 'Negativo'; $histBadgeCls = 'bg-emerald-100 text-emerald-700'; }
+                            elseif ($histRes !== null) { $histBadgeText = $histRes; $histBadgeCls = 'bg-santacasa-100/10 text-santacasa-200'; }
+                            elseif ($hist['has_result'] ?? false) { $histBadgeText = 'Laudo integrado'; $histBadgeCls = 'bg-santacasa-100/10 text-santacasa-200'; }
+                            else { $histBadgeText = 'Realizada'; $histBadgeCls = 'bg-gray-100 text-gray-600'; }
+
+                            $histName = ucwords(strtolower($hist['name'] ?: 'Hemocultura'));
+                            $histDate = ($hist['dt_prescricao'] ?? '') ?: ($hist['date'] ?? '');
+
+                            $histTasyCode = (string) ($hist['status_execucao'] ?? '');
+                            if ($histTasyCode === '10') { $histTasyLabel = 'Solicitado'; }
+                            elseif ($histTasyCode === '15') { $histTasyLabel = 'Em exame'; }
+                            elseif ($histTasyCode === '20') { $histTasyLabel = 'Executado'; }
+                            else { $histTasyLabel = $histTasyCode ?: '—'; }
+
+                            if ($histRes !== null) { $histScolaLabel = $histRes; }
+                            elseif ($hist['has_result'] ?? false) { $histScolaLabel = 'Laudo integrado ao TASY'; }
+                            else { $histScolaLabel = 'Sem resultado SCOLA'; }
+                        @endphp
+                        <div class="px-3 py-2 rounded-lg bg-white border border-gray-100 hover:bg-gray-50 transition-colors">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fas fa-circle-check text-santacasa-100 flex-shrink-0" style="font-size:10px;"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="text-[10px] font-semibold text-gray-700 truncate">{{ $histName }}</span>
+                                        @if(!empty($hist['nr_prescricao']))
+                                            <span class="text-[9px] text-gray-400 font-mono flex-shrink-0">#{{ $hist['nr_prescricao'] }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="font-mono text-[9px] text-gray-400">{{ $histDate }}</div>
+                                </div>
+                                <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap {{ $histBadgeCls }}">{{ $histBadgeText }}</span>
+                            </div>
+                            <div class="flex gap-x-3 mt-1 text-[9px] text-gray-500 pl-[22px]">
+                                <span><span class="font-medium text-gray-600">TASY:</span> {{ $histTasyLabel }}</span>
+                                <span><span class="font-medium text-gray-600">SCOLA:</span> {{ $histScolaLabel }}</span>
+                            </div>
+                        </div>
+                    @endif
+                @endforeach
+
+                {{-- Estado vazio --}}
+                @if(empty($hemocAllItems))
+                    <div class="text-center py-8">
+                        <i class="fas fa-vials text-3xl text-gray-300 mb-3"></i>
+                        <p class="text-sm font-medium text-gray-400">
+                            {{ $hemocDate ? 'Últ. coleta: ' . $hemocDate : 'Sem registros de hemoculturas' }}
+                        </p>
+                    </div>
+                @endif
+            </div>
         </div>
     </div>
 </div>
+@endif
 @endif
 
 @if($showScales)
 {{-- Row 4: Risk Scales (clickable → opens lightweight scales modal) --}}
 <div x-data="{ showScalesModal: false }">
     <div
-        class="bg-white/70 rounded-lg px-2 py-1 shadow-sm cursor-pointer hover:bg-white/90 transition-colors"
+        class="bg-white/70 rounded-lg px-2 md:px-3 py-1 md:py-1.5 lg:py-1 shadow-sm cursor-pointer hover:bg-white/90 transition-colors"
         title="Ver escalas de avaliação"
         @click="showScalesModal = true; document.body.style.overflow = 'hidden'"
     >
         <div class="flex flex-wrap gap-1 justify-center items-center min-h-[18px]">
             @if($patient['has_patient'] ?? false)
                 {{-- Braden --}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
+                <span class="inline-flex items-center px-1.5 py-0.5 md:px-2 md:py-0.5 lg:px-1.5 rounded text-[10px] md:text-xs lg:text-[10px] border whitespace-nowrap relative
                     {{ $patient['braden_styling']['bg'] ?? 'bg-gray-50' }}
                     {{ $patient['braden_styling']['text'] ?? 'text-gray-800' }}
                     {{ $patient['braden_styling']['border'] ?? 'border-gray-300' }}
@@ -130,7 +398,7 @@
                     @endif
                 </span>
                 {{-- Morse --}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
+                <span class="inline-flex items-center px-1.5 py-0.5 md:px-2 md:py-0.5 lg:px-1.5 rounded text-[10px] md:text-xs lg:text-[10px] border whitespace-nowrap relative
                     {{ $patient['morse_styling']['bg'] ?? 'bg-gray-50' }}
                     {{ $patient['morse_styling']['text'] ?? 'text-gray-800' }}
                     {{ $patient['morse_styling']['border'] ?? 'border-gray-300' }}
@@ -145,7 +413,7 @@
                     @endif
                 </span>
                 {{-- Pain --}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
+                <span class="inline-flex items-center px-1.5 py-0.5 md:px-2 md:py-0.5 lg:px-1.5 rounded text-[10px] md:text-xs lg:text-[10px] border whitespace-nowrap relative
                     {{ $patient['pain_styling']['bg'] ?? 'bg-gray-50' }}
                     {{ $patient['pain_styling']['text'] ?? 'text-gray-800' }}
                     {{ $patient['pain_styling']['border'] ?? 'border-gray-300' }}
@@ -160,7 +428,7 @@
                     @endif
                 </span>
                 {{-- VTE --}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border whitespace-nowrap relative
+                <span class="inline-flex items-center px-1.5 py-0.5 md:px-2 md:py-0.5 lg:px-1.5 rounded text-[10px] md:text-xs lg:text-[10px] border whitespace-nowrap relative
                     {{ $patient['vte_styling']['bg'] ?? 'bg-gray-50' }}
                     {{ $patient['vte_styling']['text'] ?? 'text-gray-800' }}
                     {{ $patient['vte_styling']['border'] ?? 'border-gray-300' }}

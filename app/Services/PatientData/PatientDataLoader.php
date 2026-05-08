@@ -16,9 +16,7 @@ use App\Services\PatientData\Loaders\SurgeryLoader;
 use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\Tasy\TasyFormatter;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Spatie\Fork\Fork;
 
 class PatientDataLoader
 {
@@ -57,16 +55,19 @@ class PatientDataLoader
     }
 
     /**
-     * Execute loaders and return a flat array of patient arrays.
-     *
+     * Execute loaders sequentially and return a flat array of patient arrays.
      * Demographics always runs first (determines the attendance list).
-     * All other requested loaders run in parallel via pcntl_fork when available.
      *
      * @return array<int, array<string, mixed>>
      */
     public function get(): array
     {
+        $totalStart = hrtime(true);
+        $timings = [];
+
+        $t = hrtime(true);
         $demographics = $this->loaders['demographics']->load($this->sectorId, []);
+        $timings['demographics'] = round((hrtime(true) - $t) / 1e6);
 
         $attendanceNumbers = array_values(array_filter(
             array_keys($demographics),
@@ -78,7 +79,7 @@ class PatientDataLoader
             fn ($k) => $k !== 'demographics' && isset($this->loaders[$k])
         ));
 
-        $loaded = $this->runLoaders($otherKeys, $attendanceNumbers);
+        $loaded = $this->runLoaders($otherKeys, $attendanceNumbers, $timings);
 
         $applyScaleStyling = in_array('scales', $this->requested, true);
         $formatter = $applyScaleStyling ? new TasyFormatter : null;
@@ -99,9 +100,41 @@ class PatientDataLoader
             $result[] = $patient;
         }
 
+        $timings['total'] = round((hrtime(true) - $totalStart) / 1e6);
+        $timings['patient_count'] = count(array_filter($result, fn ($p) => $p['has_patient'] ?? false));
+
+        Log::channel('daily')->debug('PatientDataLoader.get timings (ms)', [
+            'sector_id' => $this->sectorId,
+            ...$timings,
+        ]);
+
         return $result;
     }
 
+    /**
+     * Clears only the dynamic caches (pending events + handover status).
+     * Demographics, scales, clinical, multidisciplinary and surgery data
+     * change rarely within a session and keep their TTL-based expiry.
+     * Use this for the "Atualizar" button to avoid triggering a full cold load.
+     */
+    public function clearDynamicCache(): void
+    {
+        $keys = [
+            "sector_pending_fast_{$this->sectorId}",
+            "sector_handover_{$this->sectorId}_M",
+            "sector_handover_{$this->sectorId}_T",
+            "sector_handover_{$this->sectorId}_N",
+        ];
+
+        foreach ($keys as $key) {
+            Cache::forget($key);
+        }
+    }
+
+    /**
+     * Clears all caches for the sector (full cold reload).
+     * Only use for explicit "force refresh" scenarios.
+     */
     public function clearCache(): void
     {
         $keys = [
@@ -111,9 +144,9 @@ class PatientDataLoader
             "sector_multi_{$this->sectorId}",
             "sector_surgery_{$this->sectorId}",
             "sector_pending_fast_{$this->sectorId}",
-            "sector_handover_{$this->sectorId}_manha",
-            "sector_handover_{$this->sectorId}_tarde",
-            "sector_handover_{$this->sectorId}_noite",
+            "sector_handover_{$this->sectorId}_M",
+            "sector_handover_{$this->sectorId}_T",
+            "sector_handover_{$this->sectorId}_N",
         ];
 
         foreach ($keys as $key) {
@@ -122,51 +155,22 @@ class PatientDataLoader
     }
 
     /**
-     * Run loaders in parallel via pcntl_fork when available, sequentially otherwise.
-     * Each fork reconnects DB/Redis after forking to avoid shared connection handles.
-     *
      * @param  string[]  $keys
-     * @return array<int, array<int, mixed>> Indexed array of per-loader results
+     * @param  array<string, int>  $timings
+     * @return array<int, array<int, mixed>>
      */
-    private function runLoaders(array $keys, array $attendanceNumbers): array
+    private function runLoaders(array $keys, array $attendanceNumbers, array &$timings = []): array
     {
         if (empty($keys)) {
             return [];
         }
 
-        if (! function_exists('pcntl_fork') || count($keys) < 2 || app()->environment('testing')) {
-            return array_map(
-                fn ($key) => $this->loaders[$key]->load($this->sectorId, $attendanceNumbers),
-                $keys
-            );
-        }
+        return array_map(function ($key) use ($attendanceNumbers, &$timings) {
+            $t = hrtime(true);
+            $result = $this->loaders[$key]->load($this->sectorId, $attendanceNumbers);
+            $timings[$key] = round((hrtime(true) - $t) / 1e6);
 
-        $sectorId = $this->sectorId;
-        $loaders = $this->loaders;
-
-        try {
-            return Fork::new()
-                ->after(child: function () {
-                    DB::connection('tasy')->reconnect();
-                    DB::connection('mysql')->reconnect();
-                    try {
-                        app('redis')->connection('default')->client()->close();
-                    } catch (\Throwable) {
-                    }
-                })
-                ->run(...array_map(
-                    fn ($key) => fn () => $loaders[$key]->load($sectorId, $attendanceNumbers),
-                    $keys
-                ));
-        } catch (\Throwable $e) {
-            Log::warning('PatientDataLoader: Fork failed, falling back to sequential', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return array_map(
-                fn ($key) => $loaders[$key]->load($sectorId, $attendanceNumbers),
-                $keys
-            );
-        }
+            return $result;
+        }, $keys);
     }
 }

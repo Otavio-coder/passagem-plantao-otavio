@@ -6,10 +6,11 @@ use App\Models\System\User;
 
 class UserDisplayNameResolver
 {
-    /**
-     * @var array<int, string>
-     */
+    /** @var array<int, string> */
     private array $cache = [];
+
+    /** @var array<string, string> */
+    private array $nameCache = [];
 
     public function fromUserId(?int $userId, ?string $fallbackName = null): string
     {
@@ -48,13 +49,17 @@ class UserDisplayNameResolver
             return 'Usuário';
         }
 
+        if (isset($this->nameCache[$fallbackName])) {
+            return $this->nameCache[$fallbackName];
+        }
+
         $user = User::query()
             ->select(['id', 'name', 'username', 'role', 'role_synced_at'])
             ->where('name', $fallbackName)
             ->orWhere('username', $fallbackName)
             ->first();
 
-        return $this->fromUser($user, $fallbackName);
+        return $this->nameCache[$fallbackName] = $this->fromUser($user, $fallbackName);
     }
 
     private function normalizeFallback(?string $fallbackName): string

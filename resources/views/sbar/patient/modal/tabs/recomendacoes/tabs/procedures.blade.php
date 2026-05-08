@@ -84,6 +84,16 @@
                             <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
                             Executado sem baixa
                         </span>
+                        <span x-show="p.proc_realizado_em_nova_prescricao"
+                              class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 ring-1 ring-sky-200">
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>
+                            Realizado em solicitação mais recente
+                        </span>
+                        <span x-show="p.motivo_pendente"
+                              class="mt-1 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-50 text-gray-600 ring-1 ring-gray-200">
+                            <i class="fa-solid fa-circle-info" style="font-size:9px;"></i>
+                            <span x-text="p.motivo_pendente"></span>
+                        </span>
                     </div>
                     <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
                           :class="procBadge(p.status)"

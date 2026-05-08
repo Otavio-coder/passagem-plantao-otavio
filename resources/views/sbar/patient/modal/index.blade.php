@@ -9,27 +9,6 @@
                 document.body.style.overflow = '';
             }
         });
-
-        this.$watch('showModal', (value) => {
-            if (value) {
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-active');
-
-                if (window.innerWidth < 640) {
-                    document.documentElement.style.position = 'fixed';
-                    document.documentElement.style.width = '100%';
-                    document.documentElement.style.height = '100%';
-                    document.documentElement.style.top = '0';
-                }
-            } else {
-                document.body.style.overflow = '';
-                document.body.classList.remove('modal-active');
-                document.documentElement.style.position = '';
-                document.documentElement.style.width = '';
-                document.documentElement.style.height = '';
-                document.documentElement.style.top = '';
-            }
-        });
     }
 }">
 
@@ -55,7 +34,7 @@
     >
         {{-- Backdrop --}}
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-             @click="showModal = false; $wire.closeModal();"></div>
+             @if(!$handoverMode) @click="showModal = false; $wire.closeModal();" @endif></div>
 
         {{-- Container do Modal --}}
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
@@ -143,18 +122,66 @@
                     swipeStartY = null;
                 "
             >
-                {{-- Loading Overlay --}}
-                @if($loadingPatient)
-                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur-sm">
-                        <div class="flex flex-col items-center gap-4">
-                            <div class="relative">
-                                <div class="w-12 h-12 border-4 border-[#004D9D] border-t-transparent rounded-full animate-spin"></div>
-                                <div class="absolute inset-0 w-12 h-12 border-4 border-[#004D9D]/20 border-t-transparent rounded-full animate-pulse"></div>
-                            </div>
-                            <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
-                        </div>
+                {{-- Handover Mode Bar --}}
+                @if($handoverMode)
+                <div
+                    x-data="{
+                        elapsed: 0,
+                        timer: null,
+                        startedAt: '{{ $handoverStartedAt }}',
+                        init() {
+                            const start = new Date(this.startedAt).getTime();
+                            if (Number.isNaN(start)) return;
+                            const tick = () => {
+                                this.elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+                            };
+                            tick();
+                            this.timer = setInterval(tick, 1000);
+                        },
+                        destroy() { clearInterval(this.timer); },
+                        format(s) {
+                            const m = Math.floor(s / 60).toString().padStart(2, '0');
+                            const sec = (s % 60).toString().padStart(2, '0');
+                            return m + ':' + sec;
+                        }
+                    }"
+                    class="flex items-center justify-between px-4 py-2 bg-emerald-700 flex-shrink-0"
+                >
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-play-circle text-white text-sm"></i>
+                        <span class="text-white text-xs font-semibold">Passagem em andamento</span>
+                        @if($currentPatientIndex !== null)
+                            <span class="text-emerald-200 text-xs">
+                                · {{ $currentPatientIndex + 1 }}/{{ count($modalPatients) }} leitos
+                            </span>
+                        @endif
                     </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-white font-mono text-sm font-bold" x-text="format(elapsed)">00:00</span>
+                        <button
+                            wire:click="finishHandover"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors shadow"
+                        >
+                            <i class="fas fa-flag-checkered text-xs"></i>
+                            Encerrar Passagem
+                        </button>
+                    </div>
+                </div>
                 @endif
+
+                {{-- Loading Overlay --}}
+                <div wire:loading.flex
+                     wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance,openModal,refreshPatientData"
+                     class="absolute inset-0 z-50 flex-col items-center justify-center bg-white/95 backdrop-blur-sm">
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="relative">
+                            <div class="w-12 h-12 border-4 border-[#004D9D] border-t-transparent rounded-full animate-spin"></div>
+                            <div class="absolute inset-0 w-12 h-12 border-4 border-[#004D9D]/20 rounded-full"></div>
+                        </div>
+                        <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
+                    </div>
+                </div>
 
                 {{-- Header - ALTURA FIXA --}}
                 <div class="flex-shrink-0">
@@ -167,6 +194,7 @@
                         :canGoPrevious="$canGoPrevious"
                         :canGoNext="$canGoNext"
                         :activeAlertsCount="count($activeAlerts)"
+                        :handoverMode="$handoverMode"
                     />
                 </div>
 

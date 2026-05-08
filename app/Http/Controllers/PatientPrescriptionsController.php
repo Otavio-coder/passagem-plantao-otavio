@@ -35,4 +35,27 @@ class PatientPrescriptionsController extends Controller
             'total' => count($validated['attendance_numbers']),
         ]);
     }
+
+    /**
+     * Pre-warms the patient details cache (getSbarPatientDetails) for a batch.
+     *
+     * POST /patient-care/details/warm
+     * Body: { "attendance_numbers": [123, 456, ...] }  (max 30)
+     */
+    public function warmDetailsCache(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'attendance_numbers' => 'required|array|min:1|max:30',
+            'attendance_numbers.*' => 'required|integer|min:1',
+        ]);
+
+        $warmed = $this->tasyService->batchWarmPatientDetails(
+            $validated['attendance_numbers']
+        );
+
+        return response()->json([
+            'warmed' => $warmed,
+            'total' => count($validated['attendance_numbers']),
+        ]);
+    }
 }

@@ -21,19 +21,28 @@ class ScalesLoader implements SectorLoader
 
         $cacheKey = "sector_scales_{$sectorId}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($attendanceNumbers) {
-            return $this->fetchAndFlatten($attendanceNumbers);
-        });
+        if (($cached = Cache::get($cacheKey)) !== null) {
+            return $cached;
+        }
+
+        $result = $this->fetchAndFlatten($attendanceNumbers);
+        if ($result === null) {
+            return [];
+        }
+
+        Cache::put($cacheKey, $result, self::CACHE_TTL);
+
+        return $result;
     }
 
-    private function fetchAndFlatten(array $attendanceNumbers): array
+    private function fetchAndFlatten(array $attendanceNumbers): ?array
     {
         try {
             $raw = $this->repository->getPatientsScalesUnified($attendanceNumbers);
         } catch (\Throwable $e) {
             Log::error('ScalesLoader: failed to fetch scales', ['error' => $e->getMessage()]);
 
-            return [];
+            return null;
         }
 
         $result = [];

@@ -1,25 +1,36 @@
 <div x-data="{
     showModal: @entangle('showModal'),
+    scrollY: 0,
     init() {
         this.$watch('showModal', (value) => {
             if (value) {
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-active');
-
-                if (window.innerWidth < 640) {
-                    document.documentElement.style.position = 'fixed';
-                    document.documentElement.style.width = '100%';
-                    document.documentElement.style.height = '100%';
-                    document.documentElement.style.top = '0';
-                }
+                this.lockScroll();
             } else {
-                document.body.style.overflow = '';
-                document.body.classList.remove('modal-active');
-                document.documentElement.style.position = '';
-                document.documentElement.style.width = '';
-                document.documentElement.style.height = '';
-                document.documentElement.style.top = '';
+                this.unlockScroll();
             }
+        });
+    },
+    lockScroll() {
+        this.scrollY = window.pageYOffset || window.scrollY || 0;
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${this.scrollY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+    },
+    unlockScroll() {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+
+        requestAnimationFrame(() => {
+            window.scrollTo(0, this.scrollY);
+            document.documentElement.scrollTop = this.scrollY;
+            document.body.scrollTop = this.scrollY;
         });
     }
 }">
@@ -35,7 +46,7 @@
         style="display: none;"
     >
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-             @click="showModal = false; $wire.closeModal();"></div>
+               @click="showModal = false; $wire.closeModal();"></div>
 
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
             <div
@@ -79,14 +90,26 @@
                             localStorage.setItem('huddle_modal_header_tip_seen', '1');
                         }
                      }">
-                    {{-- Close Button --}}
-                    <button
-                        @click="showModal = false; $wire.closeModal();"
-                        class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-8 h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
-                        aria-label="Fechar modal"
-                    >
-                        <x-heroicon-o-x-mark class="w-5 h-5" />
-                    </button>
+                    {{-- Close / Cancel Button --}}
+                    @if($handoverMode)
+                        <button
+                            wire:click="cancelHandover"
+                            class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 inline-flex items-center justify-center gap-1.5 h-9 px-3 text-white bg-rose-600/90 hover:bg-rose-600 transition-colors rounded-full focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg"
+                            aria-label="Cancelar passagem"
+                            title="Cancelar passagem"
+                        >
+                            <x-heroicon-o-x-mark class="w-4 h-4" />
+                            <span class="text-xs font-semibold">Cancelar</span>
+                        </button>
+                    @else
+                        <button
+                            @click="showModal = false; $wire.closeModal();"
+                            class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-8 h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
+                            aria-label="Fechar modal"
+                        >
+                            <x-heroicon-o-x-mark class="w-5 h-5" />
+                        </button>
+                    @endif
 
                     <div class="pr-12 sm:pr-12">
 
@@ -380,9 +403,7 @@
     <style>
         body.modal-active {
             overflow: hidden !important;
-            position: fixed;
-            width: 100%;
-            height: 100%;
+            position: static;
         }
 
         @media screen and (orientation: landscape) and (max-height: 550px) {

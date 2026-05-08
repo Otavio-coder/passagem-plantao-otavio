@@ -163,6 +163,76 @@ class ChatRepository
     }
 
     /**
+     * Returns the total number of messages for a patient in the last 30 days.
+     */
+    public function getMessageCount(string $nr_atendimento): int
+    {
+        return DB::table('chat_messages')
+            ->where('nr_atendimento', $nr_atendimento)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->count();
+    }
+
+    /**
+     * Loads only the most recent N messages for a patient, in chronological order.
+     * Used for the initial preview load — avoids sending hundreds of messages on first open.
+     */
+    public function getRecentMessages(string $nr_atendimento, int $limit = 5): Collection
+    {
+        try {
+            $cutoff = now()->subDays(30);
+
+            $recentIds = DB::table('chat_messages')
+                ->where('nr_atendimento', $nr_atendimento)
+                ->where('created_at', '>=', $cutoff)
+                ->orderByDesc('created_at')
+                ->limit($limit)
+                ->pluck('id');
+
+            if ($recentIds->isEmpty()) {
+                return collect();
+            }
+
+            $messages = DB::table('chat_messages as cm')
+                ->leftJoin('chat_message_pins as cmp', function ($join) {
+                    $join->on('cmp.message_id', '=', 'cm.id')
+                        ->whereNull('cmp.unpinned_at');
+                })
+                ->whereIn('cm.id', $recentIds)
+                ->select([
+                    'cm.id',
+                    'cm.content',
+                    'cm.user_id',
+                    'cm.created_at',
+                    'cm.updated_at',
+                    DB::raw('CASE WHEN cmp.id IS NOT NULL THEN 1 ELSE 0 END as is_pinned'),
+                ])
+                ->orderBy('cm.created_at', 'asc')
+                ->get();
+
+            if ($messages->isEmpty()) {
+                return $messages;
+            }
+
+            $reactions = DB::table('chat_reactions as cr')
+                ->join('users as u', 'cr.user_id', '=', 'u.id')
+                ->whereIn('cr.message_id', $messages->pluck('id'))
+                ->select(['cr.message_id', 'cr.user_id', 'u.name', 'u.photo'])
+                ->get()
+                ->groupBy('message_id');
+
+            return $messages->map(function ($msg) use ($reactions) {
+                $msg->reactions = $reactions->get($msg->id, collect())->values()->toArray();
+
+                return $msg;
+            });
+
+        } catch (\Exception $e) {
+            return collect();
+        }
+    }
+
+    /**
      * Returns true if the patient has messages in chat_messages older than 30 days.
      */
     public function hasOlderMessages(string $nr_atendimento): bool

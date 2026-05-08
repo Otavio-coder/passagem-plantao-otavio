@@ -7,6 +7,7 @@
     'canGoPrevious' => false,
     'canGoNext' => false,
     'activeAlertsCount' => 0,
+    'handoverMode' => false,
 ])
 
 @php
@@ -42,7 +43,8 @@
             localStorage.setItem('patient_modal_header_tip_seen', '1');
         }
      }">
-    {{-- Close Button --}}
+    {{-- Close Button (hidden during handover) --}}
+    @if(!$handoverMode)
     <button
         @click="showModal = false; $wire.closeModal();"
         class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-8 h-8 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -50,6 +52,7 @@
     >
         <x-heroicon-o-x-mark class="w-5 h-5" />
     </button>
+    @endif
 
     {{-- Header Content --}}
     <div class="pr-12 sm:pr-12">
@@ -194,12 +197,15 @@
                 <button
                     type="button"
                     wire:click="goToPreviousPatient"
+                    wire:loading.attr="disabled"
+                    wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance"
                     @disabled(! $canGoPrevious)
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    class="inline-flex items-center justify-center w-10 h-10 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Atendimento anterior"
                     title="Atendimento anterior"
                 >
-                    <x-heroicon-o-chevron-up class="w-4 h-4" />
+                    <x-heroicon-o-arrow-path class="w-4 h-4 animate-spin hidden" wire:loading.class.remove="hidden" wire:loading.class="block" wire:target="goToPreviousPatient" />
+                    <x-heroicon-o-chevron-up class="w-5 h-5" wire:loading.class="hidden" wire:target="goToPreviousPatient" />
                 </button>
 
                 <div class="relative min-w-0 flex-1">
@@ -208,10 +214,15 @@
                         @click="toggle()"
                         :aria-expanded="open"
                         aria-haspopup="listbox"
-                        class="w-full flex items-center justify-between gap-2 bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-1.5 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40"
+                        wire:loading.attr="disabled"
+                        wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance"
+                        class="w-full flex items-center justify-between gap-2 bg-white/10 border border-white/25 text-white text-xs sm:text-sm rounded-md px-3 py-1.5 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
+                        <span class="hidden" wire:loading.class.remove="hidden" wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance">
+                            <x-heroicon-o-arrow-path class="w-4 h-4 animate-spin inline-block mr-1" />
+                        </span>
                         <span class="truncate text-left flex-1" x-text="currentLabel"></span>
-                        <x-heroicon-o-chevron-down class="w-4 h-4 flex-shrink-0 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
+                        <x-heroicon-o-chevron-down class="w-4 h-4 flex-shrink-0 transition-transform" x-bind:class="open ? 'rotate-180' : ''" wire:loading.class="opacity-0" wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance" />
                     </button>
 
                     <div
@@ -266,12 +277,15 @@
                 <button
                     type="button"
                     wire:click="goToNextPatient"
+                    wire:loading.attr="disabled"
+                    wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance"
                     @disabled(! $canGoNext)
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    class="inline-flex items-center justify-center w-10 h-10 rounded-md bg-white/15 text-white hover:bg-white/25 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                     aria-label="Próximo atendimento"
                     title="Próximo atendimento"
                 >
-                    <x-heroicon-o-chevron-down class="w-4 h-4" />
+                    <x-heroicon-o-arrow-path class="w-4 h-4 animate-spin hidden" wire:loading.class.remove="hidden" wire:loading.class="block" wire:target="goToNextPatient" />
+                    <x-heroicon-o-chevron-down class="w-5 h-5" wire:loading.class="hidden" wire:target="goToNextPatient" />
                 </button>
 
                 @if($currentPatientIndex !== null)

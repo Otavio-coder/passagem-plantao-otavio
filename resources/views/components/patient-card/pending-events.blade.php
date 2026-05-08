@@ -283,9 +283,9 @@
                                               x-text="ev.ds_complemento"
                                               class="text-gray-500 italic"></span>
                                     </div>
-                                    <template x-if="ev.motivo_pendente || ev.scola_status">
+                                    <template x-if="(ev.motivo_pendente && !['previsao_alta','alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (['previsao_alta','alta_medica'].includes(ev.tipo) && (ev.nm_prescritor_display || ev.nm_prescritor))">
                                         <div class="mt-1 space-y-0.5">
-                                            <template x-if="ev.motivo_pendente">
+                                            <template x-if="ev.motivo_pendente && !['previsao_alta','alta','alta_medica'].includes(ev.tipo)">
                                                 <div class="flex items-center gap-1 text-[10px] text-gray-600">
                                                     <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
                                                     <span class="font-medium text-gray-500">Tasy:</span>
@@ -297,6 +297,13 @@
                                                     <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0" />
                                                     <span class="font-medium text-gray-500">SCOLA:</span>
                                                     <span x-text="ev.scola_status"></span>
+                                                </div>
+                                            </template>
+                                            <template x-if="['previsao_alta','alta_medica'].includes(ev.tipo) && (ev.nm_prescritor_display || ev.nm_prescritor)">
+                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                    <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
+                                                    <span class="font-medium text-gray-500">Registrado por:</span>
+                                                    <span x-text="ev.nm_prescritor_display || ev.nm_prescritor"></span>
                                                 </div>
                                             </template>
                                         </div>
@@ -311,26 +318,20 @@
                         </div>
 
                         <div x-show="pages > 1"
-                             class="flex items-center justify-between px-3 py-2 border-t {{ $group['style']['border_header'] ?? 'border-gray-200' }} {{ $group['style']['bg_header'] ?? 'bg-white/30' }}">
-                            <button @click="if(page > 1) page--"
-                                    :disabled="page === 1"
-                                    class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg
-                                           bg-white/70 border {{ $group['style']['border_header'] ?? 'border-gray-200' }} {{ $group['style']['text_header'] ?? 'text-[#062047]' }}
-                                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-colors">
-                                <x-heroicon-o-chevron-left class="w-3 h-3" />
-                                Anterior
-                            </button>
-                            <span class="text-[10px] {{ $group['style']['text_header'] ?? 'text-[#062047]' }} font-medium">
-                                pág. <span x-text="page"></span> / <span x-text="pages"></span>
-                            </span>
-                            <button @click="if(page < pages) page++"
-                                    :disabled="page >= pages"
-                                    class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg
-                                           bg-white/70 border {{ $group['style']['border_header'] ?? 'border-gray-200' }} {{ $group['style']['text_header'] ?? 'text-[#062047]' }}
-                                           disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-colors">
-                                Próxima
-                                <x-heroicon-o-chevron-right class="w-3 h-3" />
-                            </button>
+                             class="flex items-center justify-end px-3 py-2 border-t {{ $group['style']['border_header'] ?? 'border-gray-200' }} {{ $group['style']['bg_header'] ?? 'bg-white/30' }}">
+                            <div class="flex items-center gap-1">
+                                <button @click="if(page > 1) page--"
+                                        :disabled="page === 1"
+                                        class="w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
+                                    <svg class="w-3 h-3 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                                <span class="text-[11px] tabular-nums font-medium px-1 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" x-text="page + '/' + pages"></span>
+                                <button @click="if(page < pages) page++"
+                                        :disabled="page >= pages"
+                                        class="w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
+                                    <svg class="w-3 h-3 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 @endforeach

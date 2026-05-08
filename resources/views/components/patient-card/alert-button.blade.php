@@ -13,33 +13,45 @@
         showTip: false,
         showModal: false,
         tipStyle: '',
+        _timer: null,
         openTip(btn) {
-            const r = btn.getBoundingClientRect();
-            if (window.matchMedia('(pointer: fine)').matches) {
-                this.tipStyle = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.bottom + 2) + 'px;transform:translateX(-50%)';
-            } else {
-                const top = Math.min(r.bottom + 8, window.innerHeight - 220);
-                this.tipStyle = 'left:50%;top:' + top + 'px;transform:translateX(-50%);width:min(220px,calc(100vw - 32px))';
-            }
-            this.showTip = true;
+            window.dispatchEvent(new CustomEvent('close-alert-tooltip'));
+
+            const r   = btn.getBoundingClientRect();
+            const tipW = 200;
+            let left  = r.left + r.width / 2;
+            let top   = r.bottom + 6;
+
+            if (left - tipW / 2 < 8)                     left = tipW / 2 + 8;
+            if (left + tipW / 2 > window.innerWidth - 8) left = window.innerWidth - tipW / 2 - 8;
+
+            const tipH = 140;
+            if (top + tipH > window.innerHeight - 8)      top = r.top - tipH - 6;
+
+            this.tipStyle = 'left:' + left + 'px;top:' + top + 'px;transform:translateX(-50%)';
+            this.showTip  = true;
+
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => { this.showTip = false; }, 4000);
         },
-        closeTip() { this.showTip = false; },
-        handleClick(btn) {
-            if (window.matchMedia('(pointer: fine)').matches) {
-                this.openModal();
-            } else {
-                this.showTip ? this.closeTip() : this.openTip(btn);
-            }
+        closeTip() {
+            clearTimeout(this._timer);
+            this.showTip = false;
         },
-        openModal() { this.showModal = true; document.body.style.overflow = 'hidden'; },
-        closeModal() { this.showModal = false; document.body.style.overflow = ''; }
+        openModal() { this.closeTip(); this.showModal = true; document.body.style.overflow = 'hidden'; },
+        closeModal() { this.showModal = false; document.body.style.overflow = ''; },
+        init() {
+            window.addEventListener('close-alert-tooltip', () => this.closeTip());
+            window.addEventListener('scroll',    () => this.closeTip(), { passive: true, capture: true });
+            window.addEventListener('touchmove', () => this.closeTip(), { passive: true, capture: true });
+        }
     }" @if($outerClass) class="{{ $outerClass }}" @endif>
 
     <button
         type="button"
         @mouseenter="openTip($el)"
         @mouseleave="closeTip()"
-        @click="handleClick($el)"
+        @click="window.matchMedia('(pointer: coarse)').matches ? openTip($el) : openModal()"
         class="{{ $buttonClass }}"
         aria-label="{{ $ariaLabel }}"
     >
@@ -50,14 +62,18 @@
     <div
         x-show="showTip"
         x-cloak
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+        x-transition:leave="transition ease-in duration-100"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
         :style="tipStyle"
-        @mouseenter="showTip = true"
-        @mouseleave="closeTip()"
         @click.outside="closeTip()"
-        class="fixed z-[9999] rounded-2xl shadow-xl p-3 text-xs {{ $tooltipClass }}"
+        class="fixed z-[9999] rounded-lg shadow-xl px-3 py-2.5 text-xs {{ $tooltipClass }} pointer-events-none sm:pointer-events-auto"
         @click.stop
     >
-        <div class="font-semibold text-xs mb-1 border-b {{ $tooltipTitleBorder }} pb-0.5">{{ $tooltipTitle }}</div>
+        <div class="font-semibold text-xs mb-1.5 border-b {{ $tooltipTitleBorder }} pb-1">{{ $tooltipTitle }}</div>
         {{ $tooltipContent }}
     </div>
 

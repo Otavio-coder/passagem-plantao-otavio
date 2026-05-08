@@ -74,6 +74,11 @@
                                 <i class="fa-solid fa-rotate" style="font-size:9px;"></i>
                                 Renovado: <span class="font-mono ml-0.5" x-text="exam.prescricao_mais_nova_pendente_info"></span>
                             </span>
+                            <span x-show="exam.motivo_pendente"
+                                  class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-50 text-gray-600 ring-1 ring-gray-200">
+                                <i class="fa-solid fa-circle-info" style="font-size:9px;"></i>
+                                <span x-text="exam.motivo_pendente"></span>
+                            </span>
                         </div>
                     </div>
                       <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ShiftHandover;
 use App\Support\ChatArchivePayload;
 use App\Support\ChatArchiveShiftResolver;
 use App\Support\ChatArchiveUserResolver;
@@ -90,6 +91,7 @@ class ChatArchiveController extends Controller
         $seriesData = $this->buildMonthlySeries($months);
         $periodStart = $this->formatDate($stats?->oldest);
         $periodEnd = $this->formatDate($stats?->newest);
+        $handoverMetrics = $this->buildHandoverMetrics();
 
         return view('chat.archive', compact(
             'stats',
@@ -98,7 +100,8 @@ class ChatArchiveController extends Controller
             'shiftDistribution',
             'seriesData',
             'periodStart',
-            'periodEnd'
+            'periodEnd',
+            'handoverMetrics'
         ));
     }
 
@@ -696,5 +699,55 @@ class ChatArchiveController extends Controller
         }
 
         return [$topAnnotators, $shiftStats];
+    }
+
+    /**
+     * @return array{total: int, finished: int, avg_duration_min: float|null, avg_beds: float|null, recent: list<array<string,mixed>>}
+     */
+    private function buildHandoverMetrics(): array
+    {
+        $total = ShiftHandover::count();
+
+        if ($total === 0) {
+            return ['total' => 0, 'finished' => 0, 'avg_duration_min' => null, 'avg_beds' => null, 'recent' => []];
+        }
+
+        $finished = ShiftHandover::whereNotNull('finished_at')->count();
+
+        $avgDuration = ShiftHandover::whereNotNull('duration_seconds')
+            ->avg('duration_seconds');
+
+        $avgBeds = ShiftHandover::whereNotNull('finished_at')
+            ->avg('beds_visited');
+
+        $recent = ShiftHandover::with('user:id,name')
+            ->whereNotNull('finished_at')
+            ->orderByDesc('started_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($h) => [
+                'user_name' => $h->user?->name ?? '—',
+                'shift' => match ($h->shift) {
+                    'morning' => 'Manhã',
+                    'afternoon' => 'Tarde',
+                    'night' => 'Noite',
+                    default => $h->shift,
+                },
+                'sector_name' => $h->sector_name,
+                'bed_codes' => $h->bed_codes ?? [],
+                'beds_visited' => $h->beds_visited,
+                'beds_total' => $h->beds_total,
+                'duration' => $h->formattedDuration(),
+                'started_at' => $h->started_at?->format('d/m/Y H:i'),
+            ])
+            ->all();
+
+        return [
+            'total' => $total,
+            'finished' => $finished,
+            'avg_duration_min' => $avgDuration !== null ? round($avgDuration / 60, 1) : null,
+            'avg_beds' => $avgBeds !== null ? round($avgBeds, 1) : null,
+            'recent' => $recent,
+        ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\PatientData\Loaders;
 
 use App\Repositories\EMR\PatientClinicalRepository;
 use App\Services\PatientData\Contracts\SectorLoader;
+use App\Services\Scola\ScolaExamStatusService;
 use App\Services\Tasy\TasyFormatter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -65,13 +66,82 @@ class ClinicalLoader implements SectorLoader
                 'materiais' => $details->materiais ?? null,
                 'ultima_hemocultura' => $details->ultima_hemocultura ?? null,
                 'hemocultura_pendente' => (int) ($details->hemocultura_pendente ?? 0) === 1,
+                'hemoc_history' => $this->parseHemocHistory($details->hemoc_history ?? null),
                 'has_allergy' => $formatter->checkHasAllergy($alergias),
                 'has_isolation' => $formatter->checkHasIsolation($medidaBloqueio),
                 'alerts' => [],
             ];
         }
 
+        $this->enrichHemocHistoryWithScolaResults($result);
+
         return $result;
+    }
+
+    /** @param  array<int|string, array<string, mixed>>  $result */
+    private function enrichHemocHistoryWithScolaResults(array &$result): void
+    {
+        $prescricoes = [];
+
+        foreach ($result as $patient) {
+            foreach ($patient['hemoc_history'] as $hist) {
+                $nr = $hist['nr_prescricao'] ?? '';
+                if ($nr !== '') {
+                    $prescricoes[$nr] = $nr;
+                }
+            }
+        }
+
+        if (empty($prescricoes)) {
+            return;
+        }
+
+        try {
+            $resultados = app(ScolaExamStatusService::class)->getHemocResults(array_values($prescricoes));
+        } catch (\Throwable $e) {
+            Log::warning('ClinicalLoader: falha ao enriquecer hemoc_history com SCOLA', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        foreach ($result as $nr => &$patient) {
+            foreach ($patient['hemoc_history'] as $i => $hist) {
+                $result[$nr]['hemoc_history'][$i]['scola_resultado'] = $resultados[$hist['nr_prescricao']] ?? null;
+            }
+        }
+        unset($patient);
+    }
+
+    /**
+     * @return array<int, array{nr_prescricao: string, date: string, name: string, status_execucao: string, has_result: bool, dt_prescricao: string, scola_resultado: string|null}>
+     */
+    private function parseHemocHistory(?string $value): array
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach (explode('||', $value) as $raw) {
+            $parts = explode('::', trim($raw), 6);
+            $nr = trim($parts[0] ?? '');
+            if ($nr === '') {
+                continue;
+            }
+
+            $items[] = [
+                'nr_prescricao' => $nr,
+                'date' => trim($parts[1] ?? ''),
+                'name' => trim($parts[2] ?? ''),
+                'status_execucao' => trim($parts[3] ?? ''),
+                'has_result' => ((int) trim($parts[4] ?? '0')) > 0,
+                'dt_prescricao' => trim($parts[5] ?? ''),
+            ];
+        }
+
+        return $items;
     }
 
     private function parsePipeSeparated(?string $value): array

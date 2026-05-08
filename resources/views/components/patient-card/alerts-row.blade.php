@@ -4,7 +4,7 @@
     {{-- ALERGIA --}}
     @if($patient['has_allergy'] ?? false)
         <x-patient-card.alert-button
-            button-class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+            button-class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full bg-red-500 text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
             aria-label="Ver alergias"
             tooltip-class="w-52 bg-red-500 text-white"
             tooltip-title="Alergias Registradas"
@@ -12,7 +12,7 @@
             modal-title="Alergias Registradas"
         >
             <x-slot:buttonIcon>
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
             </x-slot:buttonIcon>
@@ -67,7 +67,7 @@
     {{-- ISOLAMENTO --}}
     @if($patient['has_isolation'] ?? false)
         <x-patient-card.alert-button
-            button-class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-yellow-400 text-black shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
+            button-class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full bg-yellow-400 text-black shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
             aria-label="Ver isolamento"
             tooltip-class="w-52 bg-yellow-400 text-black"
             tooltip-title="Precauções de Isolamento"
@@ -76,7 +76,7 @@
             modal-title="Precauções de Isolamento"
         >
             <x-slot:buttonIcon>
-                <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="w-5 h-5" alt="Isolamento" />
+                <img src="{{ asset('images/icons/patient-card/patient-isolated.svg') }}" class="w-6 h-6" alt="Isolamento" />
             </x-slot:buttonIcon>
             <x-slot:tooltipContent>
                 @if(empty($patient['isolation_items'] ?? []))
@@ -127,7 +127,7 @@
     {{-- CIRURGIA --}}
     @if($patient['has_surgery'] ?? false)
         <x-patient-card.alert-button
-            button-class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-[#7712C7] text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 hover:bg-[#7712C7]/70 focus:outline-none focus:ring-2 focus:ring-[#7712C7]/50 focus:ring-offset-2"
+            button-class="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full bg-[#7712C7] text-white shadow-md animate-pulse transition-transform duration-150 cursor-pointer hover:scale-110 hover:bg-[#7712C7]/70 focus:outline-none focus:ring-2 focus:ring-[#7712C7]/50 focus:ring-offset-2"
             aria-label="Ver cirurgia"
             tooltip-class="w-52 bg-[#7712C7] text-white"
             tooltip-title="Agenda de Cirurgia"
@@ -135,7 +135,7 @@
             modal-title="Agendas de Cirurgia Recente"
         >
             <x-slot:buttonIcon>
-                <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="w-6 h-6 filter brightness-0 invert" />
+                <img src="{{ asset('images/icons/patient-card/general-surgery.svg') }}" class="w-7 h-7 filter brightness-0 invert" />
             </x-slot:buttonIcon>
             <x-slot:tooltipContent>
                 @if(!empty($patient['procedimentos_cirurgicos'][0] ?? null))
@@ -215,7 +215,7 @@
     {{-- ALTA --}}
     @if($patient['discharge_display']['show'] ?? false)
         <x-patient-card.alert-button
-            :button-class="'w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full ' . ($patient['discharge_display']['bg'] ?? 'bg-gray-100') . ' shadow-md transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2'"
+            :button-class="'w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full ' . ($patient['discharge_display']['bg'] ?? 'bg-gray-100') . ' shadow-md transition-transform duration-150 cursor-pointer hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2'"
             :aria-label="$patient['discharge_display']['label'] ?? 'Alta'"
             tooltip-class="w-48 bg-white border border-gray-200 text-gray-800"
             :tooltip-title="$patient['discharge_display']['label'] ?? 'Alta'"
@@ -226,7 +226,7 @@
             outer-class="relative"
         >
             <x-slot:buttonIcon>
-                <img src="{{ asset('images/icons/patient-card/' . ($patient['discharge_display']['icon'] ?? 'alta.svg')) }}" class="w-5 h-5" alt="{{ $patient['discharge_display']['label'] ?? 'Alta' }}" />
+                <img src="{{ asset('images/icons/patient-card/' . ($patient['discharge_display']['icon'] ?? 'alta.svg')) }}" class="w-6 h-6" alt="{{ $patient['discharge_display']['label'] ?? 'Alta' }}" />
             </x-slot:buttonIcon>
             <x-slot:tooltipContent>
                 @if(($patient['discharge_display']['type'] ?? '') === 'alta')

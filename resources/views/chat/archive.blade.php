@@ -57,36 +57,48 @@
 @endpush
 
 @section('content')
-<div class="w-full px-3 my-2 text-gray-600">
+<div class="space-y-5">
 
     {{-- ── Header ──────────────────────────────────────────────────────────── --}}
-    <div class="flex justify-between items-center mb-4">
-        <span class="text-md md:text-2xl font-medium text-santacasa-100">
-            <i class="fas fa-clock-rotate-left mr-1"></i>
-            Histórico de Avaliações
-        </span>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[#004D9D]/10 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-clock-rotate-left text-[#004D9D]"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-gray-900 leading-tight">Histórico de Avaliações</h1>
+                <p class="text-sm text-gray-500 mt-0.5">Anotações e passagens de plantão registradas</p>
+            </div>
+        </div>
+        @can('ver historico chat')
+        <a href="{{ route('handover.metrics') }}"
+           class="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors">
+            <i class="fas fa-chart-bar fa-xs"></i>
+            Métricas de Passagem
+        </a>
+        @endcan
     </div>
 
     @if($stats && $stats->total > 0)
     {{-- ── Métricas ────────────────────────────────────────────────────────── --}}
-    <div class="flex flex-col gap-3 mb-4">
+    <div class="flex flex-col gap-3">
 
         {{-- Cards: 4 principais --}}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Atendimentos</p>
                 <p class="text-2xl font-bold text-santacasa-100 mt-0.5">{{ number_format($stats->total) }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">com anotações</p>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Total de anotações</p>
                 <p class="text-2xl font-bold text-santacasa-200 mt-0.5">{{ number_format($stats->total_msgs) }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">registradas</p>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Cobertura contínua</p>
                 <p class="text-2xl font-bold mt-0.5 {{ $coveragePct >= 70 ? 'text-green-600' : ($coveragePct >= 40 ? 'text-amber-500' : 'text-red-500') }}">
                     {{ $coveragePct }}%
@@ -94,7 +106,7 @@
                 <p class="text-xs text-gray-400 mt-0.5">≥ 3 anotações/atend.</p>
             </div>
 
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Média por atend.</p>
                 <p class="text-2xl font-bold text-santacasa-100 mt-0.5">{{ $stats->avg_per_attendance }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">anotações</p>
@@ -105,7 +117,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 
             {{-- Distribuição por turno --}}
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Anotações por turno</p>
                 <div class="space-y-2">
                     @foreach($shiftDistribution as $shift)
@@ -131,7 +143,7 @@
             </div>
 
             {{-- Time series: últimos 6 meses --}}
-            <div class="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Anotações — últimos 6 meses</p>
                 <div class="space-y-1.5">
                     @foreach($seriesData as $data)
@@ -149,7 +161,7 @@
 
         {{-- Linha 3: Ranking horizontal (full width) --}}
         @if(count($topAnnotators) > 0)
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-4 py-2.5 border-b border-gray-100 flex items-center gap-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Ranking de anotações — plantonistas</p>
                 <span class="text-[10px] text-gray-300">Top {{ count($topAnnotators) }}</span>
@@ -171,8 +183,95 @@
     </div>
     @endif
 
+    {{-- ── Passagens de Plantão ────────────────────────────────────────────────── --}}
+    @if(!empty($handoverMetrics) && $handoverMetrics['total'] > 0)
+    <div>
+        <div class="flex items-center gap-2 mb-3">
+            <i class="fas fa-play-circle text-emerald-600"></i>
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Passagens de Plantão</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+                <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Total iniciadas</p>
+                <p class="text-2xl font-bold text-emerald-600 mt-0.5">{{ $handoverMetrics['total'] }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">sessões</p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+                <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Concluídas</p>
+                <p class="text-2xl font-bold text-gray-700 mt-0.5">{{ $handoverMetrics['finished'] }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">finalizadas</p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+                <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Tempo médio</p>
+                <p class="text-2xl font-bold text-gray-700 mt-0.5">{{ $handoverMetrics['avg_duration_min'] !== null ? $handoverMetrics['avg_duration_min'].'min' : '—' }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">por passagem</p>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+                <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Leitos/passagem</p>
+                <p class="text-2xl font-bold text-gray-700 mt-0.5">{{ $handoverMetrics['avg_beds'] ?? '—' }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">média visitados</p>
+            </div>
+        </div>
+
+        @if(!empty($handoverMetrics['recent']))
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-gray-100">
+                <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Últimas passagens realizadas</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-xs">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Enfermeiro</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Data/Hora</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Turno</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Setor</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Leitos</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Visitados</th>
+                            <th class="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase">Duração</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @foreach($handoverMetrics['recent'] as $h)
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 text-gray-700 font-medium">{{ $h['user_name'] }}</td>
+                            <td class="px-3 py-2 text-gray-500 font-mono">{{ $h['started_at'] }}</td>
+                            <td class="px-3 py-2">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold {{ match($h['shift']) { 'Manhã' => 'bg-yellow-50 text-yellow-700', 'Tarde' => 'bg-orange-50 text-orange-700', default => 'bg-indigo-50 text-indigo-700' } }}">
+                                    {{ $h['shift'] }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2 text-gray-600 max-w-[120px] truncate" title="{{ $h['sector_name'] ?? '' }}">
+                                {{ $h['sector_name'] ?? '—' }}
+                            </td>
+                            <td class="px-3 py-2 text-gray-500">
+                                @if(!empty($h['bed_codes']))
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach(array_slice($h['bed_codes'], 0, 5) as $bed)
+                                            <span class="inline-block px-1 py-0.5 bg-gray-100 rounded text-[10px] font-mono">{{ $bed }}</span>
+                                        @endforeach
+                                        @if(count($h['bed_codes']) > 5)
+                                            <span class="text-gray-400 text-[10px]">+{{ count($h['bed_codes']) - 5 }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-gray-600">{{ $h['beds_visited'] }}/{{ $h['beds_total'] }}</td>
+                            <td class="px-3 py-2 text-emerald-600 font-semibold">{{ $h['duration'] ?? '—' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+    </div>
+    @endif
+
     {{-- ── Tabela DataTables ─────────────────────────────────────────────────── --}}
-    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+    <div class="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
 
         {{-- Tabela --}}
         <div class="overflow-x-auto p-2">
@@ -479,7 +578,7 @@ document.addEventListener('DOMContentLoaded', function () {
             search: 'Buscar:',
         },
         pageLength: 25,
-        lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }]
+        lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }],
         order: [[7, 'desc']],
         columns: [
             { data: 'nr_atendimento', render: (v) => `<span class="font-mono font-semibold text-gray-700">${v}</span>` },

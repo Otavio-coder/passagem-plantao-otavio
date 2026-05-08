@@ -29,6 +29,9 @@ class SbarReport extends Component
 
     public $selectedSector = null;
 
+    /** True during the initial page load until wire:init fires loadPatients(). */
+    public bool $isLoading = true;
+
     // Sector onboarding
     public bool $showSectorOnboarding = false;
 
@@ -238,12 +241,20 @@ class SbarReport extends Component
     // Actions
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Called by wire:init after the initial HTML is rendered in the browser.
+     * Triggers patient loading without blocking the first page render.
+     */
+    public function loadPatients(): void
+    {
+        $this->isLoading = false;
+    }
+
     public function changeHospital($hospitalId)
     {
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
 
-        // Invalidate cached computed values for the new hospital
         unset($this->sectors);
         unset($this->patients);
 
@@ -274,8 +285,7 @@ class SbarReport extends Component
         }
 
         $this->selectedSector = $sectorId;
-        unset($this->patients); // invalidate computed cache → fresh data on next render
-
+        unset($this->patients);
         $this->lastRefresh = now()->format('H:i:s');
         $this->auditSectorView('sector_change');
     }
@@ -284,13 +294,36 @@ class SbarReport extends Component
     {
         try {
             if ($this->selectedSector) {
-                PatientDataLoader::forSector($this->selectedSector)->clearCache();
+                // Only invalidate dynamic caches (pending events + handover).
+                // Demographics, scales, clinical, multidisciplinary and surgery
+                // are stable within a session and expire naturally via TTL.
+                // This avoids triggering a full cold Oracle load on every click.
+                PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
             }
 
-            unset($this->patients); // force recompute after cache clear
+            unset($this->patients);
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in refreshData', [
+                'exception' => $e,
+                'selected_sector' => $this->selectedSector,
+                'user_id' => Auth::id(),
+            ]);
+            $this->errorMessage = 'Erro ao atualizar: '.$e->getMessage();
+        }
+    }
+
+    public function forceRefreshData()
+    {
+        try {
+            if ($this->selectedSector) {
+                PatientDataLoader::forSector($this->selectedSector)->clearCache();
+            }
+
+            unset($this->patients);
+            $this->lastRefresh = now()->format('H:i:s');
+        } catch (\Exception $e) {
+            Log::error('Error in forceRefreshData', [
                 'exception' => $e,
                 'selected_sector' => $this->selectedSector,
                 'user_id' => Auth::id(),
@@ -397,7 +430,7 @@ class SbarReport extends Component
     // Event handlers
     // ──────────────────────────────────────────────────────────────────────────
 
-    public function onHandoverUpdated(string $nr): void
+    public function onHandoverUpdated(?string $nr = null): void
     {
         // Invalidate computed cache — next render will re-fetch handover status
         // from DB (batch query) while hitting TasyService's 15-min Oracle cache.
@@ -413,7 +446,8 @@ class SbarReport extends Component
         return view('sbar.report.index', [
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
-            'patients' => $this->patients,
+            'patients' => $this->isLoading ? [] : $this->patients,
+            'isLoading' => $this->isLoading,
             'errorMessage' => $this->errorMessage,
             'selectedHospital' => $this->selectedHospital,
             'selectedSector' => $this->selectedSector,

@@ -46,6 +46,15 @@ class SbarPatientModal extends Component
     /** Date shown in the medication schedule grid (Y-m-d). Navigable with shiftScheduleDay(). */
     public string $scheduleDate = '';
 
+    /** Whether the modal is locked in nurse handover mode. */
+    public bool $handoverMode = false;
+
+    /** ISO timestamp when the handover session started, used for the timer. */
+    public string $handoverStartedAt = '';
+
+    /** Attendance numbers of beds actually visited during handover (de-duplicated). */
+    public array $visitedBedsAttendances = [];
+
     /** @var array Per-medication hour slots: [ med_id => [ 'HH:MI' => 'administered'|'scheduled'|'missed' ] ] */
     public array $medicationSchedule = [];
 
@@ -66,6 +75,28 @@ class SbarPatientModal extends Component
         $this->scheduleDate = now()->format('Y-m-d');
     }
 
+    #[On('openPatientModalHandover')]
+    public function openFromHandover(array $data): void
+    {
+        $attendanceNumber = $data['attendanceNumber'] ?? null;
+        $patients = $data['patients'] ?? [];
+
+        if (! $attendanceNumber) {
+            return;
+        }
+
+        if (! empty($data['handoverMode'])) {
+            $this->handoverMode = true;
+            $this->handoverStartedAt = $data['startedAt'] ?? now()->toISOString();
+            $this->visitedBedsAttendances = [];
+        }
+
+        $sbarPatient = collect($patients)
+            ->firstWhere('nr_atendimento', (int) $attendanceNumber);
+
+        $this->openModal((int) $attendanceNumber, '', $sbarPatient ?? null, $patients);
+    }
+
     #[On('openModal')]
     public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
     {
@@ -78,7 +109,17 @@ class SbarPatientModal extends Component
         }
 
         try {
+            $previousVisited = $this->visitedBedsAttendances;
             $this->resetModalState();
+            $this->visitedBedsAttendances = $previousVisited;
+
+            if ($this->handoverMode) {
+                $nr = (int) $attendanceNumber;
+                if ($nr > 0 && ! in_array($nr, $this->visitedBedsAttendances, true)) {
+                    $this->visitedBedsAttendances[] = $nr;
+                }
+            }
+
             $this->setModalPatients(is_array($patients) ? $patients : [], (int) $attendanceNumber);
             $this->loadingPatient = true;
             $this->showModal = true;
@@ -98,9 +139,10 @@ class SbarPatientModal extends Component
                 'shift' => $this->currentShift,
             ]);
 
-            // Usa payload SBAR apenas quando for suficientemente rico.
+            // Em modo passagem, sempre busca dados completos do TasyService para garantir
+            // que situação, escalas e dados clínicos estejam disponíveis.
             // Payloads mínimos de navegação devem cair no fetch normal para evitar empty states.
-            if (is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
+            if (! $this->handoverMode && is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
                 $this->loadFromSbarData($sbarPatient, $attendanceNumber);
             } else {
                 $this->loadPatientData($attendanceNumber);
@@ -744,20 +786,38 @@ class SbarPatientModal extends Component
     {
         $plan = $this->prescriptions ?? [];
 
-        $allProcedureItems = collect($plan['procedures']['items'] ?? []);
-        $examCount = $allProcedureItems->filter(function (array $item) {
-            $eventType = strtolower((string) ($item['event_type'] ?? ''));
-            $type = strtolower((string) ($item['type'] ?? ''));
+        // Quando o patientDetails contém pending_events do payload SBAR, usa-os como fonte
+        // para as abas de Exames e Procedimentos — dados mais ricos e já filtrados por pendência.
+        $pendingEvents = [];
+        if (isset($this->patientDetails) && is_array($this->patientDetails->pending_events ?? null)) {
+            $pendingEvents = (array) $this->patientDetails->pending_events;
+        }
 
-            return $eventType === 'exame'
-                || str_contains($type, 'exame')
-                || str_contains($type, 'laborat');
-        })->count();
+        $usePendingForProcedures = ! empty($pendingEvents);
+
+        if ($usePendingForProcedures) {
+            $pendingTabs = $this->mapPendingEventsToTabs($pendingEvents);
+            $examCount = count($pendingTabs['exams']);
+            $procCount = count($pendingTabs['procedures']);
+            $procedureItems = array_merge($pendingTabs['exams'], $pendingTabs['procedures']);
+        } else {
+            $allProcedureItems = collect($plan['procedures']['items'] ?? []);
+            $examCount = $allProcedureItems->filter(function (array $item) {
+                $eventType = strtolower((string) ($item['event_type'] ?? ''));
+                $type = strtolower((string) ($item['type'] ?? ''));
+
+                return $eventType === 'exame'
+                    || str_contains($type, 'exame')
+                    || str_contains($type, 'laborat');
+            })->count();
+            $procCount = $allProcedureItems->count() - $examCount;
+            $procedureItems = $plan['procedures']['items'] ?? [];
+        }
 
         $counts = [
             'tab-med' => $plan['medications']['count'] ?? 0,
             'tab-exam' => $examCount,
-            'tab-proc' => $allProcedureItems->count() - $examCount,
+            'tab-proc' => $procCount,
             'tab-surg' => $plan['surgery']['count'] ?? 0,
             'tab-hemo' => $plan['hemotherapy']['count'] ?? 0,
             'tab-chemo' => $plan['chemotherapy']['count'] ?? 0,
@@ -794,7 +854,7 @@ class SbarPatientModal extends Component
             'schedule' => $this->medicationSchedule,
             'time_columns' => $timeColumns,
             'current_hour' => now()->format('H').':00',
-            'procedures' => $plan['procedures']['items'] ?? [],
+            'procedures' => $procedureItems,
             'orders' => $plan['orders']['items'] ?? [],
             'interventions' => $plan['interventions']['items'] ?? [],
             'hemotherapy' => $plan['hemotherapy']['items'] ?? [],
@@ -814,6 +874,73 @@ class SbarPatientModal extends Component
             'current_hour' => now()->format('H').':00',
             'alpine_payload' => $alpinePayload,
         ];
+    }
+
+    /**
+     * Mapeia pending_events do payload SBAR para o formato esperado pelos tabs de Exames/Procedimentos.
+     *
+     * @param  array<int, array<string, mixed>>  $pendingEvents
+     * @return array{exams: list<array<string, mixed>>, procedures: list<array<string, mixed>>}
+     */
+    private function mapPendingEventsToTabs(array $pendingEvents): array
+    {
+        $exams = [];
+        $procedures = [];
+
+        foreach ($pendingEvents as $event) {
+            $tipo = (string) ($event['tipo'] ?? '');
+
+            if (in_array($tipo, ['exame', 'proc_exame'], true)) {
+                $exams[] = [
+                    'id' => $event['nr_prescricao'] ?? uniqid(),
+                    'name' => $event['descricao'] ?? 'Exame',
+                    'classificacao' => $event['ds_grupo_lab'] ?? null,
+                    'material' => null,
+                    'checklist_amostra' => $event['ie_amostra'] ?? null,
+                    'dt_solicitacao' => $event['dt_solicitacao'] ?? null,
+                    'scheduled' => $event['dt_evento_formatted'] ?? null,
+                    'scheduled_raw' => $event['dt_evento'] ?? null,
+                    'dt_coleta' => $event['dt_coleta'] ?? null,
+                    'tempo_pendente' => $event['tempo_pendente'] ?? null,
+                    'status_laudo' => $event['status_laudo'] ?? null,
+                    'status' => $event['ie_status_execucao'] ?? null,
+                    'nr_prescricao' => $event['nr_prescricao'] ?? null,
+                    'prescriber' => $event['nm_prescritor_display'] ?? $event['nm_prescritor'] ?? null,
+                    'resultado_laudo' => $event['scola_status'] ?? null,
+                    'foi_executado_sem_baixa' => (bool) ($event['foi_executado_sem_baixa'] ?? false),
+                    'exame_coletado_em_prescricao_mais_nova' => (bool) ($event['exame_coletado_em_prescricao_mais_nova'] ?? false),
+                    'prescricao_mais_nova_pendente_info' => $event['prescricao_mais_nova_pendente_info'] ?? null,
+                    'motivo_pendente' => $event['motivo_pendente'] ?? null,
+                    'scola_status' => $event['scola_status'] ?? null,
+                    'event_type' => 'exame',
+                    'is_today' => (bool) ($event['is_near'] ?? false),
+                    'is_near' => (bool) ($event['is_near'] ?? false),
+                    'urgente' => (bool) ($event['urgente'] ?? false),
+                ];
+            } elseif ($tipo === 'procedimento') {
+                $procedures[] = [
+                    'id' => uniqid(),
+                    'name' => $event['descricao'] ?? 'Procedimento',
+                    'type' => $event['ds_subtipo'] ?? null,
+                    'sector_name' => $event['setor_execucao'] ?? null,
+                    'sector_code' => null,
+                    'scheduled' => $event['dt_evento_formatted'] ?? null,
+                    'scheduled_raw' => $event['dt_evento'] ?? null,
+                    'prescriber' => $event['nm_prescritor_display'] ?? $event['nm_prescritor'] ?? null,
+                    'resultado_laudo' => null,
+                    'status' => $event['ie_status_execucao'] ?? null,
+                    'foi_executado_sem_baixa' => (bool) ($event['foi_executado_sem_baixa'] ?? false),
+                    'proc_realizado_em_nova_prescricao' => (bool) ($event['proc_realizado_em_nova_prescricao'] ?? false),
+                    'motivo_pendente' => $event['motivo_pendente'] ?? null,
+                    'event_type' => 'procedimento',
+                    'is_today' => (bool) ($event['is_near'] ?? false),
+                    'is_near' => (bool) ($event['is_near'] ?? false),
+                    'urgente' => (bool) ($event['urgente'] ?? false),
+                ];
+            }
+        }
+
+        return ['exams' => $exams, 'procedures' => $procedures];
     }
 
     public function getScalesDataProperty()

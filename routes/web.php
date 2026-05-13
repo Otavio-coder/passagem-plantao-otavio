@@ -73,6 +73,8 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
             ->name('pending.report');
         Route::post('/pendencias/refresh', [PendingEventsReportController::class, 'refresh'])
             ->name('pending.report.refresh');
+        Route::get('/pendencias/export', [PendingEventsReportController::class, 'export'])
+            ->name('pending.report.export');
 
         // Histórico de anotações arquivadas
         Route::middleware('can:ver historico chat')->prefix('historico')->group(function () {

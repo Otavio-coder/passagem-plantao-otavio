@@ -13,7 +13,7 @@ class PendingEventsReportControllerTest extends TestCase
     #[Test]
     public function it_filters_multidisciplinary_requests_that_are_not_pending(): void
     {
-        $controller = new PendingEventsReportController;
+        $controller = app(PendingEventsReportController::class);
 
         $patients = collect([
             [

@@ -11,6 +11,7 @@ use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -123,6 +124,10 @@ class PendingEventsReportController extends Controller
             ->values()
             ->all();
 
+        $tipoLabels = $rows->pluck('tipo_label', 'tipo_evento')->filter()->unique()->sort()->all();
+        $categorias = $rows->pluck('motivo_categoria')->filter()->unique()->sort()->values()->all();
+        $classificacoes = $rows->pluck('classificacao')->filter()->unique()->sort()->values()->all();
+
         return view('pendencias.index', [
             'hospitals' => $hospitals,
             'sectors' => $sectors,
@@ -132,8 +137,120 @@ class PendingEventsReportController extends Controller
             'selectedSectors' => $selectedSectors,
             'sectorName' => $sectorName,
             'totalRows' => $rows->count(),
+            'tipoLabels' => $tipoLabels,
+            'categorias' => $categorias,
+            'classificacoes' => $classificacoes,
             'errorMessage' => null,
         ]);
+    }
+
+    public function export(Request $request): Response
+    {
+        $user = Auth::user();
+
+        $allSectors = UserSectorPreference::query()
+            ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
+            ->where('user_id', $user->id)
+            ->distinct()
+            ->get();
+
+        $hospitals = $allSectors->map(fn ($p) => ['hospital_id' => (int) $p->hospital_code])->unique('hospital_id')->pluck('hospital_id');
+        $selectedHospital = (int) $request->integer('hospital_id', (int) ($hospitals->first() ?? 0));
+
+        $sectors = $allSectors
+            ->filter(fn ($p) => (int) $p->hospital_code === $selectedHospital)
+            ->map(fn ($p) => ['sector_code' => (int) $p->sector_code])
+            ->unique('sector_code')
+            ->pluck('sector_code');
+
+        $rawIds = $request->input('sector_ids', []);
+        if (empty($rawIds) && $request->has('sector_id')) {
+            $rawIds = [$request->integer('sector_id')];
+        }
+
+        $selectedSectors = collect($rawIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $sectors->contains($id))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($selectedSectors) && $sectors->isNotEmpty()) {
+            $selectedSectors = [$sectors->first()];
+        }
+
+        $rows = collect();
+        $service = new PatientPendingEventsService;
+
+        foreach ($selectedSectors as $sectorId) {
+            $patients = PatientDataLoader::forSector($sectorId)->include('demographics')->get();
+            $pending = $service->getPendingEventsForSector($sectorId);
+            $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null) ?? (string) $sectorId;
+
+            $patients = array_map(function (array $patient) use ($pending, $sectorLabel) {
+                $patient['pending_events'] = $pending[$patient['nr_atendimento']]['events'] ?? [];
+                $patient['_setor_label'] = $sectorLabel;
+
+                return $patient;
+            }, $patients);
+
+            $rows = $rows->merge($this->buildRows(collect($patients)));
+        }
+
+        $rows = $rows->sortByDesc('sort_ts')->values();
+
+        $filename = 'pendencias_'.now()->format('Ymd_Hi').'.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $columns = [
+            'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Tipo', 'Classificação',
+            'Pendência', 'Nr. Prescrição', 'Prescritor',
+            'Status (Tasy)', 'Status (SCOLA)', 'Resultado Bacteriológico',
+            'Data Prescrição', 'Lib. Médica', 'Lib. Prescrição', 'Prev. Execução', 'Data Coleta',
+            'Em Aberto', 'Setor Execução', 'Vencido',
+        ];
+
+        $csvRows = $rows->map(fn (array $row): array => [
+            $row['paciente'] ?? '',
+            $row['ugb'] ?? '',
+            $row['atendimento'] ?? '',
+            $row['setor_origem'] ?? '',
+            $row['tipo_label'] ?? '',
+            $row['classificacao'] ?? '',
+            $row['item'] ?? '',
+            $row['nr_prescricao'] ?? '',
+            $row['nm_prescritor'] ?? '',
+            $row['motivo_pendente'] ?? '',
+            $row['scola_status'] ?? '',
+            $row['scola_resultado'] ?? '',
+            $row['data_solicitacao'] ?? '',
+            $row['data_lib_medica'] ?? '',
+            $row['data_lib_prescricao'] ?? '',
+            $row['data_prev_execucao'] ?? '',
+            $row['data_coleta'] ?? '',
+            $row['tempo_pendente'] ?? '',
+            $row['setor_execucao'] ?? '',
+            ($row['is_overdue'] ?? false) ? 'Sim' : 'Não',
+        ])->all();
+
+        $output = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $columns, ';');
+        foreach ($csvRows as $csvRow) {
+            fputcsv($handle, $csvRow, ';');
+        }
+        rewind($handle);
+        $output .= stream_get_contents($handle);
+        fclose($handle);
+
+        return response($output, 200, $headers);
     }
 
     public function refresh(Request $request): RedirectResponse
@@ -187,6 +304,7 @@ class PendingEventsReportController extends Controller
                 $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
 
                 $isOverdue = $sortTs > 0 && $sortTs < time();
+                $motivo = $this->computeMotivoPendente($normalizedType, $event);
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
@@ -209,9 +327,12 @@ class PendingEventsReportController extends Controller
                     ),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status_execucao' => trim((string) ($event['status_laudo'] ?? '')),
-                    'motivo_pendente' => $this->computeMotivoPendente($normalizedType, $event),
+                    'motivo_pendente' => $motivo,
+                    'motivo_categoria' => $this->categorizarMotivo($motivo, $normalizedType),
                     'nr_prescricao' => $event['nr_prescricao'] ?? null,
+                    'nm_prescritor' => trim((string) ($event['nm_prescritor'] ?? '')),
                     'scola_status' => $event['scola_status'] ?? null,
+                    'scola_resultado' => $event['scola_resultado'] ?? null,
                     'scola_integration_issue' => $event['scola_integration_issue'] ?? false,
                     'sort_ts' => $sortTs,
                     'is_overdue' => $isOverdue,
@@ -295,6 +416,60 @@ class PendingEventsReportController extends Controller
     private function computeMotivoPendente(string $normalizedType, array $event): string
     {
         return PendingEventHelper::motivoPendente($event);
+    }
+
+    private function categorizarMotivo(string $motivo, string $tipo): string
+    {
+        if ($tipo === 'antibiotico') {
+            return 'Antimicrobiano pendente';
+        }
+        if ($tipo === 'consultoria') {
+            return 'Aguardando resposta';
+        }
+        if (str_starts_with($motivo, 'Resultado disponível')) {
+            return 'Resultado disponível';
+        }
+        if (str_contains($motivo, 'Laudo liberado no Scola')) {
+            return 'Laudo liberado (SCOLA)';
+        }
+        if (str_contains($motivo, 'Laudo disponível') || str_contains($motivo, 'Laudo disponível em solicitação')) {
+            return 'Laudo disponível';
+        }
+        if (str_starts_with($motivo, 'Nova coleta')) {
+            return 'Nova coleta necessária';
+        }
+        if (str_starts_with($motivo, 'Coletado')) {
+            return 'Coletado — aguardando resultado';
+        }
+        if (str_starts_with($motivo, 'Aguardando coleta')) {
+            return 'Aguardando coleta';
+        }
+        if (str_starts_with($motivo, 'Aguardando laudo')) {
+            return 'Aguardando laudo';
+        }
+        if (str_starts_with($motivo, 'Em execução') || str_starts_with($motivo, 'Em exame')) {
+            return 'Em execução';
+        }
+        if (str_starts_with($motivo, 'Em preparo')) {
+            return 'Em preparo';
+        }
+        if (str_starts_with($motivo, 'Urgente')) {
+            return 'Urgente — aguardando coleta';
+        }
+        if (str_starts_with($motivo, 'Aguardando cirurgia') || str_starts_with($motivo, 'Cirurgia')) {
+            return 'Aguardando cirurgia';
+        }
+        if (str_starts_with($motivo, 'Aguardando transfusão') || str_starts_with($motivo, 'Urgente — aguardando transfusão')) {
+            return 'Aguardando transfusão';
+        }
+        if (str_starts_with($motivo, 'Sessão de quimioterapia')) {
+            return 'Quimioterapia agendada';
+        }
+        if (str_starts_with($motivo, 'Aguardando execução') || str_starts_with($motivo, 'Agendado')) {
+            return 'Aguardando execução';
+        }
+
+        return 'Outros';
     }
 
     private function shortDate(?string $date): ?string

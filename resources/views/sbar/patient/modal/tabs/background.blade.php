@@ -162,177 +162,134 @@
                     }
                     usort($bgAllItems, fn($a, $b) => strcmp($b['sort'], $a['sort']));
 
-                    $bgTotalCount  = count($bgAllItems);
+                    $bgTotalCount   = count($bgAllItems);
                     $bgDisplayItems = array_slice($bgAllItems, 0, 5);
-                    $bgHasHemoc    = !empty($bgAllItems) || !empty($patientDetails->ultima_hemocultura ?? null);
+                    $bgHasHemoc     = !empty($bgAllItems) || !empty($patientDetails->ultima_hemocultura ?? null);
                 @endphp
                 <div>
-                    <h5 class="text-xs font-semibold text-gray-700 mb-2 border-l-4 border-santacasa-100 pl-2 bg-santacasa-100/5 py-1 rounded-r flex items-center justify-between gap-1.5">
+                    <h5 class="text-xs font-semibold text-gray-700 mb-1.5 border-l-4 border-[#004D9D] pl-2 bg-blue-50 py-1 rounded-r flex items-center justify-between gap-1.5">
                         <span class="flex items-center gap-1.5">
-                            <i class="fas fa-vials text-santacasa-100" style="font-size:11px;"></i>
+                            <i class="fas fa-vials text-[#004D9D]" style="font-size:11px;"></i>
                             Hemoculturas
                         </span>
-                        @if($bgTotalCount > 0)
-                            <span class="text-[10px] font-medium text-gray-400 pr-1">
-                                {{ $bgTotalCount > 5 ? '5 de '.$bgTotalCount : $bgTotalCount }} registro{{ $bgTotalCount !== 1 ? 's' : '' }}
-                            </span>
+                        @if($bgTotalCount > 5)
+                            <span class="text-[10px] font-medium text-gray-400 pr-1">5 de {{ $bgTotalCount }}</span>
                         @endif
                     </h5>
 
-                    @if(!$bgHasHemoc)
-                        <div class="flex flex-col items-center justify-center py-5 text-center">
-                            <i class="fas fa-vials text-2xl text-gray-200 mb-2"></i>
+                    <div class="bg-gray-50 p-2 rounded-lg border">
+                        @if(!$bgHasHemoc)
                             <p class="text-xs text-gray-400">Nenhuma hemocultura registrada.</p>
-                        </div>
-                    @else
-                        <div class="space-y-1.5">
-                            @foreach($bgDisplayItems as $bgItem)
-                                @php
-                                    if ($bgItem['type'] === 'active') {
-                                        $bgEv      = $bgItem['data'];
-                                        $bgRes     = $bgEv['scola_resultado'] ?? null;
-                                        $bgScola   = $bgEv['scola_status'] ?? null;
-                                        $bgIsPos   = str_starts_with($bgRes ?? '', 'Positivo');
+                        @else
+                            <div class="space-y-2">
+                                @foreach($bgDisplayItems as $bgItem)
+                                    @php
+                                        if ($bgItem['type'] === 'active') {
+                                            $bgEv    = $bgItem['data'];
+                                            $bgRes   = $bgEv['scola_resultado'] ?? null;
+                                            $bgScola = $bgEv['scola_status'] ?? null;
+                                            $bgIsPos = str_starts_with($bgRes ?? '', 'Positivo');
 
-                                        if ($bgIsPos)                                              { $bgBadge = $bgRes;                  $bgBadgeCls = 'bg-red-100 text-red-700'; }
-                                        elseif ($bgRes === 'Negativo')                             { $bgBadge = 'Negativo';              $bgBadgeCls = 'bg-emerald-100 text-emerald-700'; }
-                                        elseif ($bgRes !== null)                                   { $bgBadge = $bgRes;                  $bgBadgeCls = 'bg-amber-100 text-amber-700'; }
-                                        elseif ($bgScola && str_contains($bgScola,'Laudo liberado')){ $bgBadge = 'Laudo liberado';        $bgBadgeCls = 'bg-santacasa-100/10 text-santacasa-200'; }
-                                        elseif ($bgScola === 'Coletado (aguardando resultado)' || $bgScola === 'Resultado inserido (aguardando laudo)') { $bgBadge = 'Coletado · aguard. laudo'; $bgBadgeCls = 'bg-amber-100 text-amber-700'; }
-                                        elseif ($bgScola !== null)                                 { $bgBadge = $bgScola;                $bgBadgeCls = 'bg-gray-100 text-gray-600'; }
-                                        else                                                       { $bgBadge = 'Aguardando coleta';    $bgBadgeCls = 'bg-gray-100 text-gray-500'; }
+                                            if ($bgIsPos)                                               { $bgBadge = $bgRes;              $bgBadgeCls = 'bg-red-100 text-red-700';       $bgDot = 'bg-red-400'; }
+                                            elseif ($bgRes === 'Negativo')                              { $bgBadge = 'Negativo';           $bgBadgeCls = 'bg-emerald-100 text-emerald-700'; $bgDot = 'bg-emerald-400'; }
+                                            elseif ($bgRes !== null)                                    { $bgBadge = $bgRes;              $bgBadgeCls = 'bg-amber-100 text-amber-700';   $bgDot = 'bg-amber-400'; }
+                                            elseif ($bgScola && str_contains($bgScola,'Laudo liberado')){ $bgBadge = 'Laudo liberado';     $bgBadgeCls = 'bg-blue-100 text-blue-700';     $bgDot = 'bg-blue-400'; }
+                                            elseif (in_array($bgScola, ['Coletado (aguardando resultado)', 'Resultado inserido (aguardando laudo)'], true)) { $bgBadge = 'Coletado'; $bgBadgeCls = 'bg-amber-100 text-amber-700'; $bgDot = 'bg-amber-400'; }
+                                            elseif ($bgScola !== null)                                  { $bgBadge = $bgScola;            $bgBadgeCls = 'bg-gray-100 text-gray-600';     $bgDot = 'bg-gray-400'; }
+                                            else                                                        { $bgBadge = 'Aguard. coleta';    $bgBadgeCls = 'bg-gray-100 text-gray-500';     $bgDot = 'bg-gray-300'; }
 
-                                        $bgTasyCode = (string) ($bgEv['ie_status_execucao'] ?? '');
-                                        $bgTasyLabel = match($bgTasyCode) { '10' => 'Solicitado', '15' => 'Em exame', '20' => 'Executado', default => $bgTasyCode ?: 'Pendente' };
+                                            if ($bgRes !== null)                                                     { $bgScolaLabel = $bgRes; }
+                                            elseif ($bgScola && str_contains($bgScola, 'Laudo liberado'))            { $bgScolaLabel = 'Laudo liberado (aguard. Tasy)'; }
+                                            elseif ($bgScola === 'Resultado inserido (aguardando laudo)')            { $bgScolaLabel = 'Resultado inserido, aguard. laudo'; }
+                                            elseif ($bgScola === 'Coletado (aguardando resultado)')                  { $bgScolaLabel = 'Coletado, aguard. resultado'; }
+                                            elseif ($bgScola !== null)                                               { $bgScolaLabel = $bgScola; }
+                                            else                                                                     { $bgScolaLabel = null; }
 
-                                        if ($bgRes !== null)                                                { $bgScolaLabel = $bgRes; }
-                                        elseif ($bgScola && str_contains($bgScola,'Laudo liberado'))        { $bgScolaLabel = 'Laudo liberado (aguard. TASY)'; }
-                                        elseif ($bgScola === 'Resultado inserido (aguardando laudo)')       { $bgScolaLabel = 'Resultado inserido, aguard. laudo'; }
-                                        elseif ($bgScola === 'Coletado (aguardando resultado)')             { $bgScolaLabel = 'Coletado, aguard. resultado'; }
-                                        elseif ($bgScola === 'Nova coleta necessária')                      { $bgScolaLabel = 'Nova coleta necessária'; }
-                                        elseif ($bgScola === 'Solicitado (aguardando coleta)')              { $bgScolaLabel = 'Aguardando coleta'; }
-                                        elseif ($bgScola !== null)                                          { $bgScolaLabel = $bgScola; }
-                                        else                                                                { $bgScolaLabel = 'Sem info SCOLA'; }
+                                            $bgTasyCode  = (string) ($bgEv['ie_status_execucao'] ?? '');
+                                            $bgTasyLabel = match($bgTasyCode) { '10' => 'Solicitado', '15' => 'Em exame', '20' => 'Executado', default => $bgTasyCode ?: null };
 
-                                        $bgName       = ucwords(strtolower($bgEv['descricao'] ?? 'Hemocultura'));
-                                        $bgNrPrescr   = $bgEv['nr_prescricao'] ?? null;
-                                        $bgDtSolic    = $bgEv['dt_solicitacao'] ?? null;
-                                        $bgDtColeta   = $bgEv['dt_coleta'] ?? null;
-                                        $bgDtResult   = $bgEv['dt_resultado'] ?? null;
-                                        $bgAmostra    = $bgEv['ie_amostra'] ?? null;
-                                        $bgPrescritor = $bgEv['nm_prescritor'] ?? null;
-                                        $bgTempoPend  = $bgEv['tempo_pendente'] ?? null;
-                                        $bgSetorExec  = $bgEv['setor_execucao'] ?? null;
-                                        $bgIsActive   = true;
-                                    } else {
-                                        $bgHist    = $bgItem['data'];
-                                        $bgRes     = $bgHist['scola_resultado'] ?? null;
-                                        $bgIsPos   = str_starts_with($bgRes ?? '', 'Positivo');
+                                            $bgName      = ucwords(strtolower($bgEv['descricao'] ?? 'Hemocultura'));
+                                            $bgNrPrescr  = $bgEv['nr_prescricao'] ?? null;
+                                            $bgDtSolic   = $bgEv['dt_solicitacao'] ?? null;
+                                            $bgDtColeta  = $bgEv['dt_coleta'] ?? null;
+                                            $bgTempoPend = $bgEv['tempo_pendente'] ?? null;
+                                            $bgIsActive  = true;
+                                        } else {
+                                            $bgHist  = $bgItem['data'];
+                                            $bgRes   = $bgHist['scola_resultado'] ?? null;
+                                            $bgIsPos = str_starts_with($bgRes ?? '', 'Positivo');
 
-                                        if ($bgIsPos)                          { $bgBadge = $bgRes;              $bgBadgeCls = 'bg-red-100 text-red-700'; }
-                                        elseif ($bgRes === 'Negativo')         { $bgBadge = 'Negativo';          $bgBadgeCls = 'bg-emerald-100 text-emerald-700'; }
-                                        elseif ($bgRes !== null)               { $bgBadge = $bgRes;              $bgBadgeCls = 'bg-santacasa-100/10 text-santacasa-200'; }
-                                        elseif ($bgHist['has_result'] ?? false){ $bgBadge = 'Laudo integrado';   $bgBadgeCls = 'bg-santacasa-100/10 text-santacasa-200'; }
-                                        else                                   { $bgBadge = 'Realizada';         $bgBadgeCls = 'bg-gray-100 text-gray-500'; }
+                                            if ($bgIsPos)                           { $bgBadge = $bgRes;           $bgBadgeCls = 'bg-red-100 text-red-700';         $bgDot = 'bg-red-400'; }
+                                            elseif ($bgRes === 'Negativo')          { $bgBadge = 'Negativo';        $bgBadgeCls = 'bg-emerald-100 text-emerald-700'; $bgDot = 'bg-emerald-400'; }
+                                            elseif ($bgRes !== null)                { $bgBadge = $bgRes;           $bgBadgeCls = 'bg-blue-100 text-blue-700';       $bgDot = 'bg-blue-400'; }
+                                            elseif ($bgHist['has_result'] ?? false) { $bgBadge = 'Laudo integrado'; $bgBadgeCls = 'bg-blue-100 text-blue-700';     $bgDot = 'bg-blue-400'; }
+                                            else                                    { $bgBadge = 'Realizada';       $bgBadgeCls = 'bg-gray-100 text-gray-500';      $bgDot = 'bg-gray-400'; }
 
-                                        $bgTasyCode  = (string) ($bgHist['status_execucao'] ?? '');
-                                        $bgTasyLabel = match($bgTasyCode) { '10' => 'Solicitado', '15' => 'Em exame', '20' => 'Executado', default => $bgTasyCode ?: '—' };
+                                            if ($bgRes !== null)                     { $bgScolaLabel = $bgRes; }
+                                            elseif ($bgHist['has_result'] ?? false)  { $bgScolaLabel = 'Laudo integrado ao Tasy'; }
+                                            else                                     { $bgScolaLabel = null; }
 
-                                        if ($bgRes !== null)                     { $bgScolaLabel = $bgRes; }
-                                        elseif ($bgHist['has_result'] ?? false)  { $bgScolaLabel = 'Laudo integrado ao TASY'; }
-                                        else                                     { $bgScolaLabel = 'Sem resultado SCOLA'; }
+                                            $bgTasyCode  = (string) ($bgHist['status_execucao'] ?? '');
+                                            $bgTasyLabel = match($bgTasyCode) { '10' => 'Solicitado', '15' => 'Em exame', '20' => 'Executado', default => $bgTasyCode ?: null };
 
-                                        $bgName       = ucwords(strtolower($bgHist['name'] ?: 'Hemocultura'));
-                                        $bgNrPrescr   = $bgHist['nr_prescricao'] ?? null;
-                                        $bgDtSolic    = ($bgHist['dt_prescricao'] ?? '') ?: ($bgHist['date'] ?? null);
-                                        $bgDtColeta   = null;
-                                        $bgDtResult   = null;
-                                        $bgAmostra    = null;
-                                        $bgPrescritor = null;
-                                        $bgTempoPend  = null;
-                                        $bgSetorExec  = null;
-                                        $bgIsActive   = false;
-                                    }
-                                @endphp
+                                            $bgName      = ucwords(strtolower($bgHist['name'] ?: 'Hemocultura'));
+                                            $bgNrPrescr  = $bgHist['nr_prescricao'] ?? null;
+                                            $bgDtSolic   = ($bgHist['dt_prescricao'] ?? '') ?: ($bgHist['date'] ?? null);
+                                            $bgDtColeta  = null;
+                                            $bgTempoPend = null;
+                                            $bgIsActive  = false;
+                                        }
+                                    @endphp
 
-                                <div class="bg-gray-50 rounded-lg border border-gray-200">
-                                    <div class="flex items-start gap-2 p-2">
-                                        <i class="fas {{ $bgIsActive ? 'fa-vials text-santacasa-100' : 'fa-circle-check text-emerald-500' }} flex-shrink-0 mt-0.5" style="font-size:11px;"></i>
-                                        <div class="flex-1 min-w-0">
+                                    <div class="flex items-start gap-2 text-xs {{ !$loop->last ? 'pb-2 border-b border-gray-100' : '' }}">
+                                        <span class="inline-block w-1.5 h-1.5 flex-shrink-0 mt-1 rounded-full {{ $bgDot }}"></span>
+                                        <div class="flex-1 min-w-0 leading-tight">
                                             <div class="flex items-center gap-1.5 flex-wrap">
-                                                <span class="text-xs font-medium text-gray-800">{{ $bgName }}</span>
-                                                @if($bgNrPrescr)
-                                                    <span class="text-[10px] text-gray-400 font-mono">#{{ $bgNrPrescr }}</span>
-                                                @endif
+                                                <span class="font-medium text-gray-800">{{ $bgName }}</span>
                                                 @if(!$bgIsActive)
-                                                    <span class="text-[9px] px-1 py-px rounded bg-gray-200 text-gray-500">Histórico</span>
+                                                    <span class="text-[9px] px-1 py-px rounded bg-gray-200 text-gray-500 font-medium">Histórico</span>
                                                 @endif
-                                                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded {{ $bgBadgeCls }}">{{ $bgBadge }}</span>
+                                                <span class="text-[10px] font-semibold px-1.5 py-px rounded {{ $bgBadgeCls }}">{{ $bgBadge }}</span>
+                                                @if($bgTempoPend && $bgIsActive)
+                                                    <span class="text-[10px] font-semibold text-amber-700">· {{ $bgTempoPend }}</span>
+                                                @endif
                                             </div>
-                                            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-gray-500">
-                                                <span>
-                                                    <span class="font-medium text-gray-600">Tasy:</span> {{ $bgTasyLabel }}
-                                                </span>
-                                                <span>
-                                                    <span class="font-medium text-gray-600">Scola:</span> {{ $bgScolaLabel }}
-                                                </span>
+                                            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-gray-500">
                                                 @if($bgDtSolic)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">{{ $bgIsActive ? 'Solicitado:' : 'Prescrição:' }}</span>
-                                                        <span class="font-mono">{{ $bgDtSolic }}</span>
-                                                    </span>
+                                                    <span><span class="font-medium text-gray-600">{{ $bgIsActive ? 'Solicitado:' : 'Prescrição:' }}</span> <span class="font-mono">{{ $bgDtSolic }}</span></span>
                                                 @endif
                                                 @if($bgDtColeta)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">Coletado:</span>
-                                                        <span class="font-mono">{{ $bgDtColeta }}</span>
-                                                    </span>
+                                                    <span><span class="font-medium text-gray-600">Coletado:</span> <span class="font-mono">{{ $bgDtColeta }}</span></span>
                                                 @endif
-                                                @if($bgDtResult)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">Resultado:</span>
-                                                        <span class="font-mono">{{ $bgDtResult }}</span>
-                                                    </span>
+                                                @if($bgNrPrescr)
+                                                    <span class="font-mono text-gray-400">#{{ $bgNrPrescr }}</span>
                                                 @endif
-                                                @if($bgAmostra)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">Amostra:</span> {{ $bgAmostra }}
-                                                    </span>
+                                                @if($bgTasyLabel)
+                                                    <span><span class="font-medium text-gray-600">Tasy:</span> {{ $bgTasyLabel }}</span>
                                                 @endif
-                                                @if($bgPrescritor)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">Prescritor:</span> {{ $bgPrescritor }}
-                                                    </span>
-                                                @endif
-                                                @if($bgSetorExec)
-                                                    <span>
-                                                        <span class="font-medium text-gray-600">Exec.:</span> {{ $bgSetorExec }}
-                                                    </span>
-                                                @endif
-                                                @if($bgTempoPend && $bgIsActive)
-                                                    <span class="text-amber-700 font-medium">{{ $bgTempoPend }}</span>
+                                                @if($bgScolaLabel)
+                                                    <span><span class="font-medium text-gray-600">SCOLA:</span> {{ $bgScolaLabel }}</span>
                                                 @endif
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            @endforeach
+                                @endforeach
 
-                            @if($bgTotalCount > 5)
-                                <p class="text-center text-[10px] text-gray-400 pt-0.5">
-                                    + {{ $bgTotalCount - 5 }} registro{{ ($bgTotalCount - 5) > 1 ? 's' : '' }} mais antigo{{ ($bgTotalCount - 5) > 1 ? 's' : '' }} não exibido{{ ($bgTotalCount - 5) > 1 ? 's' : '' }}
-                                </p>
-                            @endif
+                                @if($bgTotalCount > 5)
+                                    <p class="text-[10px] text-gray-400 pt-1">
+                                        + {{ $bgTotalCount - 5 }} registro{{ ($bgTotalCount - 5) > 1 ? 's' : '' }} mais antigo{{ ($bgTotalCount - 5) > 1 ? 's' : '' }} não exibido{{ ($bgTotalCount - 5) > 1 ? 's' : '' }}.
+                                    </p>
+                                @endif
 
-                            @if(empty($bgAllItems) && !empty($patientDetails->ultima_hemocultura ?? null))
-                                <div class="rounded-lg border border-gray-100 bg-white px-3 py-2.5 flex items-center gap-2">
-                                    <i class="fas fa-circle-check text-emerald-500 flex-shrink-0" style="font-size:12px;"></i>
-                                    <span class="text-xs text-gray-600">Última coleta:</span>
-                                    <span class="text-xs font-mono font-semibold text-gray-800">{{ $patientDetails->ultima_hemocultura }}</span>
-                                </div>
-                            @endif
-                        </div>
-                    @endif
+                                @if(empty($bgAllItems) && !empty($patientDetails->ultima_hemocultura ?? null))
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <span class="inline-block w-1.5 h-1.5 flex-shrink-0 bg-emerald-400 rounded-full"></span>
+                                        <span>Última coleta: <span class="font-mono font-semibold text-gray-800">{{ $patientDetails->ultima_hemocultura }}</span></span>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>

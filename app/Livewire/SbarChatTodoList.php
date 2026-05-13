@@ -20,6 +20,10 @@ class SbarChatTodoList extends Component
 
     public array $todos = [];
 
+    public int $perPage = 6;
+
+    public int $currentPage = 1;
+
     public function mount(int $patientId): void
     {
         $this->patientId = $patientId;
@@ -45,6 +49,26 @@ class SbarChatTodoList extends Component
                 'created_at' => $todo->created_at?->format('d/m H:i'),
             ])
             ->all();
+
+        $totalPages = max(1, (int) ceil(count($this->todos) / $this->perPage));
+        if ($this->currentPage > $totalPages) {
+            $this->currentPage = $totalPages;
+        }
+    }
+
+    public function nextPage(): void
+    {
+        $totalPages = max(1, (int) ceil(count($this->todos) / $this->perPage));
+        if ($this->currentPage < $totalPages) {
+            $this->currentPage++;
+        }
+    }
+
+    public function prevPage(): void
+    {
+        if ($this->currentPage > 1) {
+            $this->currentPage--;
+        }
     }
 
     public function addItem(): void
@@ -63,6 +87,7 @@ class SbarChatTodoList extends Component
         ]);
 
         $this->newItem = '';
+        $this->currentPage = 1;
         $this->loadTodos();
         $this->dispatch('todo-updated', patientId: $this->patientId);
     }
@@ -105,6 +130,14 @@ class SbarChatTodoList extends Component
 
     public function render()
     {
-        return view('livewire.sbar-chat-todo-list');
+        $totalCount = count($this->todos);
+        $totalPages = max(1, (int) ceil($totalCount / $this->perPage));
+        $start = ($this->currentPage - 1) * $this->perPage;
+
+        return view('livewire.sbar-chat-todo-list', [
+            'paginatedTodos' => array_slice($this->todos, $start, $this->perPage),
+            'totalCount' => $totalCount,
+            'totalPages' => $totalPages,
+        ]);
     }
 }

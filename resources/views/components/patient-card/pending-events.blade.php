@@ -58,6 +58,15 @@
                                 <span class="text-[9px] {{ $patient['first_pending_style']['time_class'] ?? 'text-[#004D9D] font-medium' }}">
                                     {{ $patient['first_pending_event']['dt_evento_formatted'] }}
                                 </span>
+                            @elseif(!empty($patient['first_pending_event']['dt_solicitacao']))
+                                <span class="text-[9px] text-gray-500">
+                                    {{ $patient['first_pending_event']['dt_solicitacao'] }}
+                                </span>
+                            @endif
+                            @if(!empty($patient['first_pending_event']['nr_prescricao']))
+                                <span class="text-[9px] text-gray-400 font-mono">
+                                    #{{ $patient['first_pending_event']['nr_prescricao'] }}
+                                </span>
                             @endif
                             @if(!empty($patient['first_pending_event']['tempo_pendente']))
                                 <span class="text-[9px] text-gray-500">

@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
+use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
@@ -120,7 +121,27 @@ class SbarPatientModal extends Component
                 }
             }
 
-            $this->setModalPatients(is_array($patients) ? $patients : [], (int) $attendanceNumber);
+            // Se a lista de pacientes não veio via evento (window.__sbarModalPatients não executa
+            // no morph do Livewire), busca os pacientes do setor direto do cache de demographics
+            // (já aquecido pelo SbarReport, lookup Redis ~1 ms).
+            $patientsList = is_array($patients) ? $patients : [];
+            if (empty($patientsList) && is_array($sbarPatient)) {
+                $sectorId = (int) ($sbarPatient['cd_setor_atendimento'] ?? 0);
+                if ($sectorId > 0) {
+                    try {
+                        $patientsList = array_values(
+                            PatientDataLoader::forSector($sectorId)->include('demographics')->get()
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('PatientModal: Failed to load sector patients for navigation', [
+                            'sector_id' => $sectorId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            $this->setModalPatients($patientsList, (int) $attendanceNumber);
             $this->loadingPatient = true;
             $this->showModal = true;
             $this->dispatch('modal-opened');
@@ -139,10 +160,7 @@ class SbarPatientModal extends Component
                 'shift' => $this->currentShift,
             ]);
 
-            // Em modo passagem, sempre busca dados completos do TasyService para garantir
-            // que situação, escalas e dados clínicos estejam disponíveis.
-            // Payloads mínimos de navegação devem cair no fetch normal para evitar empty states.
-            if (! $this->handoverMode && is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
+            if (is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
                 $this->loadFromSbarData($sbarPatient, $attendanceNumber);
             } else {
                 $this->loadPatientData($attendanceNumber);
@@ -164,8 +182,9 @@ class SbarPatientModal extends Component
     private function setModalPatients(array $patients, int $currentAttendance): void
     {
         $normalized = collect($patients)
-            ->filter(fn ($patient) => is_array($patient))
-            ->map(function (array $patient): array {
+            ->filter(fn ($patient) => is_array($patient) || is_object($patient))
+            ->map(function ($rawPatient): array {
+                $patient = is_array($rawPatient) ? $rawPatient : (array) $rawPatient;
                 $attendance = (int) ($patient['nr_atendimento'] ?? 0);
                 $existingLabel = trim((string) ($patient['label'] ?? ''));
                 $sbarPayload = $patient['sbar_payload'] ?? [];
@@ -237,31 +256,16 @@ class SbarPatientModal extends Component
      */
     private function isUsableSbarPayload(array $payload): bool
     {
-        // IDs/campos de navegação sozinhos não são snapshot completo.
-        $lightweightNavigationKeys = [
-            'nr_atendimento',
-            'cd_pessoa_fisica',
-            'nm_pessoa_fisica',
-            'nm_social',
-            'cd_unidade_basica',
-            'ds_setor_atendimento',
-            'ds_prescricao',
-            'label',
-            'sbar_payload',
-        ];
-
-        $nonNavigationData = collect($payload)
-            ->except($lightweightNavigationKeys)
-            ->filter(fn ($value) => ! (is_null($value) || $value === '' || $value === []));
-
-        if ($nonNavigationData->isNotEmpty()) {
-            return true;
-        }
-
-        return ! empty($payload['nr_prontuario'])
-            || ! empty($payload['age_detailed'])
-            || ! empty($payload['sexo'])
-            || ! empty($payload['convenio']);
+        // Exige ao menos um campo clínico/SBAR rico que não vem do DemographicsLoader.
+        // Payloads com apenas dados demográficos devem ir para loadPatientData() para
+        // garantir escalas, avaliação de enfermagem, hemoculturas e dados clínicos completos.
+        return array_key_exists('mews_score', $payload)
+            || array_key_exists('pews_score', $payload)
+            || array_key_exists('braden_score', $payload)
+            || array_key_exists('has_isolation', $payload)
+            || array_key_exists('alergias_detalhadas', $payload)
+            || (isset($payload['pending_events']) && is_array($payload['pending_events']))
+            || (isset($payload['hemoc_history']) && is_array($payload['hemoc_history']));
     }
 
     /**
@@ -332,6 +336,8 @@ class SbarPatientModal extends Component
                 'cd_unidade_basica' => $sbarData['cd_unidade_basica'] ?? ($this->currentPatient['cd_unidade_basica'] ?? null),
                 'ds_setor_atendimento' => $sbarData['ds_setor_atendimento'] ?? ($this->currentPatient['ds_setor_atendimento'] ?? null),
                 'ds_prescricao' => $sbarData['ds_prescricao'] ?? ($this->currentPatient['ds_prescricao'] ?? null),
+                'pending_events' => is_array($sbarData['pending_events'] ?? null) ? $sbarData['pending_events'] : [],
+                'hemoc_history' => is_array($sbarData['hemoc_history'] ?? null) ? $sbarData['hemoc_history'] : [],
             ]);
 
             $this->checkAndShowAlertsModal();
@@ -683,6 +689,33 @@ class SbarPatientModal extends Component
         $this->medicationSchedule = [];
 
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
+    }
+
+    public function finishHandover(): void
+    {
+        $this->dispatch('handoverFinishedFromModal', [
+            'startedAt' => $this->handoverStartedAt,
+            'bedsVisited' => count($this->visitedBedsAttendances),
+        ]);
+
+        $this->handoverMode = false;
+        $this->handoverStartedAt = '';
+        $this->visitedBedsAttendances = [];
+        $this->showModal = false;
+        $this->resetModalState();
+        $this->dispatch('modal-closed');
+    }
+
+    public function cancelHandover(): void
+    {
+        $this->dispatch('cancelNurseHandoverSession');
+
+        $this->handoverMode = false;
+        $this->handoverStartedAt = '';
+        $this->visitedBedsAttendances = [];
+        $this->showModal = false;
+        $this->resetModalState();
+        $this->dispatch('modal-closed');
     }
 
     public function closeModal()

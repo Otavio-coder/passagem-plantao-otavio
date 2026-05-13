@@ -430,6 +430,15 @@ class SbarReport extends Component
     // Event handlers
     // ──────────────────────────────────────────────────────────────────────────
 
+    public function startHandover(): void
+    {
+        if (! $this->selectedSector) {
+            return;
+        }
+
+        $this->dispatch('openNurseHandoverSession', sectorId: (int) $this->selectedSector);
+    }
+
     public function onHandoverUpdated(?string $nr = null): void
     {
         // Invalidate computed cache — next render will re-fetch handover status

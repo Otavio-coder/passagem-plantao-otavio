@@ -235,6 +235,7 @@
                     @include('sbar.report.partials.legend')
 
                     @livewire('sbar-patient-modal', [], key('sbar-patient-modal'))
+                    @livewire('nurse-handover-session', [], key('nurse-handover-session'))
                     @livewire('sbar-expired-scales-modal', ['sectorId' => $selectedSector ?? 0], key('sbar-expired-scales-modal'))
                     @livewire('sbar-shift-evaluations-modal', [], key('sbar-shift-evaluations-modal'))
 

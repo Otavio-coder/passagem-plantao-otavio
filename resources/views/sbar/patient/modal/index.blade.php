@@ -129,43 +129,100 @@
                         elapsed: 0,
                         timer: null,
                         startedAt: '{{ $handoverStartedAt }}',
+                        confirmAction: null,
                         init() {
-                            const start = new Date(this.startedAt).getTime();
-                            if (Number.isNaN(start)) return;
-                            const tick = () => {
-                                this.elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
-                            };
-                            tick();
-                            this.timer = setInterval(tick, 1000);
+                            this.$nextTick(() => {
+                                const start = new Date(this.startedAt).getTime();
+                                if (Number.isNaN(start)) return;
+                                const tick = () => {
+                                    this.elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+                                };
+                                tick();
+                                this.timer = setInterval(tick, 1000);
+                            });
                         },
                         destroy() { clearInterval(this.timer); },
                         format(s) {
                             const m = Math.floor(s / 60).toString().padStart(2, '0');
                             const sec = (s % 60).toString().padStart(2, '0');
                             return m + ':' + sec;
+                        },
+                        ask(action) { this.confirmAction = action; },
+                        dismiss() { this.confirmAction = null; },
+                        confirm() {
+                            const action = this.confirmAction;
+                            this.confirmAction = null;
+                            if (action === 'cancel') this.$wire.cancelHandover();
+                            else if (action === 'finish') this.$wire.finishHandover();
                         }
                     }"
-                    class="flex items-center justify-between px-4 py-2 bg-emerald-700 flex-shrink-0"
+                    class="relative flex items-center justify-between px-4 py-2 bg-emerald-700 flex-shrink-0"
                 >
                     <div class="flex items-center gap-2">
                         <i class="fas fa-play-circle text-white text-sm"></i>
-                        <span class="text-white text-xs font-semibold">Passagem em andamento</span>
+                        <span class="text-white text-xs font-semibold hidden sm:inline">Passagem em andamento</span>
                         @if($currentPatientIndex !== null)
                             <span class="text-emerald-200 text-xs">
-                                · {{ $currentPatientIndex + 1 }}/{{ count($modalPatients) }} leitos
+                                {{ $currentPatientIndex + 1 }}/{{ count($modalPatients) }} leitos
                             </span>
                         @endif
                     </div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-white font-mono text-sm font-bold" x-text="format(elapsed)">00:00</span>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-white font-mono text-sm font-bold tabular-nums" x-text="format(elapsed)">00:00</span>
                         <button
-                            wire:click="finishHandover"
+                            @click="ask('cancel')"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                            <i class="fas fa-xmark text-xs"></i>
+                            <span class="hidden sm:inline">Cancelar</span>
+                        </button>
+                        <button
+                            @click="ask('finish')"
                             type="button"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors shadow"
                         >
                             <i class="fas fa-flag-checkered text-xs"></i>
-                            Encerrar Passagem
+                            <span class="hidden sm:inline">Encerrar</span>
                         </button>
+                    </div>
+
+                    {{-- Overlay de confirmação --}}
+                    <div
+                        x-show="confirmAction !== null"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-cloak
+                        class="absolute inset-0 flex items-center justify-center bg-emerald-900/95 backdrop-blur-sm px-4 gap-3 z-10"
+                        @keydown.escape.window="dismiss()"
+                    >
+                        <p class="text-white text-xs font-medium flex-1 leading-snug">
+                            <template x-if="confirmAction === 'cancel'">
+                                <span><i class="fas fa-triangle-exclamation text-amber-300 mr-1"></i>Cancelar descarta o progresso desta passagem. Confirmar?</span>
+                            </template>
+                            <template x-if="confirmAction === 'finish'">
+                                <span><i class="fas fa-flag-checkered mr-1"></i>Encerrar e registrar a passagem agora?</span>
+                            </template>
+                        </p>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                @click="dismiss()"
+                                type="button"
+                                class="px-3 py-1.5 text-xs font-semibold text-white/80 hover:text-white border border-white/30 hover:border-white/60 rounded-lg transition-colors"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                @click="confirm()"
+                                type="button"
+                                :class="confirmAction === 'cancel' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white text-emerald-800 hover:bg-emerald-50'"
+                                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shadow"
+                            >
+                                <span x-text="confirmAction === 'cancel' ? 'Sim, cancelar' : 'Sim, encerrar'"></span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 @endif
@@ -435,7 +492,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         marShadowLeft: false,
         marShadowRight: false,
 
-        proc: listState(procs, 'today'),
+        proc: listState(procs, 'all'),
         procType: 'all',
         examQ: '',
         examPage: 1,
@@ -474,7 +531,8 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         setSearch(val) { this.q = val; this.medPage = 1; },
         clearFilters() { this.q = ''; this.antibioticoF = false; this.medPage = 1; },
         clearProcFilters() {
-            this.proc.clear();
+            this.proc.setQ('');
+            this.proc.page = 1;
             this.procType = 'all';
         },
         setExamQ(v) {

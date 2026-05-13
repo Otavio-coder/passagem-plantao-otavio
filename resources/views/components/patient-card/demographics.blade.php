@@ -198,14 +198,23 @@
     <div class="rounded-lg px-2 md:px-3 py-1 md:py-1.5 lg:py-1 shadow-sm border-l-[3px] border-l-santacasa-100 bg-white/70 cursor-pointer hover:bg-white/90 transition-all"
          @click="showHemocModal = true; document.body.style.overflow = 'hidden'">
         <div class="flex items-center justify-between gap-1.5">
+            @php
+                // Prioriza evento ativo (pendente) sobre histórico para exibir no card
+                $cardNrPrescricao = $hemocEvents[0]['nr_prescricao']
+                    ?? $hemocHistory[0]['nr_prescricao']
+                    ?? null;
+                $cardDate = $hemocActiveCount > 0
+                    ? ($hemocEvents[0]['dt_solicitacao'] ?? $hemocEvents[0]['dt_evento_formatted'] ?? null)
+                    : $hemocDate;
+            @endphp
             <div class="flex items-center gap-1.5 min-w-0">
                 <i class="fas fa-vials text-[10px] md:text-xs lg:text-[10px] text-santacasa-100 flex-shrink-0"></i>
                 <span class="text-[9px] md:text-[11px] lg:text-[9px] font-semibold text-santacasa-200">Hemocultura</span>
-                @if(!empty($hemocHistory[0]['nr_prescricao']))
-                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-400 font-mono">#{{ $hemocHistory[0]['nr_prescricao'] }}</span>
+                @if(!empty($cardNrPrescricao))
+                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-400 font-mono">#{{ $cardNrPrescricao }}</span>
                 @endif
-                @if($hemocDate)
-                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-500">{{ $hemocDate }}</span>
+                @if($cardDate)
+                    <span class="text-[9px] md:text-[10px] lg:text-[9px] text-gray-500">{{ $cardDate }}</span>
                 @endif
             </div>
             @if($hemocCardBadge)

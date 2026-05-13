@@ -134,8 +134,12 @@ class ScolaExamStatusService
                             || str_starts_with($campo, 'ONEG');
 
                         if (preg_match('/^GERME\d*$/', $campo)) {
-                            $organismos[] = $valor;
                             $hasPositivo = true;
+                            // Exclude colony counts stored in GERME fields (e.g. "105E0", "1E5", "105").
+                            // Real organism names contain letters beyond the leading digits.
+                            if (! preg_match('/^\d+([Ee]\d+)?$/', $valor)) {
+                                $organismos[] = $valor;
+                            }
                         } elseif ($isResultoField) {
                             if (str_contains(strtolower($valor), 'aus') && str_contains(strtolower($valor), 'crescimento')) {
                                 $hasNegativo = true;

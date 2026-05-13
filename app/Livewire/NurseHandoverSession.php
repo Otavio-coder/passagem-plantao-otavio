@@ -177,7 +177,7 @@ class NurseHandoverSession extends Component
             ->all();
 
         $allPatients = PatientDataLoader::forSector($this->sectorId)
-            ->include('demographics')
+            ->include('demographics', 'scales', 'clinical', 'pending_events')
             ->get();
 
         $this->handoverPatients = array_values(array_filter(

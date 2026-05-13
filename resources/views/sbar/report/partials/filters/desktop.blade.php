@@ -123,5 +123,16 @@
                 Limpar
             </button>
         </div>
+
+        <div class="flex flex-col justify-end flex-shrink-0">
+            <button wire:click="startHandover"
+                    wire:loading.attr="disabled"
+                    wire:target="startHandover"
+                    :disabled="isInitialLoading"
+                    class="inline-flex items-center gap-1.5 px-3 xl:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg text-white text-xs xl:text-sm font-semibold transition-colors shadow-md whitespace-nowrap">
+                <i class="fas fa-play text-[11px] xl:text-xs"></i>
+                <span>Iniciar Passagem</span>
+            </button>
+        </div>
     </div>
 </div>

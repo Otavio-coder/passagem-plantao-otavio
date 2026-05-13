@@ -127,7 +127,7 @@ class PatientPendingEventsService
                 ap.dt_alta_medico,
                 ma2.ds_motivo_alta,
                 apa.dt_previsto_alta AS apa_dt_previsto_alta,
-                apa.nm_usuario       AS apa_nm_usuario
+                NVL(pf_apa.nm_pessoa_fisica, apa.nm_usuario) AS apa_nm_usuario
             FROM tasy.unidade_atendimento ua
             INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
             INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
@@ -137,6 +137,8 @@ class PatientPendingEventsService
                     ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
                 FROM tasy.atend_previsao_alta
             ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
+            LEFT JOIN tasy.usuario u_apa ON u_apa.nm_usuario = apa.nm_usuario
+            LEFT JOIN tasy.pessoa_fisica pf_apa ON pf_apa.cd_pessoa_fisica = u_apa.cd_pessoa_fisica
             WHERE ua.cd_setor_atendimento = :sector_id
                 AND ua.ie_situacao = 'A'
                 AND ap.dt_alta IS NULL
@@ -802,26 +804,26 @@ class PatientPendingEventsService
                     ) AS cd_tipo_cirurgia,
                     COALESCE(pi.ds_proc_exame, proced.ds_procedimento, ap.ds_cirurgia) AS descricao_proc,
                     pi.nr_seq_exame_lab,
-                    NVL(pf_med.nm_pessoa_fisica, pf_user.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
+                    COALESCE(pf_med.nm_pessoa_fisica, pf_user.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
                 FROM tasy.agenda_paciente ap
                 JOIN tasy.atendimento_paciente atp ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
                 LEFT JOIN tasy.pessoa_fisica pf_med ON pf_med.cd_pessoa_fisica = ap.cd_medico
-                LEFT JOIN tasy.pessoa_fisica pf_user ON pf_user.nm_loginname = ap.nm_usuario
+                LEFT JOIN tasy.usuario u_ap ON u_ap.nm_usuario = ap.nm_usuario
+                LEFT JOIN tasy.pessoa_fisica pf_user ON pf_user.cd_pessoa_fisica = u_ap.cd_pessoa_fisica
                 LEFT JOIN tasy.valor_dominio vd_ag_stat ON vd_ag_stat.cd_dominio = 83 AND vd_ag_stat.vl_dominio = ap.ie_status_agenda
                 LEFT JOIN tasy.valor_dominio vd_ag_car  ON vd_ag_car.cd_dominio  = 1016 AND vd_ag_car.vl_dominio  = ap.ie_carater_cirurgia
                 LEFT JOIN tasy.proc_interno pi ON pi.nr_sequencia = ap.nr_seq_proc_interno
                 LEFT JOIN (
-                    SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento
+                    SELECT nr_seq_proc_interno, cd_setor_atendimento
                     FROM (
-                        SELECT nr_seq_proc_interno, cd_setor_atendimento, cd_estabelecimento,
+                        SELECT nr_seq_proc_interno, cd_setor_atendimento,
                                ROW_NUMBER() OVER (
-                                   PARTITION BY nr_seq_proc_interno, cd_estabelecimento
+                                   PARTITION BY nr_seq_proc_interno
                                    ORDER BY nr_prioridade
                                ) AS rn
                         FROM tasy.proc_interno_setor
                     ) WHERE rn = 1
                 ) pis ON pis.nr_seq_proc_interno = ap.nr_seq_proc_interno
-                      AND pis.cd_estabelecimento  = ap.cd_estabelecimento
                 LEFT JOIN (SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento, MIN(cd_setor_exclusivo) AS cd_setor_exclusivo FROM tasy.procedimento GROUP BY cd_procedimento) proced
                     ON proced.cd_procedimento = ap.cd_procedimento AND ap.nr_seq_proc_interno IS NULL
                 LEFT JOIN tasy.setor_atendimento sa_exec ON sa_exec.cd_setor_atendimento = NVL(

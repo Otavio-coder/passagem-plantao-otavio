@@ -1,5 +1,14 @@
 <div class="lg:hidden" x-data="{ filtersOpen: false }">
     <div class="flex items-center justify-between sm:justify-center gap-2">
+        <button wire:click="startHandover"
+                wire:loading.attr="disabled"
+                wire:target="startHandover"
+                :disabled="isInitialLoading"
+                class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-md text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 transition-colors">
+            <i class="fas fa-play text-[10px] sm:text-xs leading-none"></i>
+            <span>Passagem</span>
+        </button>
+
         <button @click="filtersOpen = !filtersOpen"
                 class="flex-1 sm:flex-initial flex items-center justify-center px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-white text-xs sm:text-sm font-medium">
             <x-iconoir-filter-list class="text-white h-4 w-4 sm:h-5 sm:w-5 mr-1.5" />

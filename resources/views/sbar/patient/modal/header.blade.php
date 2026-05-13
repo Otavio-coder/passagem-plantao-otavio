@@ -150,15 +150,33 @@
 
         {{-- ─── Trocar atendimento (sempre visível, no topo) ─── --}}
         @if(!empty($modalPatients))
+        @php
+            $navPatients = collect($modalPatients)
+                ->map(fn ($p) => [
+                    'nr_atendimento' => (int) ($p['nr_atendimento'] ?? 0),
+                    'label'          => (string) ($p['label'] ?? ''),
+                ])
+                ->filter(fn ($p) => $p['nr_atendimento'] > 0)
+                ->values()
+                ->all();
+            // Js::from produz JSON seguro para embutir em atributos HTML.
+            // Calculado fora do x-data para evitar bug do compilador Blade em atributos multi-linha.
+            $navPatientsJs = \Illuminate\Support\Js::from($navPatients);
+        @endphp
+        {{-- wire:key força o Alpine a recriar o elemento (e reinicializar x-data) a cada troca
+             de paciente — garante que patients e currentNr reflitam sempre o estado atual. --}}
         <div class="mt-2 pt-2 border-t border-white/15"
+             wire:key="patient-nav-{{ $currentPatient['nr_atendimento'] ?? 'none' }}"
              x-data="{
                 open: false,
                 search: '',
-                patients: @js(collect($modalPatients)->map(fn ($p) => [
-                    'nr_atendimento' => (int) ($p['nr_atendimento'] ?? 0),
-                    'label' => (string) ($p['label'] ?? ''),
-                ])->values()->all()),
+                patients: {!! $navPatientsJs !!},
                 currentNr: {{ (int) ($currentPatient['nr_atendimento'] ?? 0) }},
+                init() {
+                    // patients e currentNr já vêm corretos via Blade no x-data.
+                    // wire:key recria este elemento a cada troca de paciente,
+                    // por isso não é necessário $wire.$watch aqui.
+                },
                 get filtered() {
                     const q = String(this.search || '').trim().toLowerCase();
                     if (!q) return this.patients;

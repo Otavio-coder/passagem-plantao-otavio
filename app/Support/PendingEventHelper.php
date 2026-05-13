@@ -405,6 +405,10 @@ class PendingEventHelper
                 }
 
                 if (str_contains($scolaStatus, 'coletado')) {
+                    if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
+                        return 'Resultado disponível — baixa não realizada';
+                    }
+
                     return 'Coletado — aguardando resultado';
                 }
 
@@ -421,6 +425,10 @@ class PendingEventHelper
                 return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
             } elseif (! empty($event['dt_coleta'])) {
                 // Sem SCOLA, dt_coleta do TASY é o melhor indicador disponível
+                if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
+                    return 'Resultado disponível — baixa não realizada';
+                }
+
                 return 'Coletado — aguardando resultado';
             }
 
@@ -566,6 +574,10 @@ class PendingEventHelper
                 return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
             }
             if (str_contains($scolaStatus, 'coletado')) {
+                if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
+                    return 'Resultado disponível — baixa não realizada';
+                }
+
                 return 'Coletado — aguardando resultado';
             }
 

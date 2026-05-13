@@ -130,6 +130,7 @@
                         timer: null,
                         startedAt: '{{ $handoverStartedAt }}',
                         confirmAction: null,
+                        heartbeat: null,
                         init() {
                             this.$nextTick(() => {
                                 const start = new Date(this.startedAt).getTime();
@@ -139,9 +140,11 @@
                                 };
                                 tick();
                                 this.timer = setInterval(tick, 1000);
+                                // Heartbeat: updates last_activity_at every 60s to prevent stale detection
+                                this.heartbeat = setInterval(() => this.$wire.updateHandoverActivity(), 60000);
                             });
                         },
-                        destroy() { clearInterval(this.timer); },
+                        destroy() { clearInterval(this.timer); clearInterval(this.heartbeat); },
                         format(s) {
                             const m = Math.floor(s / 60).toString().padStart(2, '0');
                             const sec = (s % 60).toString().padStart(2, '0');

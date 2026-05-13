@@ -9,6 +9,7 @@ use App\Models\ShiftHandover;
 use App\Models\System\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -32,35 +33,47 @@ class NurseHandoverCancelTest extends TestCase
         $component->assertDispatched('modal-closed');
     }
 
-    public function test_cancel_session_deletes_active_shift_handover_and_resets_state(): void
+    public function test_cancel_session_preserves_record_with_canceled_status(): void
     {
         $user = User::factory()->create();
+        $token = Str::uuid()->toString();
 
         $handover = ShiftHandover::create([
             'user_id' => $user->id,
-            'shift' => 'manha',
+            'status' => ShiftHandover::STATUS_ACTIVE,
+            'session_token' => $token,
+            'shift' => 'morning',
             'sector_ids' => [101],
             'sector_name' => 'UTI Adulto',
             'bed_codes' => ['A1'],
             'beds_total' => 1,
+            'beds_expected' => 1,
             'beds_visited' => 0,
             'started_at' => now(),
+            'last_activity_at' => now(),
         ]);
 
         $component = Livewire::test(NurseHandoverSession::class)
             ->set('handoverId', $handover->id)
+            ->set('sessionToken', $token)
             ->set('sectorId', 101)
             ->set('startedAt', now()->toISOString())
             ->set('bedsTotal', 1)
             ->set('handoverPatients', [['nr_atendimento' => 1]])
             ->call('cancelSession');
 
-        $this->assertDatabaseMissing('shift_handovers', [
+        // Record is preserved, not deleted
+        $this->assertDatabaseHas('shift_handovers', [
             'id' => $handover->id,
+            'status' => ShiftHandover::STATUS_CANCELED,
+            'cancel_reason' => 'user_canceled',
         ]);
+
+        $this->assertNotNull($handover->fresh()->canceled_at);
 
         $component->assertSet('handoverId', null);
         $component->assertSet('startedAt', '');
+        $component->assertSet('sessionToken', '');
         $component->assertSet('handoverPatients', []);
         $component->assertSet('bedsTotal', 0);
         $component->assertSet('sectorId', null);
@@ -82,11 +95,14 @@ class NurseHandoverCancelTest extends TestCase
 
             ShiftHandover::create([
                 'user_id' => $user->id,
-                'shift' => 'M',
+                'status' => ShiftHandover::STATUS_COMPLETED,
+                'session_token' => Str::uuid()->toString(),
+                'shift' => 'morning',
                 'sector_ids' => [101],
                 'sector_name' => 'UTI Adulto',
                 'bed_codes' => ['A1'],
                 'beds_total' => 1,
+                'beds_expected' => 1,
                 'beds_visited' => 1,
                 'started_at' => Carbon::parse('2026-05-04 09:15:00'),
                 'finished_at' => Carbon::parse('2026-05-04 09:45:00'),
@@ -121,11 +137,14 @@ class NurseHandoverCancelTest extends TestCase
 
             ShiftHandover::create([
                 'user_id' => $user->id,
-                'shift' => 'M',
+                'status' => ShiftHandover::STATUS_COMPLETED,
+                'session_token' => Str::uuid()->toString(),
+                'shift' => 'morning',
                 'sector_ids' => [101],
                 'sector_name' => 'UTI Adulto',
                 'bed_codes' => ['A1'],
                 'beds_total' => 1,
+                'beds_expected' => 1,
                 'beds_visited' => 1,
                 'started_at' => Carbon::parse('2026-05-05 08:15:00'),
                 'finished_at' => Carbon::parse('2026-05-05 08:45:00'),

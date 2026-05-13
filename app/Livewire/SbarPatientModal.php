@@ -3,11 +3,13 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
+use App\Models\ShiftHandover;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
@@ -53,6 +55,9 @@ class SbarPatientModal extends Component
     /** ISO timestamp when the handover session started, used for the timer. */
     public string $handoverStartedAt = '';
 
+    /** Session token for multi-tab safety (passed through finish/cancel events). */
+    public string $handoverSessionToken = '';
+
     /** Attendance numbers of beds actually visited during handover (de-duplicated). */
     public array $visitedBedsAttendances = [];
 
@@ -89,6 +94,7 @@ class SbarPatientModal extends Component
         if (! empty($data['handoverMode'])) {
             $this->handoverMode = true;
             $this->handoverStartedAt = $data['startedAt'] ?? now()->toISOString();
+            $this->handoverSessionToken = $data['sessionToken'] ?? '';
             $this->visitedBedsAttendances = [];
         }
 
@@ -696,10 +702,12 @@ class SbarPatientModal extends Component
         $this->dispatch('handoverFinishedFromModal', [
             'startedAt' => $this->handoverStartedAt,
             'bedsVisited' => count($this->visitedBedsAttendances),
+            'sessionToken' => $this->handoverSessionToken,
         ]);
 
         $this->handoverMode = false;
         $this->handoverStartedAt = '';
+        $this->handoverSessionToken = '';
         $this->visitedBedsAttendances = [];
         $this->showModal = false;
         $this->resetModalState();
@@ -712,10 +720,23 @@ class SbarPatientModal extends Component
 
         $this->handoverMode = false;
         $this->handoverStartedAt = '';
+        $this->handoverSessionToken = '';
         $this->visitedBedsAttendances = [];
         $this->showModal = false;
         $this->resetModalState();
         $this->dispatch('modal-closed');
+    }
+
+    public function updateHandoverActivity(): void
+    {
+        if (! $this->handoverSessionToken) {
+            return;
+        }
+
+        ShiftHandover::where('session_token', $this->handoverSessionToken)
+            ->where('user_id', Auth::id())
+            ->where('status', ShiftHandover::STATUS_ACTIVE)
+            ->update(['last_activity_at' => now()]);
     }
 
     public function closeModal()

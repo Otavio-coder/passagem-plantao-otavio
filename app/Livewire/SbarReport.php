@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Sector;
+use App\Models\ShiftHandover;
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
@@ -31,6 +32,13 @@ class SbarReport extends Component
 
     /** True during the initial page load until wire:init fires loadPatients(). */
     public bool $isLoading = true;
+
+    // Handover recovery
+    public bool $hasActiveHandoverSession = false;
+
+    public ?int $activeHandoverSectorId = null;
+
+    public ?int $activeHandoverId = null;
 
     // Sector onboarding
     public bool $showSectorOnboarding = false;
@@ -228,6 +236,8 @@ class SbarReport extends Component
             }
 
             $this->lastRefresh = now()->format('H:i:s');
+
+            $this->checkActiveHandoverSession();
         } catch (\Exception $e) {
             Log::error('SBAR mount error', [
                 'exception' => $e,
@@ -444,6 +454,44 @@ class SbarReport extends Component
         // Invalidate computed cache — next render will re-fetch handover status
         // from DB (batch query) while hitting TasyService's 15-min Oracle cache.
         unset($this->patients);
+
+        $this->hasActiveHandoverSession = false;
+        $this->activeHandoverId = null;
+        $this->activeHandoverSectorId = null;
+    }
+
+    public function resumeHandover(): void
+    {
+        if (! $this->activeHandoverId) {
+            return;
+        }
+
+        $this->dispatch('resumeNurseHandoverSession', data: [
+            'handoverId' => $this->activeHandoverId,
+        ]);
+    }
+
+    public function dismissHandoverRecovery(): void
+    {
+        $this->hasActiveHandoverSession = false;
+        $this->activeHandoverId = null;
+        $this->activeHandoverSectorId = null;
+    }
+
+    private function checkActiveHandoverSession(): void
+    {
+        [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
+
+        $active = ShiftHandover::where('user_id', Auth::id())
+            ->where('status', ShiftHandover::STATUS_ACTIVE)
+            ->whereBetween('started_at', [$shiftStart, $shiftEnd])
+            ->first();
+
+        if ($active) {
+            $this->hasActiveHandoverSession = true;
+            $this->activeHandoverId = $active->id;
+            $this->activeHandoverSectorId = $active->sector_ids[0] ?? null;
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

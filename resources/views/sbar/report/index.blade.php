@@ -108,6 +108,27 @@
                             </div>
                         </div>
 
+                        {{-- Handover recovery banner --}}
+                        @if($hasActiveHandoverSession)
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-amber-900 text-sm font-medium">
+                            <div class="flex items-center gap-2">
+                                <x-heroicon-o-arrow-path class="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                <span>Você tem uma passagem de plantão em andamento neste turno.</span>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button wire:click="resumeHandover"
+                                        class="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-md transition-colors">
+                                    <x-heroicon-o-play class="w-3 h-3" />
+                                    Retomar
+                                </button>
+                                <button wire:click="dismissHandoverRecovery"
+                                        class="inline-flex items-center px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold rounded-md transition-colors">
+                                    Ignorar
+                                </button>
+                            </div>
+                        </div>
+                        @endif
+
                         {{-- Patients container --}}
                         <div id="patientsContainer" class="relative p-2 sm:p-3 lg:p-4 bg-white min-h-[60vh]">
 

@@ -16,9 +16,24 @@ class HandoverMetricsController extends Controller
 
         $since = now()->subDays((int) $period);
 
-        $base = ShiftHandover::whereNotNull('finished_at')
+        $base = ShiftHandover::where('status', ShiftHandover::STATUS_COMPLETED)
             ->where('started_at', '>=', $since)
             ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter));
+
+        // ── Incomplete/abandoned stats ─────────────────────────────────────────
+        $abandonedCount = ShiftHandover::where('status', ShiftHandover::STATUS_ABANDONED)
+            ->where('started_at', '>=', $since)
+            ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter))
+            ->count();
+
+        $canceledCount = ShiftHandover::where('status', ShiftHandover::STATUS_CANCELED)
+            ->where('started_at', '>=', $since)
+            ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter))
+            ->count();
+
+        $avgCompletionPct = (clone $base)
+            ->whereNotNull('completion_percentage')
+            ->avg('completion_percentage');
 
         // ── Overview cards ────────────────────────────────────────────────────
         $totalSessions = (clone $base)->count();
@@ -109,7 +124,7 @@ class HandoverMetricsController extends Controller
             ]);
 
         // ── Weekly evolution (last 8 weeks) ───────────────────────────────────
-        $weeklyEvolution = ShiftHandover::whereNotNull('finished_at')
+        $weeklyEvolution = ShiftHandover::where('status', ShiftHandover::STATUS_COMPLETED)
             ->whereNotNull('duration_seconds')
             ->where('started_at', '>=', now()->subWeeks(8))
             ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter))
@@ -132,7 +147,7 @@ class HandoverMetricsController extends Controller
 
         // ── Per-nurse detail (last sessions) ─────────────────────────────────
         $recentSessions = ShiftHandover::with('user:id,name')
-            ->whereNotNull('finished_at')
+            ->where('status', ShiftHandover::STATUS_COMPLETED)
             ->whereNotNull('duration_seconds')
             ->where('started_at', '>=', $since)
             ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter))
@@ -151,6 +166,9 @@ class HandoverMetricsController extends Controller
                 'shift_key' => $h->shift,
                 'beds_visited' => $h->beds_visited,
                 'beds_total' => $h->beds_total,
+                'beds_expected' => $h->beds_expected,
+                'completion_pct' => $h->completion_percentage,
+                'forced_finish' => $h->forced_finish,
                 'duration_min' => $h->duration_seconds ? round($h->duration_seconds / 60, 1) : null,
                 'sec_per_bed' => ($h->duration_seconds && $h->beds_visited > 0)
                     ? round($h->duration_seconds / $h->beds_visited)
@@ -176,6 +194,9 @@ class HandoverMetricsController extends Controller
             'hoursSavedMonth',
             'riskIndex',
             'riskyCount',
+            'abandonedCount',
+            'canceledCount',
+            'avgCompletionPct',
             'consistencyBySector',
             'bySector',
             'byShift',
@@ -190,7 +211,7 @@ class HandoverMetricsController extends Controller
     /** @return array<string, array{avg_min: float, std_min: float, cv: float, label: string}> */
     private function buildConsistencyBySector(?string $since, ?string $sectorFilter): array
     {
-        $rows = ShiftHandover::whereNotNull('finished_at')
+        $rows = ShiftHandover::where('status', ShiftHandover::STATUS_COMPLETED)
             ->whereNotNull('duration_seconds')
             ->where('started_at', '>=', $since)
             ->when($sectorFilter, fn ($q) => $q->where('sector_name', $sectorFilter))

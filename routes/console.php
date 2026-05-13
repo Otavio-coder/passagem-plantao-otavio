@@ -15,6 +15,12 @@ Schedule::command('chat:cleanup --days=30')
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();
 
+// Marca sessões de passagem ativas sem atividade por mais de 20 minutos como abandoned
+Schedule::command('handover:mark-abandoned')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Limpa caches de dados de setor SBAR a cada hora para forçar re-carregamento
 // (demografia, escalas, pendências, multidisciplinar, etc.)
 Schedule::call(function () {

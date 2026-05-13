@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f5945a19c30adbd71c23bcaf88ed3767",
+    "content-hash": "d4365c5160ee8a40a302b2510d229dfe",
     "packages": [
         {
             "name": "andreiio/blade-iconoir",
@@ -12848,7 +12848,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": [],
     "prefer-stable": true,
     "prefer-lowest": false,

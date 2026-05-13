@@ -17,6 +17,9 @@ class ScolaExamStatusService
             return;
         }
 
+        $pedidos = [];
+        $movEx = [];
+
         try {
             $pedidos = $this->fetchPedidos($prescricaoIds);
 
@@ -67,9 +70,10 @@ class ScolaExamStatusService
             ]);
         }
 
-        // Enriquecer hemoculturas pendentes com resultado bacteriológico
+        // Enriquecer hemoculturas pendentes com resultado bacteriológico.
+        // Passa $pedidos e $movEx já buscados para evitar 2 queries Scola duplicadas.
         try {
-            $this->enrichHemocBacteriology($results);
+            $this->enrichHemocBacteriology($results, $pedidos ?? [], $movEx ?? []);
         } catch (\Throwable $e) {
             Log::warning('[ScolaExamStatus] Falha ao enriquecer bacteriologia de hemoculturas', [
                 'error' => $e->getMessage(),
@@ -178,8 +182,12 @@ class ScolaExamStatusService
         }
     }
 
-    /** @param  array<int|string, mixed>  $results */
-    private function enrichHemocBacteriology(array &$results): void
+    /**
+     * @param  array<int|string, mixed>  $results
+     * @param  array<string, string[]>  $pedidos  pre-fetched from enrichEvents (avoids duplicate query)
+     * @param  array<string, object[]>  $movEx  pre-fetched from enrichEvents (avoids duplicate query)
+     */
+    private function enrichHemocBacteriology(array &$results, array $pedidos = [], array $movEx = []): void
     {
         $hemocPrescricoes = [];
 
@@ -200,7 +208,11 @@ class ScolaExamStatusService
             return;
         }
 
-        $hemocResultados = $this->getHemocResults(array_values($hemocPrescricoes));
+        $hemocIds = array_values($hemocPrescricoes);
+
+        $hemocResultados = ! empty($pedidos)
+            ? $this->buildHemocResultsFromData($hemocIds, $pedidos, $movEx)
+            : $this->getHemocResults($hemocIds);
 
         foreach ($results as &$attendance) {
             foreach ($attendance['events'] as &$event) {
@@ -216,6 +228,89 @@ class ScolaExamStatusService
             unset($event);
         }
         unset($attendance);
+    }
+
+    /**
+     * Builds hemocultura bacteriology results using pre-fetched pedidos and movEx data,
+     * only executing the two Scola queries specific to bacteriology (res_ex summary + presence).
+     *
+     * Called from enrichHemocBacteriology to reuse data already fetched in enrichEvents,
+     * avoiding duplicate fetchPedidos + fetchMovEx calls.
+     *
+     * @param  string[]  $hemocPrescricaoIds
+     * @param  array<string, string[]>  $pedidos  all exam pedidos (superset — will be filtered)
+     * @param  array<string, object[]>  $movEx  all exam movEx (superset — filtered via pedidos)
+     * @return array<string, string|null>
+     */
+    private function buildHemocResultsFromData(array $hemocPrescricaoIds, array $pedidos, array $movEx): array
+    {
+        $hemocPedidos = array_intersect_key($pedidos, array_flip($hemocPrescricaoIds));
+
+        if (empty($hemocPedidos)) {
+            return [];
+        }
+
+        $allCodigoPedidos = array_unique(array_merge(...array_values($hemocPedidos)));
+        $resExSummary = $this->fetchResExSummary($allCodigoPedidos);
+        $resExPresence = $this->fetchResExPresence($allCodigoPedidos);
+
+        $results = [];
+
+        foreach ($hemocPedidos as $nrPrescricao => $codigoPedidos) {
+            $organismos = [];
+            $hasNegativo = false;
+            $hasPositivo = false;
+            $hasResult = false;
+
+            foreach ($codigoPedidos as $codigoPedido) {
+                if (in_array($codigoPedido, $resExPresence, true)) {
+                    $hasResult = true;
+                }
+
+                foreach ($resExSummary[$codigoPedido] ?? [] as $row) {
+                    $campo = strtoupper(trim((string) ($row->campo ?? '')));
+                    $valor = trim((string) ($row->valor_resultado ?? ''));
+
+                    if ($valor === '' || $valor === '-') {
+                        continue;
+                    }
+
+                    $isResultoField = $campo === 'BACTER'
+                        || $campo === 'RESULTADO'
+                        || str_starts_with($campo, 'ONEG');
+
+                    if (preg_match('/^GERME\d*$/', $campo)) {
+                        $hasPositivo = true;
+                        if (! preg_match('/^\d+([Ee]\d+)?$/', $valor)) {
+                            $organismos[] = $valor;
+                        }
+                    } elseif ($isResultoField) {
+                        if (str_contains(strtolower($valor), 'aus') && str_contains(strtolower($valor), 'crescimento')) {
+                            $hasNegativo = true;
+                        } else {
+                            $organismos[] = $valor;
+                            $hasPositivo = true;
+                        }
+                    } elseif ($campo === 'RESAUT' && $valor === '+') {
+                        $hasPositivo = true;
+                    }
+                }
+            }
+
+            $organismos = array_values(array_unique(array_filter($organismos)));
+
+            if ($hasPositivo) {
+                $results[$nrPrescricao] = 'Positivo'.(! empty($organismos) ? ' — '.implode(', ', $organismos) : '');
+            } elseif ($hasNegativo) {
+                $results[$nrPrescricao] = 'Negativo';
+            } elseif ($hasResult) {
+                $results[$nrPrescricao] = $this->movexFallbackStatus($codigoPedidos, $movEx);
+            } else {
+                $results[$nrPrescricao] = null;
+            }
+        }
+
+        return $results;
     }
 
     /** @param  array<int|string, mixed>  $results */

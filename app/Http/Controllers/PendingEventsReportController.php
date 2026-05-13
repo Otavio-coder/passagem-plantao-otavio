@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
-use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\UserDisplayNameResolver;
 use App\Support\PendingEventHelper;
 use App\Support\PendingEventTypeClassifier;
@@ -90,24 +89,17 @@ class PendingEventsReportController extends Controller
         }
 
         $rows = collect();
-        $service = new PatientPendingEventsService;
 
         foreach ($selectedSectors as $sectorId) {
             $patients = PatientDataLoader::forSector($sectorId)
-                ->include('demographics')
+                ->include('demographics', 'pending_events', 'multidisciplinary')
                 ->get();
 
-            $pending = $service->getPendingEventsForSector($sectorId);
             $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null)
                 ?? $sectors->firstWhere('sector_code', $sectorId)['sector_name']
                 ?? (string) $sectorId;
 
-            $patients = array_map(function (array $patient) use ($pending, $sectorLabel) {
-                $patient['pending_events'] = $pending[$patient['nr_atendimento']]['events'] ?? [];
-                $patient['_setor_label'] = $sectorLabel;
-
-                return $patient;
-            }, $patients);
+            $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
 
             $rows = $rows->merge($this->buildRows(collect($patients)));
         }
@@ -180,19 +172,15 @@ class PendingEventsReportController extends Controller
         }
 
         $rows = collect();
-        $service = new PatientPendingEventsService;
 
         foreach ($selectedSectors as $sectorId) {
-            $patients = PatientDataLoader::forSector($sectorId)->include('demographics')->get();
-            $pending = $service->getPendingEventsForSector($sectorId);
+            $patients = PatientDataLoader::forSector($sectorId)
+                ->include('demographics', 'pending_events', 'multidisciplinary')
+                ->get();
+
             $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null) ?? (string) $sectorId;
 
-            $patients = array_map(function (array $patient) use ($pending, $sectorLabel) {
-                $patient['pending_events'] = $pending[$patient['nr_atendimento']]['events'] ?? [];
-                $patient['_setor_label'] = $sectorLabel;
-
-                return $patient;
-            }, $patients);
+            $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
 
             $rows = $rows->merge($this->buildRows(collect($patients)));
         }

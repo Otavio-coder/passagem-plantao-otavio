@@ -21,7 +21,7 @@ class PatientPendingEventsService
 {
     use UsesRepositories;
 
-    private const CACHE_TTL = 300; // 5 minutos
+    private const CACHE_TTL = 600; // 10 minutos
 
     private const CHUNK_SIZE = 200;
 

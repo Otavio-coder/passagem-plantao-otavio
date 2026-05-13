@@ -14,10 +14,8 @@ class PatientClinicalRepository
 
     protected $connection = 'tasy';
 
-    /**
-     * Busca dados clínicos core de um paciente (isolamento, nursing, dispositivos, alergias)
-     */
-    public function getPatientClinicalDetails(int $attendanceNumber, ?string $sectorCode = null): object
+    /** @deprecated No external callers — use getBatchClinicalDetails */
+    private function getPatientClinicalDetails(int $attendanceNumber, ?string $sectorCode = null): object
     {
         $result = DB::connection('tasy')->select("
             SELECT

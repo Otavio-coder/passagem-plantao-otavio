@@ -71,10 +71,8 @@ class PatientSurgeryRepository
         return ['surgery' => $hasMap, 'surgery_detailed' => $detailed];
     }
 
-    /**
-     * Busca procedimentos cirúrgicos agendados de um paciente específico
-     */
-    public function getSurgicalProcedures(int $attendanceNumber, ?string $sectorCode = null): array
+    /** @deprecated No external callers — use getFutureSurgeriesForAttendances */
+    private function getSurgicalProcedures(int $attendanceNumber, ?string $sectorCode = null): array
     {
         try {
             $query = Appointment::surgeries()

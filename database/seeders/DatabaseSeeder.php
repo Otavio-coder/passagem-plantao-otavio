@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\System\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -13,11 +12,11 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         try {
-
             $userFirst = env('USER_FIRST');
 
             if (! $userFirst) {
                 $this->command->alert("Por favor, informe um usuário válido do AD no atributo 'USER_FIRST' no arquivo .env");
+
                 return;
             }
 
@@ -25,35 +24,31 @@ class DatabaseSeeder extends Seeder
 
             if (! $ldapUser) {
                 $this->command->alert("Usuário '{$userFirst}' não encontrado no AD!");
+
                 return;
             }
-
-            // Limpa dados antigos
-            DB::table('model_has_roles')->delete();
-            DB::table('model_has_permissions')->delete();
-            DB::table('role_has_permissions')->delete();
-            DB::table('roles')->delete();
-            DB::table('permissions')->delete();
 
             // ─── PERMISSÕES ────────────────────────────────────────────────
             //
             //  Gestão de usuários
-            //    ver usuarios       → acessa a listagem de usuários
-            //    criar usuarios     → cria um novo usuário a partir do AD
-            //    editar usuarios    → altera perfis/roles de um usuário
-            //    bloquear usuarios  → bloqueia/desbloqueia acesso de um usuário
-            //    acessar como       → impersonar outro usuário
+            //    ver usuarios             → lista de usuários
+            //    criar usuarios           → cria usuário a partir do AD
+            //    editar usuarios          → altera perfis/roles e flag is_nurse
+            //    bloquear usuarios        → bloqueia/desbloqueia acesso
+            //    acessar como             → impersona outro usuário
             //
             //  Gestão de perfis
-            //    ver perfis         → acessa a listagem de perfis/roles
-            //    criar perfis       → cria novos perfis
-            //    editar perfis      → edita permissões de um perfil
+            //    ver perfis               → lista de perfis/roles
+            //    criar perfis             → cria novos perfis
+            //    editar perfis            → edita permissões de um perfil
+            //
+            //  Relatórios e ferramentas
+            //    ver relatorio pendencias → relatório tabular de pendências clínicas
+            //    ver historico chat       → histórico de avaliações + métricas de passagem
             //
             //  Sistema
-            //    ver logs           → acessa o LogViewer
-            //    configurar sistema → acessa configurações globais (setores whitelist)
-            //    ver historico chat → acessa o histórico de anotações
-            //    ver relatorio pendencias → acessa o relatório tabular de pendências
+            //    ver logs                 → acessa o LogViewer
+            //    configurar sistema       → configurações globais (setores whitelist)
 
             $permissions = [
                 // usuários
@@ -66,72 +61,92 @@ class DatabaseSeeder extends Seeder
                 'ver perfis',
                 'criar perfis',
                 'editar perfis',
+                // relatórios
+                'ver relatorio pendencias',
+                'ver historico chat',
                 // sistema
                 'ver logs',
                 'configurar sistema',
-                'ver historico chat',
-                'ver relatorio pendencias',
             ];
 
+            // Garante que todas as permissões da lista existem
             foreach ($permissions as $perm) {
                 Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
             }
 
             // ─── PERFIS (ROLES) ────────────────────────────────────────────
             //
-            //  Administrador → acesso total ao sistema
-            //  Coordenador   → gerencia usuários e histórico; sem perfis/logs/configurações
-            //  Usuário       → acesso ao SBAR/chat; sem área administrativa
+            //  Administrador → acesso total
+            //  Coordenador   → gerencia usuários, vê histórico e pendências; sem perfis/logs/config
+            //  Enfermeiro    → SBAR/chat + passagem de plantão; sem área administrativa
+            //  Usuário       → SBAR/chat; sem área administrativa
 
             $roleAdmin = Role::firstOrCreate(['name' => 'Administrador', 'guard_name' => 'web']);
             $roleCoord = Role::firstOrCreate(['name' => 'Coordenador',   'guard_name' => 'web']);
-            $roleUser  = Role::firstOrCreate(['name' => 'Usuário',       'guard_name' => 'web']);
+            $roleNurse = Role::firstOrCreate(['name' => 'Enfermeiro',    'guard_name' => 'web']);
+            $roleUser = Role::firstOrCreate(['name' => 'Usuário',       'guard_name' => 'web']);
 
-            // Administrador → tudo
-            $roleAdmin->syncPermissions(Permission::all());
+            // syncPermissions desvincula permissões removidas da lista antes de deletá-las
+            $roleAdmin->syncPermissions($permissions);
 
-            // Coordenador → gerencia usuários + histórico; sem perfis, logs e configurações de sistema
+            // Coordenador → gestão de usuários + relatórios; sem perfis, logs e config de sistema
             $roleCoord->syncPermissions([
                 'ver usuarios',
                 'criar usuarios',
                 'editar usuarios',
                 'bloquear usuarios',
                 'acessar como',
+                'ver relatorio pendencias',
                 'ver historico chat',
+            ]);
+
+            // Enfermeiro → SBAR/chat + relatório de pendências; sem histórico de avaliações nem admin
+            // A feature de passagem de plantão é controlada pelo flag is_nurse no usuário,
+            // não por uma permissão Spatie — qualquer usuário com is_nurse=true e este perfil
+            // terá acesso ao botão "Iniciar Passagem".
+            $roleNurse->syncPermissions([
                 'ver relatorio pendencias',
             ]);
 
             // Usuário → sem permissões administrativas (SBAR/chat aberto a todos autenticados)
             $roleUser->syncPermissions([]);
 
+            // Remove permissões que saíram da lista (o syncPermissions acima já as desvinculou dos roles)
+            Permission::where('guard_name', 'web')
+                ->whereNotIn('name', $permissions)
+                ->delete();
+
             // ─── USUÁRIO INICIAL ───────────────────────────────────────────
 
             $user = User::firstOrCreate(
                 ['username' => $ldapUser->getFirstAttribute('samaccountname')],
                 [
-                    'name'   => $ldapUser->getFirstAttribute('displayname'),
-                    'email'  => $ldapUser->getFirstAttribute('mail'),
-                    'guid'   => $ldapUser->getConvertedGuid(),
+                    'name' => $ldapUser->getFirstAttribute('displayname'),
+                    'email' => $ldapUser->getFirstAttribute('mail'),
+                    'guid' => $ldapUser->getConvertedGuid(),
                     'domain' => 'default',
                     'status' => 'A',
                 ]
             );
 
-            $user->assignRole('Administrador');
+            if ($user->roles()->count() === 0) {
+                $user->assignRole('Administrador');
+            }
 
-            $this->command->info("Sucesso! Perfis e permissões configurados.");
+            $this->command->info('Sucesso! Perfis e permissões configurados.');
             $this->command->info("Usuário administrador: {$user->username}");
             $this->command->table(
-                ['Perfil', 'Permissões'],
+                ['Perfil', 'Permissões / Observações'],
                 [
                     ['Administrador', 'Todas as permissões'],
-                    ['Coordenador',   'ver/criar/editar/bloquear usuarios · acessar como · ver historico chat'],
-                    ['Usuário',       '(sem permissões administrativas — acesso ao SBAR)'],
+                    ['Coordenador',   'ver/criar/editar/bloquear usuarios · acessar como · ver relatorio pendencias · ver historico chat'],
+                    ['Enfermeiro',    'ver relatorio pendencias · SBAR/chat · passagem de plantão (requer is_nurse=true)'],
+                    ['Usuário',       'SBAR/chat (sem área administrativa)'],
                 ]
             );
 
         } catch (\Exception $exception) {
-            $this->command->error("Erro ao rodar seeder: " . $exception->getMessage());
+            $this->command->error('Erro ao rodar seeder: '.$exception->getMessage());
         }
     }
 }

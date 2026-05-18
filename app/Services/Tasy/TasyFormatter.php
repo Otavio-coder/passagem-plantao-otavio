@@ -32,7 +32,7 @@ class TasyFormatter
                 'dt_alta_medico_formatted' => Carbon::parse($dtAltaMedico)->format('d/m/Y H:i'),
                 'dt_previsto_alta' => $dtPrevistoAlta,
                 'dt_previsto_alta_formatted' => ! empty($dtPrevistoAlta)
-                    ? Carbon::parse($dtPrevistoAlta)->format('d/m/Y H:i')
+                    ? Carbon::parse($dtPrevistoAlta)->format('d/m/Y')
                     : null,
                 'ds_motivo_alta' => $motivoAlta,
             ];
@@ -42,7 +42,7 @@ class TasyFormatter
             return [
                 'tipo' => 'previsao_alta',
                 'dt_previsto_alta' => $dtPrevistoAlta,
-                'dt_previsto_alta_formatted' => Carbon::parse($dtPrevistoAlta)->format('d/m/Y H:i'),
+                'dt_previsto_alta_formatted' => Carbon::parse($dtPrevistoAlta)->format('d/m/Y'),
             ];
         }
 
@@ -162,6 +162,7 @@ class TasyFormatter
             $data['mews_styling'] = $mews['styling'];
             $data['mews_shift'] = $mews['shift'];
             $data['mews_timestamp'] = $mews['timestamp'];
+            $data['mews_details'] = $mews['details'] ?? null;
         } else {
             $pews = $scales['pews'] ?? self::DEFAULT_SCALE_DATA;
             $data['pews_score'] = $pews['score'];
@@ -173,6 +174,7 @@ class TasyFormatter
             $data['pews_styling'] = $pews['styling'];
             $data['pews_shift'] = $pews['shift'];
             $data['pews_timestamp'] = $pews['timestamp'];
+            $data['pews_details'] = $pews['details'] ?? null;
         }
 
         foreach (['braden', 'morse', 'pain', 'vte'] as $scaleName) {
@@ -186,6 +188,7 @@ class TasyFormatter
             $data["{$scaleName}_styling"] = $scale['styling'];
             $data["{$scaleName}_shift"] = $scale['shift'];
             $data["{$scaleName}_timestamp"] = $scale['timestamp'];
+            $data["{$scaleName}_details"] = $scale['details'] ?? null;
         }
 
         return $data;

@@ -11,6 +11,7 @@
 
 # Claude Code / AI assistant files
 /.claude
+/resources/boost/
 /.junie
 /CLAUDE.md
 /AGENTS.md

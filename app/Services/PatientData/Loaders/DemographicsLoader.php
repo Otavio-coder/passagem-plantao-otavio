@@ -10,6 +10,16 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Loader de dados demográficos e identificação dos pacientes de um setor.
+ *
+ * É o primeiro loader a executar no PatientDataLoader: retorna um mapa indexado por
+ * nr_atendimento com todos os leitos do setor (ocupados e vazios). Os demais loaders
+ * recebem os nr_atendimento extraídos deste mapa para fazer suas queries em batch.
+ *
+ * Cache de 15 min (maior que os outros loaders): dados demográficos mudam menos
+ * frequentemente que eventos pendentes ou passagens de plantão.
+ */
 class DemographicsLoader implements SectorLoader
 {
     private const CACHE_TTL = 900; // 15 min
@@ -36,6 +46,11 @@ class DemographicsLoader implements SectorLoader
         ];
 
         try {
+            // Substituição de 3 stored functions Oracle por linha (obter_nome_paciente,
+            // obter_desc_convenio/obter_convenio_atendimento, obter_medico_resp_atend)
+            // por JOINs diretos e subqueries escalares — equivalência verificada em produção.
+            // Cada função era executada N vezes (uma por linha) pelo motor PL/SQL do Oracle,
+            // tornando a query O(N) em round-trips ao banco.
             $rows = DB::connection('tasy')->select("
                 SELECT
                     ua.cd_unidade_basica,
@@ -49,15 +64,20 @@ class DemographicsLoader implements SectorLoader
                     CASE WHEN atp.nr_atendimento IS NOT NULL THEN 1 ELSE 0 END AS has_patient,
                     atp.nr_atendimento,
                     atp.cd_pessoa_fisica,
-                    TASY.obter_nome_paciente(atp.nr_atendimento) AS nm_pessoa_fisica,
+                    NVL(pf.nm_social, pf.nm_pessoa_fisica) AS nm_pessoa_fisica,
+                    pf.nm_social              AS nm_social,
                     pf.nr_prontuario,
                     pf.dt_nascimento          AS birth_date,
                     FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento) / 12) AS age,
                     MOD(FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)), 12) AS age_months,
                     TRUNC(SYSDATE - ADD_MONTHS(pf.dt_nascimento, FLOOR(MONTHS_BETWEEN(SYSDATE, pf.dt_nascimento)))) AS age_days,
                     pf.ie_sexo                AS sexo,
-                    TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(atp.nr_atendimento)) AS convenio,
-                    TASY.obter_medico_resp_atend(atp.nr_atendimento, 'N') AS medico_responsavel,
+                    (SELECT c.ds_convenio
+                     FROM tasy.atend_categoria_convenio acc
+                     JOIN tasy.convenio c ON c.cd_convenio = acc.cd_convenio
+                     WHERE acc.nr_atendimento = atp.nr_atendimento
+                       AND ROWNUM = 1)        AS convenio,
+                    pf_med.nm_pessoa_fisica   AS medico_responsavel,
                     atp.dt_entrada,
                     TRUNC(SYSDATE - TRUNC(atp.dt_entrada)) AS internment_days,
                     atp.dt_alta_medico,
@@ -68,6 +88,7 @@ class DemographicsLoader implements SectorLoader
                 JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
                 LEFT JOIN tasy.atendimento_paciente atp ON ua.nr_atendimento = atp.nr_atendimento AND atp.dt_alta IS NULL
                 LEFT JOIN tasy.pessoa_fisica pf ON atp.cd_pessoa_fisica = pf.cd_pessoa_fisica
+                LEFT JOIN tasy.pessoa_fisica pf_med ON pf_med.cd_pessoa_fisica = atp.cd_medico_resp
                 LEFT JOIN tasy.motivo_alta ma ON atp.cd_motivo_alta_medica = ma.cd_motivo_alta
                 LEFT JOIN (
                     SELECT nr_atendimento, dt_previsto_alta, dt_registro,
@@ -113,6 +134,7 @@ class DemographicsLoader implements SectorLoader
                 'has_patient' => $hasPatient,
                 'cd_pessoa_fisica' => $bed->cd_pessoa_fisica ?? null,
                 'nm_pessoa_fisica' => $bed->nm_pessoa_fisica ?? 'Nome não informado',
+                'nm_social' => $bed->nm_social ?? null,
                 'nr_prontuario' => $bed->nr_prontuario ?? 'N/A',
                 'birth_date' => $bed->birth_date ? Carbon::parse($bed->birth_date)->format('d/m/Y') : null,
                 'age' => $age,
@@ -124,7 +146,7 @@ class DemographicsLoader implements SectorLoader
                 'internment_days' => $internmentDays,
                 'is_new_patient' => $isNewPatient,
                 'is_pediatric' => $isPediatric,
-                // default card styling (overridden later if scales are loaded)
+                // estilo padrão do card (sobrescrito pelo TasyFormatter se escalas forem carregadas)
                 'gradient_style' => $hasPatient
                     ? 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);'
                     : 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);',
@@ -132,6 +154,9 @@ class DemographicsLoader implements SectorLoader
                 'text_color_class' => '',
             ];
 
+            // Chave do mapa: nr_atendimento para leitos ocupados, 'empty_X' para vazios.
+            // Leitos vazios precisam ser incluídos para exibir a grade completa do setor
+            // (um leito vazio é informação relevante na passagem de plantão).
             $key = $nr ?? ('empty_'.$bed->cd_unidade_basica);
             $result[$key] = $patient;
         }

@@ -190,7 +190,7 @@ class PendingEventPresentationTest extends TestCase
     #[Test]
     public function motivo_exame_em_analise(): void
     {
-        // Domínio 1030 código 30 = "Digitação do resultado" → material em análise
+        // Domínio 1226 código 30 = laudo sem liberação → aguardando laudo
         $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Digitação do resultado',
@@ -198,7 +198,7 @@ class PendingEventPresentationTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Material em análise — aguardando laudo', $motivo);
+        $this->assertSame('Aguardando laudo', $motivo);
     }
 
     #[Test]

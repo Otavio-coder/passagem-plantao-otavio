@@ -15,7 +15,18 @@ use Illuminate\Support\Facades\Log;
 /**
  * Coordenador de eventos pendentes por setor.
  *
- * Retorna: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
+ * Consolida em um único cache todas as pendências assistenciais relevantes para a passagem
+ * de plantão: exames, procedimentos, hemoterapia, antimicrobianos, quimioterapia, cirurgias
+ * agendadas e status de alta.
+ *
+ * Estrutura de retorno: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
+ *
+ * Estratégia de queries:
+ * - Uma query principal coleta todos os atendimentos ativos do setor com dados de alta.
+ * - Cinco queries em chunk (prescrições, hemoterapia, antimicrobianos, quimioterapia, agenda)
+ *   enriquecem os resultados em lote, evitando N queries por paciente.
+ * - CHUNK_SIZE = 200: limite empírico seguro para a cláusula IN do Oracle sem atingir
+ *   o limite de 1000 elementos ou causar degradação do plano de execução.
  */
 class PatientPendingEventsService
 {
@@ -23,6 +34,7 @@ class PatientPendingEventsService
 
     private const CACHE_TTL = 600; // 10 minutos
 
+    /** Máximo de nr_atendimento por cláusula IN nas queries Oracle. */
     private const CHUNK_SIZE = 200;
 
     public function getPendingEventsForSector(int $sectorId): array
@@ -126,29 +138,23 @@ class PatientPendingEventsService
                 ap.dt_alta,
                 ap.dt_alta_medico,
                 ma2.ds_motivo_alta,
-                apa.dt_previsto_alta AS apa_dt_previsto_alta
+                apa.dt_previsto_alta AS apa_dt_previsto_alta,
+                NVL(pf_apa.nm_pessoa_fisica, apa.nm_usuario) AS apa_nm_usuario
             FROM tasy.unidade_atendimento ua
             INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
             INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
             LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
             LEFT JOIN (
-                SELECT nr_atendimento, dt_previsto_alta,
+                SELECT nr_atendimento, dt_previsto_alta, nm_usuario,
                     ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
                 FROM tasy.atend_previsao_alta
             ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
+            LEFT JOIN tasy.usuario u_apa ON u_apa.nm_usuario = apa.nm_usuario
+            LEFT JOIN tasy.pessoa_fisica pf_apa ON pf_apa.cd_pessoa_fisica = u_apa.cd_pessoa_fisica
             WHERE ua.cd_setor_atendimento = :sector_id
                 AND ua.ie_situacao = 'A'
                 AND ap.dt_alta IS NULL
         ", ['sector_id' => $sectorId]);
-
-        try {
-            Log::debug('[PendingEvents] Query principal', [
-                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
-                'patient_count' => count($rows),
-                'sector_id' => $sectorId,
-            ]);
-        } catch (\Throwable) {
-        }
 
         $results = [];
         $allNrs = [];
@@ -174,28 +180,21 @@ class PatientPendingEventsService
             $results[$nr] = ['events' => $events, 'discharge' => $discharge];
         }
 
-        $t = microtime(true);
         foreach (array_chunk($allNrs, self::CHUNK_SIZE) as $chunk) {
             $this->processPrescriptionChunk($results, $chunk);
         }
-        try {
-            Log::debug('[PendingEvents] Step prescricao', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
-        } catch (\Throwable) {
-        }
 
-        $t = microtime(true);
         foreach (array_chunk($allNrs, self::CHUNK_SIZE) as $chunk) {
             $this->processHemotherapyChunk($results, $chunk);
             $this->processAntibioticChunk($results, $chunk);
             $this->processChemotherapyChunk($results, $chunk);
             $this->processAgendaChunk($results, $chunk);
         }
-        try {
-            Log::debug('[PendingEvents] Step outros chunks', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
-        } catch (\Throwable) {
-        }
 
-        // Deduplica: remove prescrição quando agenda tem o mesmo proc_interno (mais informativo)
+        // Deduplicação prescrição × agenda: o mesmo procedimento pode aparecer tanto em
+        // prescr_procedimento (fonte 'prescricao') quanto em agenda_paciente (fonte 'agenda').
+        // A entrada da agenda tem dados mais completos (horário real, sala, status atualizado),
+        // portanto quando ambas existem para o mesmo nr_seq_proc_interno, a prescrição é removida.
         foreach ($results as &$data) {
             $agendaProcs = [];
             foreach ($data['events'] as $event) {
@@ -217,6 +216,10 @@ class PatientPendingEventsService
 
         $now = now()->timestamp;
 
+        // Ordenação por proximidade temporal ao momento atual (não por data cronológica).
+        // Eventos urgentes vão primeiro. Entre os demais, prioriza-se quem está mais próximo
+        // de "agora" — tanto no futuro quanto no passado — usando distância absoluta em segundos.
+        // Isso faz com que um exame com 10 min de atraso apareça antes de um agendado para 3h.
         foreach ($results as &$data) {
             usort($data['events'], function ($a, $b) use ($now) {
                 $urgA = $a['urgente'] ?? false;
@@ -242,12 +245,7 @@ class PatientPendingEventsService
         }
         unset($data);
 
-        $t = microtime(true);
         (new ScolaExamStatusService)->enrichEvents($results);
-        try {
-            Log::debug('[PendingEvents] Step scola', ['ms' => round((microtime(true) - $t) * 1000, 1), 'sector_id' => $sectorId]);
-        } catch (\Throwable) {
-        }
 
         foreach ($results as &$data) {
             foreach ($data['events'] as &$event) {
@@ -257,26 +255,40 @@ class PatientPendingEventsService
         }
         unset($data);
 
-        try {
-            Log::debug('[PendingEvents] Total', [
-                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
-                'sector_id' => $sectorId,
-            ]);
-        } catch (\Throwable) {
-        }
-
         return $this->sanitizeUtf8($results);
     }
 
     // ==================== HANDLERS (collapsed) ====================
 
+    /**
+     * Processa prescrições pendentes para um lote de atendimentos. Usa três queries separadas:
+     *
+     * Query 1 (base): busca procedimentos prescritos ainda pendentes, com todos os joins
+     *   necessários para classificação, setor de execução e deduplicação por (prescricao, proc, data).
+     *   O NOT EXISTS original foi substituído por LEFT JOIN + IS NULL para melhor plano Oracle.
+     *
+     * Query 2 (procedimento_paciente): verifica se o procedimento já foi fisicamente executado
+     *   (registro em procedimento_paciente) mas sem baixa na prescrição — o Tasy às vezes fica
+     *   dessincronizado entre execução e baixa administrativa.
+     *
+     * Query 3 (prescrição mais nova): detecta se existe uma prescrição mais recente para o mesmo
+     *   exame, indicando que a prescrição atual pode estar obsoleta (re-solicitação).
+     */
     private function processPrescriptionChunk(array &$results, array $chunk): void
     {
         $p = $this->placeholders($chunk);
 
+        // Query 1 – linhas principais; NOT EXISTS substituído por LEFT JOIN + IS NULL pré-agregado
         try {
             $rows = DB::connection('tasy')->select("
-                WITH base AS (
+                WITH pp_laudo_agg AS (
+                    SELECT nr_prescricao, nr_sequencia_prescricao
+                    FROM tasy.procedimento_paciente
+                    WHERE nr_atendimento IN ({$p})
+                      AND nr_laudo IS NOT NULL
+                    GROUP BY nr_prescricao, nr_sequencia_prescricao
+                ),
+                base AS (
                     SELECT
                         pm.nr_atendimento,
                         pm.nr_prescricao,
@@ -313,6 +325,9 @@ class PatientPendingEventsService
                         ON  rl.nr_prescricao     = pm.nr_prescricao
                         AND rl.nr_seq_prescricao = pp.nr_sequencia
                         AND rl.dt_coleta         IS NOT NULL
+                    LEFT JOIN pp_laudo_agg pla
+                        ON  pla.nr_prescricao          = pm.nr_prescricao
+                        AND pla.nr_sequencia_prescricao = pp.nr_sequencia
                     LEFT JOIN tasy.pessoa_fisica pf
                         ON pf.cd_pessoa_fisica = pm.cd_prescritor
                     LEFT JOIN tasy.proc_interno pi
@@ -363,67 +378,97 @@ class PatientPendingEventsService
                         AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                         -- AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
                         AND rl.nr_prescricao IS NULL
-                        AND NOT EXISTS (
-                            SELECT 1 FROM tasy.procedimento_paciente pp_laudo
-                            WHERE pp_laudo.nr_prescricao          = pm.nr_prescricao
-                              AND pp_laudo.nr_sequencia_prescricao = pp.nr_sequencia
-                              AND pp_laudo.nr_laudo               IS NOT NULL
-                        )
+                        AND pla.nr_prescricao IS NULL
                 )
                 SELECT
                     b.*,
                     NVL(sa.ds_prescricao, sa.ds_setor_atendimento) AS setor_desc_raw,
-                    NULL AS ds_status_laudo,
-                    CASE WHEN EXISTS (
-                        SELECT 1 FROM tasy.procedimento_paciente pp_exec
-                        WHERE pp_exec.nr_prescricao           = b.nr_prescricao
-                          AND pp_exec.nr_sequencia_prescricao = b.nr_sequencia_pp
-                    ) THEN 1 ELSE 0 END AS foi_executado_sem_baixa,
-                    CASE WHEN b.dt_resultado IS NOT NULL AND b.dt_coleta IS NOT NULL AND b.nr_seq_exame IS NOT NULL THEN 1 ELSE 0 END AS tem_resultado_sem_baixa,
-                    CASE WHEN b.nr_seq_exame IS NOT NULL AND EXISTS (
-                        SELECT 1 FROM tasy.procedimento_paciente pp_dup
-                        WHERE pp_dup.nr_atendimento = b.nr_atendimento
-                          AND pp_dup.nr_seq_exame   = b.nr_seq_exame
-                          AND pp_dup.nr_prescricao  > b.nr_prescricao
-                    ) THEN 1 ELSE 0 END AS exame_coletado_em_prescricao_mais_nova,
-                    CASE WHEN b.nr_seq_exame IS NULL AND b.nr_seq_proc_interno IS NOT NULL AND EXISTS (
-                        SELECT 1 FROM tasy.prescr_procedimento pp_n
-                        JOIN tasy.procedimento_paciente ppac
-                            ON ppac.nr_prescricao          = pp_n.nr_prescricao
-                           AND ppac.nr_sequencia_prescricao = pp_n.nr_sequencia
-                        WHERE ppac.nr_atendimento      = b.nr_atendimento
-                          AND pp_n.nr_seq_proc_interno  = b.nr_seq_proc_interno
-                          AND pp_n.nr_prescricao        > b.nr_prescricao
-                    ) THEN 1 ELSE 0 END AS proc_realizado_em_nova_prescricao,
-                    CASE WHEN b.nr_seq_exame IS NOT NULL THEN (
-                        SELECT nova.nr_prescricao || ' — ' || TO_CHAR(nova.dt_prescricao, 'DD/MM/YYYY')
-                        FROM (
-                            SELECT pm2.nr_prescricao, pm2.dt_prescricao
-                            FROM tasy.prescr_medica pm2
-                            JOIN tasy.prescr_procedimento pp2
-                                ON pp2.nr_prescricao = pm2.nr_prescricao
-                            WHERE pm2.nr_atendimento = b.nr_atendimento
-                              AND pp2.nr_seq_exame   = b.nr_seq_exame
-                              AND pm2.nr_prescricao  > b.nr_prescricao
-                              AND pp2.ie_status_execucao NOT IN ('40','R','C','BE')
-                              AND pp2.dt_baixa        IS NULL
-                              AND pp2.dt_cancelamento IS NULL
-                              AND pp2.ie_suspenso     <> 'S'
-                              AND pm2.dt_suspensao    IS NULL
-                              AND pm2.dt_liberacao    IS NOT NULL
-                            ORDER BY pm2.nr_prescricao DESC
-                        ) nova WHERE ROWNUM = 1
-                    ) ELSE NULL END AS prescricao_mais_nova_pendente_info
+                    NULL AS ds_status_laudo
                 FROM base b
                 LEFT JOIN tasy.setor_atendimento sa
                     ON sa.cd_setor_atendimento = b.cd_setor_execucao
                 WHERE b.rn_proc_dup = 1
                 ORDER BY b.nr_atendimento, b.dt_evento NULLS LAST
-            ", $chunk);
+            ", array_merge($chunk, $chunk));
         } catch (\Throwable $e) {
             Log::warning('[PendingEvents] processPrescriptionChunk failed', ['error' => $e->getMessage()]);
 
             return;
+        }
+
+        // Query 2 – busca em lote de procedimento_paciente para enriquecimento (foi_executado, exame_coletado_nova, proc_realizado_nova)
+        $ppByPrescricaoSeq = [];
+        $ppMaxByExame = [];
+        $ppMaxByProc = [];
+
+        try {
+            $ppRows = DB::connection('tasy')->select("
+                SELECT ppac.nr_prescricao,
+                       ppac.nr_sequencia_prescricao,
+                       ppac.nr_seq_exame,
+                       ppac.nr_atendimento,
+                       pp_n.nr_seq_proc_interno
+                FROM tasy.procedimento_paciente ppac
+                LEFT JOIN tasy.prescr_procedimento pp_n
+                    ON  pp_n.nr_prescricao = ppac.nr_prescricao
+                    AND pp_n.nr_sequencia  = ppac.nr_sequencia_prescricao
+                    AND pp_n.nr_seq_proc_interno IS NOT NULL
+                WHERE ppac.nr_atendimento IN ({$p})
+            ", $chunk);
+
+            foreach ($ppRows as $pp) {
+                $ppByPrescricaoSeq[$pp->nr_prescricao][$pp->nr_sequencia_prescricao] = true;
+
+                if (! empty($pp->nr_seq_exame)) {
+                    $cur = $ppMaxByExame[$pp->nr_atendimento][$pp->nr_seq_exame] ?? 0;
+                    if ((int) $pp->nr_prescricao > $cur) {
+                        $ppMaxByExame[$pp->nr_atendimento][$pp->nr_seq_exame] = (int) $pp->nr_prescricao;
+                    }
+                }
+
+                if (! empty($pp->nr_seq_proc_interno)) {
+                    $cur = $ppMaxByProc[$pp->nr_atendimento][$pp->nr_seq_proc_interno] ?? 0;
+                    if ((int) $pp->nr_prescricao > $cur) {
+                        $ppMaxByProc[$pp->nr_atendimento][$pp->nr_seq_proc_interno] = (int) $pp->nr_prescricao;
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // apenas enriquecimento — falha silenciosa intencional
+        }
+
+        // Query 3 – prescrição mais recente pendente por (nr_atendimento, nr_seq_exame)
+        $newerExameInfo = [];
+
+        try {
+            $newerRows = DB::connection('tasy')->select("
+                SELECT pm2.nr_atendimento,
+                       pp2.nr_seq_exame,
+                       MAX(pm2.nr_prescricao) AS max_nr_prescricao,
+                       MAX(pm2.nr_prescricao || ' — ' || TO_CHAR(pm2.dt_prescricao, 'DD/MM/YYYY'))
+                           KEEP (DENSE_RANK LAST ORDER BY pm2.nr_prescricao) AS info_prescricao
+                FROM tasy.prescr_medica pm2
+                JOIN tasy.prescr_procedimento pp2
+                    ON pp2.nr_prescricao = pm2.nr_prescricao
+                WHERE pm2.nr_atendimento IN ({$p})
+                  AND pp2.nr_seq_exame IS NOT NULL
+                  AND pm2.dt_liberacao IS NOT NULL
+                  AND pm2.dt_suspensao IS NULL
+                  AND pp2.ie_status_execucao NOT IN ('40', 'R', 'C', 'BE')
+                  AND pp2.dt_baixa        IS NULL
+                  AND pp2.dt_cancelamento IS NULL
+                  AND pp2.ie_suspenso     <> 'S'
+                GROUP BY pm2.nr_atendimento, pp2.nr_seq_exame
+            ", $chunk);
+
+            foreach ($newerRows as $nr) {
+                $newerExameInfo[$nr->nr_atendimento][$nr->nr_seq_exame] = [
+                    'nr' => (int) $nr->max_nr_prescricao,
+                    'info' => $nr->info_prescricao,
+                ];
+            }
+        } catch (\Throwable) {
+            // apenas enriquecimento — falha silenciosa intencional
         }
 
         $now = time();
@@ -437,6 +482,23 @@ class PatientPendingEventsService
             $tempo = $this->calcTempo($row->dt_evento ?? null, $row->dt_autorizacao ?? null, $now);
             $statusLabel = $row->ds_status_execucao_label ?? null;
             $tipo = PendingEventTypeClassifier::fromPrescriptionRow($isExam, $row->ds_grupo_lab ?? null);
+
+            $foiExecutado = isset($ppByPrescricaoSeq[$row->nr_prescricao][$row->nr_sequencia_pp]);
+            $temResultado = $isExam && ! empty($row->dt_resultado) && ! empty($row->dt_coleta);
+            $exameColetadoNova = $isExam
+                && ! empty($row->nr_seq_exame)
+                && ($ppMaxByExame[$row->nr_atendimento][$row->nr_seq_exame] ?? 0) > (int) $row->nr_prescricao;
+            $procRealizadoNova = ! $isExam
+                && ! empty($row->nr_seq_proc_interno)
+                && ($ppMaxByProc[$row->nr_atendimento][$row->nr_seq_proc_interno] ?? 0) > (int) $row->nr_prescricao;
+
+            $prescricaoMaisNova = null;
+            if ($isExam && ! empty($row->nr_seq_exame)) {
+                $entry = $newerExameInfo[$row->nr_atendimento][$row->nr_seq_exame] ?? null;
+                if ($entry && $entry['nr'] > (int) $row->nr_prescricao) {
+                    $prescricaoMaisNova = $entry['info'];
+                }
+            }
 
             $results[$row->nr_atendimento]['events'][] = [
                 'tipo' => $tipo,
@@ -464,10 +526,10 @@ class PatientPendingEventsService
                 'status_laudo' => $statusLabel,
                 'ie_status_execucao' => $row->ie_status_execucao ?? null,
                 'ds_status_laudo' => $row->ds_status_laudo ?? null,
-                'foi_executado_sem_baixa' => (int) ($row->foi_executado_sem_baixa ?? 0) === 1 || (int) ($row->tem_resultado_sem_baixa ?? 0) === 1,
-                'exame_coletado_em_prescricao_mais_nova' => (int) ($row->exame_coletado_em_prescricao_mais_nova ?? 0) === 1,
-                'proc_realizado_em_nova_prescricao' => (int) ($row->proc_realizado_em_nova_prescricao ?? 0) === 1,
-                'prescricao_mais_nova_pendente_info' => $row->prescricao_mais_nova_pendente_info ?? null,
+                'foi_executado_sem_baixa' => $foiExecutado || $temResultado,
+                'exame_coletado_em_prescricao_mais_nova' => $exameColetadoNova,
+                'proc_realizado_em_nova_prescricao' => $procRealizadoNova,
+                'prescricao_mais_nova_pendente_info' => $prescricaoMaisNova,
                 'urgente' => false,
                 'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
                 '_fonte' => 'prescricao',
@@ -543,6 +605,7 @@ class PatientPendingEventsService
                 'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
                 'setor_execucao' => $row->setor_execucao ?? null,
                 'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
+                '_fonte' => 'agenda',
             ];
         }
     }
@@ -557,6 +620,8 @@ class PatientPendingEventsService
                     SELECT
                         cm.nr_atendimento,
                         cm.nr_sequencia                                                          AS med_id,
+                        pm.nr_prescricao,
+                        pm.nr_sequencia                                                          AS nr_sequencia_pp,
                         INITCAP(TRIM(REGEXP_REPLACE(m.ds_material, '\\s*&&\\s*\$', '')))        AS descricao,
                         pmh.dt_horario,
                         cm.qt_dose,
@@ -564,7 +629,10 @@ class PatientPendingEventsService
                         cm.ie_via_aplicacao,
                         cm.nr_dia_util,
                         pma.ie_alteracao,
-                        CASE pma.ie_alteracao
+                        -- Prioridade de status da dose: valores do domínio 1620 do Tasy.
+                    -- Apenas alterações com priority < 400 são exibidas (HAVING abaixo).
+                    -- Códigos ≥ 400 (3=Administrado, 58=Parcial, 8=Suspenso) indicam dose resolvida.
+                    CASE pma.ie_alteracao
                             WHEN 3  THEN 600  WHEN 58 THEN 500  WHEN 8  THEN 400
                             WHEN 38 THEN 300  WHEN 4  THEN 200  WHEN 10 THEN  30
                             WHEN 15 THEN  20  ELSE           1
@@ -592,13 +660,13 @@ class PatientPendingEventsService
                 ),
                 grouped AS (
                     SELECT
-                        nr_atendimento, med_id, descricao, dt_horario,
+                        nr_atendimento, med_id, nr_prescricao, nr_sequencia_pp, descricao, dt_horario,
                         qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util,
                         MAX(priority) AS priority,
                         MAX(ie_alteracao) KEEP (DENSE_RANK LAST ORDER BY priority NULLS FIRST) AS ie_alteracao_code,
                         MAX(nm_prescritor) AS nm_prescritor
                     FROM base
-                    GROUP BY nr_atendimento, med_id, descricao, dt_horario,
+                    GROUP BY nr_atendimento, med_id, nr_prescricao, nr_sequencia_pp, descricao, dt_horario,
                              qt_dose, cd_unidade_medida_dose, ie_via_aplicacao, nr_dia_util
                     HAVING MAX(priority) < 400
                 )
@@ -659,6 +727,8 @@ class PatientPendingEventsService
                 'ds_subtipo' => 'Antimicrobiano',
                 'ds_complemento' => implode(' · ', $parts),
                 'nm_prescritor' => $row->nm_prescritor ?? null,
+                'nr_prescricao' => $row->nr_prescricao ?? null,
+                'nr_sequencia_pp' => $row->nr_sequencia_pp ?? null,
                 'dt_evento' => $row->dt_horario,
                 'dt_evento_formatted' => $dtTs ? date('d/m/Y H:i', $dtTs) : null,
                 'tempo_pendente' => $tempo,
@@ -727,6 +797,7 @@ class PatientPendingEventsService
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'ie_status_agenda' => $row->ie_status_agenda ?? null,
                 'urgente' => false,
+                '_fonte' => 'agenda',
             ];
         }
     }
@@ -757,7 +828,10 @@ class PatientPendingEventsService
                     vd_ag_car.ds_valor_dominio  AS ds_carater_label,
                     ap.nr_seq_proc_interno,
                     ap.nr_seq_sala,
-                    ap.cd_setor_atendimento      AS cd_setor_execucao,
+                    NVL(
+                        pis.cd_setor_atendimento,
+                        NVL(proced.cd_setor_exclusivo, ap.cd_setor_atendimento)
+                    ) AS cd_setor_execucao,
                     NVL(sa_exec.ds_prescricao, sa_exec.ds_setor_atendimento) AS ds_setor_execucao,
                     NVL(pi.cd_tipo_cirurgia,
                         (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p
@@ -766,26 +840,42 @@ class PatientPendingEventsService
                     ) AS cd_tipo_cirurgia,
                     COALESCE(pi.ds_proc_exame, proced.ds_procedimento, ap.ds_cirurgia) AS descricao_proc,
                     pi.nr_seq_exame_lab,
-                    NVL(pf_med.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
+                    COALESCE(pf_med.nm_pessoa_fisica, pf_user.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
                 FROM tasy.agenda_paciente ap
                 JOIN tasy.atendimento_paciente atp ON atp.cd_pessoa_fisica = ap.cd_pessoa_fisica
                 LEFT JOIN tasy.pessoa_fisica pf_med ON pf_med.cd_pessoa_fisica = ap.cd_medico
-                LEFT JOIN tasy.setor_atendimento sa_exec ON sa_exec.cd_setor_atendimento = ap.cd_setor_atendimento
+                LEFT JOIN tasy.usuario u_ap ON u_ap.nm_usuario = ap.nm_usuario
+                LEFT JOIN tasy.pessoa_fisica pf_user ON pf_user.cd_pessoa_fisica = u_ap.cd_pessoa_fisica
                 LEFT JOIN tasy.valor_dominio vd_ag_stat ON vd_ag_stat.cd_dominio = 83 AND vd_ag_stat.vl_dominio = ap.ie_status_agenda
                 LEFT JOIN tasy.valor_dominio vd_ag_car  ON vd_ag_car.cd_dominio  = 1016 AND vd_ag_car.vl_dominio  = ap.ie_carater_cirurgia
                 LEFT JOIN tasy.proc_interno pi ON pi.nr_sequencia = ap.nr_seq_proc_interno
-                LEFT JOIN (SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento FROM tasy.procedimento GROUP BY cd_procedimento) proced
+                LEFT JOIN (
+                    SELECT nr_seq_proc_interno, cd_setor_atendimento
+                    FROM (
+                        SELECT nr_seq_proc_interno, cd_setor_atendimento,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY nr_seq_proc_interno
+                                   ORDER BY nr_prioridade
+                               ) AS rn
+                        FROM tasy.proc_interno_setor
+                    ) WHERE rn = 1
+                ) pis ON pis.nr_seq_proc_interno = ap.nr_seq_proc_interno
+                LEFT JOIN (SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento, MIN(cd_setor_exclusivo) AS cd_setor_exclusivo FROM tasy.procedimento GROUP BY cd_procedimento) proced
                     ON proced.cd_procedimento = ap.cd_procedimento AND ap.nr_seq_proc_interno IS NULL
+                LEFT JOIN tasy.setor_atendimento sa_exec ON sa_exec.cd_setor_atendimento = NVL(
+                    pis.cd_setor_atendimento,
+                    NVL(proced.cd_setor_exclusivo, ap.cd_setor_atendimento)
+                )
                 WHERE atp.nr_atendimento IN ({$p})
                     AND ap.dt_agenda >= TRUNC(SYSDATE)
                     AND ap.dt_agenda <= SYSDATE + 30
-                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
+                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD', 'F', 'FI')
                     AND ap.dt_executada IS NULL
                     AND (
                         (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')
                         OR (ap.ie_carater_cirurgia IS NULL AND (ap.nr_seq_proc_interno IS NOT NULL OR ap.cd_procedimento IS NOT NULL))
                     )
-                ORDER BY ap.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
+                ORDER BY atp.nr_atendimento, ap.dt_agenda, ap.hr_inicio NULLS LAST
             ", $chunk);
         } catch (\Throwable $e) {
             Log::warning('[PendingEvents] processAgendaChunk failed', ['error' => $e->getMessage()]);
@@ -881,14 +971,9 @@ class PatientPendingEventsService
         }
 
         if (! empty($row->dt_alta_medico)) {
-            $descAltaMedica = 'Alta Médica';
-            if (! empty($row->apa_dt_previsto_alta)) {
-                $descAltaMedica .= ' | Prev. Alta: '.Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
-            }
-
             $events[] = [
                 'tipo' => 'alta_medica', 'icone' => 'alta.svg',
-                'descricao' => $descAltaMedica,
+                'descricao' => 'Alta Médica',
                 'ds_subtipo' => 'Alta Médica',
                 'dt_evento' => $row->dt_alta_medico,
                 'dt_evento_formatted' => Carbon::parse($row->dt_alta_medico)->format('d/m/Y H:i'),
@@ -899,6 +984,12 @@ class PatientPendingEventsService
                 null, (string) $row->dt_alta_medico,
                 ! empty($row->apa_dt_previsto_alta) ? (string) $row->apa_dt_previsto_alta : null,
                 ! empty($row->ds_motivo_alta) ? (string) $row->ds_motivo_alta : null
+            );
+        }
+
+        if (! empty($row->apa_dt_previsto_alta)) {
+            return TasyFormatter::buildDischargeInfo(
+                null, null, (string) $row->apa_dt_previsto_alta
             );
         }
 

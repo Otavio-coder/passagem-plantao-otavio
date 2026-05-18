@@ -171,7 +171,7 @@ window.chatComponent = function() {
             const textarea = this.$refs.textarea;
             if (textarea) {
                 textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+                textarea.style.height = Math.max(Math.min(textarea.scrollHeight, 160), 44) + 'px';
             }
         },
 

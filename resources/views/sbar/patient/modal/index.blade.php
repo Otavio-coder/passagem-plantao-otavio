@@ -9,27 +9,6 @@
                 document.body.style.overflow = '';
             }
         });
-
-        this.$watch('showModal', (value) => {
-            if (value) {
-                document.body.style.overflow = 'hidden';
-                document.body.classList.add('modal-active');
-
-                if (window.innerWidth < 640) {
-                    document.documentElement.style.position = 'fixed';
-                    document.documentElement.style.width = '100%';
-                    document.documentElement.style.height = '100%';
-                    document.documentElement.style.top = '0';
-                }
-            } else {
-                document.body.style.overflow = '';
-                document.body.classList.remove('modal-active');
-                document.documentElement.style.position = '';
-                document.documentElement.style.width = '';
-                document.documentElement.style.height = '';
-                document.documentElement.style.top = '';
-            }
-        });
     }
 }">
 
@@ -55,7 +34,7 @@
     >
         {{-- Backdrop --}}
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-             @click="showModal = false; $wire.closeModal();"></div>
+             @if(!$handoverMode) @click="showModal = false; $wire.closeModal();" @endif></div>
 
         {{-- Container do Modal --}}
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
@@ -143,18 +122,126 @@
                     swipeStartY = null;
                 "
             >
-                {{-- Loading Overlay --}}
-                @if($loadingPatient)
-                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur-sm">
-                        <div class="flex flex-col items-center gap-4">
-                            <div class="relative">
-                                <div class="w-12 h-12 border-4 border-[#004D9D] border-t-transparent rounded-full animate-spin"></div>
-                                <div class="absolute inset-0 w-12 h-12 border-4 border-[#004D9D]/20 border-t-transparent rounded-full animate-pulse"></div>
-                            </div>
-                            <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
+                {{-- Handover Mode Bar --}}
+                @if($handoverMode)
+                <div
+                    x-data="{
+                        elapsed: 0,
+                        timer: null,
+                        startedAt: '{{ $handoverStartedAt }}',
+                        confirmAction: null,
+                        heartbeat: null,
+                        init() {
+                            this.$nextTick(() => {
+                                const start = new Date(this.startedAt).getTime();
+                                if (Number.isNaN(start)) return;
+                                const tick = () => {
+                                    this.elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+                                };
+                                tick();
+                                this.timer = setInterval(tick, 1000);
+                                // Heartbeat: updates last_activity_at every 60s to prevent stale detection
+                                this.heartbeat = setInterval(() => this.$wire.updateHandoverActivity(), 60000);
+                            });
+                        },
+                        destroy() { clearInterval(this.timer); clearInterval(this.heartbeat); },
+                        format(s) {
+                            const m = Math.floor(s / 60).toString().padStart(2, '0');
+                            const sec = (s % 60).toString().padStart(2, '0');
+                            return m + ':' + sec;
+                        },
+                        ask(action) { this.confirmAction = action; },
+                        dismiss() { this.confirmAction = null; },
+                        confirm() {
+                            const action = this.confirmAction;
+                            this.confirmAction = null;
+                            if (action === 'cancel') this.$wire.cancelHandover();
+                            else if (action === 'finish') this.$wire.finishHandover();
+                        }
+                    }"
+                    class="relative flex items-center justify-between px-4 py-2 bg-emerald-700 flex-shrink-0"
+                >
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-play-circle text-white text-sm"></i>
+                        <span class="text-white text-xs font-semibold hidden sm:inline">Passagem em andamento</span>
+                        @if($currentPatientIndex !== null)
+                            <span class="text-emerald-200 text-xs">
+                                {{ $currentPatientIndex + 1 }}/{{ count($modalPatients) }} leitos
+                            </span>
+                        @endif
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-white font-mono text-sm font-bold tabular-nums" x-text="format(elapsed)">00:00</span>
+                        <button
+                            @click="ask('cancel')"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                            <i class="fas fa-xmark text-xs"></i>
+                            <span class="hidden sm:inline">Cancelar</span>
+                        </button>
+                        <button
+                            @click="ask('finish')"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-50 transition-colors shadow"
+                        >
+                            <i class="fas fa-flag-checkered text-xs"></i>
+                            <span class="hidden sm:inline">Encerrar</span>
+                        </button>
+                    </div>
+
+                    {{-- Overlay de confirmação --}}
+                    <div
+                        x-show="confirmAction !== null"
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-cloak
+                        class="absolute inset-0 flex items-center justify-center bg-emerald-900/95 backdrop-blur-sm px-4 gap-3 z-10"
+                        @keydown.escape.window="dismiss()"
+                    >
+                        <p class="text-white text-xs font-medium flex-1 leading-snug">
+                            <template x-if="confirmAction === 'cancel'">
+                                <span><i class="fas fa-triangle-exclamation text-amber-300 mr-1"></i>Cancelar descarta o progresso desta passagem. Confirmar?</span>
+                            </template>
+                            <template x-if="confirmAction === 'finish'">
+                                <span><i class="fas fa-flag-checkered mr-1"></i>Encerrar e registrar a passagem agora?</span>
+                            </template>
+                        </p>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                @click="dismiss()"
+                                type="button"
+                                class="px-3 py-1.5 text-xs font-semibold text-white/80 hover:text-white border border-white/30 hover:border-white/60 rounded-lg transition-colors"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                @click="confirm()"
+                                type="button"
+                                :class="confirmAction === 'cancel' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white text-emerald-800 hover:bg-emerald-50'"
+                                class="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shadow"
+                            >
+                                <span x-text="confirmAction === 'cancel' ? 'Sim, cancelar' : 'Sim, encerrar'"></span>
+                            </button>
                         </div>
                     </div>
+                </div>
                 @endif
+
+                {{-- Loading Overlay --}}
+                <div wire:loading.flex
+                     wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance,openModal,refreshPatientData"
+                     class="absolute inset-0 z-50 flex-col items-center justify-center bg-white/95 backdrop-blur-sm">
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="relative">
+                            <div class="w-12 h-12 border-4 border-[#004D9D] border-t-transparent rounded-full animate-spin"></div>
+                            <div class="absolute inset-0 w-12 h-12 border-4 border-[#004D9D]/20 rounded-full"></div>
+                        </div>
+                        <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
+                    </div>
+                </div>
 
                 {{-- Header - ALTURA FIXA --}}
                 <div class="flex-shrink-0">
@@ -167,6 +254,7 @@
                         :canGoPrevious="$canGoPrevious"
                         :canGoNext="$canGoNext"
                         :activeAlertsCount="count($activeAlerts)"
+                        :handoverMode="$handoverMode"
                     />
                 </div>
 
@@ -407,7 +495,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         marShadowLeft: false,
         marShadowRight: false,
 
-        proc: listState(procs, 'today'),
+        proc: listState(procs, 'all'),
         procType: 'all',
         examQ: '',
         examPage: 1,
@@ -446,7 +534,8 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         setSearch(val) { this.q = val; this.medPage = 1; },
         clearFilters() { this.q = ''; this.antibioticoF = false; this.medPage = 1; },
         clearProcFilters() {
-            this.proc.clear();
+            this.proc.setQ('');
+            this.proc.page = 1;
             this.procType = 'all';
         },
         setExamQ(v) {

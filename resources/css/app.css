@@ -14,9 +14,13 @@
     .nav-link {
         @apply transition duration-200 ease-in-out border-b-4 hover:border-blue-200
                text-white hover:text-blue-200
-               px-2 xl:px-3 py-1.5 xl:py-2
-               text-xs xl:text-sm font-medium
-               flex items-center gap-1.5 xl:gap-2
-               whitespace-nowrap;
+               px-2 md:px-3 lg:px-4 xl:px-4 py-1.5 md:py-2.5 lg:py-3 xl:py-3
+               text-xs md:text-sm lg:text-sm xl:text-sm font-medium
+               flex items-center justify-center gap-1.5 lg:gap-2
+               whitespace-nowrap min-h-[44px];
+    }
+
+    .nav-link i {
+        @apply text-base md:text-lg lg:text-lg xl:text-lg flex-shrink-0;
     }
 }

@@ -9,6 +9,7 @@ use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
 use App\Services\Tasy\TasyService;
+use App\Services\UserDisplayNameResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
@@ -23,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(TasyService::class);
+        $this->app->singleton(UserDisplayNameResolver::class);
 
         $this->app->bind(PatientScalesRepository::class, PatientScalesRepository::class);
         $this->app->bind(PatientClinicalRepository::class, PatientClinicalRepository::class);

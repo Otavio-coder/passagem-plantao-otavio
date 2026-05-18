@@ -25,17 +25,34 @@ class SbarShiftEvaluationsModal extends Component
 
     public bool $loading = false;
 
-    public array $beds = [];
-
-    public int $totalMessages = 0;
-
     public string $sectorName = '';
 
-    public string $activeShift = 'previous'; // 'previous' | 'current'
+    /**
+     * Metadados serializáveis dos 3 turnos (sem objetos Carbon).
+     * Estrutura: [{key, label, time_range, date_label, full_label}]
+     */
+    public array $shiftsMeta = [];
 
-    public string $currentShiftLabel = '';
+    /**
+     * Mapa de fotos por user_id — base64 armazenado uma única vez por usuário.
+     * Mensagens referenciam user_id; Alpine faz o lookup no template.
+     * Evita duplicar ~8 KB de base64 a cada mensagem do mesmo autor.
+     *
+     * @var array<int, string>
+     */
+    public array $photos = [];
 
-    public string $previousShiftLabel = '';
+    /**
+     * Lista de leitos com mensagens agrupadas por turno.
+     *
+     * Estrutura de cada item:
+     *  - leito, nome_paciente, prontuario, atendimento, has_patient, status
+     *  - internment_label, alta_label, alta_formatted
+     *  - mensagens: {current: [...], previous: [...], previous2: [...]}
+     *  - totais:    {current: int, previous: int, previous2: int}
+     *  - has_pinned: {current: bool, previous: bool, previous2: bool}
+     */
+    public array $beds = [];
 
     protected $listeners = ['openSbarEvaluationsModal' => 'open'];
 
@@ -50,16 +67,6 @@ class SbarShiftEvaluationsModal extends Component
             $this->sectorId = (int) $sectorId;
         }
 
-        $shiftInfo = ShiftService::getShiftInfo();
-        $this->currentShiftLabel = ShiftService::getShiftLabel($shiftInfo['shift']);
-
-        $previousShiftName = match ($shiftInfo['shift']) {
-            'morning' => 'night',
-            'afternoon' => 'morning',
-            'night' => 'afternoon',
-        };
-        $this->previousShiftLabel = ShiftService::getShiftLabel($previousShiftName);
-
         $this->isOpen = true;
         $this->loadEvaluations();
     }
@@ -67,16 +74,6 @@ class SbarShiftEvaluationsModal extends Component
     public function close(): void
     {
         $this->isOpen = false;
-    }
-
-    public function switchShift(string $shift): void
-    {
-        if (! in_array($shift, ['previous', 'current'])) {
-            return;
-        }
-
-        $this->activeShift = $shift;
-        $this->loadEvaluations();
     }
 
     public function loadEvaluations(): void
@@ -90,22 +87,28 @@ class SbarShiftEvaluationsModal extends Component
         $this->loading = true;
 
         try {
+            // Demographics vêm do cache do PatientDataLoader (15 min TTL).
             $patients = PatientDataLoader::forSector($this->sectorId)
                 ->include('demographics')
                 ->get();
 
             if (empty($patients)) {
                 $this->beds = [];
+                $this->photos = [];
+                $this->shiftsMeta = [];
                 $this->sectorName = '';
-                $this->totalMessages = 0;
 
                 return;
             }
 
-            $this->sectorName = $patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? 'Setor';
-            $attendanceNumbers = array_filter(array_column($patients, 'nr_atendimento'));
+            $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
+            $attendanceNumbers = array_values(array_filter(array_column($patients, 'nr_atendimento')));
 
-            [$from, $to] = $this->resolveShiftWindow();
+            $windows = $this->buildThreeShiftWindows();
+
+            // Uma única query MySQL cobrindo os 3 turnos (janela total = prev2.from → current.to).
+            $totalFrom = $windows[2]['from'];
+            $totalTo = $windows[0]['to'];
 
             $rawMessages = ! empty($attendanceNumbers)
                 ? DB::table('chat_messages as cm')
@@ -115,7 +118,7 @@ class SbarShiftEvaluationsModal extends Component
                             ->whereNull('cmp.unpinned_at');
                     })
                     ->whereIn('cm.nr_atendimento', $attendanceNumbers)
-                    ->whereBetween('cm.created_at', [$from, $to])
+                    ->whereBetween('cm.created_at', [$totalFrom, $totalTo])
                     ->select([
                         'cm.id',
                         'cm.nr_atendimento',
@@ -129,24 +132,23 @@ class SbarShiftEvaluationsModal extends Component
                     ->get()
                 : collect();
 
-            $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
-
-            // Batch-load photos for all unique users in the messages.
+            // Fotos: carrega UMA vez por user_id único e armazena em $photos.
+            // Reduz o payload de estado Livewire de O(msgs) para O(unique_users).
             $userIds = $rawMessages->pluck('user_id')->filter()->unique()->values()->all();
-            $photoByUserId = [];
+            $this->photos = [];
             if (! empty($userIds)) {
                 User::whereIn('id', $userIds)
                     ->select(['id', 'photo', 'role', 'role_synced_at', 'name', 'username'])
                     ->get()
-                    ->each(function (User $user) use (&$photoByUserId): void {
+                    ->each(function (User $user): void {
                         $photo = $user->getUserPhoto('64x64');
                         if (! empty($photo) && $user->hasValidPhoto()) {
-                            $photoByUserId[$user->id] = $photo;
+                            $this->photos[$user->id] = $photo;
                         }
                     });
             }
 
-            // Batch-load reactions for all messages in the window.
+            // Reações: carregadas em batch para todas as mensagens dos 3 turnos.
             $messageIds = $rawMessages->pluck('id')->filter()->values()->all();
             $currentUserId = Auth::id();
             $reactionsByMessage = ! empty($messageIds)
@@ -158,62 +160,54 @@ class SbarShiftEvaluationsModal extends Component
                     ->groupBy('message_id')
                 : collect();
 
-            $beds = [];
-            $totalMessages = 0;
+            // Agrupa mensagens por atendimento.
+            $messagesByAttendance = $rawMessages->groupBy('nr_atendimento');
 
-            // Iterate all beds in their presentation order (already sorted by nr_seq_apresent).
+            $this->beds = [];
+
             foreach ($patients as $patient) {
                 $nrAtendimento = $patient['nr_atendimento'] ?? null;
                 $hasPatient = (bool) ($patient['has_patient'] ?? false);
                 $dischargeInfo = $patient['discharge_info'] ?? null;
                 $dischargeTipo = $dischargeInfo['tipo'] ?? null;
 
-                // Determine bed status
-                if (! $hasPatient) {
-                    $status = 'empty';
-                } elseif ($dischargeTipo === 'alta') {
-                    $status = 'alta';
-                } elseif ($dischargeTipo === 'alta_medica') {
-                    $status = 'alta_medica';
-                } else {
-                    $status = 'occupied';
-                }
+                $status = match (true) {
+                    ! $hasPatient => 'empty',
+                    $dischargeTipo === 'alta' => 'alta',
+                    $dischargeTipo === 'alta_medica' => 'alta_medica',
+                    default => 'occupied',
+                };
 
-                // Build discharge label for display
-                $altaLabel = null;
-                $altaFormatted = null;
-                if ($dischargeTipo === 'alta') {
-                    $altaLabel = 'Alta';
-                    $altaFormatted = $dischargeInfo['dt_alta_formatted'] ?? null;
-                } elseif ($dischargeTipo === 'alta_medica') {
-                    $altaLabel = 'Alta Médica';
-                    $altaFormatted = $dischargeInfo['dt_alta_medico_formatted'] ?? null;
-                } elseif ($dischargeTipo === 'previsao_alta') {
-                    $altaLabel = 'Prev. Alta';
-                    $altaFormatted = $dischargeInfo['dt_previsto_alta_formatted'] ?? null;
-                }
+                [$altaLabel, $altaFormatted] = match ($dischargeTipo) {
+                    'alta' => ['Alta', $dischargeInfo['dt_alta_formatted'] ?? null],
+                    'alta_medica' => ['Alta Médica', $dischargeInfo['dt_alta_medico_formatted'] ?? null],
+                    'previsao_alta' => ['Prev. Alta', $dischargeInfo['dt_previsto_alta_formatted'] ?? null],
+                    default => [null, null],
+                };
 
-                // Format messages
-                $formattedMessages = [];
+                // Classifica cada mensagem no turno correto e formata para exibição.
+                $mensagensPorTurno = ['current' => [], 'previous' => [], 'previous2' => []];
 
                 if ($nrAtendimento && isset($messagesByAttendance[$nrAtendimento])) {
                     foreach ($messagesByAttendance[$nrAtendimento] as $message) {
+                        $shiftKey = $this->classifyMessageToShift($message->created_at, $windows);
                         $dt = Carbon::parse($message->created_at);
                         $userId = isset($message->user_id) ? (int) $message->user_id : null;
                         $userName = $this->userDisplayNameResolver->fromUserId(
                             $userId,
                             $message->user_name ?? 'Desconhecido'
                         );
-
                         $msgReactions = $reactionsByMessage->get($message->id, collect());
 
-                        $formattedMessages[] = [
+                        $mensagensPorTurno[$shiftKey][] = [
                             'id' => $message->id,
                             'content' => nl2br(e($message->content)),
+                            'user_id' => $userId,
                             'user_name' => $userName,
                             'user_initials' => $this->getInitials($userName),
-                            'photo' => $userId !== null ? ($photoByUserId[$userId] ?? '') : '',
                             'time' => $dt->format('H:i'),
+                            'date' => $dt->format('d/m/Y'),
+                            'datetime_label' => $this->formatMessageDateTime($dt),
                             'is_pinned' => (bool) $message->is_pinned,
                             'reactions_count' => $msgReactions->count(),
                             'user_reacted' => $currentUserId && $msgReactions->contains('user_id', $currentUserId),
@@ -221,28 +215,36 @@ class SbarShiftEvaluationsModal extends Component
                     }
                 }
 
-                $beds[] = [
+                $totais = array_map('count', $mensagensPorTurno);
+                $hasPinned = array_map(
+                    fn ($msgs) => collect($msgs)->contains('is_pinned', true),
+                    $mensagensPorTurno
+                );
+
+                $this->beds[] = [
                     'leito' => $patient['cd_unidade_basica'] ?? 'N/A',
                     'nome_paciente' => $hasPatient ? ($patient['nm_pessoa_fisica'] ?? 'N/A') : '',
                     'prontuario' => $patient['nr_prontuario'] ?? '',
                     'atendimento' => $nrAtendimento,
                     'has_patient' => $hasPatient,
                     'status' => $status,
-                    'internment_days' => ($patient['internment_days'] !== null && $hasPatient) ? (int) $patient['internment_days'] : null,
                     'internment_label' => $this->buildInternmentLabel($patient, $hasPatient),
                     'alta_label' => $altaLabel,
                     'alta_formatted' => $altaFormatted,
-                    'motivo_alta' => $dischargeInfo['ds_motivo_alta'] ?? null,
-                    'mensagens' => $formattedMessages,
-                    'total_mensagens' => count($formattedMessages),
-                    'has_pinned' => collect($formattedMessages)->contains('is_pinned', true),
+                    'mensagens' => $mensagensPorTurno,
+                    'totais' => $totais,
+                    'has_pinned' => $hasPinned,
                 ];
-
-                $totalMessages += count($formattedMessages);
             }
 
-            $this->beds = $beds;
-            $this->totalMessages = $totalMessages;
+            // Serializa apenas os metadados (sem objetos Carbon) para o frontend.
+            $this->shiftsMeta = array_map(fn ($w) => [
+                'key' => $w['key'],
+                'label' => $w['label'],
+                'time_range' => $w['time_range'],
+                'date_label' => $w['date_label'],
+                'full_label' => $w['full_label'],
+            ], $windows);
 
         } catch (\Exception $e) {
             Log::error('[SbarShiftEvaluationsModal] Error loading evaluations', [
@@ -250,7 +252,8 @@ class SbarShiftEvaluationsModal extends Component
                 'error' => $e->getMessage(),
             ]);
             $this->beds = [];
-            $this->totalMessages = 0;
+            $this->photos = [];
+            $this->shiftsMeta = [];
         } finally {
             $this->loading = false;
         }
@@ -266,51 +269,130 @@ class SbarShiftEvaluationsModal extends Component
         $repo = new ChatRepository;
         $result = $repo->toggleReaction($messageId, $userId);
 
-        // Update the specific message in $this->beds without a full reload.
+        // Atualiza a mensagem específica em $this->beds sem re-renderizar tudo.
         $beds = $this->beds;
         foreach ($beds as &$bed) {
-            foreach ($bed['mensagens'] as &$msg) {
-                if ($msg['id'] === $messageId) {
-                    $msg['user_reacted'] = $result['reacted'];
-                    $msg['reactions_count'] = count($result['reactions']);
-                    break 2;
+            foreach (['current', 'previous', 'previous2'] as $shiftKey) {
+                foreach ($bed['mensagens'][$shiftKey] as &$msg) {
+                    if ($msg['id'] === $messageId) {
+                        $msg['user_reacted'] = $result['reacted'];
+                        $msg['reactions_count'] = count($result['reactions']);
+                        break 3;
+                    }
                 }
+                unset($msg);
             }
         }
+        unset($bed);
         $this->beds = $beds;
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
     /**
-     * Returns [Carbon $from, Carbon $to] for the selected shift.
+     * Computa as janelas dos 3 turnos retroativos ao atual.
      *
-     * The current window comes from ShiftService::getShiftWindow().
-     * The previous window is computed by stepping back one shift duration:
-     *   - morning  → previous night  = 12h back from morning start (19h yesterday – 07h today)
-     *   - afternoon→ previous morning =  6h back from afternoon start
-     *   - night    → previous afternoon = 6h back from night start
+     * Durações: manhã = 6h, tarde = 6h, noite = 12h.
+     * Retorna array de 3 janelas em ordem decrescente (current primeiro).
+     *
+     * @return array<int, array{key: string, label: string, time_range: string, date_label: string, full_label: string, from: Carbon, to: Carbon}>
      */
-    private function resolveShiftWindow(): array
+    private function buildThreeShiftWindows(): array
     {
-        $currentWindow = ShiftService::getShiftWindow();
-        [$currentStart, $currentEnd] = $currentWindow;
+        $durations = ['morning' => 6, 'afternoon' => 6, 'night' => 12];
+        $labels = ['morning' => 'Manhã', 'afternoon' => 'Tarde', 'night' => 'Noite'];
+        $timeRanges = ['morning' => '07:00 – 13:00', 'afternoon' => '13:00 – 19:00', 'night' => '19:00 – 07:00'];
+        $prevOf = fn (string $s): string => match ($s) {
+            'morning' => 'night',
+            'afternoon' => 'morning',
+            'night' => 'afternoon',
+        };
 
-        if ($this->activeShift === 'current') {
-            return $currentWindow;
-        }
+        $info = ShiftService::getShiftInfo();
+        [$curFrom, $curTo] = ShiftService::getShiftWindow();
+        $curShift = $info['shift'];
 
-        // Previous shift: step back from the start of the current shift.
-        $shiftInfo = ShiftService::getShiftInfo();
-        $stepBack = $shiftInfo['shift'] === 'morning' ? 12 : 6;
+        $prevShift = $prevOf($curShift);
+        $prev2Shift = $prevOf($prevShift);
 
+        $prevFrom = $curFrom->copy()->subHours($durations[$prevShift]);
+        $prevTo = $curFrom->copy();
+        $prev2From = $prevFrom->copy()->subHours($durations[$prev2Shift]);
+        $prev2To = $prevFrom->copy();
+
+        $dateLabel = function (Carbon $from, Carbon $to): string {
+            $fromLabel = $from->isToday() ? 'Hoje' : ($from->isYesterday() ? 'Ontem' : $from->format('d/m'));
+            $toLabel = $to->isToday() ? 'Hoje' : ($to->isYesterday() ? 'Ontem' : $to->format('d/m'));
+
+            return $fromLabel === $toLabel ? $fromLabel : "{$fromLabel} – {$toLabel}";
+        };
+
+        $fullLabel = function (string $shiftName, Carbon $from, Carbon $to) use ($labels, $timeRanges, $dateLabel): string {
+            return $labels[$shiftName].' · '.$dateLabel($from, $to).' · '.$timeRanges[$shiftName];
+        };
+
+        // Ordem cronológica: mais antigo à esquerda, turno atual à direita.
         return [
-            $currentStart->copy()->subHours($stepBack),
-            $currentStart->copy(),
+            [
+                'key' => 'previous2',
+                'label' => $labels[$prev2Shift],
+                'time_range' => $timeRanges[$prev2Shift],
+                'date_label' => $dateLabel($prev2From, $prev2To),
+                'full_label' => $fullLabel($prev2Shift, $prev2From, $prev2To),
+                'from' => $prev2From,
+                'to' => $prev2To,
+            ],
+            [
+                'key' => 'previous',
+                'label' => $labels[$prevShift],
+                'time_range' => $timeRanges[$prevShift],
+                'date_label' => $dateLabel($prevFrom, $prevTo),
+                'full_label' => $fullLabel($prevShift, $prevFrom, $prevTo),
+                'from' => $prevFrom,
+                'to' => $prevTo,
+            ],
+            [
+                'key' => 'current',
+                'label' => $labels[$curShift],
+                'time_range' => $timeRanges[$curShift],
+                'date_label' => $dateLabel($curFrom, $curTo),
+                'full_label' => $fullLabel($curShift, $curFrom, $curTo),
+                'from' => $curFrom,
+                'to' => $prev2To,
+            ],
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $patient
+     * Determina a qual turno uma mensagem pertence comparando seu timestamp
+     * com as janelas pré-computadas.
      */
+    private function classifyMessageToShift(string $createdAt, array $windows): string
+    {
+        $ts = Carbon::parse($createdAt)->timestamp;
+
+        foreach ($windows as $window) {
+            if ($ts >= $window['from']->timestamp && $ts < $window['to']->timestamp) {
+                return $window['key'];
+            }
+        }
+
+        return 'current';
+    }
+
+    /**
+     * Formata a data/hora de uma mensagem de forma legível:
+     * "Hoje 14:32", "Ontem 21:10", "15/05 08:00"
+     */
+    private function formatMessageDateTime(Carbon $dt): string
+    {
+        $prefix = $dt->isToday()
+            ? 'Hoje'
+            : ($dt->isYesterday() ? 'Ontem' : $dt->format('d/m'));
+
+        return $prefix.' '.$dt->format('H:i');
+    }
+
     private function buildInternmentLabel(array $patient, bool $hasPatient): ?string
     {
         if (! $hasPatient) {
@@ -327,7 +409,6 @@ class SbarShiftEvaluationsModal extends Component
             return $days.'d internado';
         }
 
-        // Same-day admission: compute hours from dt_entrada.
         $dtEntrada = $patient['dt_entrada'] ?? null;
         if ($dtEntrada) {
             try {

@@ -13,7 +13,7 @@
         class="absolute inset-0"
     >
         {{-- Backdrop --}}
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$el._hide()"></div>
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="open = false; document.body.style.overflow = ''"></div>
 
         {{-- Container do Modal --}}
         <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
@@ -40,7 +40,7 @@
                         </svg>
                         <h2 class="text-base font-bold text-white leading-tight">Editar Perfil</h2>
                     </div>
-                    <button @click="$el._hide()" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
+                    <button @click="open = false; document.body.style.overflow = ''" class="p-2 text-white/70 hover:text-white hover:bg-white/15 rounded-lg transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -86,7 +86,7 @@
                 <div class="px-4 py-3 border-t border-gray-200 bg-gray-100 flex-shrink-0 flex justify-end gap-3">
                     <button
                         type="button"
-                        @click="$el._hide()"
+                        @click="open = false; document.body.style.overflow = ''"
                         class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors"
                     >
                         Cancelar

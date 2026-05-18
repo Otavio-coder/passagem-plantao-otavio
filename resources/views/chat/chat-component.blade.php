@@ -59,7 +59,9 @@
         .send-btn-loading .btn-spinner { display: inline-block !important; }
         .btn-spinner {
             display: none;
-            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 18px;
             height: 18px;
             border: 2.5px solid rgba(255, 255, 255, 0.3);
@@ -108,17 +110,17 @@
         <div class="flex-shrink-0 relative overflow-hidden rounded-none sm:rounded-t-lg">
             <div class="absolute inset-0" style="background: {{ $this->shiftDisplay['gradient_style'] ?? 'linear-gradient(90deg, #9ca3af 0%, #6b7280 100%)' }};"></div>
 
-            <div class="relative z-10 text-white px-3 py-2.5">
+            <div class="relative z-10 text-white px-3 sm:px-4 py-2.5 sm:py-3.5">
                 <div class="flex items-center gap-2.5 min-w-0">
                     {{-- Shift icon --}}
-                    <div class="flex-shrink-0 p-2 bg-white/20 rounded-xl border border-white/20">
+                    <div class="flex-shrink-0 p-2 sm:p-2.5 bg-white/20 rounded-xl border border-white/20">
                         {!! $this->shiftDisplay['icon_html'] !!}
                     </div>
 
                     {{-- Shift name + user info --}}
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-1.5 leading-none">
-                            <p class="text-[11px] font-bold uppercase tracking-widest text-white/80 leading-none">
+                            <p class="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-white/80 leading-none">
                                 Turno {{ $this->shiftDisplay['badge'] }}
                             </p>
                             @if(($this->messageStats['pinned_count'] ?? 0) > 0)
@@ -128,7 +130,7 @@
                                     title="Ir para anotação fixada"
                                     class="inline-flex items-center justify-center text-yellow-300 hover:text-yellow-200 focus:outline-none"
                                 >
-                                    <i class="fas fa-thumbtack text-[10px]"></i>
+                                    <i class="fas fa-thumbtack text-[10px] sm:text-xs"></i>
                                 </button>
                             @endif
                         </div>
@@ -136,32 +138,35 @@
                             <x-ui.user-avatar
                                 :photo="$currentUser['photo'] ?? null"
                                 :name="$currentUser['name'] ?? 'U'"
-                                class="w-4 h-4 flex-shrink-0 border border-white/40"
+                                class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 border border-white/40"
                             />
-                            <div class="flex items-center gap-1 bg-white/15 rounded-lg px-2 py-0.5 min-w-0">
-                                <span class="text-white text-xs font-semibold leading-none">
+                            <div class="flex items-center gap-1 bg-white/15 rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 min-w-0">
+                                <span class="text-white text-xs sm:text-sm font-semibold leading-none">
                                     {{ $currentUser['name'] ?? 'Usuário' }}
                                 </span>
                                 @if(!empty($currentUser['role']))
-                                    <span class="text-white/70 text-[11px] leading-none">· {{ $currentUser['role'] }}</span>
+                                    <span class="text-white/70 text-[11px] sm:text-xs leading-none">· {{ $currentUser['role'] }}</span>
                                 @endif
                             </div>
                         </div>
                     </div>
 
-                    {{-- Time + stats --}}
+                    {{-- Todo list + Time + stats --}}
                     <div class="flex-shrink-0 flex flex-col items-end gap-0.5">
-                        <div id="current-time-display" class="text-white text-sm font-bold tracking-wide leading-none">
-                            {{ now()->format('H:i') }}
+                        <div class="flex items-center gap-2">
+                            @livewire('sbar-chat-todo-list', ['patientId' => (int) $patientId], key('chat-todo-'.$patientId))
+                            <div id="current-time-display" class="text-white text-sm sm:text-base font-bold tracking-wide leading-none">
+                                {{ now()->format('H:i') }}
+                            </div>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
                             @if(($this->messageStats['shift_count'] ?? 0) > 0)
-                                <span class="text-white/80 text-[10px] font-medium">
+                                <span class="text-white/80 text-[10px] sm:text-xs font-medium">
                                     {{ $this->messageStats['shift_count'] }} {{ $this->messageStats['shift_count'] === 1 ? 'no turno' : 'no turno' }}
                                 </span>
                             @else
-                                <span class="text-white/60 text-[10px]">Sem anotações no turno</span>
+                                <span class="text-white/60 text-[10px] sm:text-xs">Sem anotações no turno</span>
                             @endif
                         </div>
                     </div>
@@ -222,6 +227,32 @@
             </div>
         </div>
 
+        {{-- Notice banner: chat is for digital SBAR notes, not formal evaluations --}}
+        <div
+            x-data="{
+                show: localStorage.getItem('sbar_chat_notice_v1') !== 'dismissed'
+            }"
+            x-show="show"
+            x-cloak
+            class="flex-shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2"
+        >
+            <div class="flex items-start gap-2">
+                <i class="fas fa-circle-info text-amber-500 text-xs mt-0.5 flex-shrink-0"></i>
+                <p class="flex-1 text-[11px] text-amber-800 leading-snug">
+                    <span class="font-semibold">Este chat é o SBAR digital.</span>
+                    Registre aqui as informações que seriam escritas no papel durante a passagem de plantão.
+                    Não é uma avaliação formal de enfermagem e não possui integração direta com o Tasy.
+                </p>
+                <button
+                    @click="show = false; localStorage.setItem('sbar_chat_notice_v1', 'dismissed')"
+                    class="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors p-0.5"
+                    title="Entendido, não mostrar novamente"
+                >
+                    <i class="fas fa-xmark text-xs"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Messages area -->
         <div
             class="flex-1 overflow-y-auto bg-gray-50 relative chat-container p-2 sm:p-3"
@@ -236,6 +267,24 @@
                     <p class="text-gray-600 text-xs">Carregando...</p>
                 </div>
             </div>
+
+            @if(!$showAllMessages && $totalMessageCount > 5)
+                <button
+                    wire:click="loadAllMessages"
+                    wire:loading.attr="disabled"
+                    wire:target="loadAllMessages"
+                    class="w-full mb-2 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs text-blue-700 font-medium transition-colors"
+                >
+                    <span wire:loading.remove wire:target="loadAllMessages">
+                        <i class="fas fa-comments fa-xs"></i>
+                        Carregar todas as {{ $totalMessageCount }} anotações
+                    </span>
+                    <span wire:loading wire:target="loadAllMessages" class="flex items-center gap-1.5">
+                        <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                        Carregando...
+                    </span>
+                </button>
+            @endif
 
             @if($hasOlderMessages || $hasArchivedHistory)
                 <div class="mb-2 flex items-center gap-1.5 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-400">
@@ -454,7 +503,7 @@
         <!-- Message input -->
         <div class="flex-shrink-0 border-t border-slate-200 bg-white p-2 sm:p-3">
             <form @submit.prevent="sendMessage()">
-                <div class="flex items-end gap-2.5 sm:gap-2">
+                <div class="flex items-center gap-2.5 sm:gap-2">
                     <div class="relative flex-1">
                         <textarea
                             x-model="messageText"

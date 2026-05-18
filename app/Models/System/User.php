@@ -2,6 +2,7 @@
 
 namespace App\Models\System;
 
+use App\Models\NurseHandoverBed;
 use App\Services\MSGraph\GetUserPhoto;
 use App\Services\MSGraph\GetUserRole;
 use Database\Factories\UserFactory;
@@ -47,6 +48,7 @@ class User extends Authenticatable implements LdapAuthenticatable
         'photo',
         'role',
         'role_synced_at',
+        'is_nurse',
     ];
 
     /**
@@ -70,6 +72,7 @@ class User extends Authenticatable implements LdapAuthenticatable
             'email_verified_at' => 'datetime',
             'last_access_at' => 'datetime',
             'role_synced_at' => 'datetime',
+            'is_nurse' => 'boolean',
             'password' => 'hashed',
         ];
     }
@@ -210,5 +213,27 @@ class User extends Authenticatable implements LdapAuthenticatable
     public function hasConfiguredSectors(): bool
     {
         return $this->sectorPreferences()->exists();
+    }
+
+    public function isNurse(): bool
+    {
+        return (bool) $this->is_nurse
+            || $this->hasRole('Administrador')
+            || $this->hasRole('Enfermeiro');
+    }
+
+    /** @return HasMany<NurseHandoverBed> */
+    public function handoverBeds(): HasMany
+    {
+        return $this->hasMany(NurseHandoverBed::class);
+    }
+
+    /** @return array<string> bed_codes for a given sector */
+    public function handoverBedCodesForSector(int $sectorId): array
+    {
+        return $this->handoverBeds()
+            ->where('sector_id', $sectorId)
+            ->pluck('bed_code')
+            ->all();
     }
 }

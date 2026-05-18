@@ -3,10 +3,13 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
+use App\Models\ShiftHandover;
+use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
@@ -46,6 +49,18 @@ class SbarPatientModal extends Component
     /** Date shown in the medication schedule grid (Y-m-d). Navigable with shiftScheduleDay(). */
     public string $scheduleDate = '';
 
+    /** Whether the modal is locked in nurse handover mode. */
+    public bool $handoverMode = false;
+
+    /** ISO timestamp when the handover session started, used for the timer. */
+    public string $handoverStartedAt = '';
+
+    /** Session token for multi-tab safety (passed through finish/cancel events). */
+    public string $handoverSessionToken = '';
+
+    /** Attendance numbers of beds actually visited during handover (de-duplicated). */
+    public array $visitedBedsAttendances = [];
+
     /** @var array Per-medication hour slots: [ med_id => [ 'HH:MI' => 'administered'|'scheduled'|'missed' ] ] */
     public array $medicationSchedule = [];
 
@@ -66,6 +81,29 @@ class SbarPatientModal extends Component
         $this->scheduleDate = now()->format('Y-m-d');
     }
 
+    #[On('openPatientModalHandover')]
+    public function openFromHandover(array $data): void
+    {
+        $attendanceNumber = $data['attendanceNumber'] ?? null;
+        $patients = $data['patients'] ?? [];
+
+        if (! $attendanceNumber) {
+            return;
+        }
+
+        if (! empty($data['handoverMode'])) {
+            $this->handoverMode = true;
+            $this->handoverStartedAt = $data['startedAt'] ?? now()->toISOString();
+            $this->handoverSessionToken = $data['sessionToken'] ?? '';
+            $this->visitedBedsAttendances = [];
+        }
+
+        $sbarPatient = collect($patients)
+            ->firstWhere('nr_atendimento', (int) $attendanceNumber);
+
+        $this->openModal((int) $attendanceNumber, '', $sbarPatient ?? null, $patients);
+    }
+
     #[On('openModal')]
     public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
     {
@@ -78,8 +116,38 @@ class SbarPatientModal extends Component
         }
 
         try {
+            $previousVisited = $this->visitedBedsAttendances;
             $this->resetModalState();
-            $this->setModalPatients(is_array($patients) ? $patients : [], (int) $attendanceNumber);
+            $this->visitedBedsAttendances = $previousVisited;
+
+            if ($this->handoverMode) {
+                $nr = (int) $attendanceNumber;
+                if ($nr > 0 && ! in_array($nr, $this->visitedBedsAttendances, true)) {
+                    $this->visitedBedsAttendances[] = $nr;
+                }
+            }
+
+            // Se a lista de pacientes não veio via evento (window.__sbarModalPatients não executa
+            // no morph do Livewire), busca os pacientes do setor direto do cache de demographics
+            // (já aquecido pelo SbarReport, lookup Redis ~1 ms).
+            $patientsList = is_array($patients) ? $patients : [];
+            if (empty($patientsList) && is_array($sbarPatient)) {
+                $sectorId = (int) ($sbarPatient['cd_setor_atendimento'] ?? 0);
+                if ($sectorId > 0) {
+                    try {
+                        $patientsList = array_values(
+                            PatientDataLoader::forSector($sectorId)->include('demographics')->get()
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('PatientModal: Failed to load sector patients for navigation', [
+                            'sector_id' => $sectorId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            $this->setModalPatients($patientsList, (int) $attendanceNumber);
             $this->loadingPatient = true;
             $this->showModal = true;
             $this->dispatch('modal-opened');
@@ -98,8 +166,6 @@ class SbarPatientModal extends Component
                 'shift' => $this->currentShift,
             ]);
 
-            // Usa payload SBAR apenas quando for suficientemente rico.
-            // Payloads mínimos de navegação devem cair no fetch normal para evitar empty states.
             if (is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
                 $this->loadFromSbarData($sbarPatient, $attendanceNumber);
             } else {
@@ -122,8 +188,9 @@ class SbarPatientModal extends Component
     private function setModalPatients(array $patients, int $currentAttendance): void
     {
         $normalized = collect($patients)
-            ->filter(fn ($patient) => is_array($patient))
-            ->map(function (array $patient): array {
+            ->filter(fn ($patient) => is_array($patient) || is_object($patient))
+            ->map(function ($rawPatient): array {
+                $patient = is_array($rawPatient) ? $rawPatient : (array) $rawPatient;
                 $attendance = (int) ($patient['nr_atendimento'] ?? 0);
                 $existingLabel = trim((string) ($patient['label'] ?? ''));
                 $sbarPayload = $patient['sbar_payload'] ?? [];
@@ -195,31 +262,16 @@ class SbarPatientModal extends Component
      */
     private function isUsableSbarPayload(array $payload): bool
     {
-        // IDs/campos de navegação sozinhos não são snapshot completo.
-        $lightweightNavigationKeys = [
-            'nr_atendimento',
-            'cd_pessoa_fisica',
-            'nm_pessoa_fisica',
-            'nm_social',
-            'cd_unidade_basica',
-            'ds_setor_atendimento',
-            'ds_prescricao',
-            'label',
-            'sbar_payload',
-        ];
-
-        $nonNavigationData = collect($payload)
-            ->except($lightweightNavigationKeys)
-            ->filter(fn ($value) => ! (is_null($value) || $value === '' || $value === []));
-
-        if ($nonNavigationData->isNotEmpty()) {
-            return true;
-        }
-
-        return ! empty($payload['nr_prontuario'])
-            || ! empty($payload['age_detailed'])
-            || ! empty($payload['sexo'])
-            || ! empty($payload['convenio']);
+        // Exige ao menos um campo clínico/SBAR rico que não vem do DemographicsLoader.
+        // Payloads com apenas dados demográficos devem ir para loadPatientData() para
+        // garantir escalas, avaliação de enfermagem, hemoculturas e dados clínicos completos.
+        return array_key_exists('mews_score', $payload)
+            || array_key_exists('pews_score', $payload)
+            || array_key_exists('braden_score', $payload)
+            || array_key_exists('has_isolation', $payload)
+            || array_key_exists('alergias_detalhadas', $payload)
+            || (isset($payload['pending_events']) && is_array($payload['pending_events']))
+            || (isset($payload['hemoc_history']) && is_array($payload['hemoc_history']));
     }
 
     /**
@@ -290,6 +342,8 @@ class SbarPatientModal extends Component
                 'cd_unidade_basica' => $sbarData['cd_unidade_basica'] ?? ($this->currentPatient['cd_unidade_basica'] ?? null),
                 'ds_setor_atendimento' => $sbarData['ds_setor_atendimento'] ?? ($this->currentPatient['ds_setor_atendimento'] ?? null),
                 'ds_prescricao' => $sbarData['ds_prescricao'] ?? ($this->currentPatient['ds_prescricao'] ?? null),
+                'pending_events' => is_array($sbarData['pending_events'] ?? null) ? $sbarData['pending_events'] : [],
+                'hemoc_history' => is_array($sbarData['hemoc_history'] ?? null) ? $sbarData['hemoc_history'] : [],
             ]);
 
             $this->checkAndShowAlertsModal();
@@ -347,7 +401,7 @@ class SbarPatientModal extends Component
             return;
         }
 
-        // Day navigation is disabled in UI: medication schedule is always locked to today.
+        // Navegação por dia desabilitada na UI: o cronograma de medicação é sempre fixado no dia atual.
         $this->scheduleDate = now()->format('Y-m-d');
 
         $this->loadMedicationSchedule();
@@ -643,6 +697,48 @@ class SbarPatientModal extends Component
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
     }
 
+    public function finishHandover(): void
+    {
+        $this->dispatch('handoverFinishedFromModal', [
+            'startedAt' => $this->handoverStartedAt,
+            'bedsVisited' => count($this->visitedBedsAttendances),
+            'sessionToken' => $this->handoverSessionToken,
+        ]);
+
+        $this->handoverMode = false;
+        $this->handoverStartedAt = '';
+        $this->handoverSessionToken = '';
+        $this->visitedBedsAttendances = [];
+        $this->showModal = false;
+        $this->resetModalState();
+        $this->dispatch('modal-closed');
+    }
+
+    public function cancelHandover(): void
+    {
+        $this->dispatch('cancelNurseHandoverSession');
+
+        $this->handoverMode = false;
+        $this->handoverStartedAt = '';
+        $this->handoverSessionToken = '';
+        $this->visitedBedsAttendances = [];
+        $this->showModal = false;
+        $this->resetModalState();
+        $this->dispatch('modal-closed');
+    }
+
+    public function updateHandoverActivity(): void
+    {
+        if (! $this->handoverSessionToken) {
+            return;
+        }
+
+        ShiftHandover::where('session_token', $this->handoverSessionToken)
+            ->where('user_id', Auth::id())
+            ->where('status', ShiftHandover::STATUS_ACTIVE)
+            ->update(['last_activity_at' => now()]);
+    }
+
     public function closeModal()
     {
         $this->showModal = false;
@@ -744,20 +840,38 @@ class SbarPatientModal extends Component
     {
         $plan = $this->prescriptions ?? [];
 
-        $allProcedureItems = collect($plan['procedures']['items'] ?? []);
-        $examCount = $allProcedureItems->filter(function (array $item) {
-            $eventType = strtolower((string) ($item['event_type'] ?? ''));
-            $type = strtolower((string) ($item['type'] ?? ''));
+        // Quando o patientDetails contém pending_events do payload SBAR, usa-os como fonte
+        // para as abas de Exames e Procedimentos — dados mais ricos e já filtrados por pendência.
+        $pendingEvents = [];
+        if (isset($this->patientDetails) && is_array($this->patientDetails->pending_events ?? null)) {
+            $pendingEvents = (array) $this->patientDetails->pending_events;
+        }
 
-            return $eventType === 'exame'
-                || str_contains($type, 'exame')
-                || str_contains($type, 'laborat');
-        })->count();
+        $usePendingForProcedures = ! empty($pendingEvents);
+
+        if ($usePendingForProcedures) {
+            $pendingTabs = $this->mapPendingEventsToTabs($pendingEvents);
+            $examCount = count($pendingTabs['exams']);
+            $procCount = count($pendingTabs['procedures']);
+            $procedureItems = array_merge($pendingTabs['exams'], $pendingTabs['procedures']);
+        } else {
+            $allProcedureItems = collect($plan['procedures']['items'] ?? []);
+            $examCount = $allProcedureItems->filter(function (array $item) {
+                $eventType = strtolower((string) ($item['event_type'] ?? ''));
+                $type = strtolower((string) ($item['type'] ?? ''));
+
+                return $eventType === 'exame'
+                    || str_contains($type, 'exame')
+                    || str_contains($type, 'laborat');
+            })->count();
+            $procCount = $allProcedureItems->count() - $examCount;
+            $procedureItems = $plan['procedures']['items'] ?? [];
+        }
 
         $counts = [
             'tab-med' => $plan['medications']['count'] ?? 0,
             'tab-exam' => $examCount,
-            'tab-proc' => $allProcedureItems->count() - $examCount,
+            'tab-proc' => $procCount,
             'tab-surg' => $plan['surgery']['count'] ?? 0,
             'tab-hemo' => $plan['hemotherapy']['count'] ?? 0,
             'tab-chemo' => $plan['chemotherapy']['count'] ?? 0,
@@ -794,7 +908,7 @@ class SbarPatientModal extends Component
             'schedule' => $this->medicationSchedule,
             'time_columns' => $timeColumns,
             'current_hour' => now()->format('H').':00',
-            'procedures' => $plan['procedures']['items'] ?? [],
+            'procedures' => $procedureItems,
             'orders' => $plan['orders']['items'] ?? [],
             'interventions' => $plan['interventions']['items'] ?? [],
             'hemotherapy' => $plan['hemotherapy']['items'] ?? [],
@@ -814,6 +928,73 @@ class SbarPatientModal extends Component
             'current_hour' => now()->format('H').':00',
             'alpine_payload' => $alpinePayload,
         ];
+    }
+
+    /**
+     * Mapeia pending_events do payload SBAR para o formato esperado pelos tabs de Exames/Procedimentos.
+     *
+     * @param  array<int, array<string, mixed>>  $pendingEvents
+     * @return array{exams: list<array<string, mixed>>, procedures: list<array<string, mixed>>}
+     */
+    private function mapPendingEventsToTabs(array $pendingEvents): array
+    {
+        $exams = [];
+        $procedures = [];
+
+        foreach ($pendingEvents as $event) {
+            $tipo = (string) ($event['tipo'] ?? '');
+
+            if (in_array($tipo, ['exame', 'proc_exame'], true)) {
+                $exams[] = [
+                    'id' => $event['nr_prescricao'] ?? uniqid(),
+                    'name' => $event['descricao'] ?? 'Exame',
+                    'classificacao' => $event['ds_grupo_lab'] ?? null,
+                    'material' => null,
+                    'checklist_amostra' => $event['ie_amostra'] ?? null,
+                    'dt_solicitacao' => $event['dt_solicitacao'] ?? null,
+                    'scheduled' => $event['dt_evento_formatted'] ?? null,
+                    'scheduled_raw' => $event['dt_evento'] ?? null,
+                    'dt_coleta' => $event['dt_coleta'] ?? null,
+                    'tempo_pendente' => $event['tempo_pendente'] ?? null,
+                    'status_laudo' => $event['status_laudo'] ?? null,
+                    'status' => $event['ie_status_execucao'] ?? null,
+                    'nr_prescricao' => $event['nr_prescricao'] ?? null,
+                    'prescriber' => $event['nm_prescritor_display'] ?? $event['nm_prescritor'] ?? null,
+                    'resultado_laudo' => $event['scola_status'] ?? null,
+                    'foi_executado_sem_baixa' => (bool) ($event['foi_executado_sem_baixa'] ?? false),
+                    'exame_coletado_em_prescricao_mais_nova' => (bool) ($event['exame_coletado_em_prescricao_mais_nova'] ?? false),
+                    'prescricao_mais_nova_pendente_info' => $event['prescricao_mais_nova_pendente_info'] ?? null,
+                    'motivo_pendente' => $event['motivo_pendente'] ?? null,
+                    'scola_status' => $event['scola_status'] ?? null,
+                    'event_type' => 'exame',
+                    'is_today' => (bool) ($event['is_near'] ?? false),
+                    'is_near' => (bool) ($event['is_near'] ?? false),
+                    'urgente' => (bool) ($event['urgente'] ?? false),
+                ];
+            } elseif ($tipo === 'procedimento') {
+                $procedures[] = [
+                    'id' => uniqid(),
+                    'name' => $event['descricao'] ?? 'Procedimento',
+                    'type' => $event['ds_subtipo'] ?? null,
+                    'sector_name' => $event['setor_execucao'] ?? null,
+                    'sector_code' => null,
+                    'scheduled' => $event['dt_evento_formatted'] ?? null,
+                    'scheduled_raw' => $event['dt_evento'] ?? null,
+                    'prescriber' => $event['nm_prescritor_display'] ?? $event['nm_prescritor'] ?? null,
+                    'resultado_laudo' => null,
+                    'status' => $event['ie_status_execucao'] ?? null,
+                    'foi_executado_sem_baixa' => (bool) ($event['foi_executado_sem_baixa'] ?? false),
+                    'proc_realizado_em_nova_prescricao' => (bool) ($event['proc_realizado_em_nova_prescricao'] ?? false),
+                    'motivo_pendente' => $event['motivo_pendente'] ?? null,
+                    'event_type' => 'procedimento',
+                    'is_today' => (bool) ($event['is_near'] ?? false),
+                    'is_near' => (bool) ($event['is_near'] ?? false),
+                    'urgente' => (bool) ($event['urgente'] ?? false),
+                ];
+            }
+        }
+
+        return ['exams' => $exams, 'procedures' => $procedures];
     }
 
     public function getScalesDataProperty()

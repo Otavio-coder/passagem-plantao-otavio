@@ -93,11 +93,18 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $tabletMode = $request->boolean('tablet_mode');
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
+
+        if ($tabletMode) {
+            // Preserve sector cache in Redis — next nurse benefits from warm cache.
+            // Flash a message so the login page shows a tablet-friendly prompt.
+            return redirect()->route('login')->with('tablet_handover', true);
+        }
 
         return redirect('/');
     }

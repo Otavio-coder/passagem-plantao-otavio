@@ -147,6 +147,31 @@ class ShiftService
         ];
     }
 
+    /**
+     * Returns [Carbon $start, Carbon $end] considering a grace period before shift change.
+     * Within `graceMinutes` before a shift starts, returns the upcoming shift's window.
+     * E.g. at 06:30 with grace=30, returns the morning window (07:00–12:59) instead of night.
+     */
+    public static function getShiftWindowWithGrace(int $graceMinutes = 30, $now = null): array
+    {
+        $dt = $now ? Carbon::parse($now) : now();
+        $shifted = $dt->copy()->addMinutes($graceMinutes);
+
+        return self::getShiftWindow($shifted);
+    }
+
+    /**
+     * Returns the current shift string ('M', 'T', or 'N') considering a grace period.
+     * Within `graceMinutes` before a shift starts, returns the upcoming shift.
+     */
+    public static function getCurrentShiftWithGrace(int $graceMinutes = 30, $time = null): string
+    {
+        $dt = $time ? Carbon::parse($time) : now();
+        $shifted = $dt->copy()->addMinutes($graceMinutes);
+
+        return self::getCurrentShift($shifted);
+    }
+
     public static function getShiftLabel(string $shift): string
     {
         return match ($shift) {

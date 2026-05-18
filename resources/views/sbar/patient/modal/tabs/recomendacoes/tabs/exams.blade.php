@@ -11,78 +11,117 @@
             </button>
         </div>
     </div>
+
     <div x-show="filteredExams.length === 0" class="bg-white rounded-xl border border-gray-200 py-10 flex flex-col items-center gap-2">
         <i class="fa-solid fa-filter-circle-xmark text-gray-200" style="font-size:28px;"></i>
         <p class="text-sm text-gray-400">Nenhum exame encontrado.</p>
         <button @click="clearExamFilters()" class="text-xs font-semibold text-blue-700 hover:underline">Limpar filtros</button>
     </div>
+
     <div x-show="filteredExams.length > 0" class="space-y-2">
         <template x-for="(exam, idx) in pagedExams" :key="(exam.id || 'noid') + '-' + (exam.scheduled_raw || exam.scheduled || '') + '-' + idx">
-            <div class="bg-white rounded-lg border border-blue-200 px-3 py-2.5 shadow-sm transition-colors">
+            <div class="bg-white rounded-lg border border-blue-200 px-3 py-2.5 shadow-sm transition-colors"
+                 :class="exam.urgente ? 'border-[#7712C7]/40 bg-[#7712C7]/5' : ''">
+
+                {{-- Linha principal: nome + badge --}}
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <div class="flex flex-wrap items-baseline gap-1.5">
-                            <p class="text-xs font-semibold text-gray-800 leading-snug"
+                            <p class="text-xs font-semibold leading-snug"
+                               :class="exam.urgente ? 'text-[#7712C7]' : 'text-[#062047]'"
                                x-text="exam.name || 'Exame não identificado'"></p>
                             <span x-show="exam.classificacao"
                                   class="text-[10px] text-gray-500 font-medium leading-none"
                                   x-text="exam.classificacao"></span>
                         </div>
-                        <p class="mt-1 text-[10px] text-gray-500 leading-snug">
-                            <span x-show="exam.material">
-                                Material: <span x-text="exam.material"></span>
-                            </span>
-                            <span x-show="exam.checklist_amostra !== null && exam.checklist_amostra !== undefined && exam.checklist_amostra !== ''">
-                                · Amostra:
-                                <span x-text="['S', '1', 'SIM'].includes(String(exam.checklist_amostra).toUpperCase()) ? 'Sim' : 'Não'"></span>
-                            </span>
-                            <span x-show="exam.dt_solicitacao">
-                                · Solicitação: <span x-text="exam.dt_solicitacao"></span>
-                            </span>
-                            <span x-show="exam.scheduled">
-                                · Realização: <span x-text="exam.scheduled"></span>
-                            </span>
-                            <span x-show="exam.dt_coleta">
-                                · Coleta: <span x-text="exam.dt_coleta"></span>
-                            </span>
-                            <span x-show="exam.tempo_pendente">
-                                · Pendente há: <span x-text="exam.tempo_pendente"></span>
-                            </span>
-                            <span x-show="exam.status_laudo">
-                                · Laudo: <span x-text="exam.status_laudo"></span>
-                            </span>
-                            <span x-show="exam.nr_prescricao" class="text-gray-400 font-mono">
-                                · #<span x-text="exam.nr_prescricao"></span>
-                            </span>
+
+                        {{-- Prescritor --}}
+                        <p x-show="exam.prescriber" class="text-[10px] text-gray-400 mt-0.5">
+                            <i class="fa-regular fa-user mr-1"></i><span x-text="exam.prescriber"></span>
                         </p>
-                        <p x-show="exam.prescriber" class="text-[10px] text-gray-400 mt-0.5"><i class="fa-regular fa-user mr-1"></i><span x-text="exam.prescriber"></span></p>
-                        <p x-show="exam.resultado_laudo" class="text-[10px] text-emerald-700 font-semibold mt-0.5"><i class="fa-solid fa-flask mr-1 opacity-70"></i><span x-text="exam.resultado_laudo"></span></p>
-                        <div class="flex flex-wrap gap-1 mt-1">
-                            <span x-show="exam.foi_executado_sem_baixa"
-                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
-                                <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
-                                Executado sem baixa
-                            </span>
-                            <span x-show="exam.exame_coletado_em_prescricao_mais_nova"
-                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 ring-1 ring-sky-200"
-                                  :title="exam.prescricao_mais_nova_pendente_info ? 'Pedido mais recente em aberto: ' + exam.prescricao_mais_nova_pendente_info : 'Pedido mais recente em aberto'">
-                                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>
-                                Pedido mais recente em aberto
-                            </span>
-                            <span x-show="exam.prescricao_mais_nova_pendente_info && !exam.exame_coletado_em_prescricao_mais_nova"
-                                  class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
-                                <i class="fa-solid fa-rotate" style="font-size:9px;"></i>
-                                Renovado: <span class="font-mono ml-0.5" x-text="exam.prescricao_mais_nova_pendente_info"></span>
-                            </span>
+
+                        {{-- Datas em formato chave-valor --}}
+                        <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-gray-500">
+                            <template x-if="exam.dt_solicitacao">
+                                <span>
+                                    <span class="font-medium text-gray-600">Prescrição: </span>
+                                    <span x-text="exam.dt_solicitacao"></span>
+                                </span>
+                            </template>
+                            <template x-if="exam.scheduled">
+                                <span>
+                                    <span class="font-medium text-gray-600">Prev. exec.: </span>
+                                    <span x-text="exam.scheduled"></span>
+                                </span>
+                            </template>
+                            <template x-if="exam.dt_coleta">
+                                <span>
+                                    <span class="font-medium text-gray-600">Coleta: </span>
+                                    <span x-text="exam.dt_coleta"></span>
+                                </span>
+                            </template>
+                            <template x-if="exam.material">
+                                <span>
+                                    <span class="font-medium text-gray-600">Material: </span>
+                                    <span x-text="exam.material"></span>
+                                </span>
+                            </template>
+                            <template x-if="exam.checklist_amostra !== null && exam.checklist_amostra !== undefined && exam.checklist_amostra !== ''">
+                                <span>
+                                    <span class="font-medium text-gray-600">Amostra: </span>
+                                    <span x-text="['S','1','SIM'].includes(String(exam.checklist_amostra).toUpperCase()) ? 'Sim' : 'Não'"></span>
+                                </span>
+                            </template>
+                            <template x-if="exam.nr_prescricao">
+                                <span class="text-gray-400 font-mono">
+                                    <span class="font-medium text-gray-600 font-sans">Nr.: </span>
+                                    <span x-text="exam.nr_prescricao"></span>
+                                </span>
+                            </template>
+                            <span x-show="exam.tempo_pendente"
+                                  x-text="exam.tempo_pendente"
+                                  class="font-semibold"
+                                  :class="exam.urgente ? 'text-[#7712C7]' : 'text-[#0071B9]'"></span>
                         </div>
+
+                        {{-- Resultado / SCOLA / Tasy --}}
+                        <p x-show="exam.resultado_laudo"
+                           class="text-[10px] text-emerald-700 font-semibold mt-1">
+                            <i class="fa-solid fa-flask mr-1 opacity-70"></i>
+                            <span x-text="exam.resultado_laudo"></span>
+                        </p>
+
+                        <template x-if="exam.motivo_pendente || exam.scola_status">
+                            <div class="mt-1 space-y-0.5">
+                                <template x-if="exam.motivo_pendente">
+                                    <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                        <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0 opacity-70" />
+                                        <span class="font-medium text-gray-500">Tasy:</span>
+                                        <span x-text="exam.motivo_pendente"></span>
+                                    </div>
+                                </template>
+                                <template x-if="exam.scola_status">
+                                    <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                        <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0 opacity-70" />
+                                        <span class="font-medium text-gray-500">SCOLA:</span>
+                                        <span x-text="exam.scola_status"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
                     </div>
-                      <span class="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded"
-                          :class="examBadge(exam.status)"
-                          x-text="examStatusPt(exam.status)"></span>
+
+                    {{-- Badge de status --}}
+                    <span x-show="exam.status_laudo || exam.status"
+                          class="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap mt-0.5"
+                          :class="exam.urgente ? 'bg-[#7712C7] text-white' : 'bg-[#004D9D]/10 text-[#004D9D]'"
+                          x-text="exam.status_laudo || procStatusPt(exam.status)"></span>
                 </div>
             </div>
         </template>
     </div>
+
     <div x-show="examPages > 1" class="flex items-center justify-center gap-1 pt-3">
         <button @click="examPage = Math.max(1, examPage-1)" :disabled="examPage===1" :class="examPage===1 ? 'opacity-40' : 'hover:bg-gray-100'" class="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center transition-colors"><i class="fa-solid fa-angle-left" style="font-size:10px;"></i></button>
         <template x-for="(p,i) in pageNums(examPages, examPage)" :key="i">

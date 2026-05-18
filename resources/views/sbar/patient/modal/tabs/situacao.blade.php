@@ -108,21 +108,6 @@
                             <label class="block text-xs font-bold text-gray-600 mb-0.5">Plano Educ.:</label>
                             <p class="text-sm font-semibold text-gray-800">{{ $patientDetails->pe_data ?? 'Não realizado' }}</p>
                         </div>
-                        <div class="bg-gray-50 p-2 rounded-lg border">
-                            <label class="block text-xs font-bold text-gray-600 mb-0.5">Hemocultura:</label>
-                            <p class="text-sm font-semibold {{ ($patientDetails->hemocultura_pendente ?? false) ? 'text-purple-700' : 'text-gray-800' }}">
-                                @if($patientDetails->hemocultura_pendente ?? false)
-                                    Pendente
-                                    @if(!empty($patientDetails->ultima_hemocultura ?? null))
-                                        <span class="text-xs font-normal text-purple-500">(últ. {{ $patientDetails->ultima_hemocultura }})</span>
-                                    @endif
-                                @elseif(!empty($patientDetails->ultima_hemocultura ?? null))
-                                    {{ $patientDetails->ultima_hemocultura }}
-                                @else
-                                    Não coletada
-                                @endif
-                            </p>
-                        </div>
                     </div>
                     <div class="grid grid-cols-1 gap-1.5 mt-1.5">
                         <div class="bg-gray-50 p-2 rounded-lg border max-h-[80px] overflow-y-auto">

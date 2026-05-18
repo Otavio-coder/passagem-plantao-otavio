@@ -52,6 +52,7 @@
                     @csrf
                     <input type="hidden" name="user_id" id="user_id" />
                     <input type="hidden" name="edit_profile_present" value="1" />
+                    <input type="hidden" name="is_nurse_present" value="1" />
 
                     <div class="p-4 space-y-4">
                         {{-- Nome --}}
@@ -100,6 +101,18 @@
                                 <option value="A">Ativo</option>
                                 <option value="I">Inativo</option>
                             </select>
+                        </div>
+
+                        {{-- Flag Enfermeiro --}}
+                        <div class="flex items-center justify-between p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                            <div>
+                                <p class="text-sm font-medium text-gray-700">Perfil de Enfermeiro</p>
+                                <p class="text-xs text-gray-500 mt-0.5">Habilita o modo de passagem de plantão e seleção de leitos</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="is_nurse" id="edit_is_nurse" value="1" class="sr-only peer">
+                                <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#004D9D]"></div>
+                            </label>
                         </div>
 
                         {{-- Perfil --}}

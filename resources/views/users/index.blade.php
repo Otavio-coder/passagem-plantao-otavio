@@ -116,6 +116,7 @@
                                        data-email="{{ $user->email }}"
                                        data-status="{{ $user->status }}"
                                        data-profile="{{ $user->getRoleNames() }}"
+                                       data-is-nurse="{{ $user->is_nurse ? '1' : '0' }}"
                                        onclick="event.preventDefault(); openModal('modal-edit-user')"
                                        class="inline-flex justify-center font-medium text-santacasa-200 edit-user"
                                        title="Editar usuário">

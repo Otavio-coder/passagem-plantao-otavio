@@ -3,6 +3,7 @@
     'currentHospitalName' => '',
     'currentShiftName'    => '',
     'modalPatients'       => [],
+    'sectorId'              => 0,
     'showHandover'          => false,
     'showAlerts'            => false,
     'showMews'              => false,
@@ -14,7 +15,7 @@
 
 <div class="relative patient-card w-full">
     <div
-        class="card-inner patient-card-fixed flex flex-col rounded-xl shadow-lg overflow-hidden h-[400px] lg:h-[420px] xl:h-[430px] max-h-[400px] lg:max-h-[420px] xl:max-h-[430px]
+        class="card-inner patient-card-fixed flex flex-col rounded-xl shadow-lg overflow-hidden h-[400px] md:h-[520px] lg:h-[420px] xl:h-[430px] max-h-[400px] md:max-h-[520px] lg:max-h-[420px] xl:max-h-[430px]
         {{ ($patient['has_patient'] ?? false) ? ($patient['border_class'] ?? '') . ' ' . ($patient['text_color_class'] ?? '') : '' }}"
         style="{{ ($patient['gradient_style'] ?? '') }}"
     >
@@ -23,7 +24,7 @@
         @else
             <div class="flex flex-col h-full overflow-hidden">
                 {{-- Header Section --}}
-                <div class="flex-shrink-0 p-3 lg:p-2.5 flex flex-col gap-2 lg:gap-1.5">
+                <div class="flex-shrink-0 p-3 md:p-4 lg:p-2.5 flex flex-col gap-2 md:gap-3 lg:gap-1.5">
                     {{-- Row 1: Bed + (optional) Alerts + (optional) MEWS --}}
                     <div class="flex justify-between items-center gap-2">
                         <x-patient-card.bed-header :patient="$patient" :show-handover="$showHandover" />
@@ -60,21 +61,21 @@
                 @endif
 
                 @if($showPendingEvents)
-                    <x-patient-card.pending-events :patient="$patient" />
+                    <x-patient-card.pending-events :patient="$patient" :sector-id="$sectorId" />
                 @endif
 
                 {{-- Details Button --}}
                 <div
                     class="mt-auto flex-shrink-0 p-1.5 border-t border-white/10 z-10"
-                    x-data='{ sbarPatient: @json($patient), hospitalName: @json($currentHospitalName), modalPatients: @json($modalPatients) }'
+                    x-data='{ sbarPatient: @json($patient), hospitalName: @json($currentHospitalName) }'
                 >
                     <button
                         type="button"
                         wire:loading.attr="disabled"
                         wire:loading.class="opacity-60 cursor-not-allowed hover:bg-white/20 hover:shadow-sm"
                         wire:target="changeHospital,changeSector,refreshData"
-                        class="w-full bg-white/20 text-gray-700 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20 disabled:hover:shadow-sm"
-                        @click.prevent="$dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient, patients: modalPatients })"
+                        class="w-full bg-white/20 text-gray-700 px-3 py-2 md:py-3 lg:py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm md:text-base lg:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20 disabled:hover:shadow-sm"
+                        @click.prevent="$dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient, patients: window.__sbarModalPatients ?? [] })"
                     >
                         <span>Detalhes</span>
                     </button>
@@ -95,6 +96,27 @@
         max-height: 400px !important;
         display: flex;
         flex-direction: column;
+    }
+
+    @media (min-width: 768px) {
+        .patient-card .card-inner.patient-card-fixed {
+            height: 520px !important;
+            max-height: 520px !important;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .patient-card .card-inner.patient-card-fixed {
+            height: 420px !important;
+            max-height: 420px !important;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        .patient-card .card-inner.patient-card-fixed {
+            height: 430px !important;
+            max-height: 430px !important;
+        }
     }
 
     .patient-card .card-inner > * { min-height: 0; }

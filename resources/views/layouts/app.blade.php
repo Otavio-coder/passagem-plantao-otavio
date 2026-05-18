@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="color-scheme" content="light">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
         <meta name="sbar-user-full-name" content="{{ auth()->user()->name }}">
@@ -47,7 +48,21 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js'])
     <title>{{ env( 'APP_NAME' ) }}</title>
-    @laravelPWA
+    {{-- PWA --}}
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#004D9D">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Plantão">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Plantão">
+    <link rel="apple-touch-icon" href="/images/icons/icon-192x192.png">
+    <link rel="icon" sizes="192x192" href="/images/icons/icon-192x192.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/serviceworker.js', { scope: '/' });
+        }
+    </script>
 </head>
 <body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
 <div id="page-progress"></div>
@@ -69,7 +84,7 @@
 
 <!-- PWA Install Button -->
 <div id="pwa-install-banner"
-     class="hidden fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-80"
+     class="hidden fixed top-16 right-4 z-50 w-80 sm:w-96"
      role="complementary"
      aria-label="Instalar aplicativo">
     <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
@@ -237,7 +252,10 @@
             showBanner();
         });
 
-        window.addEventListener('appinstalled', hideBanner);
+        window.addEventListener('appinstalled', function() {
+            hideBanner();
+            showToast('App instalado com sucesso! Acesse pelo ícone na tela inicial.', 'success');
+        });
 
         if (installBtn) {
             installBtn.addEventListener('click', function() {
@@ -245,8 +263,8 @@
                 hideBanner();
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then(function(choice) {
-                    if (choice.outcome === 'accepted') {
-                        console.log('[PWA] Usuário aceitou a instalação');
+                    if (choice.outcome === 'dismissed') {
+                        showToast('Instalação cancelada.', 'info');
                     }
                     deferredPrompt = null;
                 });
@@ -290,5 +308,55 @@
         });
     }
 </script>
+
+@auth
+<script>
+(function () {
+    // Session heartbeat — pings the server every 10 minutes to keep the
+    // Redis session alive on shared/idle tablets during a 6-hour shift.
+    const INTERVAL_MS  = 10 * 60 * 1000; // 10 minutes
+    const WARN_BEFORE  = 15 * 60 * 1000; // warn 15 min before expiry
+    const SESSION_TTL  = {{ config('session.lifetime') * 60 * 1000 }}; // ms
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    let lastActivity = Date.now();
+
+    function ping() {
+        fetch('{{ route('session.heartbeat') }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        }).catch(() => {});
+    }
+
+    // Track user activity to avoid unnecessary pings when truly idle
+    ['click','keydown','touchstart','scroll'].forEach(ev => {
+        document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true });
+    });
+
+    setInterval(() => {
+        // Only ping if there was activity in the last interval
+        if (Date.now() - lastActivity < INTERVAL_MS + 5000) {
+            ping();
+        }
+    }, INTERVAL_MS);
+
+    // Session expiry warning toast
+    const warnAt = SESSION_TTL - WARN_BEFORE;
+    if (warnAt > 0) {
+        setTimeout(() => {
+            if (typeof noty !== 'undefined') {
+                noty({
+                    text: '<strong>Sessão expirando em 15 minutos.</strong><br>Se desejar continuar, clique em qualquer área da página.',
+                    type: 'warning',
+                    layout: 'bottomRight',
+                    timeout: 10000,
+                });
+            }
+        }, warnAt);
+    }
+})();
+</script>
+@endauth
 </body>
 </html>

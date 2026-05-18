@@ -58,17 +58,33 @@ class PatientModalManager {
     }
 
     openModal() {
-        this.state.scrollPosition = window.pageYOffset;
+        this.state.scrollPosition = window.pageYOffset || window.scrollY || 0;
         this.state.modalActive = true;
+        document.documentElement.style.setProperty('--patient-modal-scroll-y', `-${this.state.scrollPosition}px`);
         document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${this.state.scrollPosition}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
         document.body.classList.add('modal-active');
     }
 
     closeModal() {
         this.state.modalActive = false;
         document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
         document.body.classList.remove('modal-active');
-        window.scrollTo(0, this.state.scrollPosition);
+        document.documentElement.style.removeProperty('--patient-modal-scroll-y');
+        requestAnimationFrame(() => {
+            window.scrollTo(0, this.state.scrollPosition);
+            document.documentElement.scrollTop = this.state.scrollPosition;
+            document.body.scrollTop = this.state.scrollPosition;
+        });
     }
 }
 

@@ -32,45 +32,10 @@
         </div>
 
         <div class="flex flex-col min-w-0 flex-1">
-            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Cirurgia:</label>
-            <select x-model="surgicalFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
-                <option value="all">Todas Cirurgias</option>
-                <option value="with_surgery">COM CIRURGIAS</option>
-                <option value="without_surgery">SEM CIRURGIAS</option>
-            </select>
-        </div>
-
-        <div class="flex flex-col min-w-0 flex-1">
-            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Pendência:</label>
-            <select x-model="pendingTypeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
-                <option value="all">Todas</option>
-                <option value="hemoterapia">Hemoterapia</option>
-                <option value="cirurgia">Cirurgia</option>
-                <option value="antibiotico">Antibiótico</option>
-                <option value="quimioterapia">Quimioterapia</option>
-                <option value="exame">Exame</option>
-                <option value="procedimento">Procedimento</option>
-            </select>
-        </div>
-
-        <div class="flex flex-col min-w-0 flex-1">
             <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Isolamento:</label>
             <select x-model="isolationFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
                 <option value="all">Todos</option>
                 <option value="with_isolation">Com isolamento</option>
-            </select>
-        </div>
-
-        <div class="flex flex-col min-w-0 flex-1">
-            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Multidisciplinar:</label>
-            <select x-model="multiFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full">
-                <option value="all">Todos</option>
-                <option value="fisioterapia">Fisioterapia</option>
-                <option value="psicologia">Psicologia</option>
-                <option value="nutricao">Nutrição</option>
-                <option value="fonoaudiologia">Fonoaudiologia</option>
-                <option value="servico_social">Serv. Social</option>
-                <option value="acessos_vasculares">Ac. Vasculares</option>
             </select>
         </div>
 
@@ -80,6 +45,41 @@
                 <option value="all">Todos leitos</option>
                 <option value="only_occupied">Só ocupados</option>
                 <option value="only_empty">Só vagos</option>
+            </select>
+        </div>
+
+        <div class="flex flex-col min-w-0 flex-1">
+            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Passagem:</label>
+            <select x-model="handoverFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full disabled:opacity-60 disabled:cursor-not-allowed">
+                <option value="all">Todas</option>
+                <option value="done">Com anotação</option>
+                <option value="not_done">Sem anotação</option>
+            </select>
+        </div>
+
+        <div class="flex flex-col min-w-0 flex-1">
+            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Alta:</label>
+            <select x-model="dischargeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full disabled:opacity-60 disabled:cursor-not-allowed">
+                <option value="all">Todos</option>
+                <option value="today">Com alta/previsão</option>
+            </select>
+        </div>
+
+        <div class="flex flex-col min-w-0 flex-1">
+            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Antimicrobiano:</label>
+            <select x-model="antibioticFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full disabled:opacity-60 disabled:cursor-not-allowed">
+                <option value="all">Todos</option>
+                <option value="active">Com antimicrobiano</option>
+            </select>
+        </div>
+
+        <div class="flex flex-col min-w-0 flex-1">
+            <label class="text-white text-xs xl:text-sm font-medium mb-0.5 xl:mb-1">Internação:</label>
+            <select x-model="internmentFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full disabled:opacity-60 disabled:cursor-not-allowed">
+                <option value="all">Todos</option>
+                <option value="gt3">Mais de 3 dias</option>
+                <option value="gt7">Mais de 7 dias</option>
+                <option value="gt14">Mais de 14 dias</option>
             </select>
         </div>
 
@@ -123,5 +123,18 @@
                 Limpar
             </button>
         </div>
+
+        @if($canStartHandover)
+        <div class="flex flex-col justify-end flex-shrink-0">
+            <button wire:click="startHandover"
+                    wire:loading.attr="disabled"
+                    wire:target="startHandover"
+                    :disabled="isInitialLoading"
+                    class="inline-flex items-center gap-1.5 px-3 xl:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg text-white text-xs xl:text-sm font-semibold transition-colors shadow-md whitespace-nowrap">
+                <i class="fas fa-play text-[11px] xl:text-xs"></i>
+                <span>Iniciar Passagem</span>
+            </button>
+        </div>
+        @endif
     </div>
 </div>

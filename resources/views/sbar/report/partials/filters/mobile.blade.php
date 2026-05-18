@@ -1,5 +1,16 @@
 <div class="lg:hidden" x-data="{ filtersOpen: false }">
     <div class="flex items-center justify-between sm:justify-center gap-2">
+        @if($canStartHandover)
+        <button wire:click="startHandover"
+                wire:loading.attr="disabled"
+                wire:target="startHandover"
+                :disabled="isInitialLoading"
+                class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-md text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 transition-colors">
+            <i class="fas fa-play text-[10px] sm:text-xs leading-none"></i>
+            <span>Passagem</span>
+        </button>
+        @endif
+
         <button @click="filtersOpen = !filtersOpen"
                 class="flex-1 sm:flex-initial flex items-center justify-center px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-white text-xs sm:text-sm font-medium">
             <x-iconoir-filter-list class="text-white h-4 w-4 sm:h-5 sm:w-5 mr-1.5" />
@@ -79,51 +90,14 @@
                     <option value="normal">NORMAIS (0-2)</option>
                 </select>
             </div>
-            <div>
-                <label class="text-white text-xs font-medium block mb-1">Cirurgia</label>
-                <select x-model="surgicalFilter" @change="applyFilters()"
-                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs">
-                    <option value="all">Todas</option>
-                    <option value="with_surgery">Com cirurgia</option>
-                    <option value="without_surgery">Sem cirurgia</option>
-                </select>
-            </div>
         </div>
         <div class="grid grid-cols-2 gap-2">
-            <div>
-                <label class="text-white text-xs font-medium block mb-1">Pendência</label>
-                <select x-model="pendingTypeFilter" @change="applyFilters()"
-                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs">
-                    <option value="all">Todas</option>
-                    <option value="hemoterapia">Hemoterapia</option>
-                    <option value="cirurgia">Cirurgia</option>
-                    <option value="antibiotico">Antibiótico</option>
-                    <option value="quimioterapia">Quimioterapia</option>
-                    <option value="exame">Exame</option>
-                    <option value="procedimento">Procedimento</option>
-                </select>
-            </div>
             <div>
                 <label class="text-white text-xs font-medium block mb-1">Isolamento</label>
                 <select x-model="isolationFilter" @change="applyFilters()"
                         class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs">
                     <option value="all">Todos</option>
                     <option value="with_isolation">Com isolamento</option>
-                </select>
-            </div>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-            <div>
-                <label class="text-white text-xs font-medium block mb-1">Multidisciplinar</label>
-                <select x-model="multiFilter" @change="applyFilters()"
-                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs">
-                    <option value="all">Todos</option>
-                    <option value="fisioterapia">Fisioterapia</option>
-                    <option value="psicologia">Psicologia</option>
-                    <option value="nutricao">Nutrição</option>
-                    <option value="fonoaudiologia">Fonoaudiologia</option>
-                    <option value="servico_social">Serviço Social</option>
-                    <option value="acessos_vasculares">Ac. Vasculares</option>
                 </select>
             </div>
             <div>
@@ -133,6 +107,45 @@
                     <option value="all">Todos leitos</option>
                     <option value="only_occupied">Só ocupados</option>
                     <option value="only_empty">Só vagos</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label class="text-white text-xs font-medium block mb-1">Passagem</label>
+                <select x-model="handoverFilter" @change="applyFilters()"
+                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                    <option value="all">Todas</option>
+                    <option value="done">Com anotação</option>
+                    <option value="not_done">Sem anotação</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-white text-xs font-medium block mb-1">Alta</label>
+                <select x-model="dischargeFilter" @change="applyFilters()"
+                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                    <option value="all">Todos</option>
+                    <option value="today">Com alta/previsão</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label class="text-white text-xs font-medium block mb-1">Antimicrobiano</label>
+                <select x-model="antibioticFilter" @change="applyFilters()"
+                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                    <option value="all">Todos</option>
+                    <option value="active">Com antimicrobiano</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-white text-xs font-medium block mb-1">Internação</label>
+                <select x-model="internmentFilter" @change="applyFilters()"
+                        class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                    <option value="all">Todos</option>
+                    <option value="gt3">+3 dias</option>
+                    <option value="gt7">+7 dias</option>
+                    <option value="gt14">+14 dias</option>
                 </select>
             </div>
         </div>

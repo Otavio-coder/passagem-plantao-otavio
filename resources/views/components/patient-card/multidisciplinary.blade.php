@@ -1,15 +1,15 @@
 @props(['patient'])
 @if(!empty($patient['multidisciplinary'] ?? []) || !empty($patient['multidisciplinary_other'] ?? null))
-    <div x-data="{ showMdModal: false }" class="flex-shrink-0 px-2 sm:px-2.5 lg:px-3 pb-1.5">
+    <div x-data="{ showMdModal: false }" class="flex-shrink-0 px-2 sm:px-2.5 md:px-3 lg:px-3 pb-1.5 md:pb-2 lg:pb-1.5">
         <div
             class="bg-white/70 rounded-lg px-2 py-1 shadow-sm {{ !empty($patient['multidisciplinary_requests'] ?? []) ? 'cursor-pointer hover:bg-blue-50 transition-colors' : '' }}"
             @if(!empty($patient['multidisciplinary_requests'] ?? [])) @click="showMdModal = true; document.body.style.overflow = 'hidden'" @endif
             title="{{ !empty($patient['multidisciplinary_requests'] ?? []) ? 'Clique para ver detalhes das solicitações' : '' }}"
         >
-            <div class="flex flex-wrap justify-center text-[10px] text-gray-700 gap-x-2 gap-y-0.5 items-center">
+            <div class="flex flex-wrap justify-center text-[10px] md:text-xs lg:text-[10px] text-gray-700 gap-x-2 md:gap-x-3 lg:gap-x-2 gap-y-0.5 items-center">
                 @if(($patient['multidisciplinary']['fisioterapia'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="fisioterapia" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="fisioterapia" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         Fisio
                     </span>
                 @else
@@ -17,7 +17,7 @@
                 @endif
                 @if(($patient['multidisciplinary']['psicologia'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="psicologia" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="psicologia" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         Psico
                     </span>
                 @else
@@ -25,7 +25,7 @@
                 @endif
                 @if(($patient['multidisciplinary']['nutricao'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="nutricao" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="nutricao" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         Nutri
                     </span>
                 @else
@@ -33,7 +33,7 @@
                 @endif
                 @if(($patient['multidisciplinary']['fonoaudiologia'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="fonoaudiologia" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="fonoaudiologia" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         Fono
                     </span>
                 @else
@@ -41,7 +41,7 @@
                 @endif
                 @if(($patient['multidisciplinary']['servico_social'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="servico-social" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="servico-social" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         SS
                     </span>
                 @else
@@ -49,7 +49,7 @@
                 @endif
                 @if(($patient['multidisciplinary']['acessos_vasculares'] ?? false))
                     <span class="flex items-center gap-0.5 text-green-700 font-bold">
-                        <x-ui.patient-icon name="catheter-svgrepo-com" class="w-3.5 h-3.5 text-black" />
+                        <x-ui.patient-icon name="catheter-svgrepo-com" class="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-3.5 lg:h-3.5 text-black" />
                         Time
                     </span>
                 @else
@@ -95,7 +95,7 @@
                             <x-heroicon-o-x-mark class="w-4 h-4" />
                         </button>
                     </div>
-                    <div class="flex-1 overflow-y-auto min-h-0 p-4 bg-gray-50">
+                    <div class="flex-1 overflow-y-auto min-h-0 max-h-[400px] md:max-h-[520px] p-4 bg-gray-50">
                         <div class="space-y-3">
                             @foreach(($patient['multidisciplinary_requests'] ?? []) as $request)
                                 <div class="border rounded-lg p-4 {{ $request['card_class'] ?? 'bg-amber-50 border-amber-200' }}">

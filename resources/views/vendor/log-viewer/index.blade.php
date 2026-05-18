@@ -14,7 +14,7 @@
     <link href="{{ asset(mix('app.css', 'vendor/log-viewer')) }}" rel="stylesheet" onerror="alert('app.css failed to load. Please refresh the page, re-publish Log Viewer assets, or fix routing for vendor assets.')">
 </head>
 
-<body class="h-full px-3 lg:px-5 bg-gray-100 dark:bg-gray-900">
+<body class="h-full px-3 lg:px-5 bg-gray-100">
 <div id="log-viewer" class="flex h-full max-h-screen max-w-full">
     <router-view></router-view>
 </div>

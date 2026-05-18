@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Sector;
+use App\Models\NurseHandoverBed;
+use App\Models\ShiftHandover;
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
@@ -17,24 +19,45 @@ use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
+/**
+ * Componente Livewire principal do painel SBAR (Situation-Background-Assessment-Recommendation).
+ *
+ * Arquitetura de estado:
+ * - Propriedades públicas primitivas (`selectedSector`, `isLoading`, etc.) são serializadas
+ *   no wire:snapshot a cada requisição Livewire. Mantê-las pequenas evita overhead de payload.
+ * - Propriedades `#[Computed(persist: true)]` NÃO entram no snapshot; ficam no cache de sessão
+ *   do Laravel. Para invalidade-las, usa-se `unset($this->nomeProp)` — isso força recalculo
+ *   na próxima leitura sem exigir re-serialização do objeto inteiro.
+ * - Dados de paciente (~150 KB por setor) jamais vão para o snapshot; só o sectorId vai.
+ */
 class SbarReport extends Component
 {
-    // Primitive state — safe in wire:snapshot
+    // Estado primitivo — seguro no wire:snapshot
     public $errorMessage = null;
 
     public $lastRefresh = null;
 
-    // User selection state
+    // Seleção do usuário
     public $selectedHospital = null;
 
     public $selectedSector = null;
 
-    // Sector onboarding
+    /** Verdadeiro durante o carregamento inicial até o wire:init disparar loadPatients(). */
+    public bool $isLoading = true;
+
+    // Recuperação de passagem de plantão em andamento
+    public bool $hasActiveHandoverSession = false;
+
+    public ?int $activeHandoverSectorId = null;
+
+    public ?int $activeHandoverId = null;
+
+    // Onboarding de setores
     public bool $showSectorOnboarding = false;
 
     public array $selectedSectors = [];
 
-    // Services
+    // Serviços
     protected TasyService $tasyService;
 
     protected UserDisplayNameResolver $userDisplayNameResolver;
@@ -43,6 +66,7 @@ class SbarReport extends Component
         'refreshData' => 'refreshData',
         'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
         'handover-updated' => 'onHandoverUpdated',
+        'nurseHandoverCompleted' => 'onNurseHandoverCompleted',
     ];
 
     public function boot(TasyService $tasyService, UserDisplayNameResolver $userDisplayNameResolver)
@@ -52,12 +76,12 @@ class SbarReport extends Component
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Computed properties — NOT serialized into wire:snapshot
+    // Propriedades computadas — NÃO serializadas no wire:snapshot
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * User's available hospitals. Persisted for the component lifecycle;
-     * cleared with unset($this->hospitals) when preferences change.
+     * Hospitais disponíveis do usuário. Persistido durante o ciclo de vida do componente;
+     * invalidado com unset($this->hospitals) quando as preferências mudam.
      */
     #[Computed(persist: true)]
     public function hospitals(): array
@@ -75,8 +99,8 @@ class SbarReport extends Component
     }
 
     /**
-     * Sectors for the currently selected hospital. Persisted; cleared on
-     * hospital change via unset($this->sectors).
+     * Setores do hospital selecionado. Persistido; invalidado na troca de hospital
+     * via unset($this->sectors).
      */
     #[Computed(persist: true)]
     public function sectors(): array
@@ -101,12 +125,9 @@ class SbarReport extends Component
     }
 
     /**
-     * Patient list for the selected sector. Persisted; cleared on sector
-     * change, refresh, or handover update via unset($this->patients).
-     *
-     * TasyService already caches Oracle data for 15 min — this computed layer
-     * eliminates the cost of serializing 30+ patient objects into every
-     * Livewire wire:snapshot (~150 KB overhead).
+     * Pacientes do setor selecionado. Persistido; invalidado na troca de setor ou hospital
+     * via unset($this->patients). Carrega dados completos do paciente via PatientDataLoader, com cache
+     * dinâmico de 5 min para eventos pendentes e passagem de plantão, e cache estático de 15 min para dados do Tasy.
      */
     #[Computed(persist: true)]
     public function patients(): array
@@ -122,7 +143,7 @@ class SbarReport extends Component
 
             $withHandover = Cache::remember(
                 "sector_handover_{$this->selectedSector}_".ShiftService::getCurrentShift(),
-                300, // 5 min — refreshes within same shift without re-querying MySQL chat tables
+                300, // 5 min — atualiza dentro do mesmo turno sem re-consultar as tabelas MySQL de chat
                 fn () => $this->injectHandoverStatus($patients)
             );
 
@@ -183,6 +204,107 @@ class SbarReport extends Component
         return ShiftService::getShiftInfo()['shift'];
     }
 
+    /**
+     * Filtra pacientes com escalas pendentes diretamente do payload já carregado.
+     * Não faz nenhuma query adicional — usa os campos *_needs_assessment e *_score
+     * que o ScalesLoader já inclui em cada paciente.
+     */
+    #[Computed]
+    public function expiredScalesPatients(): array
+    {
+        if ($this->isLoading) {
+            return [];
+        }
+
+        $scalesMeta = [
+            'mews' => 'MEWS',
+            'pews' => 'PEWS',
+            'braden' => 'Braden',
+            'morse' => 'Morse',
+            'pain' => 'Dor',
+            'vte' => 'TEV',
+        ];
+
+        $expiredList = [];
+
+        foreach ($this->patients as $patient) {
+            if (! ($patient['has_patient'] ?? false)) {
+                continue;
+            }
+
+            $isPediatric = $patient['is_pediatric'] ?? false;
+            $expiredScales = [];
+
+            foreach ($scalesMeta as $key => $name) {
+                // MEWS só para adultos, PEWS só para pediátricos
+                if ($key === 'mews' && $isPediatric) {
+                    continue;
+                }
+                if ($key === 'pews' && ! $isPediatric) {
+                    continue;
+                }
+
+                if (! ($patient["{$key}_needs_assessment"] ?? false)) {
+                    continue;
+                }
+
+                $expiredScales[] = [
+                    'name' => $name,
+                    'score' => $patient["{$key}_score"] ?? null,
+                    'timestamp_label' => self::formatScaleTimestamp($patient["{$key}_timestamp"] ?? null),
+                ];
+            }
+
+            if (empty($expiredScales)) {
+                continue;
+            }
+
+            $count = count($expiredScales);
+            $internmentDays = is_numeric($patient['internment_days'] ?? null)
+                ? (int) $patient['internment_days']
+                : null;
+
+            $expiredList[] = [
+                'bed' => $patient['cd_unidade_basica'] ?? 'N/A',
+                'name' => $patient['nm_pessoa_fisica'] ?? 'N/A',
+                'nr_atendimento' => $patient['nr_atendimento'] ?? null,
+                'dt_entrada_formatted' => isset($patient['dt_entrada'])
+                    ? Carbon::parse($patient['dt_entrada'])->format('d/m/Y')
+                    : null,
+                'internment_days' => $internmentDays,
+                'expired_scales' => $expiredScales,
+                'total_expired' => $count,
+                'priority' => $count >= 4 ? 'critical' : ($count >= 2 ? 'high' : 'medium'),
+            ];
+        }
+
+        usort($expiredList, fn ($a, $b) => $b['total_expired'] <=> $a['total_expired']
+            ?: strnatcmp($a['bed'], $b['bed']));
+
+        return $expiredList;
+    }
+
+    private static function formatScaleTimestamp(mixed $timestamp): ?string
+    {
+        if (! $timestamp) {
+            return null;
+        }
+
+        try {
+            $dt = Carbon::parse($timestamp);
+            if ($dt->isToday()) {
+                return 'Hoje '.$dt->format('H:i');
+            }
+            if ($dt->isYesterday()) {
+                return 'Ontem '.$dt->format('H:i');
+            }
+
+            return $dt->format('d/m H:i');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Lifecycle
     // ──────────────────────────────────────────────────────────────────────────
@@ -225,6 +347,8 @@ class SbarReport extends Component
             }
 
             $this->lastRefresh = now()->format('H:i:s');
+
+            $this->checkActiveHandoverSession();
         } catch (\Exception $e) {
             Log::error('SBAR mount error', [
                 'exception' => $e,
@@ -238,12 +362,20 @@ class SbarReport extends Component
     // Actions
     // ──────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Called by wire:init after the initial HTML is rendered in the browser.
+     * Triggers patient loading without blocking the first page render.
+     */
+    public function loadPatients(): void
+    {
+        $this->isLoading = false;
+    }
+
     public function changeHospital($hospitalId)
     {
         $this->selectedHospital = $hospitalId;
         $this->selectedSector = null;
 
-        // Invalidate cached computed values for the new hospital
         unset($this->sectors);
         unset($this->patients);
 
@@ -263,6 +395,9 @@ class SbarReport extends Component
         $user = Auth::user();
         $allowedSectorCodes = $user->sectorPreferences()->pluck('sector_code')->toArray();
 
+        // Validação explícita de autorização: qualquer usuário autenticado pode chamar métodos
+        // Livewire diretamente via DevTools ou requests forjados. O setor solicitado deve estar
+        // na whitelist de preferências do próprio usuário, não apenas existir no sistema.
         if (! in_array((string) $sectorId, array_map('strval', $allowedSectorCodes))) {
             Log::warning('Tentativa de acesso a setor não autorizado', [
                 'user_id' => $user->id,
@@ -274,8 +409,7 @@ class SbarReport extends Component
         }
 
         $this->selectedSector = $sectorId;
-        unset($this->patients); // invalidate computed cache → fresh data on next render
-
+        unset($this->patients);
         $this->lastRefresh = now()->format('H:i:s');
         $this->auditSectorView('sector_change');
     }
@@ -284,13 +418,36 @@ class SbarReport extends Component
     {
         try {
             if ($this->selectedSector) {
-                PatientDataLoader::forSector($this->selectedSector)->clearCache();
+                // Invalida apenas caches dinâmicos (eventos pendentes + passagem de plantão).
+                // Dados demográficos, escalas, clínico, multidisciplinar e cirurgia
+                // são estáveis durante a sessão e expiram naturalmente pelo TTL.
+                // Evita disparar carga completa do Oracle a cada clique em "Atualizar".
+                PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
             }
 
-            unset($this->patients); // force recompute after cache clear
+            unset($this->patients);
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in refreshData', [
+                'exception' => $e,
+                'selected_sector' => $this->selectedSector,
+                'user_id' => Auth::id(),
+            ]);
+            $this->errorMessage = 'Erro ao atualizar: '.$e->getMessage();
+        }
+    }
+
+    public function forceRefreshData()
+    {
+        try {
+            if ($this->selectedSector) {
+                PatientDataLoader::forSector($this->selectedSector)->clearCache();
+            }
+
+            unset($this->patients);
+            $this->lastRefresh = now()->format('H:i:s');
+        } catch (\Exception $e) {
+            Log::error('Error in forceRefreshData', [
                 'exception' => $e,
                 'selected_sector' => $this->selectedSector,
                 'user_id' => Auth::id(),
@@ -365,12 +522,12 @@ class SbarReport extends Component
             $this->selectedHospital = null;
             $this->selectedSector = null;
 
-            // Invalidate all cached computed values
+            // Invalida todas as propriedades computadas em cache
             unset($this->hospitals);
             unset($this->sectors);
             unset($this->patients);
 
-            // Re-initialize with new preferences
+            // Re-inicializa com as novas preferências
             $this->mount();
         } catch (\Exception $e) {
             Log::error('Error saving sector preferences', [
@@ -397,11 +554,75 @@ class SbarReport extends Component
     // Event handlers
     // ──────────────────────────────────────────────────────────────────────────
 
-    public function onHandoverUpdated(string $nr): void
+    public function startHandover(): void
     {
-        // Invalidate computed cache — next render will re-fetch handover status
-        // from DB (batch query) while hitting TasyService's 15-min Oracle cache.
+        if (! $this->selectedSector) {
+            return;
+        }
+
+        $this->dispatch('openNurseHandoverSession', sectorId: (int) $this->selectedSector);
+    }
+
+    public function onHandoverUpdated(?string $nr = null): void
+    {
+        // Invalida o cache computado — o próximo render re-busca o status de passagem
+        // via query em batch no MySQL, mantendo o cache Oracle de 15 min do TasyService.
         unset($this->patients);
+
+        $this->hasActiveHandoverSession = false;
+        $this->activeHandoverId = null;
+        $this->activeHandoverSectorId = null;
+    }
+
+    /**
+     * Fired when the nurse finishes a handover session. Clears dynamic caches
+     * (including handover-status) so the card bullet points update immediately.
+     */
+    public function onNurseHandoverCompleted(int $sectorId): void
+    {
+        if ($this->selectedSector) {
+            PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
+        }
+
+        unset($this->patients);
+        $this->lastRefresh = now()->format('H:i:s');
+        $this->hasActiveHandoverSession = false;
+        $this->activeHandoverId = null;
+        $this->activeHandoverSectorId = null;
+    }
+
+    public function resumeHandover(): void
+    {
+        if (! $this->activeHandoverId) {
+            return;
+        }
+
+        $this->dispatch('resumeNurseHandoverSession', data: [
+            'handoverId' => $this->activeHandoverId,
+        ]);
+    }
+
+    public function dismissHandoverRecovery(): void
+    {
+        $this->hasActiveHandoverSession = false;
+        $this->activeHandoverId = null;
+        $this->activeHandoverSectorId = null;
+    }
+
+    private function checkActiveHandoverSession(): void
+    {
+        [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
+
+        $active = ShiftHandover::where('user_id', Auth::id())
+            ->where('status', ShiftHandover::STATUS_ACTIVE)
+            ->whereBetween('started_at', [$shiftStart, $shiftEnd])
+            ->first();
+
+        if ($active) {
+            $this->hasActiveHandoverSession = true;
+            $this->activeHandoverId = $active->id;
+            $this->activeHandoverSectorId = $active->sector_ids[0] ?? null;
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -413,14 +634,36 @@ class SbarReport extends Component
         return view('sbar.report.index', [
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
-            'patients' => $this->patients,
+            'patients' => $this->isLoading ? [] : $this->patients,
+            'isLoading' => $this->isLoading,
             'errorMessage' => $this->errorMessage,
             'selectedHospital' => $this->selectedHospital,
             'selectedSector' => $this->selectedSector,
             'currentHospitalName' => $this->currentHospitalName,
             'currentShiftName' => $this->currentShiftName,
             'lastRefresh' => $this->lastRefresh,
+            'expiredScalesPatients' => $this->expiredScalesPatients,
+            'showSectorOnboarding' => $this->showSectorOnboarding,
+            'onboardingSectorsData' => $this->showSectorOnboarding
+                ? Sector::allowedForPreferencesGroupedByHospital()
+                : [],
+            'canStartHandover' => $this->resolveCanStartHandover(),
         ]);
+    }
+
+    private function resolveCanStartHandover(): bool
+    {
+        try {
+            $user = Auth::user();
+
+            return $user->isNurse()
+                && $this->selectedSector !== null
+                && NurseHandoverBed::where('user_id', $user->id)
+                    ->where('sector_id', $this->selectedSector)
+                    ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -465,7 +708,9 @@ class SbarReport extends Component
 
         [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
 
-        // Tolerância de borda do turno para não perder anotações na virada.
+        // Tolerância de ±30 min nas bordas do turno: enfermeiros frequentemente registram
+        // anotações alguns minutos antes do início oficial ou após o fim do turno.
+        // Sem essa margem, anotações feitas às 06:58 não apareceriam no turno da manhã (07h).
         $shiftStart = $shiftStart->copy()->subMinutes(30);
         $shiftEnd = $shiftEnd->copy()->addMinutes(30);
 
@@ -481,7 +726,7 @@ class SbarReport extends Component
             ->get()
             ->keyBy('nr_atendimento');
 
-        // Fetch pinned evaluations (priority)
+        // Busca avaliações fixadas (prioridade máxima na exibição)
         $pinnedRows = DB::table('chat_message_pins as cmp')
             ->join('chat_messages as cm', 'cm.id', '=', 'cmp.message_id')
             ->leftJoin('users as u', 'u.id', '=', 'cmp.pinned_by')
@@ -520,7 +765,7 @@ class SbarReport extends Component
             ];
         }
 
-        // Fetch latest evaluations (fallback when no pinned) for attendances without pinned
+        // Busca última avaliação (fallback para atendimentos sem avaliação fixada)
         $attendancesWithoutPinned = array_diff($nrs, array_keys($latestPinnedByAttendance));
         $latestEvaluationByAttendance = [];
 
@@ -574,7 +819,7 @@ class SbarReport extends Component
                 : null;
             $patient['handover_msg_count'] = $row ? (int) $row->msg_count : 0;
 
-            // Priority: pinned evaluation; fallback: latest evaluation
+            // Prioridade: avaliação fixada; fallback: última avaliação do turno
             $patient['pinned_evaluation'] = $latestPinnedByAttendance[(int) $nr] ?? null;
             $patient['latest_evaluation'] = $latestEvaluationByAttendance[(int) $nr] ?? null;
 
@@ -582,6 +827,14 @@ class SbarReport extends Component
         }, $patients);
     }
 
+    /**
+     * Transforma o array bruto de cada paciente (vindo dos loaders/repositórios) em campos
+     * prontos para o template Blade, sem lógica de display na view.
+     *
+     * Toda formatação, classificação de risco e montagem de estruturas de exibição ocorre aqui,
+     * em PHP, antes do render. Isso evita chamadas de funções complexas dentro do Blade e
+     * mantém os templates focados apenas em estrutura HTML.
+     */
     private function preparePatientsForView(array $patients): array
     {
         return array_map(function (array $patient): array {
@@ -638,7 +891,7 @@ class SbarReport extends Component
         }, $patients);
     }
 
-    // ── Patient card helpers (display-only, only used here) ───────────────────
+    // ── Helpers de card do paciente (apenas exibição, usados somente aqui) ──────
 
     private static function shiftDisplayName(?string $shift): string
     {

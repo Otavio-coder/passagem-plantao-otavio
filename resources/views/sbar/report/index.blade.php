@@ -1,20 +1,26 @@
-<div class="w-full my-2 text-[#004D9D] relative font-montserrat">
+<div class="w-full my-2 text-[#004D9D] relative font-montserrat" wire:init="loadPatients">
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4">
 
-            @if(isset($errorMessage) && $errorMessage && strpos($errorMessage, 'setores de acesso') !== false)
+            @if($showSectorOnboarding ?? false)
+                @include('configuration.system.sector-selector-modal', [
+                    'autoOpen'        => true,
+                    'mandatory'       => true,
+                    'initialSelected' => [],
+                    'sectorsData'     => $onboardingSectorsData ?? [],
+                ])
+                <div
+                    x-data
+                    @sectors-configured.window="$wire.onSectorOnboardingSaved()"
+                ></div>
+            @elseif(isset($errorMessage) && $errorMessage)
                 <div class="flex items-center justify-center min-h-[60vh]">
                     <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 max-w-md text-center">
                         <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <x-heroicon-o-exclamation-triangle class="w-8 h-8 text-amber-600" />
                         </div>
-                        <h2 class="text-xl font-bold text-gray-900 mb-2">Acesso Bloqueado</h2>
+                        <h2 class="text-xl font-bold text-gray-900 mb-2">Erro</h2>
                         <p class="text-gray-600 mb-6">{{ $errorMessage }}</p>
-                        <a href="{{ route('user.preferences.index') }}"
-                           class="inline-flex items-center px-6 py-3 bg-[#004D9D] text-white font-semibold rounded-lg hover:bg-[#003d7a] transition-colors shadow-sm">
-                            <x-heroicon-o-cog-6-tooth class="w-5 h-5 mr-2" />
-                            Configurar Meus Setores
-                        </a>
                     </div>
                 </div>
             @else
@@ -108,9 +114,46 @@
                             </div>
                         </div>
 
+                        {{-- Handover recovery banner --}}
+                        @if($hasActiveHandoverSession)
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-amber-900 text-sm font-medium">
+                            <div class="flex items-center gap-2">
+                                <x-heroicon-o-arrow-path class="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                <span>Você tem uma passagem de plantão em andamento neste turno.</span>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button wire:click="resumeHandover"
+                                        class="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-md transition-colors">
+                                    <x-heroicon-o-play class="w-3 h-3" />
+                                    Retomar
+                                </button>
+                                <button wire:click="dismissHandoverRecovery"
+                                        class="inline-flex items-center px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold rounded-md transition-colors">
+                                    Ignorar
+                                </button>
+                            </div>
+                        </div>
+                        @endif
+
                         {{-- Patients container --}}
-                        <div id="patientsContainer" class="p-2 sm:p-3 lg:p-4 bg-white min-h-[60vh]">
-                            @if(isset($errorMessage) && $errorMessage)
+                        <div id="patientsContainer" class="relative p-2 sm:p-3 lg:p-4 bg-white min-h-[60vh]">
+
+                            {{-- Overlay durante filtragem client-side (só existe após carregamento inicial) --}}
+                            @if(!$isLoading)
+                            <div x-show="isInitialLoading" x-cloak
+                                 class="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-b-xl bg-white/80 backdrop-blur-[2px] gap-4">
+                                <div class="w-14 h-14 rounded-full border-4 border-[#004D9D]/20 border-t-[#004D9D] animate-spin"></div>
+                                <p class="text-[#004D9D] font-semibold text-sm tracking-wide">Carregando pacientes...</p>
+                            </div>
+                            @endif
+
+                            {{-- Loading inicial (wire:init ainda não disparou) --}}
+                            @if($isLoading)
+                                <div class="flex flex-col items-center justify-center py-24 gap-4">
+                                    <div class="w-10 h-10 rounded-full border-4 border-[#004D9D]/20 border-t-[#004D9D] animate-spin"></div>
+                                    <p class="text-[#004D9D] font-semibold text-sm tracking-wide">Carregando Leitos</p>
+                                </div>
+                            @elseif(isset($errorMessage) && $errorMessage)
                                 <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">
                                     <div class="flex items-center">
                                         <x-heroicon-o-exclamation-triangle class="w-6 h-6 mr-2 text-red-500" />
@@ -141,6 +184,10 @@
                                         ->values()
                                         ->all();
                                 @endphp
+                                {{-- Emite a lista de navegação UMA vez como variável global.
+                                     Cada card lê window.__sbarModalPatients em vez de receber
+                                     @json($modalPatients) repetido N vezes (N×M objetos inline). --}}
+                                <script>window.__sbarModalPatients = @json($modalPatients);</script>
                                 <div id="patientCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                                     @foreach($patients as $index => $patient)
                                         <div wire:key="patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}"
@@ -157,7 +204,9 @@
                                              data-bed-order="{{ $patient['bed_display_order'] ?? $patient['bed_sequence'] ?? 0 }}"
                                              data-internment="{{ $patient['internment_days'] ?? -1 }}"
                                              data-age="{{ $patient['age'] ?? 0 }}"
-                                             data-name="{{ strtolower($patient['nm_pessoa_fisica'] ?? 'zzz') }}">
+                                             data-name="{{ strtolower($patient['nm_pessoa_fisica'] ?? 'zzz') }}"
+                                             data-handover="{{ ($patient['handover_done'] ?? false) ? '1' : '0' }}"
+                                             data-discharge="{{ $patient['discharge_info']['tipo'] ?? '' }}">
                                             <x-patient-card
                                                 :patient="$patient"
                                                 :current-hospital-name="$currentHospitalName"
@@ -213,7 +262,11 @@
                     @include('sbar.report.partials.legend')
 
                     @livewire('sbar-patient-modal', [], key('sbar-patient-modal'))
-                    @livewire('sbar-expired-scales-modal', ['sectorId' => $selectedSector ?? 0], key('sbar-expired-scales-modal'))
+                    @livewire('nurse-handover-session', [], key('nurse-handover-session'))
+                    @include('sbar.patient.expired-scales-modal', [
+                        'expiredScalesPatients' => $expiredScalesPatients,
+                        'sectorKey' => $selectedSector ?? 0,
+                    ])
                     @livewire('sbar-shift-evaluations-modal', [], key('sbar-shift-evaluations-modal'))
 
                 </div>
@@ -232,6 +285,10 @@ window.sbarFilters = function () {
         pendingTypeFilter: 'all',
         multiFilter:       'all',
         bedsFilter:        'all',
+        handoverFilter:    'all',
+        dischargeFilter:   'all',
+        antibioticFilter:  'all',
+        internmentFilter:  'all',
         orderBy:           'bed',
         orderDir:          'asc',
         visibleCount:      0,
@@ -246,14 +303,20 @@ window.sbarFilters = function () {
                 this.isInitialLoading = false;
             });
 
-            window.addEventListener('sbar:patients-loaded', () => {
-                this.$nextTick(() => { this.buildCards(); this.applyFilters(); });
-            });
+            ['mewsFilter','surgicalFilter','isolationFilter','pendingTypeFilter','multiFilter',
+             'bedsFilter','orderBy','orderDir','handoverFilter','dischargeFilter','antibioticFilter','internmentFilter']
+                .forEach(prop => this.$watch(prop, () => this.applyFilters()));
 
-            document.addEventListener('livewire:updated', () => {
-                if (document.getElementById('patientCardsContainer')) {
-                    this.$nextTick(() => { this.buildCards(); this.applyFilters(); });
-                }
+            Livewire.hook('commit', ({ component, succeed, fail }) => {
+                if (component.name !== 'sbar-report') return;
+                this.isInitialLoading = true;
+                succeed(() => {
+                    this.$nextTick(() => {
+                        try { this.buildCards(); this.applyFilters(); } catch(e) { console.error('[SBAR]', e); }
+                        this.isInitialLoading = false;
+                    });
+                });
+                fail(() => { this.isInitialLoading = false; });
             });
         },
 
@@ -275,6 +338,9 @@ window.sbarFilters = function () {
                 internment:   parseFloat(el.dataset.internment) || -1,
                 age:          parseInt(el.dataset.age) || 0,
                 name:         el.dataset.name || 'zzz',
+                handover:     el.dataset.handover === '1',
+                discharge:    el.dataset.discharge || '',
+                hasAntibiotic: (el.dataset.pendingTypes || '').split(',').filter(Boolean).includes('antibiotico'),
             }));
             this.totalCount = this.cards.length;
         },
@@ -298,6 +364,13 @@ window.sbarFilters = function () {
                     if (!normalizedPending.includes(this.pendingTypeFilter)) return false;
                 }
                 if (this.multiFilter !== 'all' && !c.multi.includes(this.multiFilter)) return false;
+                if (this.handoverFilter === 'done'     && !c.handover) return false;
+                if (this.handoverFilter === 'not_done' && c.handover)  return false;
+                if (this.dischargeFilter === 'today'   && !['alta','alta_medica','previsao_alta'].includes(c.discharge)) return false;
+                if (this.antibioticFilter === 'active' && !c.hasAntibiotic) return false;
+                if (this.internmentFilter === 'gt3'  && (c.internment < 0 || c.internment <= 3))  return false;
+                if (this.internmentFilter === 'gt7'  && (c.internment < 0 || c.internment <= 7))  return false;
+                if (this.internmentFilter === 'gt14' && (c.internment < 0 || c.internment <= 14)) return false;
 
                 return true;
             });
@@ -351,6 +424,10 @@ window.sbarFilters = function () {
             this.pendingTypeFilter = 'all';
             this.multiFilter       = 'all';
             this.bedsFilter        = 'all';
+            this.handoverFilter    = 'all';
+            this.dischargeFilter   = 'all';
+            this.antibioticFilter  = 'all';
+            this.internmentFilter  = 'all';
             this.orderBy           = 'bed';
             this.orderDir          = 'asc';
             this.applyFilters();
@@ -363,6 +440,10 @@ window.sbarFilters = function () {
                 || this.pendingTypeFilter !== 'all'
                 || this.multiFilter !== 'all'
                 || this.bedsFilter !== 'all'
+                || this.handoverFilter !== 'all'
+                || this.dischargeFilter !== 'all'
+                || this.antibioticFilter !== 'all'
+                || this.internmentFilter !== 'all'
                 || this.orderBy !== 'bed'
                 || this.orderDir !== 'asc';
         },

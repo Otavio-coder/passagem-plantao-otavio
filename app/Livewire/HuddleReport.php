@@ -70,7 +70,7 @@ class HuddleReport extends Component
             ->orderBy('nr_seq_apresent')
             ->get();
 
-        // Load all Person records in a single query
+        // Carrega todos os registros de Person em uma única query
         $personIds = $beds->pluck('currentPatient.cd_pessoa_fisica')
             ->filter()
             ->unique()
@@ -84,21 +84,21 @@ class HuddleReport extends Component
             'ds_setor_atendimento'
         );
 
-        // Map beds to response, attaching Person data
+        // Mapeia leitos para a resposta, anexando dados de Person
         return $beds->map(function ($bed) use ($personsByIdFromTasy, $selectedSectorName) {
             $patient = $bed->currentPatient;
             $person = $patient ? $personsByIdFromTasy->get($patient->cd_pessoa_fisica) : null;
             $hasPatient = ! is_null($patient);
 
             return [
-                // ── Card identity ─────────────────────────────────────
+                // ── Identificação do card ──────────────────────────────
                 'cd_unidade_basica' => $bed->cd_unidade_basica,
                 'cd_setor_atendimento' => $this->selectedSector,
                 'has_patient' => $hasPatient,
                 'nr_atendimento' => $patient?->nr_atendimento,
                 'ds_setor_atendimento' => $selectedSectorName,
 
-                // ── Card styling (required by x-patient-card) ─────────
+                // ── Estilo do card (exigido pelo componente x-patient-card) ────
                 'gradient_style' => $hasPatient
                     ? 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);'
                     : 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);',

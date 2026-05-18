@@ -5,6 +5,7 @@ use App\Http\Controllers\HandoverMetricsController;
 use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SectorPreferencesController;
 use App\Http\Controllers\SectorWarmController;
 use App\Http\Controllers\SystemConfigurationController;
 use App\Http\Controllers\UserController;
@@ -32,6 +33,7 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     })->name('session.heartbeat');
 
     Route::view('/', 'dashboard.index')->name('home');
+    Route::post('/sector-preferences', [SectorPreferencesController::class, 'save'])->name('sector-preferences.save');
 
     Route::view('/feedback', 'dashboard.feedback')->name('feedback');
 

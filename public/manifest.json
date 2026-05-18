@@ -3,7 +3,7 @@
     "short_name": "Plantão",
     "description": "Sistema de passagem de plantão hospitalar",
     "start_url": "/sbar",
-    "id": "/",
+    "id": "/sbar",
     "scope": "/",
     "display": "standalone",
     "orientation": "portrait",

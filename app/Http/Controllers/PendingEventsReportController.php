@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
@@ -249,8 +248,7 @@ class PendingEventsReportController extends Controller
         }
 
         foreach (array_filter($sectorIds) as $sectorId) {
-            Cache::forget("sector_pending_fast_{$sectorId}");
-            Cache::forget("sector_demographics_{$sectorId}");
+            PatientDataLoader::forSector($sectorId)->clearCache();
         }
 
         $params = array_filter(['hospital_id' => $request->integer('hospital_id') ?: null]);
@@ -420,8 +418,14 @@ class PendingEventsReportController extends Controller
         if (str_contains($motivo, 'Laudo liberado no Scola')) {
             return 'Laudo liberado (SCOLA)';
         }
+        if (str_contains($motivo, 'Laudo integrado no TASY')) {
+            return 'Laudo integrado no TASY';
+        }
         if (str_contains($motivo, 'Laudo disponível') || str_contains($motivo, 'Laudo disponível em solicitação')) {
             return 'Laudo disponível';
+        }
+        if (str_starts_with($motivo, 'Amostra rejeitada')) {
+            return 'Amostra rejeitada pelo lab';
         }
         if (str_starts_with($motivo, 'Nova coleta')) {
             return 'Nova coleta necessária';
@@ -430,6 +434,12 @@ class PendingEventsReportController extends Controller
             return 'Coletado — aguardando resultado';
         }
         if (str_starts_with($motivo, 'Aguardando coleta')) {
+            return 'Aguardando coleta';
+        }
+        // Exames agendados via agenda_paciente → clinicamente equivale a "aguardando coleta"
+        if (in_array($tipo, ['exame', 'proc_exame'], true)
+            && (str_starts_with($motivo, 'Aguardando execução') || str_starts_with($motivo, 'Agendado'))
+        ) {
             return 'Aguardando coleta';
         }
         if (str_starts_with($motivo, 'Aguardando laudo')) {
@@ -443,6 +453,21 @@ class PendingEventsReportController extends Controller
         }
         if (str_starts_with($motivo, 'Urgente')) {
             return 'Urgente — aguardando coleta';
+        }
+        if (str_starts_with($motivo, 'Paciente chegou') || str_starts_with($motivo, 'Previsto — aguardando')) {
+            return 'Aguardando execução';
+        }
+        if (str_starts_with($motivo, 'Em avaliação') || str_starts_with($motivo, 'Em complemento')) {
+            return 'Em execução';
+        }
+        if (str_starts_with($motivo, 'Concluído') || str_starts_with($motivo, 'Executado — aguardando baixa')) {
+            return 'Executado — baixa pendente';
+        }
+        if (str_starts_with($motivo, 'Aguardando atendimento') || str_starts_with($motivo, 'Em atendimento') || str_starts_with($motivo, 'Em recuperação')) {
+            return 'Em atendimento';
+        }
+        if (str_starts_with($motivo, 'Aguardando aprovação')) {
+            return 'Aguardando aprovação';
         }
         if (str_starts_with($motivo, 'Aguardando cirurgia') || str_starts_with($motivo, 'Cirurgia')) {
             return 'Aguardando cirurgia';

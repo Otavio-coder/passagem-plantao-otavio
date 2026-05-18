@@ -4,6 +4,17 @@ namespace App\Repositories\EMR;
 
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Repositório de dados clínicos do paciente no EMR Tasy (Oracle).
+ *
+ * Todas as queries são executadas na conexão 'tasy' (Oracle) via PDO.
+ * Métodos batch recebem arrays de nr_atendimento e retornam arrays indexados por nr_atendimento,
+ * permitindo que o chamador faça merge sem round-trips adicionais.
+ *
+ * ANTIMICROBIAL_CHUNK_SIZE menor que CLINICAL_CHUNK_SIZE: as queries de antimicrobianos usam
+ * CTEs com múltiplos self-joins, o que eleva o custo por linha no Oracle e requer chunks menores
+ * para manter o plano de execução eficiente.
+ */
 class PatientClinicalRepository
 {
     protected const CHUNK_SIZE = 200;
@@ -318,16 +329,22 @@ class PatientClinicalRepository
                             '||'
                         ) WITHIN GROUP (ORDER BY h.max_coleta DESC)
                  FROM (
+                    -- LEFT JOIN em result_laboratorio por nr_seq_prescricao = pp_h.nr_sequencia:
+                    -- vincula resultado ao item exato da hemocultura, não à prescrição inteira.
+                    -- COUNT(rl.nr_sequencia) é 0 se nenhum resultado, > 0 se existe laudo.
+                    -- Funciona corretamente com N itens de hemocultura na mesma prescrição.
                     SELECT pm_h.nr_prescricao,
                            MAX(pp_h.dt_coleta) AS max_coleta,
                            MAX(UPPER(el_h.nm_exame)) AS nm_exame,
                            MAX(pp_h.ie_status_execucao) AS status_exec,
-                           (SELECT COUNT(*) FROM tasy.result_laboratorio rl
-                            WHERE rl.nr_prescricao = pm_h.nr_prescricao) AS has_result,
+                           COUNT(rl.nr_sequencia) AS has_result,
                            MAX(pm_h.dt_prescricao) AS dt_prescricao
                     FROM tasy.prescr_procedimento pp_h
                     JOIN tasy.prescr_medica pm_h ON pm_h.nr_prescricao = pp_h.nr_prescricao
                     JOIN tasy.exame_laboratorio el_h ON el_h.nr_seq_exame = pp_h.nr_seq_exame
+                    LEFT JOIN tasy.result_laboratorio rl
+                        ON rl.nr_prescricao     = pp_h.nr_prescricao
+                       AND rl.nr_seq_prescricao = pp_h.nr_sequencia
                     WHERE pm_h.nr_atendimento = atp.nr_atendimento
                       AND UPPER(el_h.nm_exame) LIKE '%HEMOCULTURA%'
                       AND pp_h.dt_coleta IS NOT NULL
@@ -395,6 +412,11 @@ class PatientClinicalRepository
         $results = [];
 
         foreach (array_chunk($attendanceNumbers, self::CLINICAL_CHUNK_SIZE) as $chunk) {
+            // ODCINUMBERLIST: tipo de coleção nativa do Oracle que aceita uma lista de números
+            // como parâmetro de tabela virtual (TABLE(...)). Usada aqui porque a stored function
+            // `obter_diagnostico_atendimento` precisa ser chamada linha a linha — não há como
+            // reescrever sua lógica com SQL puro. O TABLE() evita criar uma temp table e funciona
+            // em uma única query ao invés de N chamadas individuais.
             $rows = DB::connection($this->connection)->select("
             SELECT
                 nr_atendimento,
@@ -480,6 +502,10 @@ class PatientClinicalRepository
     /**
      * Retorna o histórico completo de CIDs registrados durante o atendimento,
      * ordenados do mais recente para o mais antigo.
+     *
+     * Comportamento do Tasy: cada edição de diagnóstico cria uma nova linha em DIAGNOSTICO_DOENCA
+     * com o mesmo CD_DOENCA. A deduplicação por ROW_NUMBER mantém apenas o registro mais recente
+     * por código, evitando duplicatas na exibição.
      *
      * @return array<int, array{cd_cid: string, ds_cid: string, classificacao: string, situacao: string, dt_diagnostico: string, dt_inativacao: string|null, nm_usuario: string}>
      */
@@ -571,8 +597,8 @@ class PatientClinicalRepository
 
         $cleanedDescription = preg_replace('/\s+/', ' ', $desc) ?? $desc;
 
-        // Some records repeat code tokens at the start (e.g., "R520 R52.0 ...").
-        // Remove only leading tokens that match the CID variants, preserving the clinical text.
+        // Alguns registros repetem o código CID no início da descrição (ex: "R520 R52.0 ...").
+        // Remove apenas os tokens iniciais que correspondem às variantes do código, preservando o texto clínico.
         for ($i = 0; $i < 3; $i++) {
             $stripped = false;
 

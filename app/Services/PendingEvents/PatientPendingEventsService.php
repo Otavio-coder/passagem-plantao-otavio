@@ -15,7 +15,18 @@ use Illuminate\Support\Facades\Log;
 /**
  * Coordenador de eventos pendentes por setor.
  *
- * Retorna: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
+ * Consolida em um único cache todas as pendências assistenciais relevantes para a passagem
+ * de plantão: exames, procedimentos, hemoterapia, antimicrobianos, quimioterapia, cirurgias
+ * agendadas e status de alta.
+ *
+ * Estrutura de retorno: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
+ *
+ * Estratégia de queries:
+ * - Uma query principal coleta todos os atendimentos ativos do setor com dados de alta.
+ * - Cinco queries em chunk (prescrições, hemoterapia, antimicrobianos, quimioterapia, agenda)
+ *   enriquecem os resultados em lote, evitando N queries por paciente.
+ * - CHUNK_SIZE = 200: limite empírico seguro para a cláusula IN do Oracle sem atingir
+ *   o limite de 1000 elementos ou causar degradação do plano de execução.
  */
 class PatientPendingEventsService
 {
@@ -23,6 +34,7 @@ class PatientPendingEventsService
 
     private const CACHE_TTL = 600; // 10 minutos
 
+    /** Máximo de nr_atendimento por cláusula IN nas queries Oracle. */
     private const CHUNK_SIZE = 200;
 
     public function getPendingEventsForSector(int $sectorId): array
@@ -179,7 +191,10 @@ class PatientPendingEventsService
             $this->processAgendaChunk($results, $chunk);
         }
 
-        // Deduplica: remove prescrição quando agenda tem o mesmo proc_interno (mais informativo)
+        // Deduplicação prescrição × agenda: o mesmo procedimento pode aparecer tanto em
+        // prescr_procedimento (fonte 'prescricao') quanto em agenda_paciente (fonte 'agenda').
+        // A entrada da agenda tem dados mais completos (horário real, sala, status atualizado),
+        // portanto quando ambas existem para o mesmo nr_seq_proc_interno, a prescrição é removida.
         foreach ($results as &$data) {
             $agendaProcs = [];
             foreach ($data['events'] as $event) {
@@ -201,6 +216,10 @@ class PatientPendingEventsService
 
         $now = now()->timestamp;
 
+        // Ordenação por proximidade temporal ao momento atual (não por data cronológica).
+        // Eventos urgentes vão primeiro. Entre os demais, prioriza-se quem está mais próximo
+        // de "agora" — tanto no futuro quanto no passado — usando distância absoluta em segundos.
+        // Isso faz com que um exame com 10 min de atraso apareça antes de um agendado para 3h.
         foreach ($results as &$data) {
             usort($data['events'], function ($a, $b) use ($now) {
                 $urgA = $a['urgente'] ?? false;
@@ -241,11 +260,25 @@ class PatientPendingEventsService
 
     // ==================== HANDLERS (collapsed) ====================
 
+    /**
+     * Processa prescrições pendentes para um lote de atendimentos. Usa três queries separadas:
+     *
+     * Query 1 (base): busca procedimentos prescritos ainda pendentes, com todos os joins
+     *   necessários para classificação, setor de execução e deduplicação por (prescricao, proc, data).
+     *   O NOT EXISTS original foi substituído por LEFT JOIN + IS NULL para melhor plano Oracle.
+     *
+     * Query 2 (procedimento_paciente): verifica se o procedimento já foi fisicamente executado
+     *   (registro em procedimento_paciente) mas sem baixa na prescrição — o Tasy às vezes fica
+     *   dessincronizado entre execução e baixa administrativa.
+     *
+     * Query 3 (prescrição mais nova): detecta se existe uma prescrição mais recente para o mesmo
+     *   exame, indicando que a prescrição atual pode estar obsoleta (re-solicitação).
+     */
     private function processPrescriptionChunk(array &$results, array $chunk): void
     {
         $p = $this->placeholders($chunk);
 
-        // Query 1 – main rows; NOT EXISTS replaced with LEFT JOIN / IS NULL pre-aggregation
+        // Query 1 – linhas principais; NOT EXISTS substituído por LEFT JOIN + IS NULL pré-agregado
         try {
             $rows = DB::connection('tasy')->select("
                 WITH pp_laudo_agg AS (
@@ -363,7 +396,7 @@ class PatientPendingEventsService
             return;
         }
 
-        // Query 2 – batch fetch procedimento_paciente for enrichment (foi_executado, exame_coletado_nova, proc_realizado_nova)
+        // Query 2 – busca em lote de procedimento_paciente para enriquecimento (foi_executado, exame_coletado_nova, proc_realizado_nova)
         $ppByPrescricaoSeq = [];
         $ppMaxByExame = [];
         $ppMaxByProc = [];
@@ -401,10 +434,10 @@ class PatientPendingEventsService
                 }
             }
         } catch (\Throwable) {
-            // enrichment only – silently skip
+            // apenas enriquecimento — falha silenciosa intencional
         }
 
-        // Query 3 – newest pending prescription per (nr_atendimento, nr_seq_exame)
+        // Query 3 – prescrição mais recente pendente por (nr_atendimento, nr_seq_exame)
         $newerExameInfo = [];
 
         try {
@@ -435,7 +468,7 @@ class PatientPendingEventsService
                 ];
             }
         } catch (\Throwable) {
-            // enrichment only – silently skip
+            // apenas enriquecimento — falha silenciosa intencional
         }
 
         $now = time();
@@ -596,7 +629,10 @@ class PatientPendingEventsService
                         cm.ie_via_aplicacao,
                         cm.nr_dia_util,
                         pma.ie_alteracao,
-                        CASE pma.ie_alteracao
+                        -- Prioridade de status da dose: valores do domínio 1620 do Tasy.
+                    -- Apenas alterações com priority < 400 são exibidas (HAVING abaixo).
+                    -- Códigos ≥ 400 (3=Administrado, 58=Parcial, 8=Suspenso) indicam dose resolvida.
+                    CASE pma.ie_alteracao
                             WHEN 3  THEN 600  WHEN 58 THEN 500  WHEN 8  THEN 400
                             WHEN 38 THEN 300  WHEN 4  THEN 200  WHEN 10 THEN  30
                             WHEN 15 THEN  20  ELSE           1
@@ -833,7 +869,7 @@ class PatientPendingEventsService
                 WHERE atp.nr_atendimento IN ({$p})
                     AND ap.dt_agenda >= TRUNC(SYSDATE)
                     AND ap.dt_agenda <= SYSDATE + 30
-                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD')
+                    AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD', 'F', 'FI')
                     AND ap.dt_executada IS NULL
                     AND (
                         (ap.ie_carater_cirurgia IS NOT NULL AND ap.ie_carater_cirurgia <> 'X')
@@ -935,14 +971,9 @@ class PatientPendingEventsService
         }
 
         if (! empty($row->dt_alta_medico)) {
-            $descAltaMedica = 'Alta Médica';
-            if (! empty($row->apa_dt_previsto_alta)) {
-                $descAltaMedica .= ' | Prev. Alta: '.Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
-            }
-
             $events[] = [
                 'tipo' => 'alta_medica', 'icone' => 'alta.svg',
-                'descricao' => $descAltaMedica,
+                'descricao' => 'Alta Médica',
                 'ds_subtipo' => 'Alta Médica',
                 'dt_evento' => $row->dt_alta_medico,
                 'dt_evento_formatted' => Carbon::parse($row->dt_alta_medico)->format('d/m/Y H:i'),
@@ -957,18 +988,6 @@ class PatientPendingEventsService
         }
 
         if (! empty($row->apa_dt_previsto_alta)) {
-            $dtFormatted = Carbon::parse($row->apa_dt_previsto_alta)->format('d/m/Y H:i');
-
-            $events[] = [
-                'tipo' => 'previsao_alta', 'icone' => 'alta.svg',
-                'descricao' => 'Previsão de Alta: '.$dtFormatted,
-                'ds_subtipo' => 'Previsão de Alta',
-                'dt_evento' => $row->apa_dt_previsto_alta,
-                'dt_evento_formatted' => $dtFormatted,
-                'nm_prescritor' => isset($row->apa_nm_usuario) ? trim((string) $row->apa_nm_usuario) : null,
-                'urgente' => false,
-            ];
-
             return TasyFormatter::buildDischargeInfo(
                 null, null, (string) $row->apa_dt_previsto_alta
             );

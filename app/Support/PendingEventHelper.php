@@ -387,12 +387,20 @@ class PendingEventHelper
 
             if ($scolaStatus !== '') {
                 // SCOLA disponível: usa como fonte de verdade, ignora dt_coleta/dt_resultado do TASY
+                if (str_contains($scolaStatus, 'laudo integrado no tasy')) {
+                    return 'Laudo integrado no TASY — baixa administrativa pendente';
+                }
+
                 if (str_contains($scolaStatus, 'laudo liberado') && str_contains($scolaStatus, 'aguardando integração')) {
                     return 'Laudo liberado no Scola — aguardando integração com TASY';
                 }
 
                 if (str_contains($scolaStatus, 'laudo liberado')) {
                     return 'Laudo disponível — baixa não realizada';
+                }
+
+                if (str_contains($scolaStatus, 'amostra rejeitada')) {
+                    return 'Amostra rejeitada pelo laboratório';
                 }
 
                 if (str_contains($scolaStatus, 'nova coleta')) {
@@ -458,30 +466,8 @@ class PendingEventHelper
             };
         }
 
-        // Contexto de solicitação mais nova: usa scola_status quando disponível para evitar
-        // contradição entre "Aguardando coleta" (TASY desta prescrição) e laudo já disponível.
-        if ($event['exame_coletado_em_prescricao_mais_nova'] ?? false) {
-            $scolaStatus = mb_strtolower(trim((string) ($event['scola_status'] ?? '')));
-
-            if (str_contains($scolaStatus, 'laudo liberado')) {
-                return 'Laudo disponível em solicitação mais recente';
-            }
-
-            if (str_contains($scolaStatus, 'coletado')) {
-                return 'Coletado em solicitação mais recente — aguardando resultado';
-            }
-
-            return "{$statusBase} · há solicitação mais recente";
-        }
-
-        if ($event['proc_realizado_em_nova_prescricao'] ?? false) {
-            return "{$statusBase} · realizado em solicitação mais recente";
-        }
-
-        $novaInfo = trim((string) ($event['prescricao_mais_nova_pendente_info'] ?? ''));
-        if ($novaInfo !== '') {
-            return "{$statusBase} · há solicitação mais recente: {$novaInfo}";
-        }
+        // Exibe o status real desta prescrição mesmo quando existe uma mais nova.
+        // A existência de nova solicitação não altera o estado deste item em si.
 
         return $statusBase;
     }
@@ -564,9 +550,16 @@ class PendingEventHelper
         // antes de qualquer coleta física.
         $scolaStatus = mb_strtolower(trim((string) ($event['scola_status'] ?? '')));
         if ($scolaStatus !== '') {
+            if (str_contains($scolaStatus, 'laudo integrado no tasy')) {
+                return 'Laudo integrado no TASY — baixa administrativa pendente';
+            }
             if (str_contains($scolaStatus, 'laudo liberado')) {
                 return 'Laudo disponível — baixa não realizada';
             }
+            if (str_contains($scolaStatus, 'amostra rejeitada')) {
+                return 'Amostra rejeitada pelo laboratório';
+            }
+
             if (str_contains($scolaStatus, 'nova coleta')) {
                 return 'Nova coleta necessária';
             }

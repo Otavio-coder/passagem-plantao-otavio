@@ -1,5 +1,6 @@
 <div class="lg:hidden" x-data="{ filtersOpen: false }">
     <div class="flex items-center justify-between sm:justify-center gap-2">
+        @if($canStartHandover)
         <button wire:click="startHandover"
                 wire:loading.attr="disabled"
                 wire:target="startHandover"
@@ -8,6 +9,7 @@
             <i class="fas fa-play text-[10px] sm:text-xs leading-none"></i>
             <span>Passagem</span>
         </button>
+        @endif
 
         <button @click="filtersOpen = !filtersOpen"
                 class="flex-1 sm:flex-initial flex items-center justify-center px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-white text-xs sm:text-sm font-medium">

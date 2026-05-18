@@ -1,5 +1,5 @@
 @props([
-    'data' => null, {{-- array ou stdClass: $patient (card) ou $patientDetails (modal) --}}
+    'data' => null,
 ])
 
 @php
@@ -42,12 +42,14 @@
         :timestamp="data_get($data, $ewsPrefix . '_timestamp')"
         :previousTimestamp="data_get($data, $ewsPrefix . '_previous_timestamp')"
         :classification="data_get($data, $ewsPrefix . '_classification')"
+        :needsAssessment="(bool) data_get($data, $ewsPrefix . '_needs_assessment', false)"
+        :details="data_get($data, $ewsPrefix . '_details')"
     />
 
     {{-- BRADEN --}}
     <x-ui.scale-card
         title="Braden"
-        subtitle="Escala de Braden"
+        subtitle="Lesão por Pressão"
         :score="data_get($data, 'braden_score')"
         :previousScore="data_get($data, 'braden_previous_score')"
         :styling="data_get($data, 'braden_styling', ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'])"
@@ -55,6 +57,8 @@
         :timestamp="data_get($data, 'braden_timestamp')"
         :previousTimestamp="data_get($data, 'braden_previous_timestamp')"
         :classification="data_get($data, 'braden_classification')"
+        :needsAssessment="(bool) data_get($data, 'braden_needs_assessment', false)"
+        :details="data_get($data, 'braden_details')"
     />
 
     {{-- MORSE --}}
@@ -68,12 +72,14 @@
         :timestamp="data_get($data, 'morse_timestamp')"
         :previousTimestamp="data_get($data, 'morse_previous_timestamp')"
         :classification="data_get($data, 'morse_classification')"
+        :needsAssessment="(bool) data_get($data, 'morse_needs_assessment', false)"
+        :details="data_get($data, 'morse_details')"
     />
 
     {{-- DOR --}}
     <x-ui.scale-card
         title="Dor"
-        subtitle="Pain Scale"
+        subtitle="Avaliação da Dor"
         :score="data_get($data, 'pain_score')"
         :previousScore="data_get($data, 'pain_previous_score')"
         :styling="data_get($data, 'pain_styling', ['bg' => 'bg-gray-50', 'border' => 'border-gray-300', 'text' => 'text-gray-800'])"
@@ -81,6 +87,8 @@
         :timestamp="data_get($data, 'pain_timestamp')"
         :previousTimestamp="data_get($data, 'pain_previous_timestamp')"
         :classification="data_get($data, 'pain_classification')"
+        :needsAssessment="(bool) data_get($data, 'pain_needs_assessment', false)"
+        :details="data_get($data, 'pain_details')"
     />
 
     {{-- TEV --}}
@@ -94,5 +102,7 @@
         :timestamp="data_get($data, 'vte_timestamp')"
         :previousTimestamp="data_get($data, 'vte_previous_timestamp')"
         :classification="data_get($data, 'vte_classification')"
+        :needsAssessment="(bool) data_get($data, 'vte_needs_assessment', false)"
+        :details="data_get($data, 'vte_details')"
     />
 </div>

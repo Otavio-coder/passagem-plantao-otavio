@@ -2,19 +2,25 @@
     <div class="py-6 lg:py-8">
         <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4">
 
-            @if(isset($errorMessage) && $errorMessage && strpos($errorMessage, 'setores de acesso') !== false)
+            @if($showSectorOnboarding ?? false)
+                @include('configuration.system.sector-selector-modal', [
+                    'autoOpen'        => true,
+                    'mandatory'       => true,
+                    'initialSelected' => [],
+                    'sectorsData'     => $onboardingSectorsData ?? [],
+                ])
+                <div
+                    x-data
+                    @sectors-configured.window="$wire.onSectorOnboardingSaved()"
+                ></div>
+            @elseif(isset($errorMessage) && $errorMessage)
                 <div class="flex items-center justify-center min-h-[60vh]">
                     <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 max-w-md text-center">
                         <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <x-heroicon-o-exclamation-triangle class="w-8 h-8 text-amber-600" />
                         </div>
-                        <h2 class="text-xl font-bold text-gray-900 mb-2">Acesso Bloqueado</h2>
+                        <h2 class="text-xl font-bold text-gray-900 mb-2">Erro</h2>
                         <p class="text-gray-600 mb-6">{{ $errorMessage }}</p>
-                        <a href="{{ route('user.preferences.index') }}"
-                           class="inline-flex items-center px-6 py-3 bg-[#004D9D] text-white font-semibold rounded-lg hover:bg-[#003d7a] transition-colors shadow-sm">
-                            <x-heroicon-o-cog-6-tooth class="w-5 h-5 mr-2" />
-                            Configurar Meus Setores
-                        </a>
                     </div>
                 </div>
             @else
@@ -257,7 +263,10 @@
 
                     @livewire('sbar-patient-modal', [], key('sbar-patient-modal'))
                     @livewire('nurse-handover-session', [], key('nurse-handover-session'))
-                    @livewire('sbar-expired-scales-modal', ['sectorId' => $selectedSector ?? 0], key('sbar-expired-scales-modal'))
+                    @include('sbar.patient.expired-scales-modal', [
+                        'expiredScalesPatients' => $expiredScalesPatients,
+                        'sectorKey' => $selectedSector ?? 0,
+                    ])
                     @livewire('sbar-shift-evaluations-modal', [], key('sbar-shift-evaluations-modal'))
 
                 </div>
@@ -298,16 +307,16 @@ window.sbarFilters = function () {
              'bedsFilter','orderBy','orderDir','handoverFilter','dischargeFilter','antibioticFilter','internmentFilter']
                 .forEach(prop => this.$watch(prop, () => this.applyFilters()));
 
-            Livewire.hook('commit', ({ component, succeed }) => {
+            Livewire.hook('commit', ({ component, succeed, fail }) => {
                 if (component.name !== 'sbar-report') return;
                 this.isInitialLoading = true;
                 succeed(() => {
                     this.$nextTick(() => {
-                        this.buildCards();
-                        this.applyFilters();
+                        try { this.buildCards(); this.applyFilters(); } catch(e) { console.error('[SBAR]', e); }
                         this.isInitialLoading = false;
                     });
                 });
+                fail(() => { this.isInitialLoading = false; });
             });
         },
 

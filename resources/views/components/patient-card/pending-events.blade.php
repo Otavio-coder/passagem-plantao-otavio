@@ -3,10 +3,10 @@
      x-data="{ showPendingModal: false, cardSlide: 0 }">
 
     @if(!empty($patient['first_pending_event']) || !empty($patient['latest_evaluation']['content'] ?? null))
-        <div class="rounded-lg p-2 border {{ !empty($patient['first_pending_event']) ? '' : 'bg-blue-50/60 border-blue-200' }}"
+        <div class="rounded-lg p-1.5 border {{ !empty($patient['first_pending_event']) ? '' : 'bg-blue-50/60 border-blue-200' }}"
              @if(!empty($patient['first_pending_event']) && !empty($patient['first_pending_style']['card_style'])) style="{{ $patient['first_pending_style']['card_style'] }}" @endif>
-            <div class="flex items-center justify-between mb-1.5">
-                <span class="text-[12px] font-bold tracking-wide text-[#004D9D]">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-bold tracking-wide text-[#004D9D]">
                     @if(!empty($patient['first_pending_event']) && !empty($patient['latest_evaluation']['content'] ?? null))
                         Pendências / Avaliação
                     @elseif(!empty($patient['first_pending_event']))
@@ -43,17 +43,17 @@
             </div>
 
             @if(!empty($patient['first_pending_event']))
-                <div x-show="{{ !empty($patient['latest_evaluation']['content'] ?? null) ? 'cardSlide === 0' : 'true' }}" class="flex items-start gap-2" x-transition>
+                <div x-show="{{ !empty($patient['latest_evaluation']['content'] ?? null) ? 'cardSlide === 0' : 'true' }}" class="flex items-start gap-1.5" x-transition>
                     <img
                         src="{{ asset('images/icons/patient-card/' . ($patient['first_pending_style']['icon'] ?? 'alert-circle.svg')) }}"
-                        class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-90"
+                        class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 opacity-90"
                         alt=""
                     />
                     <div class="flex-1 min-w-0">
-                        <div class="text-[11px] {{ $patient['first_pending_style']['description_class'] ?? 'text-[#062047] font-semibold' }} leading-tight line-clamp-2">
+                        <div class="text-[10px] {{ $patient['first_pending_style']['description_class'] ?? 'text-[#062047] font-semibold' }} leading-tight line-clamp-2">
                             {{ $patient['first_pending_event']['descricao'] ?? 'Sem descrição' }}
                         </div>
-                        <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <div class="flex items-center gap-1 mt-0.5 flex-wrap">
                             @if(!empty($patient['first_pending_event']['dt_evento_formatted']))
                                 <span class="text-[9px] {{ $patient['first_pending_style']['time_class'] ?? 'text-[#004D9D] font-medium' }}">
                                     {{ $patient['first_pending_event']['dt_evento_formatted'] }}
@@ -82,23 +82,23 @@
                         @endif
                     </div>
                     @if($patient['first_pending_style']['show_pulse'] ?? false)
-                        <span class="w-2 h-2 rounded-full {{ $patient['first_pending_style']['pulse_color'] ?? 'bg-gray-400' }} animate-pulse flex-shrink-0 mt-1"></span>
+                        <span class="w-1.5 h-1.5 rounded-full {{ $patient['first_pending_style']['pulse_color'] ?? 'bg-gray-400' }} animate-pulse flex-shrink-0 mt-1"></span>
                     @endif
                 </div>
             @endif
 
             @if(!empty($patient['latest_evaluation']['content'] ?? null))
-                <div x-show="{{ !empty($patient['first_pending_event']) ? 'cardSlide === 1' : 'true' }}" {{ !empty($patient['first_pending_event']) ? 'style="display:none"' : '' }} class="flex items-start gap-2" x-transition>
+                <div x-show="{{ !empty($patient['first_pending_event']) ? 'cardSlide === 1' : 'true' }}" {{ !empty($patient['first_pending_event']) ? 'style="display:none"' : '' }} class="flex items-start gap-1.5" x-transition>
                     <x-ui.user-avatar
                         :photo="$patient['latest_evaluation']['photo'] ?? null"
                         :name="$patient['latest_evaluation']['user_name'] ?? 'U'"
-                        class="w-5 h-5 flex-shrink-0 mt-0.5"
+                        class="w-4 h-4 flex-shrink-0 mt-0.5"
                     />
                     <div class="flex-1 min-w-0">
-                        <div class="text-[11px] text-blue-800 font-medium leading-tight line-clamp-2">
+                        <div class="text-[10px] text-blue-800 font-medium leading-tight line-clamp-2">
                             {{ $patient['latest_evaluation']['content'] ?? '-' }}
                         </div>
-                        <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <div class="flex items-center gap-1 mt-0.5 flex-wrap">
                             @if(!empty($patient['latest_evaluation']['created_at_formatted']))
                                 <span class="text-[9px] text-blue-700 font-medium">
                                     {{ $patient['latest_evaluation']['created_at_formatted'] }}
@@ -115,18 +115,18 @@
             @endif
 
             @if(!empty($patient['first_pending_event']) && !empty($patient['latest_evaluation']['content'] ?? null))
-                <div class="mt-1.5 flex justify-center gap-1">
-                    <span class="h-1.5 w-1.5 rounded-full" :class="cardSlide === 0 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
-                    <span class="h-1.5 w-1.5 rounded-full" :class="cardSlide === 1 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
+                <div class="mt-1 flex justify-center gap-1">
+                    <span class="h-1 w-1 rounded-full" :class="cardSlide === 0 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
+                    <span class="h-1 w-1 rounded-full" :class="cardSlide === 1 ? 'bg-[#004D9D]' : 'bg-gray-300'"></span>
                 </div>
             @endif
         </div>
 
     @else
         <div class="flex items-center justify-center h-full w-full">
-            <div class="text-center py-2">
-                <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
-                <p class="text-xs text-gray-500 font-medium">Sem pendências</p>
+            <div class="text-center py-1.5">
+                <x-iconoir-walking class="text-gray-400 h-4 w-4 mx-auto" />
+                <p class="text-[11px] text-gray-500 font-medium">Sem pendências</p>
                 <p class="text-[9px] text-gray-400 mt-0.5">Nenhum evento pendente registrado para este paciente.</p>
             </div>
         </div>
@@ -292,9 +292,9 @@
                                               x-text="ev.ds_complemento"
                                               class="text-gray-500 italic"></span>
                                     </div>
-                                    <template x-if="(ev.motivo_pendente && !['previsao_alta','alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (['previsao_alta','alta_medica'].includes(ev.tipo) && (ev.nm_prescritor_display || ev.nm_prescritor))">
+                                    <template x-if="(ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor))">
                                         <div class="mt-1 space-y-0.5">
-                                            <template x-if="ev.motivo_pendente && !['previsao_alta','alta','alta_medica'].includes(ev.tipo)">
+                                            <template x-if="ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)">
                                                 <div class="flex items-center gap-1 text-[10px] text-gray-600">
                                                     <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
                                                     <span class="font-medium text-gray-500">Tasy:</span>
@@ -308,7 +308,7 @@
                                                     <span x-text="ev.scola_status"></span>
                                                 </div>
                                             </template>
-                                            <template x-if="['previsao_alta','alta_medica'].includes(ev.tipo) && (ev.nm_prescritor_display || ev.nm_prescritor)">
+                                            <template x-if="ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor)">
                                                 <div class="flex items-center gap-1 text-[10px] text-gray-600">
                                                     <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
                                                     <span class="font-medium text-gray-500">Registrado por:</span>

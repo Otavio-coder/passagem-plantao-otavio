@@ -27,7 +27,7 @@ class NurseHandoverSetup extends Component
             ->map(fn ($rows) => $rows->pluck('bed_code')->all())
             ->all();
 
-        // Cast sector keys to int for consistency
+        // Converte chaves de setor para int por consistência
         foreach ($saved as $sectorId => $beds) {
             $this->selectedBeds[(int) $sectorId] = $beds;
         }
@@ -56,7 +56,7 @@ class NurseHandoverSetup extends Component
 
         $sectorIds = $prefs->pluck('sector_code')->map(fn ($v) => (int) $v)->unique()->all();
 
-        // Single Oracle query for all sectors' beds — avoids N queries (one per sector)
+        // Uma única query Oracle para todos os leitos dos setores — evita N queries (uma por setor)
         $placeholders = implode(',', $sectorIds);
         $bedRows = DB::connection('tasy')->select("
             SELECT DISTINCT cd_setor_atendimento, cd_unidade_basica

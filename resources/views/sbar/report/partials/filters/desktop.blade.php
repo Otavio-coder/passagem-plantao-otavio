@@ -124,6 +124,7 @@
             </button>
         </div>
 
+        @if($canStartHandover)
         <div class="flex flex-col justify-end flex-shrink-0">
             <button wire:click="startHandover"
                     wire:loading.attr="disabled"
@@ -134,5 +135,6 @@
                 <span>Iniciar Passagem</span>
             </button>
         </div>
+        @endif
     </div>
 </div>

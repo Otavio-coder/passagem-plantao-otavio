@@ -1,16 +1,16 @@
 @props(['patient', 'showAdminData' => false, 'showScales' => false])
 
 {{-- Row 2: Patient Name + Gender + Age --}}
-<div class="bg-white/70 rounded-lg px-2 md:px-3 py-1.5 md:py-2 lg:py-1.5 shadow-sm">
-    <div class="flex items-center justify-center gap-2">
+<div class="bg-white/70 rounded-lg px-2 py-1 md:py-1.5 shadow-sm">
+    <div class="flex items-center justify-center gap-1.5">
         @if(($patient['sexo'] ?? '') === 'F')
-            <x-iconoir-female class="text-pink-600 h-4 w-4 md:h-5 md:w-5 lg:h-4 lg:w-4 flex-shrink-0" />
+            <x-iconoir-female class="text-pink-600 h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
         @elseif(($patient['sexo'] ?? '') === 'M')
-            <x-iconoir-male class="text-blue-600 h-4 w-4 md:h-5 md:w-5 lg:h-4 lg:w-4 flex-shrink-0" />
+            <x-iconoir-male class="text-blue-600 h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" />
         @endif
-        <p class="text-gray-900 text-sm md:text-base lg:text-sm font-bold truncate min-w-0">{{ $patient['nm_pessoa_fisica'] ?? 'N/A' }}</p>
-        <span class="text-gray-700 text-xs sm:text-sm md:text-base lg:text-sm font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
-        <span class="text-gray-700 text-xs md:text-sm lg:text-xs font-semibold flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
+        <p class="text-gray-900 text-xs md:text-sm font-bold truncate min-w-0">{{ $patient['nm_pessoa_fisica'] ?? 'N/A' }}</p>
+        <span class="text-gray-700 text-[11px] md:text-xs font-semibold flex-shrink-0">{{ $patient['age'] ?? '?' }}a</span>
+        <span class="text-gray-500 text-[10px] md:text-[11px] font-medium flex-shrink-0">({{ $patient['birth_date'] ?? '?' }})</span>
     </div>
 </div>
 
@@ -19,7 +19,6 @@
 @php
     $prevAltaRaw = $patient['discharge_info']['dt_previsto_alta_formatted'] ?? null;
     $hasPrevAlta = in_array(($patient['discharge_display']['type'] ?? ''), ['previsao_alta', 'alta_medica']) && !empty($prevAltaRaw);
-    $prevAlta = $prevAltaRaw ? (substr($prevAltaRaw, 0, 5) . ' ' . substr($prevAltaRaw, -5)) : null;
     $avalEnf = $patient['avaliacao_enf'] ?? null;
     $avalEnfOk = $avalEnf && $avalEnf !== 'Não realizada';
     $avalEnfDisplay = $avalEnfOk ? Str::before($avalEnf, ' ') : null;
@@ -33,65 +32,71 @@
         ? $medicoParts[0] . ' ' . $medicoParts[count($medicoParts) - 1]
         : ($medicoRaw ?? null);
 @endphp
-<div class="bg-white/70 rounded-lg px-2 md:px-3 py-0.5 md:py-1 lg:py-0.5 shadow-sm space-y-0">
-    {{-- Row 1: 5 colunas — Nº (1) | Prev. Alta (2) | Int (1) | Conv (1) --}}
-    <div class="grid grid-cols-5 gap-x-1.5 text-[9px] md:text-[11px] lg:text-[9px] leading-snug">
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
-            <span class="text-gray-500 shrink-0">Nº:</span>
-            <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['nr_atendimento'] ?? '—' }}</span>
+<div class="bg-white/70 rounded-lg px-2 md:px-3 py-1 md:py-1.5 shadow-sm space-y-1">
+
+    {{-- Linha 1: Nº atendimento | Internação | Convênio --}}
+    <div class="flex items-center gap-2 text-[10px] md:text-xs lg:text-[10px] leading-tight">
+        <div class="flex items-center gap-0.5 min-w-0">
+            <span class="text-gray-400 shrink-0">Nº</span>
+            <span class="text-gray-900 font-semibold tabular-nums">{{ $patient['nr_atendimento'] ?? '—' }}</span>
         </div>
-        <div class="col-span-2 flex gap-0.5 overflow-hidden whitespace-nowrap">
-            @if($hasPrevAlta)
-                <span class="text-orange-600 shrink-0">Prev. Alta:</span>
-                <span class="text-orange-700 font-semibold overflow-hidden">{{ $prevAlta }}</span>
-            @else
-                <span class="text-gray-500 shrink-0">Prev. Alta:</span>
-                <span class="text-gray-400">—</span>
-            @endif
-        </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
-            <span class="text-gray-500 shrink-0">Int:</span>
+        <span class="text-gray-200 shrink-0">·</span>
+        <div class="flex items-center gap-0.5 shrink-0">
+            <span class="text-gray-400">Int:</span>
             @if($patient['is_new_patient'] ?? false)
-                <span class="text-green-700 font-semibold">Hoje</span>
+                <span class="text-green-700 font-semibold">Admissão hoje</span>
             @elseif(isset($patient['internment_days']) && $patient['internment_days'] !== null)
-                <span class="text-gray-900 font-medium">{{ ceil($patient['internment_days']) }}d</span>
+                <span class="text-gray-800 font-semibold">{{ ceil($patient['internment_days']) }}d</span>
             @else
                 <span class="text-gray-400">—</span>
             @endif
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap">
-            <span class="text-gray-500 shrink-0">Conv:</span>
-            <span class="text-gray-900 font-medium overflow-hidden">{{ $patient['convenio_short'] ?? '—' }}</span>
+        <span class="text-gray-200 shrink-0">·</span>
+        <div class="flex items-center gap-0.5 min-w-0 overflow-hidden">
+            <span class="text-gray-400 shrink-0">Conv:</span>
+            <span class="text-gray-800 font-medium truncate">{{ $patient['convenio_short'] ?? '—' }}</span>
         </div>
     </div>
 
-    {{-- Row 2: 3 colunas — Dr | Enf | Educ --}}
-    <div class="grid grid-cols-3 gap-x-2 text-[9px] md:text-[11px] lg:text-[9px] leading-snug">
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap items-center">
-            <span class="text-gray-500 shrink-0">Dr:</span>
-            @if($medicoAbrev)
-                <span class="text-gray-900 font-medium overflow-hidden">{{ $medicoAbrev }}</span>
-            @else
-                <span class="text-gray-400">—</span>
-            @endif
-        </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap justify-center items-center">
-            <span class="text-gray-500 shrink-0">Enf:</span>
+    {{-- Linha 2: Prev. Alta + Médico --}}
+    <div class="flex items-center gap-1.5 text-[10px] md:text-xs lg:text-[10px] leading-tight min-w-0">
+        @if($hasPrevAlta)
+            <x-heroicon-s-arrow-right-start-on-rectangle class="w-3 h-3 text-orange-500 shrink-0" />
+            <span class="text-orange-600 font-medium shrink-0">Prv.Alta:</span>
+            <span class="text-orange-700 font-bold shrink-0">{{ $prevAltaRaw }}</span>
+        @else
+            <span class="text-gray-400 shrink-0">Prv.Alta: —</span>
+        @endif
+        <span class="text-gray-200 shrink-0">·</span>
+        <span class="text-gray-400 shrink-0">Dr:</span>
+        @if($medicoAbrev)
+            <span class="text-gray-800 font-medium truncate min-w-0">{{ $medicoAbrev }}</span>
+        @else
+            <span class="text-gray-400">—</span>
+        @endif
+    </div>
+
+    {{-- Linha 4: Avaliação enfermagem + PE --}}
+    <div class="flex items-center gap-2 text-[10px] md:text-xs lg:text-[10px] leading-tight">
+        <div class="flex items-center gap-0.5 shrink-0">
+            <span class="text-gray-400">Enf:</span>
             @if($avalEnfOk)
-                <span class="text-gray-900 font-medium">{{ $avalEnfDisplay }}</span>
+                <span class="text-gray-800 font-medium">{{ $avalEnfDisplay }}</span>
             @else
                 <span class="text-gray-400">N/A</span>
             @endif
         </div>
-        <div class="flex gap-0.5 overflow-hidden whitespace-nowrap justify-center items-center">
-            <span class="text-gray-500 shrink-0">Educ:</span>
+        <span class="text-gray-200 shrink-0">·</span>
+        <div class="flex items-center gap-0.5 shrink-0">
+            <span class="text-gray-400">Educ:</span>
             @if($peOk)
-                <span class="text-gray-900 font-medium">{{ $peData }}</span>
+                <span class="text-gray-800 font-medium">{{ $peData }}</span>
             @else
                 <span class="text-gray-400">N/A</span>
             @endif
         </div>
     </div>
+
 </div>
 
 {{-- Hemocultura: card clicável (cor única santacasa) --}}

@@ -59,7 +59,9 @@
         .send-btn-loading .btn-spinner { display: inline-block !important; }
         .btn-spinner {
             display: none;
-            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 18px;
             height: 18px;
             border: 2.5px solid rgba(255, 255, 255, 0.3);
@@ -501,7 +503,7 @@
         <!-- Message input -->
         <div class="flex-shrink-0 border-t border-slate-200 bg-white p-2 sm:p-3">
             <form @submit.prevent="sendMessage()">
-                <div class="flex items-end gap-2.5 sm:gap-2">
+                <div class="flex items-center gap-2.5 sm:gap-2">
                     <div class="relative flex-1">
                         <textarea
                             x-model="messageText"

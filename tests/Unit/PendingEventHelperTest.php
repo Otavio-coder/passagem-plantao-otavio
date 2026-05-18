@@ -108,7 +108,7 @@ class PendingEventHelperTest extends TestCase
     }
 
     #[Test]
-    public function motivo_exame_coletado_em_prescricao_mais_nova_exibe_status_atual_mais_sufixo(): void
+    public function motivo_exame_coletado_em_prescricao_mais_nova_exibe_status_real_desta_prescricao(): void
     {
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
@@ -116,14 +116,13 @@ class PendingEventHelperTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Aguardando coleta · há solicitação mais recente', $motivo);
+        $this->assertSame('Aguardando coleta', $motivo);
     }
 
     #[Test]
     public function motivo_exame_coletado_em_nova_com_laudo_liberado_no_scola(): void
     {
-        // Quando SCOLA confirma laudo liberado, "Aguardando coleta" da prescrição antiga seria
-        // contradição — deve informar diretamente que o laudo está disponível.
+        // Mostra o status real desta prescrição (via SCOLA), sem referência à solicitação mais nova.
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
             'exame_coletado_em_prescricao_mais_nova' => true,
@@ -131,7 +130,7 @@ class PendingEventHelperTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Laudo disponível em solicitação mais recente', $motivo);
+        $this->assertSame('Laudo disponível — baixa não realizada', $motivo);
     }
 
     #[Test]
@@ -144,11 +143,11 @@ class PendingEventHelperTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Coletado em solicitação mais recente — aguardando resultado', $motivo);
+        $this->assertSame('Coletado — aguardando resultado', $motivo);
     }
 
     #[Test]
-    public function motivo_prescricao_mais_nova_pendente_exibe_status_atual_mais_info(): void
+    public function motivo_prescricao_mais_nova_pendente_exibe_status_real_desta_prescricao(): void
     {
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
@@ -156,6 +155,6 @@ class PendingEventHelperTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Aguardando coleta · há solicitação mais recente: 63999999 — 27/04/2026', $motivo);
+        $this->assertSame('Aguardando coleta', $motivo);
     }
 }

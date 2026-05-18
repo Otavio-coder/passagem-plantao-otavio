@@ -54,6 +54,17 @@ class ScolaExamStatusService
                     $event['scola_data_liberado'] = $status['scola_data_liberado'];
                     $event['scola_data_exportado'] = $status['scola_data_exportado'];
 
+                    // SCOLA diz "aguardando integração TASY" mas dt_resultado já está em
+                    // prescr_procedimento → laudo está no TASY, só falta data_exportacao_resultado
+                    // ser preenchida no SCOLA. Corrige o label para evitar falso alarme.
+                    if (
+                        $status['label'] === 'Laudo liberado (aguardando integração TASY)'
+                        && ! empty($event['dt_resultado'])
+                        && ! empty($event['dt_coleta'])
+                    ) {
+                        $event['scola_status'] = 'Laudo integrado no TASY (SCOLA sem confirmação)';
+                    }
+
                     if (
                         $status['label'] === 'Coletado (aguardando resultado)'
                         && empty($event['dt_coleta'])
@@ -476,8 +487,18 @@ class ScolaExamStatusService
 
         if ($statusCode === 'N') {
             return array_merge($dates, [
-                'label' => 'Nova coleta necessária',
+                'label' => $hasColheita
+                    ? 'Amostra rejeitada pelo laboratório'
+                    : 'Nova coleta necessária',
                 'integration_issue' => false,
+            ]);
+        }
+
+        // Cancelado no SCOLA administrativamente (ex: cultivo em incubação longa)
+        if ($statusCode === 'C') {
+            return array_merge($dates, [
+                'label' => 'Cancelado no SCOLA (verificar laboratório)',
+                'integration_issue' => true,
             ]);
         }
 
@@ -576,7 +597,12 @@ class ScolaExamStatusService
     }
 
     /**
-     * Retorna os codigo_pedido que possuem ao menos um registro em res_ex (resultado gerado).
+     * Retorna os codigo_pedido que possuem ao menos um campo bacteriológico em res_ex.
+     *
+     * Filtra apenas campos específicos de hemocultura (GERME*, BACTER, RESULTADO, ONEG*, RESAUT='+').
+     * Sem esse filtro, exames do mesmo pedido (hemograma, PCR, TGP, etc.) têm linhas em res_ex
+     * com campos como RES/RESCON, o que dispara hasResult=true falsamente e faz o fallback
+     * via movexFallbackStatus retornar "Laudo integrado" baseado em exames já integrados.
      *
      * @param  string[]  $codigoPedidos
      * @return string[]
@@ -597,7 +623,13 @@ class ScolaExamStatusService
         }
 
         $rows = DB::connection('scola')->select(
-            'SELECT DISTINCT codigo_pedido FROM scola.res_ex WHERE codigo_pedido IN ('.implode(',', $placeholders).')',
+            'SELECT DISTINCT codigo_pedido FROM scola.res_ex
+             WHERE codigo_pedido IN ('.implode(',', $placeholders).")
+               AND (TRIM(ordem_campo_exame) LIKE 'GERME%'
+                    OR TRIM(ordem_campo_exame) = 'BACTER'
+                    OR TRIM(ordem_campo_exame) = 'RESULTADO'
+                    OR TRIM(ordem_campo_exame) LIKE 'ONEG%'
+                    OR (TRIM(ordem_campo_exame) = 'RESAUT' AND valor_resultado = '+'))",
             $bindings
         );
 

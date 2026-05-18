@@ -401,7 +401,7 @@ class SbarPatientModal extends Component
             return;
         }
 
-        // Day navigation is disabled in UI: medication schedule is always locked to today.
+        // Navegação por dia desabilitada na UI: o cronograma de medicação é sempre fixado no dia atual.
         $this->scheduleDate = now()->format('Y-m-d');
 
         $this->loadMedicationSchedule();

@@ -15,24 +15,26 @@
 @endphp
 
 @section('content')
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+<div class="space-y-5">
 
     {{-- Header --}}
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-            <a href="{{ route('chat.archive.index') }}" class="text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="fas fa-arrow-left"></i>
+            <a href="{{ route('chat.archive.index') }}"
+               class="w-10 h-10 rounded-xl bg-[#004D9D]/10 flex items-center justify-center flex-shrink-0 hover:bg-[#004D9D]/20 transition-colors"
+               title="Voltar">
+                <i class="fas fa-arrow-left text-[#004D9D]"></i>
             </a>
             <div>
-                <h1 class="text-xl font-bold text-gray-900">Métricas de Passagem de Plantão</h1>
-                <p class="text-xs text-gray-500 mt-0.5">Análise de eficiência e qualidade das passagens realizadas</p>
+                <h1 class="text-xl font-bold text-gray-900 leading-tight">Métricas de Passagem de Plantão</h1>
+                <p class="text-sm text-gray-500 mt-0.5">Análise de eficiência e qualidade das passagens realizadas</p>
             </div>
         </div>
 
         {{-- Filters --}}
         <form method="GET" action="{{ route('handover.metrics') }}" class="flex flex-wrap items-center gap-2">
             <select name="period" onchange="this.form.submit()"
-                class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30">
                 <option value="7" {{ $period == 7 ? 'selected' : '' }}>Últimos 7 dias</option>
                 <option value="30" {{ $period == 30 ? 'selected' : '' }}>Últimos 30 dias</option>
                 <option value="90" {{ $period == 90 ? 'selected' : '' }}>Últimos 90 dias</option>
@@ -40,7 +42,7 @@
             </select>
             @if($sectors->isNotEmpty())
             <select name="sector" onchange="this.form.submit()"
-                class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30">
                 <option value="">Todos os setores</option>
                 @foreach($sectors as $s)
                     <option value="{{ $s }}" {{ $sectorFilter === $s ? 'selected' : '' }}>{{ $s }}</option>
@@ -61,27 +63,27 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
             <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Passagens</p>
-            <p class="text-2xl font-bold text-emerald-600 mt-0.5">{{ $totalSessions }}</p>
+            <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ $totalSessions }}</p>
             <p class="text-xs text-gray-400 mt-0.5">concluídas</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
             <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Duração média</p>
-            <p class="text-2xl font-bold text-blue-600 mt-0.5">{{ fmtMin($avgDurationSec ? round($avgDurationSec/60,1) : null) }}</p>
+            <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ fmtMin($avgDurationSec ? round($avgDurationSec/60,1) : null) }}</p>
             <p class="text-xs text-gray-400 mt-0.5">por sessão</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
             <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Tempo/leito</p>
-            <p class="text-2xl font-bold text-indigo-600 mt-0.5">{{ fmtSec($avgSecPerBed) }}</p>
+            <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ fmtSec($avgSecPerBed) }}</p>
             <p class="text-xs text-gray-400 mt-0.5">média por leito</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
             <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Leitos/min</p>
-            <p class="text-2xl font-bold text-sky-600 mt-0.5">{{ $avgBedsPerMinute ? number_format($avgBedsPerMinute, 2) : '—' }}</p>
+            <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ $avgBedsPerMinute ? number_format($avgBedsPerMinute, 2) : '—' }}</p>
             <p class="text-xs text-gray-400 mt-0.5">velocidade média</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
             <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Horas economizadas</p>
-            <p class="text-2xl font-bold text-teal-600 mt-0.5">{{ $hoursSavedMonth !== null ? $hoursSavedMonth.'h' : '—' }}</p>
+            <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ $hoursSavedMonth !== null ? $hoursSavedMonth.'h' : '—' }}</p>
             <p class="text-xs text-gray-400 mt-0.5">vs. 45min manual</p>
         </div>
     </div>
@@ -116,7 +118,7 @@
         {{-- Consistency by sector --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div class="flex items-center gap-2 mb-3">
-                <i class="fas fa-chart-line text-blue-500"></i>
+                <i class="fas fa-chart-line text-[#004D9D]"></i>
                 <h2 class="text-sm font-semibold text-gray-700">Índice de Consistência por Setor</h2>
             </div>
             @if(empty($consistencyBySector))
@@ -153,7 +155,7 @@
     @if($bySector->isNotEmpty())
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-            <i class="fas fa-hospital text-blue-500 text-sm"></i>
+            <i class="fas fa-hospital text-[#004D9D] text-sm"></i>
             <h2 class="text-sm font-semibold text-gray-700">Média por Setor</h2>
         </div>
         <div class="overflow-x-auto">
@@ -176,9 +178,9 @@
                             {{ $s['sector_name'] }}
                         </td>
                         <td class="px-4 py-2.5 text-right text-gray-600">{{ $s['sessions'] }}</td>
-                        <td class="px-4 py-2.5 text-right text-blue-700 font-mono">{{ fmtMin($s['avg_duration_min']) }}</td>
-                        <td class="px-4 py-2.5 text-right text-indigo-700 font-mono">{{ fmtSec($s['avg_sec_per_bed']) }}</td>
-                        <td class="px-4 py-2.5 text-right text-sky-700 font-mono">{{ $s['avg_beds_per_min'] ?? '—' }}</td>
+                        <td class="px-4 py-2.5 text-right text-[#004D9D] font-mono">{{ fmtMin($s['avg_duration_min']) }}</td>
+                        <td class="px-4 py-2.5 text-right text-gray-700 font-mono">{{ fmtSec($s['avg_sec_per_bed']) }}</td>
+                        <td class="px-4 py-2.5 text-right text-gray-700 font-mono">{{ $s['avg_beds_per_min'] ?? '—' }}</td>
                         <td class="px-4 py-2.5 text-right text-gray-600">{{ $s['avg_beds'] ?? '—' }}</td>
                         <td class="px-4 py-2.5 text-right">
                             <span class="font-semibold {{ $s['risk_pct'] > 20 ? 'text-red-600' : ($s['risk_pct'] > 10 ? 'text-amber-600' : 'text-emerald-600') }}">
@@ -199,7 +201,7 @@
         {{-- By shift --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <i class="fas fa-clock text-indigo-500 text-sm"></i>
+                <i class="fas fa-clock text-[#004D9D] text-sm"></i>
                 <h2 class="text-sm font-semibold text-gray-700">Média por Turno</h2>
             </div>
             <div class="p-4 space-y-3">
@@ -231,7 +233,7 @@
         {{-- Weekly evolution --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-                <i class="fas fa-chart-area text-emerald-500 text-sm"></i>
+                <i class="fas fa-chart-area text-[#004D9D] text-sm"></i>
                 <h2 class="text-sm font-semibold text-gray-700">Evolução Semanal</h2>
             </div>
             <div class="p-4">
@@ -244,7 +246,7 @@
                         <div class="flex items-center gap-2">
                             <span class="text-[10px] text-gray-400 w-12 text-right">{{ $w['week_label'] }}</span>
                             <div class="flex-1 h-5 bg-gray-50 rounded overflow-hidden relative">
-                                <div class="h-full bg-emerald-400/80 rounded"
+                                <div class="h-full bg-[#0071B9]/80 rounded"
                                      style="width: {{ $w['avg_duration_min'] ? min($w['avg_duration_min'] / $maxWkMin * 100, 100) : 0 }}%"></div>
                                 <span class="absolute inset-0 flex items-center pl-2 text-[10px] font-mono text-gray-700">
                                     {{ fmtMin($w['avg_duration_min']) }} · {{ $w['sessions'] }} sess. · {{ $w['avg_beds'] ?? '—' }} leitos
@@ -292,7 +294,7 @@
                             </span>
                         </td>
                         <td class="px-4 py-2 text-right text-gray-600">{{ $h['beds_visited'] }}/{{ $h['beds_total'] }}</td>
-                        <td class="px-4 py-2 text-right font-mono text-blue-700">{{ fmtMin($h['duration_min']) }}</td>
+                        <td class="px-4 py-2 text-right font-mono text-[#004D9D]">{{ fmtMin($h['duration_min']) }}</td>
                         <td class="px-4 py-2 text-right font-mono font-semibold {{ $h['is_risky'] ? 'text-red-600' : 'text-gray-700' }}">
                             {{ fmtSec($h['sec_per_bed']) }}
                             @if($h['is_risky'])

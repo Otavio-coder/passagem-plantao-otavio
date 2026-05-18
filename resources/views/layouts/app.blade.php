@@ -252,7 +252,10 @@
             showBanner();
         });
 
-        window.addEventListener('appinstalled', hideBanner);
+        window.addEventListener('appinstalled', function() {
+            hideBanner();
+            showToast('App instalado com sucesso! Acesse pelo ícone na tela inicial.', 'success');
+        });
 
         if (installBtn) {
             installBtn.addEventListener('click', function() {
@@ -260,8 +263,8 @@
                 hideBanner();
                 deferredPrompt.prompt();
                 deferredPrompt.userChoice.then(function(choice) {
-                    if (choice.outcome === 'accepted') {
-                        console.log('[PWA] Usuário aceitou a instalação');
+                    if (choice.outcome === 'dismissed') {
+                        showToast('Instalação cancelada.', 'info');
                     }
                     deferredPrompt = null;
                 });

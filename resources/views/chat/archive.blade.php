@@ -72,7 +72,7 @@
         </div>
         @can('ver historico chat')
         <a href="{{ route('handover.metrics') }}"
-           class="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors">
+           class="inline-flex items-center gap-2 px-3 py-1.5 bg-[#004D9D]/10 border border-[#004D9D]/20 text-[#004D9D] rounded-lg text-xs font-semibold hover:bg-[#004D9D]/15 transition-colors">
             <i class="fas fa-chart-bar fa-xs"></i>
             Métricas de Passagem
         </a>
@@ -187,13 +187,13 @@
     @if(!empty($handoverMetrics) && $handoverMetrics['total'] > 0)
     <div>
         <div class="flex items-center gap-2 mb-3">
-            <i class="fas fa-play-circle text-emerald-600"></i>
+            <i class="fas fa-play-circle text-[#004D9D]"></i>
             <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Passagens de Plantão</h2>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
                 <p class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Total iniciadas</p>
-                <p class="text-2xl font-bold text-emerald-600 mt-0.5">{{ $handoverMetrics['total'] }}</p>
+                <p class="text-2xl font-bold text-[#004D9D] mt-0.5">{{ $handoverMetrics['total'] }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">sessões</p>
             </div>
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
@@ -259,7 +259,7 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-gray-600">{{ $h['beds_visited'] }}/{{ $h['beds_total'] }}</td>
-                            <td class="px-3 py-2 text-emerald-600 font-semibold">{{ $h['duration'] ?? '—' }}</td>
+                            <td class="px-3 py-2 text-[#004D9D] font-semibold">{{ $h['duration'] ?? '—' }}</td>
                         </tr>
                         @endforeach
                     </tbody>

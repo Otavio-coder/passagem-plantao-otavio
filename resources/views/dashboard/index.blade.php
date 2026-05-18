@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@push('scripts')
+@livewireScripts
+@endpush
+
 @push('head')
 <style>
     #dashboard-page {
@@ -151,6 +155,18 @@
         </div>
     </div>
 
+    {{-- Onboarding: primeiro login sem setores configurados --}}
+    @php $needsOnboarding = auth()->check() && ! auth()->user()->hasConfiguredSectors(); @endphp
+    @if($needsOnboarding)
+        @include('configuration.system.sector-selector-modal', [
+            'autoOpen'        => true,
+            'mandatory'       => true,
+            'initialSelected' => [],
+            'sectorsData'     => \App\Models\EMR\Core\Sector::allowedForPreferencesGroupedByHospital(),
+        ])
+        <div x-data @sectors-configured.window="window.location.reload()"></div>
+    @endif
+
     {{-- Footer do Dashboard --}}
     <footer class="w-full py-3 text-center text-xs text-gray-400">
         <span class="text-gray-500 font-medium">Centro de Inovação</span>
@@ -165,10 +181,6 @@
         </a>
     </footer>
 </div>
-
-@auth
-    @livewire('sector-selector-modal')
-@endauth
 
 @endsection
 

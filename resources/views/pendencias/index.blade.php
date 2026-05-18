@@ -21,6 +21,39 @@
     .badge-outros          { background:#F9FAFB; color:#374151; border:1px solid #E5E7EB; }
     .badge-urgente         { background:#FEF2F2; color:#991B1B; border:1px solid #FECACA; }
     .badge-antimicrobiano  { background:#FEFCE8; color:#713F12; border:1px solid #FEF08A; }
+    /* KPI cards */
+    #kpi-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 6px;
+        padding: 10px 12px 4px;
+    }
+    .kpi-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-bottom: 3px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 7px 10px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        cursor: pointer;
+        transition: border-color .15s, box-shadow .15s;
+        user-select: none;
+    }
+    .kpi-card:hover { border-color: #9ca3af; border-bottom-color: #9ca3af; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+    .kpi-card.active { border-color: #cbd5e1; border-bottom-color: #004D9D; box-shadow: 0 0 0 1px #004D9D22; }
+    .kpi-card .kpi-count {
+        font-size: 18px; font-weight: 700;
+        color: #111827; line-height: 1;
+    }
+    .kpi-card .kpi-label {
+        font-size: 9px; font-weight: 500;
+        color: #9ca3af; line-height: 1.3;
+    }
+    .kpi-card.kpi-total  { border-bottom-color: #004D9D; }
+    .kpi-card.kpi-overdue { border-bottom-color: #dc2626; }
+    .kpi-card.kpi-overdue .kpi-count { color: #dc2626; }
 </style>
 @endpush
 
@@ -213,12 +246,15 @@
     {{-- Loading overlay --}}
     <div id="pending-loading"
          class="fixed inset-0 z-50 items-center justify-center"
-         style="background:rgba(0,20,70,0.55);backdrop-filter:blur(3px);display:{{ $rows->count() > 0 ? 'flex' : 'none' }}">
+         style="background:rgba(0,20,70,0.55);backdrop-filter:blur(3px);display:none">
         <div class="flex flex-col items-center gap-3 mt-32">
             <div class="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
             <span class="text-white text-sm font-medium tracking-wide">Carregando pendências...</span>
         </div>
     </div>
+    @if($rows->count() > 0)
+    <script>document.getElementById('pending-loading').style.display = 'flex';</script>
+    @endif
 
     {{-- Body --}}
     <div class="bg-white rounded-b-xl">
@@ -243,7 +279,9 @@
                  16 motivo_categoria (hidden - filtro status)
                  17 classificacao (hidden - filtro classificação)
             --}}
-            <div class="px-2 pb-4 pt-2" id="dt-wrapper">
+            <div id="kpi-bar"></div>
+
+            <div class="pb-4 pt-2" id="dt-wrapper">
                 <table id="pendencias-table" class="w-full" style="width:100%">
                     <thead>
                         <tr class="bg-[#004D9D]/5 border-b border-[#004D9D]/10">
@@ -409,23 +447,24 @@ $(document).ready(function () {
     var table = $('#pendencias-table').DataTable({
         pageLength: 25,
         lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }],
-        autoWidth: false,
+        autoWidth: true,
+        scrollX: false,
         order: [],
         columns: [
-            { width: '110px' },  // 0  Paciente
-            { width: '45px'  },  // 1  Leito
-            { width: '70px'  },  // 2  Atend.
-            { width: '80px'  },  // 3  Tipo
-            { width: '200px' },  // 4  Status
-            { width: '160px' },  // 5  Pendência
-            { width: '72px'  },  // 6  Data Prescrição
-            { width: '72px'  },  // 7  Lib. médica
-            { width: '72px'  },  // 8  Liberado
-            { width: '72px'  },  // 9  Prev. exec.
-            { width: '72px'  },  // 10 Coletado
-            { width: '70px'  },  // 11 Em aberto
-            { width: '90px'  },  // 12 Setor exec.
-            { width: '110px' },  // 13 Unidade
+            { },  // 0  Paciente
+            { },  // 1  Leito
+            { },  // 2  Atend.
+            { },  // 3  Tipo
+            { },  // 4  Status
+            { },  // 5  Pendência
+            { },  // 6  Data Prescrição
+            { },  // 7  Lib. médica
+            { },  // 8  Liberado
+            { },  // 9  Prev. exec.
+            { },  // 10 Coletado
+            { },  // 11 Em aberto
+            { },  // 12 Setor exec.
+            { },  // 13 Unidade
             { width: '0', orderable: false, searchable: true  },  // 14 tipo_raw
             { width: '0', orderable: false, searchable: true  },  // 15 vencido
             { width: '0', orderable: false, searchable: true  },  // 16 motivo_cat
@@ -455,6 +494,120 @@ $(document).ready(function () {
 
     // Fallback loader hide
     setTimeout(hidePendingLoader, 8000);
+
+    // Mapa tipo_evento → label para reconstruir opções do dropdown de tipo
+    var tipoLabelMap = @json($tipoLabels);
+
+    // Reconstrói as opções de um <select> com base nos valores visíveis na tabela filtrada.
+    // Preserva a seleção atual se o valor ainda existir nas linhas visíveis.
+    function rebuildSelect(selector, colIdx, allLabel, labelMap) {
+        var $sel = $(selector);
+        var currentVal = $sel.val();
+
+        var vals = table.column(colIdx, { filter: 'applied' })
+            .data()
+            .unique()
+            .sort()
+            .toArray()
+            .filter(function(v) { return v !== null && v !== ''; });
+
+        var html = '<option value="">' + allLabel + '</option>';
+        vals.forEach(function(v) {
+            var label = (labelMap && labelMap[v]) ? labelMap[v] : v;
+            html += '<option value="' + $('<div>').text(v).html() + '"' +
+                    (v === currentVal ? ' selected' : '') + '>' +
+                    $('<div>').text(label).html() + '</option>';
+        });
+        $sel.html(html);
+    }
+
+    function rebuildCascadeFilters() {
+        rebuildSelect('#filter-tipo',    14, 'Todos os tipos',           tipoLabelMap);
+        rebuildSelect('#filter-status',  16, 'Todos os status',          null);
+        rebuildSelect('#filter-classif', 17, 'Todas as classificações',  null);
+    }
+
+    // Mapa categoria → classe CSS lido do DOM (coluna Status já renderiza os badges com as classes corretas)
+    var kpiCssMap = {};
+    $('#pendencias-table .badge-status').each(function() {
+        var text = $(this).text().trim();
+        var badgeCls = $(this).attr('class').split(/\s+/).find(function(c) {
+            return c.startsWith('badge-') && c !== 'badge-status' && c !== 'mb-1';
+        });
+        if (text && badgeCls && !kpiCssMap[text]) kpiCssMap[text] = badgeCls;
+    });
+
+    var activeKpiFilter = '';
+
+    function rebuildKpis() {
+        var rows     = table.rows({ filter: 'applied' });
+        var total    = rows.count();
+        var overdue  = 0;
+        var catMap   = {};
+
+        rows.every(function() {
+            var d = this.data();
+            var cat = d[16] || '';
+            if (cat) catMap[cat] = (catMap[cat] || 0) + 1;
+            if (d[15] === '1') overdue++;
+        });
+
+        var html = '';
+
+        // Card total
+        html += '<div class="kpi-card kpi-total" data-kpi="">' +
+                '<span class="kpi-count">' + total + '</span>' +
+                '<span class="kpi-label">Total visível</span></div>';
+
+        // Card vencidos (só se houver)
+        if (overdue > 0) {
+            var overdueActive = $('#chk-overdue').prop('checked') ? ' active' : '';
+            html += '<div class="kpi-card kpi-overdue' + overdueActive + '" data-kpi-overdue="1">' +
+                    '<span class="kpi-count">' + overdue + '</span>' +
+                    '<span class="kpi-label">Vencidos</span></div>';
+        }
+
+        // Cards por categoria, ordenados por contagem desc
+        var sorted = Object.entries(catMap).sort(function(a, b) { return b[1] - a[1]; });
+        sorted.forEach(function(pair) {
+            var cat = pair[0], count = pair[1];
+            var isActive = (activeKpiFilter === cat) ? ' active' : '';
+            html += '<div class="kpi-card' + isActive + '" data-kpi="' + $('<div>').text(cat).html() + '">' +
+                    '<span class="kpi-count">' + count + '</span>' +
+                    '<span class="kpi-label">' + $('<div>').text(cat).html() + '</span></div>';
+        });
+
+        $('#kpi-bar').html(html);
+
+        // Clique → aplica/remove filtro de status
+        $('#kpi-bar .kpi-card[data-kpi]').on('click', function() {
+            var val = $(this).data('kpi');
+            if (activeKpiFilter === val) {
+                activeKpiFilter = '';
+                $('#filter-status').val('').trigger('change');
+            } else {
+                activeKpiFilter = val;
+                $('#filter-status').val(val).trigger('change');
+            }
+        });
+
+        // Clique em vencidos
+        $('#kpi-bar .kpi-card[data-kpi-overdue]').on('click', function() {
+            var chk = $('#chk-overdue');
+            chk.prop('checked', !chk.prop('checked')).trigger('change');
+        });
+    }
+
+    // Sincroniza activeKpiFilter quando status é alterado por dropdown (não por clique no KPI)
+    $('#filter-status').on('change', function() {
+        activeKpiFilter = $(this).val();
+    });
+
+    // Recalcula dropdowns após cada draw (filtro aplicado, página trocada, etc.)
+    table.on('draw', function() { rebuildCascadeFilters(); rebuildKpis(); });
+    // Primeira execução após inicialização
+    rebuildCascadeFilters();
+    rebuildKpis();
 
     // Filtro: Tipo (col 14)
     $('#filter-tipo').on('change', function () {

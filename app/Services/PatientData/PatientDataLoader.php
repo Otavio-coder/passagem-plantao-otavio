@@ -18,6 +18,18 @@ use App\Services\Tasy\TasyFormatter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Orquestrador de carregamento de dados de pacientes por setor.
+ *
+ * Cada categoria de dado (escalas, eventos pendentes, clínico, etc.) é implementada como um
+ * SectorLoader independente com seu próprio cache. Isso permite:
+ * - Invalidar apenas as caches dinâmicas (eventos pendentes, passagem) sem recarregar Oracle.
+ * - Adicionar ou remover categorias sem alterar o contrato do chamador.
+ * - Medir o tempo de cada loader separadamente para identificar gargalos.
+ *
+ * Fluxo: DemographicsLoader roda primeiro e define a lista de nr_atendimento.
+ * Os demais loaders recebem essa lista e buscam dados apenas para os pacientes presentes.
+ */
 class PatientDataLoader
 {
     private int $sectorId;
@@ -55,8 +67,13 @@ class PatientDataLoader
     }
 
     /**
-     * Execute loaders sequentially and return a flat array of patient arrays.
-     * Demographics always runs first (determines the attendance list).
+     * Executa os loaders em sequência e retorna um array plano de dados de paciente.
+     *
+     * Demographics obrigatoriamente roda primeiro: ele retorna o mapa de leitos do setor,
+     * que determina quais nr_atendimento existem. Os loaders subsequentes recebem essa lista
+     * e fazem queries Oracle em batch, evitando N round-trips individuais.
+     *
+     * Os tempos de cada loader são registrados em debug para diagnóstico de lentidão.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -112,15 +129,16 @@ class PatientDataLoader
     }
 
     /**
-     * Clears only the dynamic caches (pending events + handover status).
-     * Demographics, scales, clinical, multidisciplinary and surgery data
-     * change rarely within a session and keep their TTL-based expiry.
-     * Use this for the "Atualizar" button to avoid triggering a full cold load.
+     * Limpa caches dinâmicos: eventos pendentes, passagem de plantão e escalas.
+     * Escalas são aferidas por turno e mudam com frequência — devem ser recarregadas
+     * no "Atualizar". Demographics, clínico, multidisciplinar e cirurgia são estáveis
+     * durante a sessão e expiram pelo TTL sem necessidade de invalidação manual.
      */
     public function clearDynamicCache(): void
     {
         $keys = [
             "sector_pending_fast_{$this->sectorId}",
+            "sector_scales_{$this->sectorId}",
             "sector_handover_{$this->sectorId}_M",
             "sector_handover_{$this->sectorId}_T",
             "sector_handover_{$this->sectorId}_N",

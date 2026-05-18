@@ -61,13 +61,15 @@ class NurseHandoverSession extends Component
             ->pluck('bed_code')
             ->all();
 
-        [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
-        $currentShift = ShiftService::getCurrentShift();
+        // Janela com 30 min de antecedência: permite iniciar a passagem do próximo turno
+        // até 30 min antes da virada (ex: 06:30 já conta como turno da manhã).
+        [$shiftStart, $shiftEnd] = ShiftService::getShiftWindowWithGrace(30);
+        $currentShift = ShiftService::getCurrentShiftWithGrace(30);
 
         $blocked = false;
 
         DB::transaction(function () use ($user, $currentShift, $shiftStart, $shiftEnd, $nurseBedCodes, &$blocked): void {
-            // Lock existing rows to prevent concurrent session creation
+            // Trava as linhas existentes para evitar criação concorrente de sessão
             $existing = ShiftHandover::where('user_id', $user->id)
                 ->whereIn('status', [ShiftHandover::STATUS_ACTIVE, ShiftHandover::STATUS_COMPLETED])
                 ->whereBetween('started_at', [$shiftStart, $shiftEnd])
@@ -84,7 +86,7 @@ class NurseHandoverSession extends Component
 
                 if ($session->isActive()) {
                     $this->blockedType = 'active_session';
-                    $this->blockedReason = 'Já existe uma passagem em andamento para este turno. Conclua a sessão atual antes de iniciar uma nova.';
+                    $this->blockedReason = 'Já existe uma passagem em andamento para estes leitos neste turno. Conclua a sessão atual antes de iniciar uma nova.';
                     $this->showBlockedModal = true;
                     $blocked = true;
 
@@ -93,7 +95,7 @@ class NurseHandoverSession extends Component
 
                 if ($session->isCompleted()) {
                     $this->blockedType = 'shift_done';
-                    $this->blockedReason = 'A passagem deste turno já foi concluída. O botão ficará liberado novamente no próximo turno.';
+                    $this->blockedReason = 'A passagem deste turno já foi concluída para estes leitos. O botão ficará liberado novamente no próximo turno.';
                     $this->showBlockedModal = true;
                     $blocked = true;
 

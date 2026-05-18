@@ -9,6 +9,18 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Serviço de acesso ao EMR Tasy via conexão Oracle.
+ *
+ * Responsabilidades:
+ * - Buscar e montar o payload completo de um paciente individual (modal SBAR).
+ * - Gerenciar cache de dados de paciente (detalhes e prescrições).
+ * - Pré-aquecer cache de lotes para abertura instantânea do modal.
+ *
+ * Diferença em relação ao PatientDataLoader:
+ * - PatientDataLoader opera por setor (lista de leitos).
+ * - TasyService opera por paciente individual (nr_atendimento), chamado pelo modal de detalhes.
+ */
 class TasyService
 {
     use UsesRepositories;
@@ -16,8 +28,15 @@ class TasyService
     // ==================== CONSTANTES ====================
     private const CACHE_TTL_PATIENT = 600;  // 10 minutos
 
-    private const SBAR_CACHE_VERSION = 3;
+    /**
+     * Versão da chave de cache dos detalhes do paciente.
+     * Incremente ao alterar a estrutura do array retornado por getSbarPatientDetails()
+     * para forçar invalidação automática do cache existente em produção sem precisar de
+     * `cache:clear` manual.
+     */
+    private const SBAR_CACHE_VERSION = 4;
 
+    /** Versão da chave de cache de prescrições — incremente ao mudar estrutura de getPatientPrescriptions(). */
     private const PRESCRIPTIONS_CACHE_VERSION = 5;
 
     private TasyFormatter $formatter;
@@ -65,7 +84,11 @@ class TasyService
             return [];
         }
 
-        return $this->clinical()->getCidHistory($attendanceNumber);
+        return Cache::remember(
+            "patient_cid_history_{$attendanceNumber}",
+            self::CACHE_TTL_PATIENT,
+            fn () => $this->clinical()->getCidHistory($attendanceNumber)
+        );
     }
 
     /**
@@ -181,6 +204,8 @@ class TasyService
         $keys = [
             $this->sbarPatientDetailsCacheKey($attendanceNumber),
             $this->prescriptionsCacheKey($attendanceNumber),
+            "patient_alerts_{$attendanceNumber}",
+            "patient_cid_history_{$attendanceNumber}",
         ];
 
         foreach ($keys as $key) {
@@ -196,7 +221,11 @@ class TasyService
     public function getPatientAlerts(int $attendanceNumber, int $personId): array
     {
         try {
-            return $this->alerts()->getPatientActiveAlerts($attendanceNumber, $personId);
+            return Cache::remember(
+                "patient_alerts_{$attendanceNumber}",
+                300, // 5 min — alertas podem mudar com mais frequência
+                fn () => $this->alerts()->getPatientActiveAlerts($attendanceNumber, $personId)
+            );
         } catch (\Throwable $e) {
             Log::warning('TasyService: Failed to fetch alerts', [
                 'attendance' => $attendanceNumber,
@@ -344,13 +373,42 @@ class TasyService
         if (! $attendanceNumber) {
             return null;
         }
-        $map = $this->scales()->getPatientsScalesUnified([$attendanceNumber], []);
 
-        return $map[$attendanceNumber] ?? null;
+        $map = $this->scales()->getPatientsScalesUnified([$attendanceNumber], []);
+        $unified = $map[$attendanceNumber] ?? null;
+
+        if ($unified === null) {
+            return null;
+        }
+
+        // Sub-scores detalhados (PA, FC, FR, Temp, componentes Braden/Morse/PEWS/TEV).
+        // Chamado apenas no modal individual — não afeta a carga em batch do setor.
+        try {
+            $details = $this->scales()->getDetailedScalesForPatient($attendanceNumber);
+            foreach ($details as $scaleKey => $scaleDetails) {
+                $unified[$scaleKey]['details'] = $scaleDetails;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('TasyService: falha ao buscar sub-scores detalhados', [
+                'attendance' => $attendanceNumber,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $unified;
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA ASSEMBLY ====================
 
+    /**
+     * Monta os dados demográficos e identificação do paciente a partir do modelo Eloquent.
+     *
+     * Convênio e médico responsável são buscados via stored functions Oracle em queries separadas,
+     * pois essas funções executam lógica de negócio complexa (seleção de categoria de convênio,
+     * resolução de médico com hierarquia de especialidade) que não é replicável com SQL direto
+     * de forma confiável. Cada chamada é isolada em try/catch para não bloquear o restante
+     * do payload caso o Oracle esteja temporariamente lento nessas funções.
+     */
     private function buildBasicDataFromEloquent(Patient $patient): object
     {
         $birthDate = $patient->person?->dt_nascimento;
@@ -372,34 +430,24 @@ class TasyService
         }
 
         $convenio = 'Convênio não informado';
-        try {
-            $convenioResult = DB::connection('tasy')->selectOne('
-                SELECT TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(?)) as convenio
-                FROM DUAL
-            ', [$patient->nr_atendimento]);
-
-            if ($convenioResult && ! empty($convenioResult->convenio)) {
-                $convenio = trim($convenioResult->convenio);
-            }
-        } catch (\Exception $e) {
-            Log::warning('Failed to fetch convenio', [
-                'attendance' => $patient->nr_atendimento,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
         $medicoResponsavel = 'Não informado';
         try {
-            $medicoResult = DB::connection('tasy')->selectOne("
-                SELECT TASY.obter_medico_resp_atend(?, 'N') as medico
+            $row = DB::connection('tasy')->selectOne("
+                SELECT TASY.obter_desc_convenio(TASY.obter_convenio_atendimento(?)) AS convenio,
+                       TASY.obter_medico_resp_atend(?, 'N') AS medico
                 FROM DUAL
-            ", [$patient->nr_atendimento]);
+            ", [$patient->nr_atendimento, $patient->nr_atendimento]);
 
-            if ($medicoResult && ! empty($medicoResult->medico)) {
-                $medicoResponsavel = trim($medicoResult->medico);
+            if ($row) {
+                if (! empty($row->convenio)) {
+                    $convenio = trim($row->convenio);
+                }
+                if (! empty($row->medico)) {
+                    $medicoResponsavel = trim($row->medico);
+                }
             }
         } catch (\Exception $e) {
-            Log::warning('Failed to fetch medico', [
+            Log::warning('Failed to fetch convenio/medico', [
                 'attendance' => $patient->nr_atendimento,
                 'error' => $e->getMessage(),
             ]);

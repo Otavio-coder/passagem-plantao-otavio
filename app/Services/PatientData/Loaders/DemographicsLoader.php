@@ -10,6 +10,16 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Loader de dados demográficos e identificação dos pacientes de um setor.
+ *
+ * É o primeiro loader a executar no PatientDataLoader: retorna um mapa indexado por
+ * nr_atendimento com todos os leitos do setor (ocupados e vazios). Os demais loaders
+ * recebem os nr_atendimento extraídos deste mapa para fazer suas queries em batch.
+ *
+ * Cache de 15 min (maior que os outros loaders): dados demográficos mudam menos
+ * frequentemente que eventos pendentes ou passagens de plantão.
+ */
 class DemographicsLoader implements SectorLoader
 {
     private const CACHE_TTL = 900; // 15 min
@@ -36,11 +46,11 @@ class DemographicsLoader implements SectorLoader
         ];
 
         try {
-            // Replaced 3 per-row Oracle stored-function calls (obter_nome_paciente,
+            // Substituição de 3 stored functions Oracle por linha (obter_nome_paciente,
             // obter_desc_convenio/obter_convenio_atendimento, obter_medico_resp_atend)
-            // with direct joins/scalar subqueries — verified equivalent on production data.
-            // Each function call was executed N times (once per row) by Oracle's row-by-row
-            // PL/SQL engine, making the query O(N) in Oracle round-trips.
+            // por JOINs diretos e subqueries escalares — equivalência verificada em produção.
+            // Cada função era executada N vezes (uma por linha) pelo motor PL/SQL do Oracle,
+            // tornando a query O(N) em round-trips ao banco.
             $rows = DB::connection('tasy')->select("
                 SELECT
                     ua.cd_unidade_basica,
@@ -136,7 +146,7 @@ class DemographicsLoader implements SectorLoader
                 'internment_days' => $internmentDays,
                 'is_new_patient' => $isNewPatient,
                 'is_pediatric' => $isPediatric,
-                // default card styling (overridden later if scales are loaded)
+                // estilo padrão do card (sobrescrito pelo TasyFormatter se escalas forem carregadas)
                 'gradient_style' => $hasPatient
                     ? 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);'
                     : 'background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);',
@@ -144,6 +154,9 @@ class DemographicsLoader implements SectorLoader
                 'text_color_class' => '',
             ];
 
+            // Chave do mapa: nr_atendimento para leitos ocupados, 'empty_X' para vazios.
+            // Leitos vazios precisam ser incluídos para exibir a grade completa do setor
+            // (um leito vazio é informação relevante na passagem de plantão).
             $key = $nr ?? ('empty_'.$bed->cd_unidade_basica);
             $result[$key] = $patient;
         }

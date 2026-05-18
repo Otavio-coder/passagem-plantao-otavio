@@ -15,9 +15,9 @@
 
                 @if($blockedType === 'shift_done')
                     <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                        <i class="fas fa-flag-checkered text-emerald-600 text-2xl"></i>
+                        <i class="fas fa-circle-check text-emerald-600 text-3xl"></i>
                     </div>
-                    <h3 class="text-lg font-bold text-gray-900 mb-2">Passagem já concluída</h3>
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">Passagem já realizada</h3>
                     <p class="text-sm text-gray-600 leading-relaxed">{{ $blockedReason }}</p>
                     <div class="mt-4 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-medium">
                         <i class="fas fa-clock mr-1"></i>
@@ -39,12 +39,22 @@
                     <p class="text-sm text-gray-600 leading-relaxed">{{ $blockedReason }}</p>
                 @endif
 
-                <button
-                    wire:click="closeBlockedModal"
-                    class="mt-6 w-full px-4 py-2.5 bg-[#004D9D] text-white text-sm font-semibold rounded-xl hover:bg-[#003d7a] transition-colors"
-                >
-                    Entendido
-                </button>
+                @if($blockedType === 'shift_done')
+                    <button
+                        wire:click="closeBlockedModal"
+                        class="mt-6 w-full px-4 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <i class="fas fa-check text-xs"></i>
+                        Certo, já fiz a passagem
+                    </button>
+                @else
+                    <button
+                        wire:click="closeBlockedModal"
+                        class="mt-6 w-full px-4 py-2.5 bg-[#004D9D] text-white text-sm font-semibold rounded-xl hover:bg-[#003d7a] transition-colors"
+                    >
+                        Entendido
+                    </button>
+                @endif
             </div>
         </div>
     </div>

@@ -80,7 +80,7 @@ class SbarChatComponent extends Component
 
     public function refreshShiftHeader(): void
     {
-        // Heartbeat to force a lightweight re-render so shiftDisplay reflects current shift.
+        // Heartbeat para forçar um re-render leve e manter shiftDisplay atualizado com o turno corrente.
         $this->shiftHeaderHeartbeat = now()->format('Y-m-d H:i:s.u');
     }
 
@@ -487,7 +487,7 @@ class SbarChatComponent extends Component
         $userId = $msg['user_id'] ?? null;
         $user = null;
 
-        // Use pre-loaded values from broadcast payload when available to avoid DB queries
+        // Usa valores pré-carregados do payload de broadcast quando disponíveis, evitando queries extras no DB
         $photo = $msg['_photo'] ?? null;
         $author = $msg['_author'] ?? null;
 
@@ -718,7 +718,7 @@ class SbarChatComponent extends Component
         try {
             $photo = '';
 
-            // Use already-loaded photo attribute if available (avoids extra DB query)
+            // Usa o atributo photo já carregado quando disponível (evita query extra no DB)
             $rawPhoto = isset($user->photo) ? $user->photo : null;
 
             if (! $rawPhoto && method_exists($user, 'getUserPhoto')) {

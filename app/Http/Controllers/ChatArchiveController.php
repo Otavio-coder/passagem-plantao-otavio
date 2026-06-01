@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FeedbackSubmission;
 use App\Models\ShiftHandover;
 use App\Support\ChatArchivePayload;
 use App\Support\ChatArchiveShiftResolver;
 use App\Support\ChatArchiveUserResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -92,6 +94,9 @@ class ChatArchiveController extends Controller
         $periodStart = $this->formatDate($stats?->oldest);
         $periodEnd = $this->formatDate($stats?->newest);
         $handoverMetrics = $this->buildHandoverMetrics();
+        $userMetrics = $this->buildUserMetrics();
+        $sectorPanorama = $this->buildSectorPanorama();
+        $feedbackStats = $this->buildFeedbackStats();
 
         return view('chat.archive', compact(
             'stats',
@@ -101,7 +106,10 @@ class ChatArchiveController extends Controller
             'seriesData',
             'periodStart',
             'periodEnd',
-            'handoverMetrics'
+            'handoverMetrics',
+            'userMetrics',
+            'sectorPanorama',
+            'feedbackStats'
         ));
     }
 
@@ -749,5 +757,117 @@ class ChatArchiveController extends Controller
             'avg_beds' => $avgBeds !== null ? round($avgBeds, 1) : null,
             'recent' => $recent,
         ];
+    }
+
+    /**
+     * @return array{total_active:int, last_7d:int, last_30d:int, nurses:int, top_roles:Collection, recent_access:Collection}
+     */
+    private function buildUserMetrics(): array
+    {
+        $totalActive = DB::table('users')->where('status', 'A')->count();
+
+        $last7 = DB::table('users')
+            ->where('status', 'A')
+            ->where('last_access_at', '>=', now()->subDays(7))
+            ->count();
+
+        $last30 = DB::table('users')
+            ->where('status', 'A')
+            ->where('last_access_at', '>=', now()->subDays(30))
+            ->count();
+
+        $nurses = DB::table('users')
+            ->where('status', 'A')
+            ->where('is_nurse', true)
+            ->count();
+
+        $topRoles = DB::table('users')
+            ->whereNotNull('role')
+            ->where('role', '!=', '')
+            ->where('status', 'A')
+            ->selectRaw('role, COUNT(*) as count')
+            ->groupBy('role')
+            ->orderByDesc('count')
+            ->limit(10)
+            ->get();
+
+        $recentAccess = DB::table('users')
+            ->whereNotNull('last_access_at')
+            ->where('status', 'A')
+            ->orderByDesc('last_access_at')
+            ->limit(8)
+            ->get(['name', 'username', 'role', 'photo', 'last_access_at']);
+
+        return [
+            'total_active' => $totalActive,
+            'last_7d' => $last7,
+            'last_30d' => $last30,
+            'nurses' => $nurses,
+            'top_roles' => $topRoles,
+            'recent_access' => $recentAccess,
+        ];
+    }
+
+    /**
+     * @return array{total_configured_users:int, total_sectors:int, total_hospitals:int, top_sectors:Collection, top_hospitals:Collection}
+     */
+    private function buildSectorPanorama(): array
+    {
+        $totalConfiguredUsers = DB::table('user_sector_preferences')
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $totalSectors = DB::table('user_sector_preferences')
+            ->distinct('sector_code')
+            ->count('sector_code');
+
+        $totalHospitals = DB::table('user_sector_preferences')
+            ->distinct('hospital_code')
+            ->count('hospital_code');
+
+        $topSectors = DB::table('user_sector_preferences')
+            ->selectRaw('sector_name, hospital_name, COUNT(DISTINCT user_id) as user_count')
+            ->groupBy('sector_name', 'hospital_name')
+            ->orderByDesc('user_count')
+            ->limit(15)
+            ->get();
+
+        $topHospitals = DB::table('user_sector_preferences')
+            ->selectRaw('hospital_name, COUNT(DISTINCT user_id) as user_count, COUNT(DISTINCT sector_code) as sector_count')
+            ->groupBy('hospital_name')
+            ->orderByDesc('user_count')
+            ->get();
+
+        return [
+            'total_configured_users' => $totalConfiguredUsers,
+            'total_sectors' => $totalSectors,
+            'total_hospitals' => $totalHospitals,
+            'top_sectors' => $topSectors,
+            'top_hospitals' => $topHospitals,
+        ];
+    }
+
+    /**
+     * @return array{total:int, by_rating:array<string,int>, recent:Collection}
+     */
+    private function buildFeedbackStats(): array
+    {
+        $total = FeedbackSubmission::count();
+
+        if ($total === 0) {
+            return ['total' => 0, 'by_rating' => [], 'recent' => collect()];
+        }
+
+        $byRating = FeedbackSubmission::selectRaw('rating, COUNT(*) as count')
+            ->groupBy('rating')
+            ->pluck('count', 'rating')
+            ->toArray();
+
+        $recent = FeedbackSubmission::with('user:id,name')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        return ['total' => $total, 'by_rating' => $byRating, 'recent' => $recent];
     }
 }

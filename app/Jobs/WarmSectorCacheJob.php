@@ -45,10 +45,6 @@ class WarmSectorCacheJob implements ShouldQueue
                 $pendingService->getPendingEventsForSector($this->sectorId);
             }
 
-            Log::info('WarmSectorCacheJob: sector warmed', [
-                'sector_id' => $this->sectorId,
-                'elapsed_ms' => round((microtime(true) - $start) * 1000),
-            ]);
         } catch (\Throwable $e) {
             Log::warning('WarmSectorCacheJob: failed', [
                 'sector_id' => $this->sectorId,

@@ -67,8 +67,9 @@ class NurseHandoverSession extends Component
         $currentShift = ShiftService::getCurrentShiftWithGrace(30);
 
         $blocked = false;
+        $completedBlockedBeds = [];
 
-        DB::transaction(function () use ($user, $currentShift, $shiftStart, $shiftEnd, $nurseBedCodes, &$blocked): void {
+        DB::transaction(function () use ($user, $currentShift, $shiftStart, $shiftEnd, $nurseBedCodes, &$blocked, &$completedBlockedBeds): void {
             // Trava as linhas existentes para evitar criação concorrente de sessão
             $existing = ShiftHandover::where('user_id', $user->id)
                 ->whereIn('status', [ShiftHandover::STATUS_ACTIVE, ShiftHandover::STATUS_COMPLETED])
@@ -94,22 +95,41 @@ class NurseHandoverSession extends Component
                 }
 
                 if ($session->isCompleted()) {
-                    $this->blockedType = 'shift_done';
-                    $this->blockedReason = 'A passagem deste turno já foi concluída para estes leitos. O botão ficará liberado novamente no próximo turno.';
-                    $this->showBlockedModal = true;
-                    $blocked = true;
-
-                    return;
+                    $completedBlockedBeds = array_values(array_unique(array_merge($completedBlockedBeds, array_values($overlap))));
                 }
             }
 
-            if (! $blocked) {
-                $this->createSession($user, $currentShift, $nurseBedCodes);
+            $availableBedCodes = array_values(array_diff($nurseBedCodes, $completedBlockedBeds));
+
+            if (empty($availableBedCodes)) {
+                $this->blockedType = 'shift_done';
+                $this->blockedReason = 'A passagem deste turno já foi concluída para todos os seus leitos. O botão ficará liberado novamente no próximo turno.';
+                $this->showBlockedModal = true;
+                $blocked = true;
+
+                return;
             }
+
+            $this->createSessionRecord($user, $currentShift, $availableBedCodes);
         });
 
         if ($blocked || $this->showBlockedModal) {
             return;
+        }
+
+        if (! empty($completedBlockedBeds)) {
+            $bedList = implode(', ', $completedBlockedBeds);
+            $this->dispatch('show-toast', [
+                'message' => "Leito(s) {$bedList} ignorado(s): passagem já concluída neste turno.",
+                'type' => 'warning',
+            ]);
+        }
+
+        try {
+            $this->loadSessionPatients($this->sessionToken);
+        } catch (\Throwable) {
+            $this->handoverPatients = [];
+            $this->bedsTotal = 0;
         }
 
         $firstPatient = collect($this->handoverPatients)
@@ -281,8 +301,42 @@ class NurseHandoverSession extends Component
         $this->dispatch('nurseHandoverCompleted', sectorId: $sectorId);
     }
 
-    private function createSession(object $user, string $currentShift, array $nurseBedCodes): void
+    private function createSessionRecord(object $user, string $currentShift, array $nurseBedCodes): void
     {
+        $token = Str::uuid()->toString();
+        $this->startedAt = now()->toISOString();
+
+        $record = ShiftHandover::create([
+            'user_id' => $user->id,
+            'status' => ShiftHandover::STATUS_ACTIVE,
+            'session_token' => $token,
+            'shift' => $currentShift,
+            'sector_ids' => [$this->sectorId],
+            'sector_name' => null,
+            'bed_codes' => $nurseBedCodes,
+            'beds_total' => 0,
+            'beds_expected' => 0,
+            'beds_visited' => 0,
+            'started_at' => now(),
+            'last_activity_at' => now(),
+        ]);
+
+        $this->handoverId = $record->id;
+        $this->sessionToken = $token;
+    }
+
+    private function loadSessionPatients(string $sessionToken): void
+    {
+        $session = ShiftHandover::where('id', $this->handoverId)
+            ->where('session_token', $sessionToken)
+            ->first();
+
+        if (! $session) {
+            return;
+        }
+
+        $nurseBedCodes = $session->bed_codes ?? [];
+
         $allPatients = PatientDataLoader::forSector($this->sectorId)
             ->include('demographics', 'scales', 'clinical', 'pending_events')
             ->get();
@@ -293,31 +347,16 @@ class NurseHandoverSession extends Component
         ));
 
         $this->bedsTotal = count($this->handoverPatients);
-        $this->startedAt = now()->toISOString();
 
         $sectorName = collect($this->handoverPatients)->first()['ds_setor_atendimento']
             ?? collect($this->handoverPatients)->first()['ds_prescricao']
             ?? null;
 
-        $token = Str::uuid()->toString();
-
-        $record = ShiftHandover::create([
-            'user_id' => $user->id,
-            'status' => ShiftHandover::STATUS_ACTIVE,
-            'session_token' => $token,
-            'shift' => $currentShift,
-            'sector_ids' => [$this->sectorId],
+        $session->update([
             'sector_name' => $sectorName,
-            'bed_codes' => $nurseBedCodes,
             'beds_total' => $this->bedsTotal,
             'beds_expected' => $this->bedsTotal,
-            'beds_visited' => 0,
-            'started_at' => now(),
-            'last_activity_at' => now(),
         ]);
-
-        $this->handoverId = $record->id;
-        $this->sessionToken = $token;
     }
 
     private function resetSessionState(): void

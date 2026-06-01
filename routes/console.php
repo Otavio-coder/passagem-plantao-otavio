@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\WarmSectorCacheJob;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
@@ -38,3 +39,23 @@ Schedule::call(function () {
         }
     }
 })->hourly()->name('sbar-cache-clear')->withoutOverlapping();
+
+// Pre-aquece caches de todos os setores 15 minutos antes de cada troca de turno
+// (06:45 → manhã 07h, 12:45 → tarde 13h, 18:45 → noite 19h).
+// Nurses arriving exactly at shift change find warm caches instead of 10-15s Oracle loads.
+$warmAllSectors = function () {
+    $sectorIds = DB::table('user_sector_preferences')
+        ->distinct()
+        ->pluck('sector_code')
+        ->map(fn ($v) => (int) $v)
+        ->filter()
+        ->unique();
+
+    foreach ($sectorIds as $sectorId) {
+        WarmSectorCacheJob::dispatch($sectorId, forceStatic: true);
+    }
+};
+
+Schedule::call($warmAllSectors)->dailyAt('06:45')->name('sbar-pre-warm-morning')->withoutOverlapping();
+Schedule::call($warmAllSectors)->dailyAt('12:45')->name('sbar-pre-warm-afternoon')->withoutOverlapping();
+Schedule::call($warmAllSectors)->dailyAt('18:45')->name('sbar-pre-warm-night')->withoutOverlapping();

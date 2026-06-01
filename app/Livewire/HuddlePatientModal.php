@@ -9,6 +9,8 @@ class HuddlePatientModal extends Component
 {
     public bool $showModal = false;
 
+    public bool $handoverMode = false;
+
     public array $currentPatient = [];
 
     public string $hospitalName = '';

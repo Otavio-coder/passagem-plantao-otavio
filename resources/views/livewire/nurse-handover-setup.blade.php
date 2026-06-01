@@ -21,6 +21,29 @@
         </div>
     @endif
 
+    {{-- Carregar apenas meus leitos --}}
+    <div class="rounded-xl border {{ $onlyAssignedBeds ? 'border-[#004D9D]/30 bg-blue-50' : 'border-gray-200 bg-white' }} p-3 transition-colors duration-200">
+        <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-xs font-semibold {{ $onlyAssignedBeds ? 'text-[#004D9D]' : 'text-gray-700' }}">
+                    Carregar apenas meus leitos
+                </p>
+                <p class="text-[10px] text-gray-400 mt-0.5 leading-relaxed">
+                    Quando ativo, o SBAR mostra somente os leitos configurados acima, reduzindo o tempo de carregamento.
+                </p>
+            </div>
+            <button wire:click="toggleOnlyAssignedBeds"
+                    type="button"
+                    role="switch"
+                    aria-checked="{{ $onlyAssignedBeds ? 'true' : 'false' }}"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#004D9D] focus-visible:ring-offset-2
+                        {{ $onlyAssignedBeds ? 'bg-[#004D9D] border-[#004D9D]' : 'bg-gray-200 border-gray-200' }}">
+                <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                    {{ $onlyAssignedBeds ? 'translate-x-5' : 'translate-x-0' }}"></span>
+            </button>
+        </div>
+    </div>
+
     {{-- Chips: leitos selecionados --}}
     @if(!empty($chips))
         <div>

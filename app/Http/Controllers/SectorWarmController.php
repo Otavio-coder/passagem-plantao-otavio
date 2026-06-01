@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\PatientData\PatientDataLoader;
+use App\Jobs\WarmSectorCacheJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +15,10 @@ class SectorWarmController extends Controller
      *
      * Called fire-and-forget by the SBAR page after the active sector loads,
      * so subsequent sector switches hit cache and are near-instant.
+     *
+     * Dispatches WarmSectorCacheJob instead of warming inline so this endpoint
+     * returns immediately (< 5ms) without holding a PHP-FPM worker for 10-30s
+     * during a cold Oracle load.
      *
      * POST /sectors/warm
      * Body: { "sector_ids": [123, 456, ...] }  (max 20)
@@ -32,7 +36,7 @@ class SectorWarmController extends Controller
             ->map('intval')
             ->toArray();
 
-        $warmed = 0;
+        $queued = 0;
         $skipped = 0;
 
         foreach ($validated['sector_ids'] as $rawId) {
@@ -42,23 +46,16 @@ class SectorWarmController extends Controller
                 continue;
             }
 
-            // Skip if demographics cache already warm — all other caches are likely warm too
             if (Cache::has("sector_demographics_{$sectorId}")) {
                 $skipped++;
 
                 continue;
             }
 
-            try {
-                PatientDataLoader::forSector($sectorId)
-                    ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
-                    ->get();
-                $warmed++;
-            } catch (\Throwable) {
-                // ignore — warm is best-effort
-            }
+            WarmSectorCacheJob::dispatch($sectorId);
+            $queued++;
         }
 
-        return response()->json(['warmed' => $warmed, 'skipped' => $skipped]);
+        return response()->json(['queued' => $queued, 'skipped' => $skipped]);
     }
 }

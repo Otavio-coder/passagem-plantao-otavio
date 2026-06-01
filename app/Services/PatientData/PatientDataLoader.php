@@ -16,7 +16,6 @@ use App\Services\PatientData\Loaders\SurgeryLoader;
 use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\Tasy\TasyFormatter;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Orquestrador de carregamento de dados de pacientes por setor.
@@ -79,12 +78,7 @@ class PatientDataLoader
      */
     public function get(): array
     {
-        $totalStart = hrtime(true);
-        $timings = [];
-
-        $t = hrtime(true);
         $demographics = $this->loaders['demographics']->load($this->sectorId, []);
-        $timings['demographics'] = round((hrtime(true) - $t) / 1e6);
 
         $attendanceNumbers = array_values(array_filter(
             array_keys($demographics),
@@ -96,7 +90,7 @@ class PatientDataLoader
             fn ($k) => $k !== 'demographics' && isset($this->loaders[$k])
         ));
 
-        $loaded = $this->runLoaders($otherKeys, $attendanceNumbers, $timings);
+        $loaded = $this->runLoaders($otherKeys, $attendanceNumbers);
 
         $applyScaleStyling = in_array('scales', $this->requested, true);
         $formatter = $applyScaleStyling ? new TasyFormatter : null;
@@ -116,14 +110,6 @@ class PatientDataLoader
 
             $result[] = $patient;
         }
-
-        $timings['total'] = round((hrtime(true) - $totalStart) / 1e6);
-        $timings['patient_count'] = count(array_filter($result, fn ($p) => $p['has_patient'] ?? false));
-
-        Log::channel('daily')->debug('PatientDataLoader.get timings (ms)', [
-            'sector_id' => $this->sectorId,
-            ...$timings,
-        ]);
 
         return $result;
     }
@@ -174,21 +160,17 @@ class PatientDataLoader
 
     /**
      * @param  string[]  $keys
-     * @param  array<string, int>  $timings
      * @return array<int, array<int, mixed>>
      */
-    private function runLoaders(array $keys, array $attendanceNumbers, array &$timings = []): array
+    private function runLoaders(array $keys, array $attendanceNumbers): array
     {
         if (empty($keys)) {
             return [];
         }
 
-        return array_map(function ($key) use ($attendanceNumbers, &$timings) {
-            $t = hrtime(true);
-            $result = $this->loaders[$key]->load($this->sectorId, $attendanceNumbers);
-            $timings[$key] = round((hrtime(true) - $t) / 1e6);
-
-            return $result;
-        }, $keys);
+        return array_map(
+            fn ($key) => $this->loaders[$key]->load($this->sectorId, $attendanceNumbers),
+            $keys
+        );
     }
 }

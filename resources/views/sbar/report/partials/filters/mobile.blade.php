@@ -5,9 +5,18 @@
                 wire:loading.attr="disabled"
                 wire:target="startHandover"
                 :disabled="isInitialLoading"
-                class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-md text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 transition-colors">
-            <i class="fas fa-play text-[10px] sm:text-xs leading-none"></i>
-            <span>Passagem</span>
+                class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 min-w-[90px] rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-md text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-emerald-600 transition-colors">
+            <span wire:loading.remove wire:target="startHandover" class="inline-flex items-center gap-1.5">
+                <i class="fas fa-play text-[10px] sm:text-xs leading-none"></i>
+                <span>Passagem</span>
+            </span>
+            <span wire:loading wire:target="startHandover" class="inline-flex items-center gap-1.5">
+                <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span>...</span>
+            </span>
         </button>
         @endif
 

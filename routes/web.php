@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ChatArchiveController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\HandoverMetricsController;
 use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
@@ -35,7 +36,8 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     Route::view('/', 'dashboard.index')->name('home');
     Route::post('/sector-preferences', [SectorPreferencesController::class, 'save'])->name('sector-preferences.save');
 
-    Route::view('/feedback', 'dashboard.feedback')->name('feedback');
+    Route::get('/feedback', [FeedbackController::class, 'index'])->name('feedback');
+    Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
     Route::view('/manual', 'manual.index')->name('manual.index');
 
@@ -78,9 +80,9 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
         Route::get('/pendencias/export', [PendingEventsReportController::class, 'export'])
             ->name('pending.report.export');
 
-        // Histórico de anotações arquivadas
+        // Painel do Sistema
         Route::middleware('can:ver historico chat')->prefix('historico')->group(function () {
-            Route::get('/', [ChatArchiveController::class, 'index'])->name('chat.archive.index');
+            Route::get('/', [ChatArchiveController::class, 'index'])->name('admin.dashboard');
             Route::get('/dt', [ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
             Route::get('/data', [ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
             Route::get('/passagens/metricas', [HandoverMetricsController::class, 'index'])->name('handover.metrics');

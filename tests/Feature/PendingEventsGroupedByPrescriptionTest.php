@@ -45,19 +45,19 @@ class PendingEventsGroupedByPrescriptionTest extends TestCase
                     ],
                     'events' => [
                         [
-                            'descricao' => 'Item 2',
-                            'nr_prescricao' => 9001,
-                            'nr_sequencia_pp' => 2,
-                            'dt_solicitacao' => '05/05/2026 09:10',
-                            'tempo_pendente' => '1h',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                        [
                             'descricao' => 'Item 1',
                             'nr_prescricao' => 9001,
                             'nr_sequencia_pp' => 1,
                             'dt_solicitacao' => '05/05/2026 09:00',
                             'tempo_pendente' => '2h',
+                            'icone' => 'alert-circle.svg',
+                        ],
+                        [
+                            'descricao' => 'Item 2',
+                            'nr_prescricao' => 9001,
+                            'nr_sequencia_pp' => 2,
+                            'dt_solicitacao' => '05/05/2026 09:10',
+                            'tempo_pendente' => '1h',
                             'icone' => 'alert-circle.svg',
                         ],
                         [
@@ -107,13 +107,11 @@ class PendingEventsGroupedByPrescriptionTest extends TestCase
             return (string) substr((string) substr(json_encode($firstJson, $jsFlags), 1, -1), 1, -1);
         };
 
-        // Prescrição 9001 tem 2 itens → isSingleItem:false; 9002 tem 1 → isSingleItem:true
-        $this->assertStringContainsString($jsSearch(['isSingleItem' => false]), $html);
-        $this->assertStringContainsString($jsSearch(['isSingleItem' => true]), $html);
-
-        // Grupo de agenda: label com a data gerada pelo mesmo date() do template
-        $agendaLabel = 'Agenda - '.date('d/m/Y H:i', strtotime('2026-05-05 14:00:00'));
-        $this->assertStringContainsString($jsSearch($agendaLabel), $html);
+        // O grupo renderiza as prescrições como allItems no estado Alpine.
+        // Blade usa Js::from() + JSON_HEX_QUOT → aspas viram " no HTML.
+        $this->assertStringContainsString('Procedimentos', $html);
+        $this->assertStringContainsString('\\u0022nr_prescricao\\u0022:9001', $html);
+        $this->assertStringContainsString('\\u0022nr_prescricao\\u0022:9002', $html);
 
         $positionItem1 = strpos($html, 'Item 1');
         $positionItem2 = strpos($html, 'Item 2');

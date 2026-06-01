@@ -399,6 +399,9 @@ class SbarPatientModalTest extends TestCase
             'age_detailed' => '67 anos',
             'sexo' => 'M',
             'convenio' => 'SUS',
+            'mews_score' => 3,
+            'has_isolation' => false,
+            'pending_events' => [],
         ]);
 
         $this->assertTrue($result);

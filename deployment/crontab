@@ -1,0 +1,23 @@
+# ============================================================================
+# Laravel Scheduler — Passagem de Plantão
+#
+# Install (as root):
+#   sudo cp deployment/crontab /etc/cron.d/passagem-plantao
+#   sudo chmod 644 /etc/cron.d/passagem-plantao
+#   sudo systemctl restart cron
+#
+# Verify it runs:
+#   sudo grep CRON /var/log/syslog | grep passagem
+#   tail -f /var/log/laravel-scheduler.log
+#
+# What this runs every minute:
+#   - chat:cleanup (daily at 03:00) — archives old chat messages
+#   - queue:prune-failed (weekly) — cleans failed job table
+#   - handover:mark-abandoned (every 5 min) — marks stale handover sessions
+#   - sbar-cache-clear (hourly) — rotates Oracle data caches
+#   - sbar-pre-warm-morning (06:45) — pre-warms all sector caches for 07h shift
+#   - sbar-pre-warm-afternoon (12:45) — pre-warms for 13h shift
+#   - sbar-pre-warm-night (18:45) — pre-warms for 19h shift
+# ============================================================================
+
+* * * * * www-data cd /var/www/passagem-plantao && php artisan schedule:run >> /var/log/laravel-scheduler.log 2>&1

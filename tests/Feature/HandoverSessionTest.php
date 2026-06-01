@@ -308,4 +308,85 @@ class HandoverSessionTest extends TestCase
             $handover->fresh()->last_activity_at?->toDateTimeString()
         );
     }
+
+    // ─── Partial bed blocking ────────────────────────────────────────────────
+
+    public function test_partial_beds_completed_allows_session_with_remaining_beds_and_emits_toast(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-05 09:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $sectorId = 61;
+
+            NurseHandoverBed::create(['user_id' => $user->id, 'sector_id' => $sectorId, 'bed_code' => 'A1']);
+            NurseHandoverBed::create(['user_id' => $user->id, 'sector_id' => $sectorId, 'bed_code' => 'A2']);
+
+            ShiftHandover::create([
+                'user_id' => $user->id,
+                'status' => ShiftHandover::STATUS_COMPLETED,
+                'session_token' => Str::uuid()->toString(),
+                'shift' => 'morning',
+                'sector_ids' => [$sectorId],
+                'sector_name' => 'Test',
+                'bed_codes' => ['A1'],
+                'beds_total' => 1,
+                'beds_expected' => 1,
+                'beds_visited' => 1,
+                'started_at' => Carbon::parse('2026-05-05 08:00:00'),
+                'finished_at' => Carbon::parse('2026-05-05 08:30:00'),
+                'duration_seconds' => 1800,
+            ]);
+
+            $this->actingAs($user);
+
+            $component = Livewire::test(NurseHandoverSession::class)
+                ->call('open', $sectorId);
+
+            $component->assertSet('showBlockedModal', false);
+            $component->assertSet('blockedType', '');
+            $component->assertDispatched('show-toast', fn (string $name, array $params) => ($params[0]['type'] ?? '') === 'warning' && str_contains($params[0]['message'] ?? '', 'A1'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_all_partial_beds_completed_blocks_entirely(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-05 09:00:00'));
+
+        try {
+            $user = User::factory()->create();
+            $sectorId = 62;
+
+            NurseHandoverBed::create(['user_id' => $user->id, 'sector_id' => $sectorId, 'bed_code' => 'B1']);
+            NurseHandoverBed::create(['user_id' => $user->id, 'sector_id' => $sectorId, 'bed_code' => 'B2']);
+
+            ShiftHandover::create([
+                'user_id' => $user->id,
+                'status' => ShiftHandover::STATUS_COMPLETED,
+                'session_token' => Str::uuid()->toString(),
+                'shift' => 'morning',
+                'sector_ids' => [$sectorId],
+                'sector_name' => 'Test',
+                'bed_codes' => ['B1', 'B2'],
+                'beds_total' => 2,
+                'beds_expected' => 2,
+                'beds_visited' => 2,
+                'started_at' => Carbon::parse('2026-05-05 08:00:00'),
+                'finished_at' => Carbon::parse('2026-05-05 08:30:00'),
+                'duration_seconds' => 1800,
+            ]);
+
+            $this->actingAs($user);
+
+            $component = Livewire::test(NurseHandoverSession::class)
+                ->call('open', $sectorId);
+
+            $component->assertSet('showBlockedModal', true);
+            $component->assertSet('blockedType', 'shift_done');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 }

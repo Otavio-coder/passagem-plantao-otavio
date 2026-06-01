@@ -1,15 +1,17 @@
 <?php
 
-use Illuminate\Support\Str;
+use App\Services\ShiftService;
+use App\Support\Scales\ScaleStyleHelper;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
-if (!function_exists('nameFormat')) {
+if (! function_exists('nameFormat')) {
 
     /**
      * Retorna um nome formatado
      *
-     * @param $name
-     * @param array $exclude
+     * @param  array  $exclude
      * @return array|string
      */
     function nameFormat($name, $exclude = [])
@@ -18,7 +20,7 @@ if (!function_exists('nameFormat')) {
         if (is_array($name)) {
 
             $fn = function (&$value, $key) use ($exclude) {
-                $value = !in_array($key, $exclude) ? nameFormat($value) : $value;
+                $value = ! in_array($key, $exclude) ? nameFormat($value) : $value;
             };
 
             array_walk($name, $fn);
@@ -48,14 +50,14 @@ if (!function_exists('nameFormat')) {
                 'x' => 'X',
                 'xi' => 'XI',
                 'xii' => 'XII',
-                'xiii' => 'XIII'
+                'xiii' => 'XIII',
             ];
 
             $fn = function ($word) use ($arr) {
-                return (!array_key_exists($word, $arr)) ? mb_convert_case(trim($word), MB_CASE_TITLE, 'utf-8') : $arr[$word];
+                return (! array_key_exists($word, $arr)) ? mb_convert_case(trim($word), MB_CASE_TITLE, 'utf-8') : $arr[$word];
             };
 
-            return join(' ', array_map($fn, explode(' ', mb_strtolower(trim($name), 'utf-8'))));
+            return implode(' ', array_map($fn, explode(' ', mb_strtolower(trim($name), 'utf-8'))));
 
         }
 
@@ -63,12 +65,11 @@ if (!function_exists('nameFormat')) {
 
 }
 
-if (!function_exists('camelToKebab')) {
+if (! function_exists('camelToKebab')) {
 
     /**
      * Transforma uma string de CamelCase para kebab-case
      *
-     * @param $string
      * @return string
      */
     function camelToKebab($string)
@@ -87,12 +88,11 @@ if (!function_exists('camelToKebab')) {
 
 }
 
-if (!function_exists('kebabToCamel')) {
+if (! function_exists('kebabToCamel')) {
 
     /**
      * Transforma uma string de kebab-case para CamelCase
      *
-     * @param $string
      * @return string
      */
     function kebabToCamel($string)
@@ -100,9 +100,9 @@ if (!function_exists('kebabToCamel')) {
 
         return lcfirst(
             implode('', array_map(
-                    'ucfirst',
-                    explode('-', $string)
-                )
+                'ucfirst',
+                explode('-', $string)
+            )
             )
         );
 
@@ -110,13 +110,11 @@ if (!function_exists('kebabToCamel')) {
 
 }
 
-if (!function_exists('prepare')) {
+if (! function_exists('prepare')) {
 
     /**
      * Prepara os dados para serem salvos no banco de dados
      *
-     * @param $data
-     * @param $column
      * @return array
      */
     function prepare($data, $column)
@@ -132,27 +130,23 @@ if (!function_exists('prepare')) {
 
 }
 
-if (!function_exists('debug')) {
+if (! function_exists('debug')) {
 
     /**
      * Registra uma mensagem de debug no console
-     *
-     * @param $message
      */
     function debug($message)
     {
-        print $message . PHP_EOL;
+        echo $message.PHP_EOL;
     }
 
 }
 
-if (!function_exists('getNewModel')) {
+if (! function_exists('getNewModel')) {
 
     /**
      * Retorna uma nova model
      *
-     * @param $modelName
-     * @param $source
      * @return mixed
      */
     function getNewModel($modelName, $source = null)
@@ -161,7 +155,7 @@ if (!function_exists('getNewModel')) {
         $className = str_replace('Repository', '', $modelName);
 
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(app_path() . "/Models" . $source)
+            new RecursiveDirectoryIterator(app_path().'/Models'.$source)
         );
 
         $classes = new RegexIterator($files, '/\.php$/');
@@ -176,11 +170,11 @@ if (!function_exists('getNewModel')) {
 
             for ($index = 0; isset($tokens[$index]); $index++) {
 
-                if (!isset($tokens[$index][0])) {
+                if (! isset($tokens[$index][0])) {
                     continue;
                 }
 
-                if (T_NAMESPACE === $tokens[$index][0]) {
+                if ($tokens[$index][0] === T_NAMESPACE) {
 
                     $index += 2;
 
@@ -188,8 +182,9 @@ if (!function_exists('getNewModel')) {
                         $namespace .= $tokens[$index++][1];
                     }
 
-                    if (!Str::contains($namespace, "Auth"))
+                    if (! Str::contains($namespace, 'Auth')) {
                         $namespaces[] = $namespace;
+                    }
 
                 }
 
@@ -201,8 +196,9 @@ if (!function_exists('getNewModel')) {
 
             $class = "$namespace\\$className";
 
-            if (class_exists($class))
-                return new $class();
+            if (class_exists($class)) {
+                return new $class;
+            }
 
         }
 
@@ -212,7 +208,7 @@ if (!function_exists('getNewModel')) {
 
 }
 
-if (!function_exists('preventCache')) {
+if (! function_exists('preventCache')) {
 
     /**
      * Previne que um arquivo CSS ou JS seja carregado do cache aplicando um parametro de versÃ£o
@@ -221,23 +217,22 @@ if (!function_exists('preventCache')) {
      */
     function preventCache()
     {
-        return '?v=' . time();
+        return '?v='.time();
     }
 
 }
 
-if (!function_exists('isCurrentRoute')) {
+if (! function_exists('isCurrentRoute')) {
 
     /**
      * Verifica se o menu corresponde a rota atual
      *
-     * @param $route_name
      * @return string
      */
     function isCurrentRoute($route_name)
     {
 
-        if (!is_array($route_name)) {
+        if (! is_array($route_name)) {
 
             return Route::is($route_name) ? 'active' : '';
 
@@ -251,12 +246,11 @@ if (!function_exists('isCurrentRoute')) {
 
 }
 
-if (!function_exists('errorMessageFormat')) {
+if (! function_exists('errorMessageFormat')) {
 
     /**
      * Formata a mensagem de erro deixando o nome do campo em negrito
      *
-     * @param $error
      * @return mixed
      */
     function errorMessageFormat($error)
@@ -264,9 +258,9 @@ if (!function_exists('errorMessageFormat')) {
 
         if (Str::contains($error, ':')) {
 
-            $attribute = Str::before(Str::after($error, ":"), ' ');
+            $attribute = Str::before(Str::after($error, ':'), ' ');
 
-            $error = str_replace(':', '', str_replace($attribute, '<b>' . $attribute . '</b>', $error));
+            $error = str_replace(':', '', str_replace($attribute, '<b>'.$attribute.'</b>', $error));
 
             $error = str_replace('_', ' ', $error);
 
@@ -277,23 +271,9 @@ if (!function_exists('errorMessageFormat')) {
 
 }
 
-if (!function_exists('logRequestBody')) {
+if (! function_exists('logRequestBody')) {
 
     /**
-     * Registra o log de um objeto JSON
-     *
-     * @param $title
-     * @param $data
-     */
-    function logJson($title, $data)
-    {
-
-        \Illuminate\Support\Facades\Log::info(
-            strtoupper($title) . ":: " . json_encode($data)
-        );
-
-    }
-
 }
 
 if (!function_exists('loadRepositories')) {
@@ -307,24 +287,24 @@ if (!function_exists('loadRepositories')) {
     {
 
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(app_path() . "/Repositories")
+            new RecursiveDirectoryIterator(app_path().'/Repositories')
         );
 
         $classes = new RegexIterator($files, '/\.php$/');
 
-        $repositories = new stdClass();
+        $repositories = new stdClass;
 
         foreach ($classes as $class) {
 
-            $prefix = \Illuminate\Support\Str::camel(
+            $prefix = Str::camel(
                 preg_replace('(Repository|.php)', '', $class->getFilename())
             );
 
             if ($prefix !== 'base') {
 
-                $className = '\\App\Repositories\\' . str_replace('.php', '', $class->getFilename());
+                $className = '\\App\Repositories\\'.str_replace('.php', '', $class->getFilename());
 
-                $repositories->$prefix = new $className();
+                $repositories->$prefix = new $className;
 
             }
 
@@ -335,12 +315,12 @@ if (!function_exists('loadRepositories')) {
 
 }
 
-if (!function_exists('color')) {
+if (! function_exists('color')) {
 
     /**
      * Retorna a cor de acordo com a chave
      *
-     * @param string $key
+     * @param  string  $key
      * @return mixed
      */
     function color($key)
@@ -349,7 +329,7 @@ if (!function_exists('color')) {
         $colors = [
             'danger' => 'red',
             'warning' => 'orange',
-            'success' => 'teal'
+            'success' => 'teal',
         ];
 
         return $colors[$key];
@@ -357,13 +337,11 @@ if (!function_exists('color')) {
 
 }
 
-if (!function_exists('divide')) {
+if (! function_exists('divide')) {
 
     /**
      * Realiza uma operação de divisão
      *
-     * @param $value1
-     * @param $value2
      * @return float|int
      */
     function divide($value1, $value2)
@@ -379,15 +357,13 @@ if (!function_exists('divide')) {
 
 }
 
-if (!function_exists('hospital')) {
+if (! function_exists('hospital')) {
 
     /**
      * Retorna o hospital
      *
-     * @param $string
      * @return mixed|null
      */
-
     function hospital($string)
     {
 
@@ -407,106 +383,110 @@ if (!function_exists('hospital')) {
             'MULTICENTROS' => 'MULTICENTROS',
         ];
 
-        if (!is_null($string))
+        if (! is_null($string)) {
             $sigla = explode(' ', $string, 2)[0];
+        }
 
-        if (!array_key_exists($sigla, $hospital))
+        if (! array_key_exists($sigla, $hospital)) {
             return null;
+        }
 
         return $hospital[$sigla];
 
     }
 }
 
-if (!function_exists('dateFormat')) {
+if (! function_exists('dateFormat')) {
 
     /**
      * Retorna uma data no formato especificado
      *
-     * @param $value
-     * @param string $format
+     * @param  string  $format
      * @return string
+     *
      * @throws Exception
      */
     function dateFormat($value, $format = 'd/m/Y')
     {
 
-        if (!is_null($value)) {
+        if (! is_null($value)) {
 
             if ($format === 'Y-m-d') {
-                $value = \Illuminate\Support\Carbon::createFromFormat('d/m/Y', $value);
+                $value = Carbon::createFromFormat('d/m/Y', $value);
             }
 
-            return (new \Illuminate\Support\Carbon($value))->format($format);
+            return (new Carbon($value))->format($format);
 
         }
     }
 }
 
-if ( !function_exists( 'formatDateTime' ) ) {
+if (! function_exists('formatDateTime')) {
 
-    function formatDateTime( $dateTime ): string
+    function formatDateTime($dateTime): string
     {
 
-        if ( is_null( $dateTime ) )
-            return "-";
+        if (is_null($dateTime)) {
+            return '-';
+        }
 
-        return "{$dateTime->format( 'd/m' )} <span class='font-bold text-blue-700'>{$dateTime->format( 'H:i' )}</span>";
+        return "{$dateTime->format('d/m')} <span class='font-bold text-blue-700'>{$dateTime->format('H:i')}</span>";
 
     }
 
 }
 
-if ( !function_exists( 'attendanceSession' ) ) {
+if (! function_exists('attendanceSession')) {
 
-    function attendanceSession( $attendance, $destroy = false )
+    function attendanceSession($attendance, $destroy = false)
     {
 
-        if ( $destroy )
-            session()->forget( 'attendance' );
-        else
-            session( [ 'attendance' => $attendance ] );
+        if ($destroy) {
+            session()->forget('attendance');
+        } else {
+            session(['attendance' => $attendance]);
+        }
 
     }
 
 }
 
-if (!function_exists('getCurrentShift')) {
+if (! function_exists('getCurrentShift')) {
     /** Wrapper global — delega para ShiftService */
     function getCurrentShift($time = null)
     {
-        return \App\Services\ShiftService::getCurrentShift($time);
+        return ShiftService::getCurrentShift($time);
     }
 }
 
-if (!function_exists('getShiftDateForSession')) {
+if (! function_exists('getShiftDateForSession')) {
     /** Wrapper global — delega para ShiftService */
     function getShiftDateForSession($dateTime = null)
     {
-        return \App\Services\ShiftService::getShiftDateForSession($dateTime);
+        return ShiftService::getShiftDateForSession($dateTime);
     }
 }
 
-if (!function_exists('getShiftInfo')) {
+if (! function_exists('getShiftInfo')) {
     /** Wrapper global — delega para ShiftService */
     function getShiftInfo($dateTime = null)
     {
-        return \App\Services\ShiftService::getShiftInfo($dateTime);
+        return ShiftService::getShiftInfo($dateTime);
     }
 }
 
-if (!function_exists('getMewsCardGradient')) {
+if (! function_exists('getMewsCardGradient')) {
     /** Wrapper global — delega para ScaleStyleHelper */
     function getMewsCardGradient($score, $isNewPatient = false)
     {
-        return \App\Support\Scales\ScaleStyleHelper::mewsCardGradient($score, $isNewPatient);
+        return ScaleStyleHelper::mewsCardGradient($score, $isNewPatient);
     }
 }
 
-if (!function_exists('getShiftFromTimestamp')) {
+if (! function_exists('getShiftFromTimestamp')) {
     /** Wrapper global — delega para ShiftService */
     function getShiftFromTimestamp($timestamp)
     {
-        return \App\Services\ShiftService::getShiftFromTimestamp($timestamp);
+        return ShiftService::getShiftFromTimestamp($timestamp);
     }
 }

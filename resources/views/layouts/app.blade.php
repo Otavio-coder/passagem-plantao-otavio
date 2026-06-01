@@ -48,16 +48,38 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/patient-modal.js', 'resources/js/chat-component-global.js'])
     <title>{{ env( 'APP_NAME' ) }}</title>
-    {{-- PWA --}}
-    <link rel="manifest" href="/manifest.json">
+    {{-- PWA manifest — crossorigin="use-credentials" required for auth-protected origins (HTTPS) --}}
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+
+    {{-- Theme & branding --}}
     <meta name="theme-color" content="#004D9D">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Plantão">
+
+    {{-- Apple / iOS PWA --}}
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Plantão">
     <link rel="apple-touch-icon" href="/images/icons/icon-192x192.png">
-    <link rel="icon" sizes="192x192" href="/images/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/images/icons/icon-512x512.png">
+
+    {{-- iOS splash screens (displayed while app is loading from home screen) --}}
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1242x2688.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1242x2688.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-828x1792.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1242x2688.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1242x2688.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1125x2436.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" href="/images/icons/splash-1242x2208.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-750x1334.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-640x1136.png">
+    {{-- iPad --}}
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-1536x2048.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-1668x2224.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-1668x2388.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" href="/images/icons/splash-2048x2732.png">
+
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/serviceworker.js', { scope: '/' });
@@ -357,6 +379,10 @@
     }
 })();
 </script>
+@endauth
+
+@auth
+<x-ui.connection-status />
 @endauth
 </body>
 </html>

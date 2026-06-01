@@ -55,6 +55,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('chat_message_pins')) {
+            return;
+        }
+
         // MySQL uses uniq_message_pin to support the FK — must drop FK first,
         // then the unique index, then restore the FK (which auto-creates a regular index).
         Schema::table('chat_message_pins', function (Blueprint $table) {

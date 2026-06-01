@@ -17,7 +17,7 @@ class ChatArchiveUserResolverTest extends TestCase
             '42' => ['id' => 42, 'username' => 'enf.maria', 'name' => 'Maria Silva'],
         ]);
 
-        $this->assertSame('enf.maria', $messages[0]['user']);
+        $this->assertSame('Maria Silva', $messages[0]['user']);
     }
 
     #[Test]

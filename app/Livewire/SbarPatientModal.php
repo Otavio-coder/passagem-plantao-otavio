@@ -108,10 +108,6 @@ class SbarPatientModal extends Component
     public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
     {
         if (! $attendanceNumber || $attendanceNumber == 0) {
-            Log::warning('PatientModal: Invalid attendanceNumber', [
-                'attendanceNumber' => $attendanceNumber,
-            ]);
-
             return;
         }
 
@@ -476,10 +472,6 @@ class SbarPatientModal extends Component
                 // Verifica e mostra alertas se necessário
                 $this->checkAndShowAlertsModal();
             } else {
-                Log::warning('PatientModal: No patient data found', [
-                    'attendanceNumber' => $attendanceNumber,
-                ]);
-
                 $this->patientAlerts = [];
 
                 // Mantém dados básicos mesmo sem detalhes
@@ -680,8 +672,6 @@ class SbarPatientModal extends Component
     public function refreshPatientData()
     {
         if (! $this->currentPatient || ! isset($this->currentPatient['nr_atendimento'])) {
-            Log::warning('PatientModal: Cannot refresh - no current patient');
-
             return;
         }
 

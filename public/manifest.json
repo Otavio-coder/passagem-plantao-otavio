@@ -1,14 +1,15 @@
 {
     "name": "Passagem de Plantão",
     "short_name": "Plantão",
-    "description": "Sistema de passagem de plantão hospitalar",
+    "description": "Sistema de passagem de plantão hospitalar — Santa Casa de Porto Alegre",
     "start_url": "/sbar",
     "id": "/sbar",
     "scope": "/",
     "display": "standalone",
+    "display_override": ["window-controls-overlay", "standalone"],
     "orientation": "portrait",
     "theme_color": "#004D9D",
-    "background_color": "#f3f4f6",
+    "background_color": "#004D9D",
     "lang": "pt-BR",
     "dir": "ltr",
     "prefer_related_applications": false,
@@ -73,6 +74,15 @@
             "type": "image/png",
             "sizes": "512x512",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Painel SBAR",
+            "short_name": "SBAR",
+            "description": "Abrir o painel de passagem de plantão",
+            "url": "/sbar",
+            "icons": [{ "src": "/images/icons/icon-192x192.png", "sizes": "192x192" }]
         }
     ]
 }

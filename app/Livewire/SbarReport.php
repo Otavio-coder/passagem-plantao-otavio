@@ -147,7 +147,8 @@ class SbarReport extends Component
                 fn () => $this->injectHandoverStatus($patients)
             );
 
-            return $this->preparePatientsForView($withHandover);
+            // Apply per-user bed filter after cache retrieval so cache stays shared across users.
+            return $this->preparePatientsForView($this->applyBedFilter($withHandover));
         } catch (\Exception $e) {
             Log::error('Error loading patients', [
                 'exception' => $e,
@@ -647,11 +648,13 @@ class SbarReport extends Component
             'onboardingSectorsData' => $this->showSectorOnboarding
                 ? Sector::allowedForPreferencesGroupedByHospital()
                 : [],
-            'canStartHandover' => $this->resolveCanStartHandover(),
+            'canStartHandover' => $this->canStartHandover,
+            'onlyAssignedBeds' => (bool) Auth::user()?->only_assigned_beds,
         ]);
     }
 
-    private function resolveCanStartHandover(): bool
+    #[Computed]
+    public function canStartHandover(): bool
     {
         try {
             $user = Auth::user();
@@ -770,9 +773,21 @@ class SbarReport extends Component
         $latestEvaluationByAttendance = [];
 
         if (! empty($attendancesWithoutPinned)) {
+            // Subquery returns the max message id per attendance (last 30 days only),
+            // avoiding a full scan and redundant PHP-side deduplication.
             $latestRows = DB::table('chat_messages as cm')
+                ->joinSub(
+                    DB::table('chat_messages')
+                        ->whereIn('nr_atendimento', $attendancesWithoutPinned)
+                        ->where('created_at', '>=', now()->subDays(30))
+                        ->select(['nr_atendimento', DB::raw('MAX(id) as max_id')])
+                        ->groupBy('nr_atendimento'),
+                    'latest',
+                    fn ($join) => $join
+                        ->on('cm.nr_atendimento', '=', 'latest.nr_atendimento')
+                        ->on('cm.id', '=', 'latest.max_id')
+                )
                 ->leftJoin('users as u', 'u.id', '=', 'cm.user_id')
-                ->whereIn('cm.nr_atendimento', $attendancesWithoutPinned)
                 ->select([
                     'cm.nr_atendimento',
                     'cm.content',
@@ -781,12 +796,11 @@ class SbarReport extends Component
                     'u.name as user_name',
                     'u.photo',
                 ])
-                ->orderByDesc('cm.created_at')
                 ->get();
 
             foreach ($latestRows as $latestRow) {
                 $attendance = (int) ($latestRow->nr_atendimento ?? 0);
-                if ($attendance <= 0 || isset($latestEvaluationByAttendance[$attendance])) {
+                if ($attendance <= 0) {
                     continue;
                 }
 
@@ -835,6 +849,29 @@ class SbarReport extends Component
      * em PHP, antes do render. Isso evita chamadas de funções complexas dentro do Blade e
      * mantém os templates focados apenas em estrutura HTML.
      */
+    private function applyBedFilter(array $patients): array
+    {
+        $user = Auth::user();
+
+        if (! $user->only_assigned_beds || ! $this->selectedSector) {
+            return $patients;
+        }
+
+        $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+            ->where('sector_id', $this->selectedSector)
+            ->pluck('bed_code')
+            ->toArray();
+
+        if (empty($assignedBeds)) {
+            return $patients;
+        }
+
+        return array_values(array_filter(
+            $patients,
+            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+        ));
+    }
+
     private function preparePatientsForView(array $patients): array
     {
         return array_map(function (array $patient): array {

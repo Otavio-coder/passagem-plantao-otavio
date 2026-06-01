@@ -95,13 +95,13 @@
                     {{-- Histórico de Avaliações — Coordenador + Administrador --}}
                     @can('ver historico chat')
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
-                        <a href="{{ route('chat.archive.index') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
+                        <a href="{{ route('admin.dashboard') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
                                 <i class="fa fa-clock-rotate-left text-sm sm:text-lg"></i>
                             </div>
                             <div class="text-center sm:text-left">
-                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Histórico de Avaliações</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Consulte as anotações de plantão por paciente e período</p>
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Panorama do Sistema</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Panorama de usuários, setores, anotações e passagens de plantão</p>
                             </div>
                         </a>
                     </div>

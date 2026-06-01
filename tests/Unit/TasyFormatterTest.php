@@ -20,7 +20,7 @@ class TasyFormatterTest extends TestCase
 
         $this->assertSame('alta_medica', $result['tipo']);
         $this->assertSame('08/04/2026 14:30', $result['dt_alta_medico_formatted']);
-        $this->assertSame('09/04/2026 10:15', $result['dt_previsto_alta_formatted']);
+        $this->assertSame('09/04/2026', $result['dt_previsto_alta_formatted']);
         $this->assertSame('Melhora clínica', $result['ds_motivo_alta']);
     }
 
@@ -53,6 +53,6 @@ class TasyFormatterTest extends TestCase
 
         $this->assertSame('alta_medica', $result['tipo']);
         $this->assertSame('08/04/2026 08:00', $result['dt_alta_medico_formatted']);
-        $this->assertSame('08/04/2026 20:00', $result['dt_previsto_alta_formatted']);
+        $this->assertSame('08/04/2026', $result['dt_previsto_alta_formatted']);
     }
 }

@@ -46,6 +46,14 @@
                                     </div>
 
                                     <div class="flex items-center justify-center lg:justify-end gap-2 flex-shrink-0 font-montserrat">
+                                        @if($onlyAssignedBeds ?? false)
+                                            <a href="{{ route('user.preferences.index') }}"
+                                               class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/10 border border-white/25 text-white text-xs font-medium whitespace-nowrap hover:bg-white/20 transition-colors"
+                                               title="Mostrando apenas seus leitos configurados. Clique para alterar.">
+                                                <i class="fas fa-filter text-[10px] opacity-70"></i>
+                                                Apenas meus leitos
+                                            </a>
+                                        @endif
                                         @if($lastRefresh)
                                             <span class="hidden xl:block text-white/80 text-xs font-montserrat mr-1">
                                                 Última atualização: {{ $lastRefresh }}
@@ -138,20 +146,24 @@
                         {{-- Patients container --}}
                         <div id="patientsContainer" class="relative p-2 sm:p-3 lg:p-4 bg-white min-h-[60vh]">
 
-                            {{-- Overlay durante filtragem client-side (só existe após carregamento inicial) --}}
+                            {{-- Overlay during sector/hospital switch — cards are already in DOM, just re-loading --}}
                             @if(!$isLoading)
                             <div x-show="isInitialLoading" x-cloak
-                                 class="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-b-xl bg-white/80 backdrop-blur-[2px] gap-4">
-                                <div class="w-14 h-14 rounded-full border-4 border-[#004D9D]/20 border-t-[#004D9D] animate-spin"></div>
-                                <p class="text-[#004D9D] font-semibold text-sm tracking-wide">Carregando pacientes...</p>
+                                 class="absolute inset-0 z-30 rounded-b-xl bg-white/70 backdrop-blur-[1px]">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 p-1">
+                                    @for($i = 0; $i < 8; $i++)
+                                        @include('sbar.report.partials.skeleton-card')
+                                    @endfor
+                                </div>
                             </div>
                             @endif
 
-                            {{-- Loading inicial (wire:init ainda não disparou) --}}
+                            {{-- Initial cold load — wire:init not yet fired, no cards in DOM --}}
                             @if($isLoading)
-                                <div class="flex flex-col items-center justify-center py-24 gap-4">
-                                    <div class="w-10 h-10 rounded-full border-4 border-[#004D9D]/20 border-t-[#004D9D] animate-spin"></div>
-                                    <p class="text-[#004D9D] font-semibold text-sm tracking-wide">Carregando Leitos</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                                    @for($i = 0; $i < 8; $i++)
+                                        @include('sbar.report.partials.skeleton-card')
+                                    @endfor
                                 </div>
                             @elseif(isset($errorMessage) && $errorMessage)
                                 <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">

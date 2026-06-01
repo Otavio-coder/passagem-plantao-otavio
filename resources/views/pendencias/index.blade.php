@@ -285,20 +285,20 @@
                 <table id="pendencias-table" class="w-full" style="width:100%">
                     <thead>
                         <tr class="bg-[#004D9D]/5 border-b border-[#004D9D]/10">
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider">Paciente</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Leito</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Atend.</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Tipo</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider hidden lg:table-cell">Status</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider">Pendência</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Data Prescrição</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Lib. médica</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Liberado</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Prev. exec.</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Coletado</th>
-                            <th class="px-1.5 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap">Em aberto</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider hidden xl:table-cell whitespace-nowrap">Setor exec.</th>
-                            <th class="px-3 py-2 text-left text-[10px] font-semibold text-[#004D9D] uppercase tracking-wider whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Paciente</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap hidden md:table-cell">Leito</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Atend.</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Tipo</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 hidden lg:table-cell">Status</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Pendência</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Data Prescrição</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap hidden lg:table-cell">Lib. médica</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Liberado</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Prev. exec.</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap hidden lg:table-cell">Coletado</th>
+                            <th class="px-1.5 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Em aberto</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 hidden xl:table-cell whitespace-nowrap">Setor exec.</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
                             <th class="hidden">tipo_raw</th>
                             <th class="hidden">vencido</th>
                             <th class="hidden">motivo_cat</th>

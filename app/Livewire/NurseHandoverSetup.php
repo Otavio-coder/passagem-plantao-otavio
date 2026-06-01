@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\NurseHandoverBed;
 use App\Models\System\UserSectorPreference;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
@@ -16,6 +17,9 @@ class NurseHandoverSetup extends Component
     public array $selectedBeds = [];
 
     public bool $saved = false;
+
+    /** Mirrors users.only_assigned_beds — toggled via UI, persisted to DB. */
+    public bool $onlyAssignedBeds = false;
 
     public function mount(): void
     {
@@ -31,6 +35,8 @@ class NurseHandoverSetup extends Component
         foreach ($saved as $sectorId => $beds) {
             $this->selectedBeds[(int) $sectorId] = $beds;
         }
+
+        $this->onlyAssignedBeds = (bool) Auth::user()->only_assigned_beds;
     }
 
     /**
@@ -56,21 +62,29 @@ class NurseHandoverSetup extends Component
 
         $sectorIds = $prefs->pluck('sector_code')->map(fn ($v) => (int) $v)->unique()->all();
 
-        // Uma única query Oracle para todos os leitos dos setores — evita N queries (uma por setor)
-        $placeholders = implode(',', $sectorIds);
-        $bedRows = DB::connection('tasy')->select("
-            SELECT DISTINCT cd_setor_atendimento, cd_unidade_basica
-            FROM tasy.unidade_atendimento
-            WHERE ie_situacao = 'A'
-              AND cd_unidade_basica IS NOT NULL
-              AND cd_setor_atendimento IN ({$placeholders})
-            ORDER BY cd_setor_atendimento, cd_unidade_basica
-        ");
+        // Cache keyed by sorted sector list — different sector sets get different entries.
+        $sortedIds = $sectorIds;
+        sort($sortedIds);
+        $cacheKey = 'setup_beds_'.implode('_', $sortedIds);
 
-        $bedsBySector = [];
-        foreach ($bedRows as $row) {
-            $bedsBySector[(int) $row->cd_setor_atendimento][] = $row->cd_unidade_basica;
-        }
+        $bedsBySector = Cache::remember($cacheKey, 600, function () use ($sectorIds) {
+            $placeholders = implode(',', array_map('intval', $sectorIds));
+            $bedRows = DB::connection('tasy')->select("
+                SELECT DISTINCT cd_setor_atendimento, cd_unidade_basica
+                FROM tasy.unidade_atendimento
+                WHERE ie_situacao = 'A'
+                  AND cd_unidade_basica IS NOT NULL
+                  AND cd_setor_atendimento IN ({$placeholders})
+                ORDER BY cd_setor_atendimento, cd_unidade_basica
+            ");
+
+            $result = [];
+            foreach ($bedRows as $row) {
+                $result[(int) $row->cd_setor_atendimento][] = $row->cd_unidade_basica;
+            }
+
+            return $result;
+        });
 
         $grouped = [];
 
@@ -184,6 +198,15 @@ class NurseHandoverSetup extends Component
 
         $this->saved = true;
         $this->dispatch('nurse-beds-saved');
+    }
+
+    public function toggleOnlyAssignedBeds(): void
+    {
+        $user = Auth::user();
+        $newValue = ! $this->onlyAssignedBeds;
+
+        $user->update(['only_assigned_beds' => $newValue]);
+        $this->onlyAssignedBeds = $newValue;
     }
 
     public function render(): View

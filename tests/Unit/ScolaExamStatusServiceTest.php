@@ -79,10 +79,21 @@ class ScolaExamStatusServiceTest extends TestCase
     }
 
     #[Test]
-    public function status_n_retorna_nova_coleta_necessaria(): void
+    public function status_n_com_colheita_retorna_amostra_rejeitada(): void
     {
         $result = $this->callSummarizeItemStatus(
             $this->makeExam('2026-04-06 08:00:00', null, null, null, 'N')
+        );
+
+        $this->assertSame('Amostra rejeitada pelo laboratório', $result['label']);
+        $this->assertFalse($result['integration_issue']);
+    }
+
+    #[Test]
+    public function status_n_sem_colheita_retorna_nova_coleta(): void
+    {
+        $result = $this->callSummarizeItemStatus(
+            $this->makeExam(null, null, null, null, 'N')
         );
 
         $this->assertSame('Nova coleta necessária', $result['label']);
@@ -112,26 +123,26 @@ class ScolaExamStatusServiceTest extends TestCase
     }
 
     #[Test]
-    public function status_c_sem_colheita_retorna_solicitado(): void
+    public function status_c_retorna_cancelado_scola(): void
     {
-        // 'C' = active/created order with no collection yet
+        // 'C' = cancelado administrativamente no SCOLA (ex: cultura em incubação longa)
         $result = $this->callSummarizeItemStatus(
             $this->makeExam(null, null, null, null, 'C')
         );
 
-        $this->assertSame('Solicitado (aguardando coleta)', $result['label']);
-        $this->assertFalse($result['integration_issue']);
+        $this->assertSame('Cancelado no SCOLA (verificar laboratório)', $result['label']);
+        $this->assertTrue($result['integration_issue']);
     }
 
     #[Test]
-    public function status_c_com_colheita_retorna_coletado(): void
+    public function status_c_com_colheita_retorna_cancelado_scola(): void
     {
         $result = $this->callSummarizeItemStatus(
             $this->makeExam('2026-04-06 08:00:00', null, null, null, 'C')
         );
 
-        $this->assertSame('Coletado (aguardando resultado)', $result['label']);
-        $this->assertFalse($result['integration_issue']);
+        $this->assertSame('Cancelado no SCOLA (verificar laboratório)', $result['label']);
+        $this->assertTrue($result['integration_issue']);
     }
 
     #[Test]
@@ -166,14 +177,14 @@ class ScolaExamStatusServiceTest extends TestCase
         $pedidos = ['1001' => ['500']];
         $movEx = [
             '500' => [
-                // seq 1: collected
+                // seq 1: collected (status A = ativo/processando)
                 (object) [
                     'id_seq_prescricao_integracao' => '1',
                     'data_colheita' => '2026-04-06 08:00:00',
                     'data_resultado' => null,
                     'data_liberado' => null,
                     'data_exportacao_resultado' => null,
-                    'status_exame_integracao' => 'C',
+                    'status_exame_integracao' => 'A',
                 ],
                 // seq 2: not collected
                 (object) [
@@ -182,7 +193,7 @@ class ScolaExamStatusServiceTest extends TestCase
                     'data_resultado' => null,
                     'data_liberado' => null,
                     'data_exportacao_resultado' => null,
-                    'status_exame_integracao' => 'C',
+                    'status_exame_integracao' => 'A',
                 ],
             ],
         ];
@@ -228,8 +239,9 @@ class ScolaExamStatusServiceTest extends TestCase
         $buildStatusMap = new ReflectionMethod(ScolaExamStatusService::class, 'buildStatusMap');
         $map = $buildStatusMap->invoke($service, $pedidos, $movEx);
 
-        // pedido 200 (higher) overwrites pedido 100 → solicitado wins
-        $this->assertSame('Solicitado (aguardando coleta)', $map['2000_1']['label']);
+        // pedido 200 (higher) overwrites pedido 100 → cancelado do pedido mais novo vence
+        $this->assertSame('Cancelado no SCOLA (verificar laboratório)', $map['2000_1']['label']);
+        $this->assertTrue($map['2000_1']['integration_issue']);
     }
 
     #[Test]

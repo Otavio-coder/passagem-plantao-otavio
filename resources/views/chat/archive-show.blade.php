@@ -8,7 +8,7 @@
     {{-- Header --}}
     <div class="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
-            <a href="{{ route('chat.archive.index') }}" class="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-1">
+            <a href="{{ route('admin.dashboard') }}" class="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-1">
                 <i class="fas fa-arrow-left fa-xs"></i> Voltar ao histórico
             </a>
             <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">

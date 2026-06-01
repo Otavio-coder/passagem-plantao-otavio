@@ -62,7 +62,7 @@
                                 <button type="button"
                                         id="admin-dropdown-btn"
                                         title="Administração"
-                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('chat.archive.*') || request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}"
+                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('admin.dashboard') || request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}"
                                         aria-haspopup="true"
                                         onclick="toggleNavbar('admin-dropdown')">
                                     <i class="fa fa-gear"></i>
@@ -97,9 +97,9 @@
                                         </a>
                                     @endcan
                                     @can('ver historico chat')
-                                        <a href="{{ route('chat.archive.index') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('chat.archive.*') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
+                                        <a href="{{ route('admin.dashboard') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
                                             <i class="fas fa-clock-rotate-left w-4 text-sky-600 text-sm flex-shrink-0"></i>
-                                            <span class="ml-2">Histórico de Avaliações</span>
+                                            <span class="ml-2">Panorama do Sistema</span>
                                         </a>
                                     @endcan
                                     @can('ver logs')
@@ -169,23 +169,6 @@
                                 Sessão ativa até {{ now()->addMinutes((int) config('session.lifetime'))->format('H:i') }}
                             </p>
                         </div>
-
-                        {{-- Trocar Usuário (tablet handover) --}}
-                        <a class="text-gray-700 hover:text-gray-900 hover:bg-amber-50 px-3 py-2.5 flex items-center gap-2.5 text-xs border-b border-gray-100"
-                           role="menuitem"
-                           href="#"
-                           onclick="event.preventDefault(); document.getElementById('switch-user-form').submit();"
-                           title="Encerra sua sessão e abre o login para o próximo profissional">
-                            <i class="fas fa-user-circle text-amber-500 w-4 text-center"></i>
-                            <div>
-                                <p class="font-semibold text-amber-700">Trocar Usuário</p>
-                                <p class="text-[10px] text-gray-400 leading-none mt-0.5">Próximo profissional faz login</p>
-                            </div>
-                        </a>
-                        <form id="switch-user-form" action="{{ route('logout') }}" method="POST" class="hidden">
-                            @csrf
-                            <input type="hidden" name="tablet_mode" value="1">
-                        </form>
 
                         <a class="text-gray-600 hover:text-gray-800 hover:bg-red-50 px-3 py-2.5 flex items-center gap-2.5 text-xs rounded"
                            role="menuitem"
@@ -279,9 +262,9 @@
                             </a>
                         @endcan
                         @can('ver historico chat')
-                            <a href="{{ route('chat.archive.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
+                            <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
                                 <i class="fas fa-clock-rotate-left text-sky-600 w-5"></i>
-                                <span>Histórico de Avaliações</span>
+                                <span>Panorama do Sistema</span>
                             </a>
                         @endcan
                         @can('ver logs')
@@ -331,20 +314,6 @@
                     Sessão até {{ now()->addMinutes((int) config('session.lifetime'))->format('H:i') }}
                 </p>
             </div>
-
-            {{-- Trocar Usuário --}}
-            <a href="#" onclick="event.preventDefault(); document.getElementById('switch-user-form-mobile').submit();"
-               class="flex justify-between items-center text-sm text-gray-700">
-                <div class="px-2 pt-2 pb-3 flex flex-col">
-                    <span class="font-semibold text-amber-600">Trocar Usuário</span>
-                    <span class="text-xs text-gray-400">Próximo profissional faz login</span>
-                </div>
-                <i class="fas fa-chevron-right text-sm text-amber-400"></i>
-            </a>
-            <form id="switch-user-form-mobile" action="{{ route('logout') }}" method="POST" class="hidden">
-                @csrf
-                <input type="hidden" name="tablet_mode" value="1">
-            </form>
 
             <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form-mobile').submit();"
                class="flex justify-between items-center text-sm text-gray-700 mt-2">

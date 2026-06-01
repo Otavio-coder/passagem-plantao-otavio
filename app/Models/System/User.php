@@ -49,6 +49,7 @@ class User extends Authenticatable implements LdapAuthenticatable
         'role',
         'role_synced_at',
         'is_nurse',
+        'only_assigned_beds',
     ];
 
     /**
@@ -73,6 +74,7 @@ class User extends Authenticatable implements LdapAuthenticatable
             'last_access_at' => 'datetime',
             'role_synced_at' => 'datetime',
             'is_nurse' => 'boolean',
+            'only_assigned_beds' => 'boolean',
             'password' => 'hashed',
         ];
     }

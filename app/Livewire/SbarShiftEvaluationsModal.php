@@ -102,13 +102,39 @@ class SbarShiftEvaluationsModal extends Component
             }
 
             $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
+
+            // Filtra por leitos atribuídos quando a preferência estiver ativa.
+            $user = Auth::user();
+            if ($user->only_assigned_beds) {
+                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                    ->where('sector_id', $this->sectorId)
+                    ->pluck('bed_code')
+                    ->toArray();
+
+                if (! empty($assignedBeds)) {
+                    $patients = array_values(array_filter(
+                        $patients,
+                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                    ));
+                }
+            }
+
+            if (empty($patients)) {
+                $this->beds = [];
+                $this->photos = [];
+                $this->shiftsMeta = [];
+
+                return;
+            }
+
             $attendanceNumbers = array_values(array_filter(array_column($patients, 'nr_atendimento')));
 
             $windows = $this->buildThreeShiftWindows();
 
             // Uma única query MySQL cobrindo os 3 turnos (janela total = prev2.from → current.to).
-            $totalFrom = $windows[2]['from'];
-            $totalTo = $windows[0]['to'];
+            // Índice 0 = previous2 (mais antigo), índice 2 = current (mais recente).
+            $totalFrom = $windows[0]['from'];
+            $totalTo = $windows[2]['to'];
 
             $rawMessages = ! empty($attendanceNumbers)
                 ? DB::table('chat_messages as cm')
@@ -358,7 +384,7 @@ class SbarShiftEvaluationsModal extends Component
                 'date_label' => $dateLabel($curFrom, $curTo),
                 'full_label' => $fullLabel($curShift, $curFrom, $curTo),
                 'from' => $curFrom,
-                'to' => $prev2To,
+                'to' => $curTo,
             ],
         ];
     }

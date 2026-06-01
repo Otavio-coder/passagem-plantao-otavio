@@ -201,7 +201,10 @@ class NurseHandoverSession extends Component
             fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $nurseBedCodes, true)
         ));
 
-        $this->bedsTotal = count($this->handoverPatients);
+        $this->bedsTotal = count(array_filter(
+            $this->handoverPatients,
+            fn (array $p) => ($p['has_patient'] ?? false) && ! empty($p['nr_atendimento'])
+        ));
 
         $session->update(['resumed_at' => now(), 'last_activity_at' => now()]);
 
@@ -346,7 +349,11 @@ class NurseHandoverSession extends Component
             fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $nurseBedCodes, true)
         ));
 
-        $this->bedsTotal = count($this->handoverPatients);
+        // Conta apenas leitos com paciente internado; leitos vazios não precisam de passagem.
+        $this->bedsTotal = count(array_filter(
+            $this->handoverPatients,
+            fn (array $p) => ($p['has_patient'] ?? false) && ! empty($p['nr_atendimento'])
+        ));
 
         $sectorName = collect($this->handoverPatients)->first()['ds_setor_atendimento']
             ?? collect($this->handoverPatients)->first()['ds_prescricao']

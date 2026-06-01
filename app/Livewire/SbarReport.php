@@ -57,6 +57,9 @@ class SbarReport extends Component
 
     public array $selectedSectors = [];
 
+    // Lembrete de configuração de leitos (exibido uma vez após login para enfermeiros)
+    public bool $showBedReminder = false;
+
     // Serviços
     protected TasyService $tasyService;
 
@@ -350,6 +353,10 @@ class SbarReport extends Component
             $this->lastRefresh = now()->format('H:i:s');
 
             $this->checkActiveHandoverSession();
+
+            if (session()->pull('nurse_bed_reminder') && $user->isNurse()) {
+                $this->showBedReminder = true;
+            }
         } catch (\Exception $e) {
             Log::error('SBAR mount error', [
                 'exception' => $e,
@@ -461,6 +468,11 @@ class SbarReport extends Component
     {
         unset($this->patients);
         $this->lastRefresh = now()->format('H:i:s');
+    }
+
+    public function dismissBedReminder(): void
+    {
+        $this->showBedReminder = false;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -650,6 +662,7 @@ class SbarReport extends Component
                 : [],
             'canStartHandover' => $this->canStartHandover,
             'onlyAssignedBeds' => (bool) Auth::user()?->only_assigned_beds,
+            'showBedReminder' => $this->showBedReminder,
         ]);
     }
 

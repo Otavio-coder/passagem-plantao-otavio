@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NurseHandoverBed;
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\UserDisplayNameResolver;
@@ -89,10 +90,26 @@ class PendingEventsReportController extends Controller
 
         $rows = collect();
 
+        $onlyAssignedBeds = (bool) $user->only_assigned_beds;
+
         foreach ($selectedSectors as $sectorId) {
             $patients = PatientDataLoader::forSector($sectorId)
                 ->include('demographics', 'pending_events', 'multidisciplinary')
                 ->get();
+
+            if ($onlyAssignedBeds) {
+                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                    ->where('sector_id', $sectorId)
+                    ->pluck('bed_code')
+                    ->toArray();
+
+                if (! empty($assignedBeds)) {
+                    $patients = array_values(array_filter(
+                        $patients,
+                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                    ));
+                }
+            }
 
             $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null)
                 ?? $sectors->firstWhere('sector_code', $sectorId)['sector_name']
@@ -172,10 +189,26 @@ class PendingEventsReportController extends Controller
 
         $rows = collect();
 
+        $onlyAssignedBeds = (bool) $user->only_assigned_beds;
+
         foreach ($selectedSectors as $sectorId) {
             $patients = PatientDataLoader::forSector($sectorId)
                 ->include('demographics', 'pending_events', 'multidisciplinary')
                 ->get();
+
+            if ($onlyAssignedBeds) {
+                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                    ->where('sector_id', $sectorId)
+                    ->pluck('bed_code')
+                    ->toArray();
+
+                if (! empty($assignedBeds)) {
+                    $patients = array_values(array_filter(
+                        $patients,
+                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                    ));
+                }
+            }
 
             $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null) ?? (string) $sectorId;
 
@@ -276,6 +309,14 @@ class PendingEventsReportController extends Controller
                 'uga' => $sector,
                 'setor_origem' => $patient['_setor_label'] ?? $sector,
             ];
+
+            $dischargeInfo = $patient['discharge_info'] ?? null;
+            $prevAlta = null;
+            if (is_array($dischargeInfo) && ($dischargeInfo['tipo'] ?? '') === 'previsao_alta') {
+                $prevAlta = $dischargeInfo['dt_previsto_alta_formatted'] ?? $this->shortDate($dischargeInfo['dt_previsto_alta'] ?? null);
+            }
+
+            $base['prev_alta'] = $prevAlta;
 
             foreach (($patient['pending_events'] ?? []) as $event) {
                 $tipo = (string) ($event['tipo'] ?? '');

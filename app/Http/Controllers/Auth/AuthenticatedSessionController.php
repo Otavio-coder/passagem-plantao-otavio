@@ -83,6 +83,10 @@ class AuthenticatedSessionController extends Controller
         if ($userRecord) {
             $userRecord->forceFill(['last_access_at' => $now])->save();
             SyncUserPhoto::dispatch($userRecord->id);
+
+            if ($userRecord->isNurse()) {
+                session()->flash('nurse_bed_reminder', true);
+            }
         }
 
         return redirect()->intended(route('home', absolute: false));

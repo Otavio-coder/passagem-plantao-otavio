@@ -195,7 +195,7 @@
                                             <span class="text-xs text-gray-500">Clique para selecionar/deselecionar</span>
                                             <button type="button"
                                                 @click="toggleAll(hospital.code, hospital.sectors.map(s => s.sector_code), hospital.allSelected)"
-                                                class="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                                                class="text-xs font-medium px-3 py-2 rounded-lg transition-colors"
                                                 :style="hospital.allSelected
                                                     ? 'background: #f3f4f6; color: #4b5563'
                                                     : 'background: ' + hospital.color + '20; color: ' + hospital.color"
@@ -205,7 +205,7 @@
                                             <template x-for="sector in hospital.sectors" :key="sector.sector_code">
                                                 <button type="button"
                                                     @click="toggle(sector.sector_code)"
-                                                    class="flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all"
+                                                    class="flex items-center gap-2 p-3.5 rounded-lg border text-left transition-all"
                                                     :class="selected.includes(sector.sector_code) ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'"
                                                     :style="'border-color: ' + (selected.includes(sector.sector_code) ? hospital.color : '#e5e7eb')">
                                                     <div class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-all"

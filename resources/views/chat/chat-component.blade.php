@@ -37,10 +37,6 @@
             z-index: 20;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
         @media (max-width: 767px) {
             .chat-container {
                 -webkit-overflow-scrolling: touch;
@@ -53,22 +49,6 @@
         .chat-container::-webkit-scrollbar-track { background: #f1f5f9; }
         .chat-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .chat-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .send-btn-loading { background: #93c5fd !important; pointer-events: none; opacity: 0.8; }
-        .send-btn-loading .btn-text { visibility: hidden; }
-        .send-btn-loading .btn-spinner { display: inline-block !important; }
-        .btn-spinner {
-            display: none;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 18px;
-            height: 18px;
-            border: 2.5px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
 
         .pinned-minimized { height: 40px; overflow: hidden; }
         .pinned-minimized .pinned-content { display: none; }
@@ -528,15 +508,11 @@
                     <button
                         type="submit"
                         :disabled="!messageText.trim() || isSendingMessage()"
-                        :class="{ 'send-btn-loading': isSendingMessage() }"
-                        class="relative flex h-11 w-11 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl p-2 text-white shadow-sm transition duration-200 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:hover:brightness-100"
-                        style="background-color: {{ $this->shiftDisplay['hex_color'] }};"
+                        class="flex h-11 w-11 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition-all duration-200 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                         :style="(!messageText.trim() || isSendingMessage()) ? 'background-color: #94a3b8;' : 'background-color: {{ $this->shiftDisplay['hex_color'] }};'"
                     >
-                        <div class="btn-spinner absolute"></div>
-                        <span class="btn-text inline-flex items-center justify-center">
-                            <i class="fas fa-paper-plane text-base sm:text-sm"></i>
-                        </span>
+                        <i x-show="!isSendingMessage()" class="fas fa-paper-plane text-sm"></i>
+                        <i x-show="isSendingMessage()" class="fas fa-spinner fa-spin text-sm"></i>
                     </button>
                 </div>
             </form>

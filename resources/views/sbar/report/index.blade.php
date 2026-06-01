@@ -275,6 +275,10 @@
 
                     @livewire('sbar-patient-modal', [], key('sbar-patient-modal'))
                     @livewire('nurse-handover-session', [], key('nurse-handover-session'))
+
+                    @if($showBedReminder ?? false)
+                        @include('sbar.report.partials.bed-reminder-modal')
+                    @endif
                     @include('sbar.patient.expired-scales-modal', [
                         'expiredScalesPatients' => $expiredScalesPatients,
                         'sectorKey' => $selectedSector ?? 0,

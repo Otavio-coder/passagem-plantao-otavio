@@ -172,6 +172,28 @@
             bar.classList.remove('active');
         }
 
+        // ── Session expiry: redireciona para login quando a sessão expirar ──
+        @auth
+        (function() {
+            const expiresAt = {{ now()->addMinutes((int) config('session.lifetime'))->timestamp }} * 1000;
+            const msUntilExpiry = expiresAt - Date.now();
+            if (msUntilExpiry > 0) {
+                setTimeout(() => { window.location.href = '{{ route('login') }}'; }, msUntilExpiry);
+            }
+
+            // Intercepta fetch para detectar 419 (CSRF/sessão expirada) e 401
+            const _fetch = window.fetch;
+            window.fetch = function() {
+                return _fetch.apply(this, arguments).then(function(response) {
+                    if (response.status === 419 || response.status === 401) {
+                        window.location.href = '{{ route('login') }}';
+                    }
+                    return response;
+                });
+            };
+        })();
+        @endauth
+
         // Livewire commits (SBAR e outros componentes)
         document.addEventListener('livewire:init', () => {
             Livewire.hook('commit', ({ succeed, fail }) => {

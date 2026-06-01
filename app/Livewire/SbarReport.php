@@ -377,6 +377,7 @@ class SbarReport extends Component
     public function loadPatients(): void
     {
         $this->isLoading = false;
+        $this->dispatch('expired-scales-data-loaded', patients: $this->expiredScalesPatients);
     }
 
     public function changeHospital($hospitalId)

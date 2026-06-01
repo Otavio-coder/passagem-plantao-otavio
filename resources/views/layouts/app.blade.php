@@ -86,7 +86,7 @@
         }
     </script>
 </head>
-<body class="flex flex-col text-gray-800 bg-gray-300 antialiased" style="min-height:100vh;overflow-y:auto;">
+<body class="flex flex-col min-h-screen text-gray-800 bg-gray-300 antialiased">
 <div id="page-progress"></div>
 <!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">

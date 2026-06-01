@@ -7,6 +7,9 @@
                 this.open = true;
                 document.body.style.overflow = 'hidden';
             });
+            window.addEventListener('expired-scales-data-loaded', (e) => {
+                this.patients = e.detail.patients ?? [];
+            });
         },
         close() {
             this.open = false;

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\NurseHandoverBed;
 use App\Models\System\User;
 use App\Repositories\MySQL\Chat\ChatRepository;
 use App\Services\PatientData\PatientDataLoader;

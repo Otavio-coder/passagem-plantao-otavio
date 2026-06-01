@@ -93,7 +93,7 @@
     @include('shared.navbar')
 </header>
 <!-- PRINCIPAL -->
-<main class="flex-grow bg-gray-50 pt-2">
+<main class="flex-grow bg-gray-50 pt-2 overflow-y-auto">
     <div class="relative py-2 md:py-4 flex justify-center">
         <div class="w-full max-w-full relative px-2 md:px-4">
             <div class="w-full">
@@ -147,6 +147,67 @@
         </div>
     </div>
 </div>
+
+@auth
+@if(auth()->user()->handoverBeds()->doesntExist())
+<!-- Aviso: configurar leitos -->
+<div id="beds-notice-banner"
+     class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm"
+     role="dialog"
+     aria-label="Configurar leitos">
+    <div class="bg-white rounded-2xl shadow-2xl border border-blue-100 overflow-hidden">
+        <div class="flex items-start gap-3 px-4 py-3">
+            <div class="flex-shrink-0 w-9 h-9 rounded-xl bg-[#004D9D]/10 flex items-center justify-center mt-0.5">
+                <i class="fas fa-bed text-[#004D9D] text-sm"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-900 leading-snug">Configure seus leitos</p>
+                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Se você utiliza a Passagem de Plantão, configure seus leitos para ter a experiência completa.</p>
+            </div>
+            <button id="beds-notice-dismiss"
+                    type="button"
+                    aria-label="Dispensar"
+                    class="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="px-4 pb-3">
+            <a href="{{ route('user.preferences.index') }}"
+               class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                      bg-[#004D9D] hover:bg-[#003d7a] active:bg-[#002d5a]
+                      text-white text-sm font-semibold
+                      shadow-sm transition-colors duration-150
+                      focus:outline-none focus:ring-2 focus:ring-[#004D9D]/50">
+                <i class="fas fa-sliders text-sm"></i>
+                Configurar meus setores
+            </a>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    const DISMISSED_KEY = 'beds_notice_dismissed';
+    const banner = document.getElementById('beds-notice-banner');
+    const dismiss = document.getElementById('beds-notice-dismiss');
+    if (!banner) return;
+    if (!sessionStorage.getItem(DISMISSED_KEY)) {
+        setTimeout(() => {
+            banner.classList.remove('hidden');
+            banner.classList.add('animate-[modal-slide-in_0.3s_ease-out]');
+        }, 1500);
+    }
+    if (dismiss) {
+        dismiss.addEventListener('click', function () {
+            sessionStorage.setItem(DISMISSED_KEY, '1');
+            banner.classList.add('hidden');
+        });
+    }
+})();
+</script>
+@endif
+@endauth
 
 <!-- Scripts -->
 <script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>

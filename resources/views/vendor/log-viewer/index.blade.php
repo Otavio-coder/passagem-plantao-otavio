@@ -16,9 +16,6 @@
         body {
             font-family: 'Montserrat', sans-serif;
             margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
             background: #f8fafc;
         }
         #lv-header {
@@ -30,7 +27,6 @@
             background: #ffffff;
             border-bottom: 1px solid #e5e7eb;
             box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
-            flex-shrink: 0;
         }
         #lv-header .back-link {
             display: flex;
@@ -72,17 +68,6 @@
             color: #9ca3af;
             font-weight: 500;
         }
-        #lv-container {
-            flex: 1;
-            min-height: 0;
-            overflow: hidden;
-        }
-        #log-viewer {
-            display: flex;
-            height: 100%;
-            max-height: 100%;
-            max-width: 100%;
-        }
     </style>
 </head>
 <body>
@@ -104,10 +89,8 @@
     <span class="app-name">{{ config('app.name') }}</span>
 </div>
 
-<div id="lv-container">
-    <div id="log-viewer">
-        <router-view></router-view>
-    </div>
+<div id="log-viewer">
+    <router-view></router-view>
 </div>
 
 <script>

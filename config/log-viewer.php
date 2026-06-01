@@ -1,5 +1,7 @@
 <?php
 
+use Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer;
+
 return [
 
     /*
@@ -73,7 +75,7 @@ return [
 
     'middleware' => [
         'web',
-        \Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer::class,
+        AuthorizeLogViewer::class,
     ],
 
     /*
@@ -87,7 +89,7 @@ return [
 
     'api_middleware' => [
         'web',
-        \Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer::class,
+        AuthorizeLogViewer::class,
     ],
 
     'api_stateful_domains' => env('LOG_VIEWER_API_STATEFUL_DOMAINS') ? explode(',', env('LOG_VIEWER_API_STATEFUL_DOMAINS')) : null,
@@ -230,4 +232,8 @@ return [
     'lazy_scan_chunk_size_in_mb' => 50,
 
     'strip_extracted_context' => true,
+
+    'defaults' => [
+        'theme' => 'dark',
+    ],
 ];

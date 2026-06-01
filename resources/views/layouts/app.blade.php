@@ -86,14 +86,14 @@
         }
     </script>
 </head>
-<body class="flex flex-col h-screen text-gray-800 bg-gray-300 antialiased">
+<body class="flex flex-col min-h-screen text-gray-800 bg-gray-300 antialiased">
 <div id="page-progress"></div>
 <!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">
     @include('shared.navbar')
 </header>
 <!-- PRINCIPAL -->
-<main class="flex-grow bg-gray-50 pt-2 overflow-y-auto">
+<main class="flex-grow bg-gray-50 pt-2">
     <div class="relative py-2 md:py-4 flex justify-center">
         <div class="w-full max-w-full relative px-2 md:px-4">
             <div class="w-full">

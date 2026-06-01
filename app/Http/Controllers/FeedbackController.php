@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EMR\Core\Sector;
 use App\Models\FeedbackSubmission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,21 @@ class FeedbackController extends Controller
     public function index(): View
     {
         return view('dashboard.feedback');
+    }
+
+    public function searchSectors(Request $request): JsonResponse
+    {
+        $query = mb_strtolower(trim($request->string('q')));
+
+        $sectors = collect(Sector::allowedForPreferences())
+            ->when($query !== '', fn ($col) => $col->filter(function (array $s) use ($query): bool {
+                return str_contains(mb_strtolower($s['sector_name']), $query)
+                    || str_contains(mb_strtolower($s['hospital_name']), $query);
+            }))
+            ->take(20)
+            ->values();
+
+        return response()->json($sectors);
     }
 
     public function store(Request $request): JsonResponse

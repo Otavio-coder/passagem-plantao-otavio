@@ -162,7 +162,7 @@
             </div>
             <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold text-gray-900 leading-snug">Configure seus leitos</p>
-                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Se você utiliza a Passagem de Plantão, configure seus leitos para ter a experiência completa.</p>
+                <p class="text-xs text-gray-500 mt-0.5 leading-snug">Configure seus leitos para personalizar a visualização da passagem de plantão.</p>
             </div>
             <button id="beds-notice-dismiss"
                     type="button"
@@ -181,7 +181,7 @@
                       shadow-sm transition-colors duration-150
                       focus:outline-none focus:ring-2 focus:ring-[#004D9D]/50">
                 <i class="fas fa-sliders text-sm"></i>
-                Configurar meus setores
+                Configurar Leitos
             </a>
         </div>
     </div>

@@ -12,7 +12,7 @@
     }
     .tab-panel { display: none; }
     .tab-panel.active { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
-    #tab-leitos.active { display: block; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+    #tab-leitos.active { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; }
 </style>
 @endpush
 
@@ -68,12 +68,12 @@
             </div>
             <div class="flex gap-1">
                 <button onclick="switchTab('setores')" id="tab-btn-setores"
-                        class="tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors {{ $isNurse ? 'text-white/60 hover:text-white hover:bg-white/10' : 'bg-white text-[#004D9D]' }}">
+                        class="tab-btn px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors {{ $isNurse ? 'text-white/60 hover:text-white hover:bg-white/10' : 'bg-white text-[#004D9D]' }}">
                     <i class="fas fa-hospital mr-1.5"></i>Meus Setores
                 </button>
                 @if($isNurse)
                     <button onclick="switchTab('leitos')" id="tab-btn-leitos"
-                            class="tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors bg-white text-[#004D9D]">
+                            class="tab-btn px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors bg-white text-[#004D9D]">
                         <i class="fas fa-bed mr-1.5"></i>Meus Leitos
                     </button>
                 @endif
@@ -98,7 +98,7 @@
                     @forelse($hospitalSections as $hospital)
                         <div class="hospital-group border border-gray-200 rounded-xl overflow-hidden"
                              data-hospital-name="{{ $hospital['name_lower'] }}">
-                            <div class="flex items-center justify-between px-3 py-2.5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                            <div class="flex items-center justify-between px-4 py-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
                                  onclick="toggleAccordion('{{ $hospital['code'] }}')">
                                 <div class="flex items-center gap-2 min-w-0">
                                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
@@ -114,7 +114,7 @@
                                     @endif
                                     <button type="button"
                                             onclick="event.stopPropagation(); toggleHospital('{{ $hospital['code'] }}')"
-                                            class="text-xs font-medium px-2 py-1 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600">
+                                            class="text-sm font-medium px-3 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600">
                                         Todos
                                     </button>
                                     <i id="icon-{{ $hospital['code'] }}"
@@ -126,7 +126,7 @@
                                 <div class="p-3 bg-white">
                                     <div class="flex flex-wrap gap-1.5">
                                         @foreach($hospital['sectors'] as $sector)
-                                            <label class="sector-item inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm {{ $sector['is_checked'] ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50' }}"
+                                            <label class="sector-item inline-flex items-center gap-2 px-3 py-3 rounded-xl border cursor-pointer transition-all hover:shadow-sm {{ $sector['is_checked'] ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50' }}"
                                                    data-sector-name="{{ $sector['name_lower'] }}">
                                                 <input type="checkbox" name="sector_codes[]" value="{{ $sector['code'] }}"
                                                        {{ $sector['is_checked'] ? 'checked' : '' }}
@@ -136,7 +136,7 @@
                                                         <i class="fas fa-check text-white" style="font-size:.5rem"></i>
                                                     @endif
                                                 </div>
-                                                <span class="text-xs text-gray-700 whitespace-nowrap">{{ $sector['name'] }}</span>
+                                                <span class="text-sm text-gray-700 whitespace-nowrap">{{ $sector['name'] }}</span>
                                             </label>
                                         @endforeach
                                     </div>
@@ -176,9 +176,7 @@
         {{-- Tab: Meus Leitos (só para enfermeiros) --}}
         @if($isNurse)
             <div id="tab-leitos" class="tab-panel active">
-                <div class="p-4">
-                    @livewire('nurse-handover-setup')
-                </div>
+                @livewire('nurse-handover-setup')
             </div>
         @endif
 

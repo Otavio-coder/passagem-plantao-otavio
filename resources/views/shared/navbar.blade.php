@@ -57,12 +57,20 @@
                             <span class="hidden lg:inline">Feedback</span>
                         </a>
 
-                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
+                        <a href="{{ route('pending.report') }}"
+                           title="Relatório de Pendências"
+                           class="nav-link {{ request()->routeIs('pending.report*') ? 'border-blue-200' : 'border-transparent' }}">
+                            <i class="fas fa-list-check"></i>
+                            <span class="hidden xl:inline">Pendências</span>
+                            <span class="hidden lg:inline xl:hidden">Pend.</span>
+                        </a>
+
+                        @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
                             <div class="relative">
                                 <button type="button"
                                         id="admin-dropdown-btn"
                                         title="Administração"
-                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('admin.dashboard') || request()->routeIs('pending.report') ? 'border-blue-200' : 'border-transparent' }}"
+                                        class="nav-link {{ request()->routeIs('users.*') || request()->routeIs('profiles.*') || request()->routeIs('logs') || request()->routeIs('admin.dashboard') ? 'border-blue-200' : 'border-transparent' }}"
                                         aria-haspopup="true"
                                         onclick="toggleNavbar('admin-dropdown')">
                                     <i class="fa fa-gear"></i>
@@ -88,12 +96,6 @@
                                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9h3m-3 3h3m-3 3h3m-6 1c-.306-.613-.933-1-1.618-1H7.618c-.685 0-1.312.387-1.618 1M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
                                             </svg>
                                             <span class="ml-2">Perfis</span>
-                                        </a>
-                                    @endcan
-                                    @can('ver relatorio pendencias')
-                                        <a href="{{ route('pending.report') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('pending.report') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
-                                            <i class="fas fa-list-check w-4 text-sky-600 text-sm flex-shrink-0"></i>
-                                            <span class="ml-2">Relatório de Pendências</span>
                                         </a>
                                     @endcan
                                     @can('ver historico chat')
@@ -233,7 +235,15 @@
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
 
-            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat', 'ver relatorio pendencias'])
+            <a href="{{ route('pending.report') }}" class="flex justify-between items-center text-sm text-gray-700">
+                <div class="px-2 pt-2 pb-3 flex flex-col">
+                    <span class="font-semibold">Relatório de Pendências</span>
+                    <span class="text-xs text-gray-400">Pendências assistenciais do setor</span>
+                </div>
+                <i class="fas fa-chevron-right text-sm text-gray-400"></i>
+            </a>
+
+            @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
                 <div class="flex flex-col">
                     <button type="button" class="flex justify-between items-center text-sm text-gray-700 w-full" onclick="toggleNavbar('mobile-admin-menu')">
                         <div class="px-2 pt-2 pb-3 flex flex-col text-left">
@@ -253,12 +263,6 @@
                             <a href="{{ route('profiles.index') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
                                 <i class="fas fa-id-card text-sky-600 w-5"></i>
                                 <span>Perfis</span>
-                            </a>
-                        @endcan
-                        @can('ver relatorio pendencias')
-                            <a href="{{ route('pending.report') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
-                                <i class="fas fa-list-check text-sky-600 w-5"></i>
-                                <span>Relatório de Pendências</span>
                             </a>
                         @endcan
                         @can('ver historico chat')

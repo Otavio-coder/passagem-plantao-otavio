@@ -2,7 +2,7 @@
 <div
     x-data="connectionStatus"
     data-heartbeat-url="{{ route('session.heartbeat') }}"
-    class="fixed bottom-3 right-3 z-[900] flex flex-col items-end gap-1.5"
+    class="fixed bottom-3 left-3 z-[900] flex flex-col items-start gap-1.5"
     role="status"
     aria-live="assertive"
 >

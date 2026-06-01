@@ -37,6 +37,7 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
     Route::post('/sector-preferences', [SectorPreferencesController::class, 'save'])->name('sector-preferences.save');
 
     Route::get('/feedback', [FeedbackController::class, 'index'])->name('feedback');
+    Route::get('/feedback/sectors', [FeedbackController::class, 'searchSectors'])->name('feedback.sectors');
     Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
     Route::view('/manual', 'manual.index')->name('manual.index');

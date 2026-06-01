@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Blaze\Blaze;
+use Livewire\Facades\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -50,5 +51,8 @@ class AppServiceProvider extends ServiceProvider
 
         // Autoriza o LogViewer package para usuários com permissão 'ver logs'
         Gate::define('viewLogViewer', fn ($user) => $user->can('ver logs'));
+
+        // Garante que Alpine.js é injetado em todas as páginas, mesmo sem componentes Livewire.
+        \Livewire\Livewire::forceAssetInjection();
     }
 }

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@push('head')
+@push('scripts')
 <style>
     /* ── Screen layout ─────────────────────────────────────────── */
     main > div { padding-top: 0 !important; padding-bottom: 0 !important; }
@@ -64,16 +64,17 @@
     }
     #sidebar a {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 0.55rem;
-        padding: 0.38rem 1.25rem;
-        font-size: 0.8rem;
+        padding: 0.65rem 1.25rem;
+        font-size: 0.82rem;
         color: #4a5568;
         text-decoration: none;
-        line-height: 1.4;
+        line-height: 1.3;
         border-left: 3px solid transparent;
         transition: background 0.12s, color 0.12s, border-color 0.12s;
-        border-radius: 0 4px 4px 0;
+        border-radius: 0 6px 6px 0;
+        min-height: 44px;
     }
     #sidebar a:hover { background: rgba(0, 77, 157, 0.06); color: var(--brand); }
     #sidebar a.active {
@@ -91,7 +92,7 @@
         padding-top: 0.1rem;
     }
     #sidebar a.active .num { color: var(--brand); opacity: 0.7; }
-    #sidebar a.sub { padding-left: 2.5rem; font-size: 0.75rem; color: #718096; }
+    #sidebar a.sub { padding-left: 2.5rem; font-size: 0.78rem; color: #718096; min-height: 40px; }
     #sidebar a.sub:hover { color: var(--brand); background: rgba(0,77,157,0.04); }
     #sidebar a.sub.active { color: var(--brand); font-weight: 600; background: rgba(0,77,157,0.07); }
 
@@ -125,7 +126,13 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        padding: 0.55rem 1.25rem;
+        padding: 0.5rem 1rem;
+        min-height: 52px;
+    }
+    #top-bar button, #top-bar a {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
     }
 
     /* Typography */
@@ -162,8 +169,9 @@
         margin: 1.5rem 0 0.5rem;
     }
     p { margin: 0 0 0.85rem; }
-    ul, ol { margin: 0 0 0.85rem 1.2rem; }
-    li { margin-bottom: 0.35rem; }
+    ul { margin: 0 0 0.85rem 1.4rem; list-style: disc; }
+    ol { margin: 0 0 0.85rem 1.4rem; list-style: decimal; }
+    li { margin-bottom: 0.4rem; padding-left: 0.2rem; }
     strong { color: var(--ink); }
 
     /* Callout boxes */
@@ -213,6 +221,48 @@
 
     /* Divider */
     .divider { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+
+    /* Glossário colapsável */
+    .glossary-item {
+        border: 1px solid var(--rule);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .glossary-item summary {
+        cursor: pointer;
+        padding: 0.85rem 1rem;
+        font-weight: 600;
+        font-size: 0.88rem;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        list-style: none !important;
+        user-select: none;
+        min-height: 48px;
+        background: #f9fafb;
+        transition: background 0.12s;
+        -webkit-tap-highlight-color: rgba(0,77,157,0.08);
+    }
+    .glossary-item summary::-webkit-details-marker { display: none; }
+    .glossary-item summary::marker { display: none; }
+    /* Chevron usando caractere — não depende de border que o Tailwind reset zera */
+    .glossary-item summary::before {
+        content: '›';
+        font-size: 1.2rem;
+        line-height: 1;
+        color: var(--brand);
+        transition: transform 0.18s ease;
+        display: inline-block;
+        flex-shrink: 0;
+        font-weight: 400;
+        width: 1rem;
+        text-align: center;
+    }
+    .glossary-item[open] > summary::before { transform: rotate(90deg); }
+    .glossary-item[open] > summary { background: var(--brand-light); color: var(--brand); }
+    .glossary-item summary:hover { background: var(--brand-light); }
+    .glossary-item > p { margin: 0; padding: 0.75rem 1rem 0.9rem 2rem; font-size: 0.85rem; color: #374151; border-top: 1px solid var(--rule); }
 
     /* Sidebar toggle mobile */
     #sidebar-toggle { display: none; }
@@ -285,6 +335,7 @@
         <a href="#sec-passagem" class="sub">Iniciando a Passagem</a>
         <a href="#sec-app"><span class="num">7</span> Instalar como App</a>
         <a href="#sec-dicas"><span class="num">8</span> Dicas Importantes</a>
+        <a href="#sec-glossario"><span class="num">9</span> Glossário</a>
     </nav>
 
     {{-- ── Main area ───────────────────────────────────────────── --}}
@@ -952,6 +1003,57 @@
                     Manual do Sistema de Passagem de Plantão — Santa Casa de Porto Alegre<br>
                     Equipe de Inovação &nbsp;·&nbsp; inovacao@santacasa.org.br &nbsp;·&nbsp; {{ date('Y') }}
                 </p>
+            </section>
+
+            <hr class="divider">
+
+            {{-- ══════════════════════════════════════════════════════════
+                 9. GLOSSÁRIO
+            ══════════════════════════════════════════════════════════ --}}
+            <section class="section" id="sec-glossario">
+                <h2 class="s-title section-anchor"><span class="s-num">9.</span> Glossário</h2>
+                <p>Definições dos principais termos utilizados no sistema e neste manual.</p>
+
+                <details class="glossary-item" open>
+                    <summary>SBAR</summary>
+                    <p>Metodologia internacional de comunicação clínica estruturada. As letras significam: <strong>S</strong>ituação (o que está acontecendo com o paciente agora), <strong>B</strong>ackground (histórico clínico relevante), <strong>A</strong>valiação (interpretação da equipe sobre o estado atual) e <strong>R</strong>ecomendação (o que precisa ser feito ou acompanhado).</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>MEWS — Modified Early Warning Score</summary>
+                    <p>Escala de risco para pacientes adultos (18 anos ou mais). Calculada a partir de sinais vitais registrados no prontuário. Valores: 0–2 = estável, 3 = alerta, 4 = alto risco, ≥5 = crítico.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>PEWS — Pediatric Early Warning Score</summary>
+                    <p>Versão pediátrica do MEWS, aplicada a pacientes com menos de 18 anos. Avalia comportamento, função cardiovascular e respiratória.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Escala de Braden</summary>
+                    <p>Avalia o risco de desenvolvimento de lesão por pressão (LPP). Pontuações menores indicam maior risco. O sistema destaca pacientes com risco moderado a grave.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Escala de Morse</summary>
+                    <p>Avalia o risco de queda do paciente. Utilizada para priorizar intervenções preventivas. Risco alto: ≥45 pontos.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>TEV — Tromboembolismo Venoso</summary>
+                    <p>Risco de formação de coágulos venosos. O sistema exibe o resultado da avaliação de profilaxia registrado no prontuário.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Pendência assistencial</summary>
+                    <p>Item prescrito ou solicitado que ainda não foi executado: exame não coletado ou sem resultado, procedimento não realizado, medicamento não administrado, hemoterapia pendente, entre outros.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Alta médica vs. Alta efetivada</summary>
+                    <p><strong>Alta médica</strong>: o médico concedeu alta, mas o paciente ainda não saiu fisicamente do leito. <strong>Alta efetivada</strong>: o paciente já deixou a unidade. Ambos aparecem com destaque visual nos cartões.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Tasy</summary>
+                    <p>Prontuário eletrônico do paciente utilizado pela Santa Casa (sistema Oracle). O sistema de passagem de plantão lê os dados do Tasy em tempo quase real, mas não grava informações nele.</p>
+                </details>
+                <details class="glossary-item">
+                    <summary>Passagem de plantão estruturada</summary>
+                    <p>Funcionalidade que guia o enfermeiro por cada leito sob sua responsabilidade no momento da troca de turno, registrando o horário de início, fim e percentual de conclusão.</p>
+                </details>
             </section>
 
         </div>{{-- /manual-content --}}

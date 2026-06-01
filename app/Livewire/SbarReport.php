@@ -205,7 +205,7 @@ class SbarReport extends Component
     #[Computed]
     public function currentShiftName(): string
     {
-        return ShiftService::getShiftInfo()['shift'];
+        return ShiftService::getShiftInfo(now()->addMinutes(60))['shift'];
     }
 
     /**

@@ -27,7 +27,7 @@ class SbarChatTodoList extends Component
     public function mount(int $patientId): void
     {
         $this->patientId = $patientId;
-        $this->newItemShift = ShiftService::getCurrentShift();
+        $this->newItemShift = ShiftService::getCurrentShift(now()->addMinutes(60));
         $this->loadTodos();
     }
 

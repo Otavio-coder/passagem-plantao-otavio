@@ -800,7 +800,7 @@ class SbarChatComponent extends Component
     #[Computed]
     public function shiftDisplay(): array
     {
-        $shift = ShiftService::getShiftInfo(now())['shift'];
+        $shift = ShiftService::getShiftInfo(now()->addMinutes(60))['shift'];
         $colors = ShiftService::getShiftColors($shift);
 
         $iconClass = match ($shift) {
@@ -850,7 +850,7 @@ class SbarChatComponent extends Component
         $pinned = $items->filter(fn ($m) => (bool) ($m['is_pinned'] ?? false));
 
         // Current shift window
-        [$shiftStart] = ShiftService::getShiftWindow();
+        [$shiftStart] = ShiftService::getShiftWindow(now()->addMinutes(60));
 
         $shiftItems = $items->filter(function ($m) use ($shiftStart) {
             $raw = $m['dt_criacao_raw'] ?? null;

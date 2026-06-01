@@ -334,8 +334,9 @@ class SbarShiftEvaluationsModal extends Component
             'night' => 'afternoon',
         };
 
-        $info = ShiftService::getShiftInfo();
-        [$curFrom, $curTo] = ShiftService::getShiftWindow();
+        $effectiveNow = now()->addMinutes(60);
+        $info = ShiftService::getShiftInfo($effectiveNow);
+        [$curFrom, $curTo] = ShiftService::getShiftWindow($effectiveNow);
         $curShift = $info['shift'];
 
         $prevShift = $prevOf($curShift);

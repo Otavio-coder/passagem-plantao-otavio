@@ -77,7 +77,7 @@ class SbarPatientModal extends Component
 
     public function mount()
     {
-        $this->currentShift = ShiftService::getShiftInfo()['shift'];
+        $this->currentShift = ShiftService::getShiftInfo(now()->addMinutes(60))['shift'];
         $this->scheduleDate = now()->format('Y-m-d');
     }
 

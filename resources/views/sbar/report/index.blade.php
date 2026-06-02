@@ -377,7 +377,10 @@ window.sbarFilters = function () {
 
         applyFilters() {
             const visible = this.cards.filter(c => {
-                if (!c.hasPatient) return this.bedsFilter !== 'only_occupied';
+                if (!c.hasPatient) {
+                    if (this.searchText.trim()) return false;
+                    return this.bedsFilter !== 'only_occupied';
+                }
                 if (this.bedsFilter === 'only_empty') return false;
 
                 if (this.mewsFilter !== 'all') {

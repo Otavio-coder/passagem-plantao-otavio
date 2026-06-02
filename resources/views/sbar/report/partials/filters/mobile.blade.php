@@ -135,6 +135,8 @@
                         class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
                     <option value="all">Todos</option>
                     <option value="today">Com alta/previsão</option>
+                    <option value="previsao">Com previsão de alta</option>
+                    <option value="no_previsao">Sem previsão de alta</option>
                 </select>
             </div>
         </div>

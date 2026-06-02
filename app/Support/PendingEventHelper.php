@@ -383,44 +383,28 @@ class PendingEventHelper
         // Para exames de laboratório, SCOLA é a fonte de verdade: dt_coleta e dt_resultado
         // de prescr_procedimento são datas programadas/administrativas e não garantem execução real.
         if ($event['foi_executado_sem_baixa'] ?? false) {
-            $scolaStatus = mb_strtolower(trim((string) ($event['scola_status'] ?? '')));
-
-            if ($scolaStatus !== '') {
-                // SCOLA disponível: usa como fonte de verdade, ignora dt_coleta/dt_resultado do TASY
-                if (str_contains($scolaStatus, 'laudo integrado no tasy')) {
-                    return 'Laudo integrado no TASY — baixa administrativa pendente';
-                }
-
-                if (str_contains($scolaStatus, 'laudo liberado') && str_contains($scolaStatus, 'aguardando integração')) {
+            if (isset($event['scola_status']) && $event['scola_status'] !== '') {
+                if (! empty($event['scola_data_liberado']) && empty($event['scola_data_exportado'])) {
                     return 'Laudo liberado no Scola — aguardando integração com TASY';
                 }
-
-                if (str_contains($scolaStatus, 'laudo liberado')) {
+                if (! empty($event['scola_data_liberado'])) {
                     return 'Laudo disponível — baixa não realizada';
                 }
-
-                if (str_contains($scolaStatus, 'amostra rejeitada')) {
+                if (! empty($event['scola_rejected'])) {
                     return 'Amostra rejeitada pelo laboratório';
                 }
-
-                if (str_contains($scolaStatus, 'nova coleta')) {
+                if (! empty($event['scola_nova_coleta'])) {
                     return 'Nova coleta necessária';
                 }
-
-                // Nova lógica: coleta no SCOLA mas não no Tasy
-                if (($event['scola_colheita_sem_tasy'] ?? false) === true) {
+                if ($event['scola_colheita_sem_tasy'] ?? false) {
                     return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
                 }
-
-                if (str_contains($scolaStatus, 'coletado')) {
-                    if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
-                        return 'Resultado disponível — baixa não realizada';
-                    }
-
-                    return 'Coletado — aguardando resultado';
+                if (! empty($event['scola_data_colheita'])) {
+                    return trim((string) ($event['scola_resultado'] ?? '')) !== ''
+                        ? 'Resultado disponível — baixa não realizada'
+                        : 'Coletado — aguardando resultado';
                 }
 
-                // SCOLA sem coleta (solicitado ou outro): usa ie_status_execucao do domínio 1226.
                 $code = trim((string) ($event['ie_status_execucao'] ?? ''));
                 $urgente = (bool) ($event['urgente'] ?? false);
                 if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
@@ -432,44 +416,32 @@ class PendingEventHelper
 
                 return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
             } elseif (! empty($event['dt_coleta'])) {
-                // Sem SCOLA, dt_coleta do TASY é o melhor indicador disponível
-                if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
-                    return 'Resultado disponível — baixa não realizada';
-                }
-
-                return 'Coletado — aguardando resultado';
+                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
+                    ? 'Resultado disponível — baixa não realizada'
+                    : 'Coletado — aguardando resultado';
             }
-
-            // Sem evidência de coleta: cai na lógica de domínio abaixo (ie_status_execucao)
         }
 
         $tipo = PendingEventTypeClassifier::fromPendingEvent($event);
         $urgente = (bool) ($event['urgente'] ?? false);
 
-        // ds_status_laudo (obter_status_laudo Oracle) tem precedência sobre status_laudo
         $statusLaudo = trim((string) ($event['ds_status_laudo'] ?? ''));
         $statusExec = trim((string) ($event['status_laudo'] ?? ''));
         $status = $statusLaudo !== '' ? $statusLaudo : $statusExec;
 
-        // Eventos provenientes de agenda_paciente usam o status da agenda como motivo.
         if (($event['_fonte'] ?? '') === 'agenda' && ! in_array($tipo, [PendingEventTypeClassifier::SURGERY], true)) {
-            $statusBase = self::motivoAgenda($event);
-        } else {
-            $statusBase = match ($tipo) {
-                PendingEventTypeClassifier::EXAM => self::motivoExame($status, $urgente, $event),
-                PendingEventTypeClassifier::PROCEDURE => self::motivoProcedimento($urgente, $event),
-                PendingEventTypeClassifier::SURGERY => self::motivoCirurgia($event),
-                PendingEventTypeClassifier::HEMOTHERAPY => self::motivoHemoterapia($event, $urgente),
-                PendingEventTypeClassifier::CHEMOTHERAPY => self::motivoQuimioterapia($event),
-                PendingEventTypeClassifier::ANTIBIOTIC => self::motivoAntibiotico($event),
-                default => 'Aguardando',
-            };
+            return self::motivoAgenda($event);
         }
 
-        // Exibe o status real desta prescrição mesmo quando existe uma mais nova.
-        // A existência de nova solicitação não altera o estado deste item em si.
-
-        return $statusBase;
+        return match ($tipo) {
+            PendingEventTypeClassifier::EXAM => self::motivoExame($status, $urgente, $event),
+            PendingEventTypeClassifier::PROCEDURE => self::motivoProcedimento($urgente, $event),
+            PendingEventTypeClassifier::SURGERY => self::motivoCirurgia($event),
+            PendingEventTypeClassifier::HEMOTHERAPY => self::motivoHemoterapia($event, $urgente),
+            PendingEventTypeClassifier::CHEMOTHERAPY => self::motivoQuimioterapia($event),
+            PendingEventTypeClassifier::ANTIBIOTIC => self::motivoAntibiotico($event),
+            default => 'Aguardando',
+        };
     }
 
     /**
@@ -544,37 +516,27 @@ class PendingEventHelper
 
     private static function motivoExame(string $status, bool $urgente, array $event): string
     {
-        // Para exames de laboratório, o SCOLA é fonte primária do estado real da coleta.
-        // O ie_status_execucao do TASY pode mostrar "Em exame" (dom. 1226 cód. 15) mesmo quando
-        // o LIMS está apenas no passo administrativo "Mapa de Trabalho impresso" (dom. 1030 cód. 15),
-        // antes de qualquer coleta física.
-        $scolaStatus = mb_strtolower(trim((string) ($event['scola_status'] ?? '')));
-        if ($scolaStatus !== '') {
-            if (str_contains($scolaStatus, 'laudo integrado no tasy')) {
-                return 'Laudo integrado no TASY — baixa administrativa pendente';
-            }
-            if (str_contains($scolaStatus, 'laudo liberado')) {
+        // Scola é fonte primária — ie_status_execucao do Tasy pode mostrar "Em exame" (dom. 1226 cód. 15)
+        // mesmo quando o LIMS está apenas no passo "Mapa de Trabalho impresso", antes de qualquer coleta.
+        if (isset($event['scola_status']) && $event['scola_status'] !== '') {
+            if (! empty($event['scola_data_liberado'])) {
                 return 'Laudo disponível — baixa não realizada';
             }
-            if (str_contains($scolaStatus, 'amostra rejeitada')) {
+            if (! empty($event['scola_rejected'])) {
                 return 'Amostra rejeitada pelo laboratório';
             }
-
-            if (str_contains($scolaStatus, 'nova coleta')) {
+            if (! empty($event['scola_nova_coleta'])) {
                 return 'Nova coleta necessária';
             }
-            if (($event['scola_colheita_sem_tasy'] ?? false)) {
+            if ($event['scola_colheita_sem_tasy'] ?? false) {
                 return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
             }
-            if (str_contains($scolaStatus, 'coletado')) {
-                if (trim((string) ($event['scola_resultado'] ?? '')) !== '') {
-                    return 'Resultado disponível — baixa não realizada';
-                }
-
-                return 'Coletado — aguardando resultado';
+            if (! empty($event['scola_data_colheita'])) {
+                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
+                    ? 'Resultado disponível — baixa não realizada'
+                    : 'Coletado — aguardando resultado';
             }
 
-            // 'Solicitado (aguardando coleta)' ou outro: SCOLA ainda não registrou coleta
             return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
         }
 

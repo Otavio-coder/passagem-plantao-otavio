@@ -46,6 +46,8 @@ class PendingEventHelperTest extends TestCase
             'tipo' => 'exame',
             'foi_executado_sem_baixa' => true,
             'scola_status' => 'Laudo liberado (baixa não integrada)',
+            'scola_data_liberado' => '06/04/2026 10:00',
+            'scola_data_exportado' => '06/04/2026 10:05',
             'urgente' => false,
         ]);
 
@@ -127,6 +129,8 @@ class PendingEventHelperTest extends TestCase
             'tipo' => 'exame',
             'exame_coletado_em_prescricao_mais_nova' => true,
             'scola_status' => 'Laudo liberado (baixa não integrada)',
+            'scola_data_liberado' => '06/04/2026 10:00',
+            'scola_data_exportado' => '06/04/2026 10:05',
             'urgente' => false,
         ]);
 
@@ -140,6 +144,7 @@ class PendingEventHelperTest extends TestCase
             'tipo' => 'exame',
             'exame_coletado_em_prescricao_mais_nova' => true,
             'scola_status' => 'Coletado (aguardando resultado)',
+            'scola_data_colheita' => '06/04/2026 10:00',
             'urgente' => false,
         ]);
 

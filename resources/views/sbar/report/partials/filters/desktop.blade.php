@@ -62,6 +62,8 @@
             <select x-model="dischargeFilter" @change="applyFilters()" class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 px-2 xl:py-2 xl:px-3 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-full disabled:opacity-60 disabled:cursor-not-allowed">
                 <option value="all">Todos</option>
                 <option value="today">Com alta/previsão</option>
+                <option value="previsao">Com previsão de alta</option>
+                <option value="no_previsao">Sem previsão de alta</option>
             </select>
         </div>
 

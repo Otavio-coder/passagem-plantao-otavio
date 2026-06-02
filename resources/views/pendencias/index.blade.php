@@ -316,11 +316,11 @@
                 Colunas DataTables (índices):
                  0  Paciente        1  Leito           2  Atend.
                  3  Tipo            4  Status          5  Pendência
-                 6  Data Prescrição 7  Lib. médica     8  Liberado
-                 9  Prev. exec.    10  Coletado        11 Em aberto
-                 12 Setor exec.    13 Unidade
-                 14 tipo_evento (hidden) 15 vencido (hidden)
-                 16 motivo_categoria (hidden) 17 classificacao (hidden)
+                 6  Dt. Prescrição  7  Coletado        8  Resultado
+                 9  Em aberto      10  Setor exec.     11 Unidade
+                12  Prev. Alta
+                13 tipo_evento (hidden) 14 vencido (hidden)
+                15 motivo_categoria (hidden) 16 classificacao (hidden)
             --}}
             <div id="kpi-bar"></div>
 
@@ -335,10 +335,8 @@
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600">Pendência</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Dt. Prescrição</th>
-                            <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Lib. médica</th>
-                            <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Liberado</th>
-                            <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Prev. exec.</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Coletado</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Resultado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Em aberto</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Setor exec.</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
@@ -419,13 +417,9 @@
                                 <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
                                     data-order="{{ $row['data_solicitacao_sort'] ?? 0 }}">{{ $row['data_solicitacao'] ?? '-' }}</td>
                                 <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
-                                    data-order="{{ $row['data_lib_medica_sort'] ?? 0 }}">{{ $row['data_lib_medica'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
-                                    data-order="{{ $row['data_lib_prescricao_sort'] ?? 0 }}">{{ $row['data_lib_prescricao'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
-                                    data-order="{{ $row['data_prev_execucao_sort'] ?? 0 }}">{{ $row['data_prev_execucao'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
                                     data-order="{{ $row['data_coleta_sort'] ?? 0 }}">{{ $row['data_coleta'] ?? '-' }}</td>
+                                <td class="px-2 py-2.5 text-[11px] whitespace-nowrap font-mono {{ !empty($row['data_resultado']) ? 'text-emerald-700 font-semibold' : 'text-gray-300' }}"
+                                    data-order="{{ $row['data_resultado_sort'] ?? 0 }}">{{ $row['data_resultado'] ?? '-' }}</td>
                                 <td class="px-2 py-2.5 text-[11px] whitespace-nowrap font-semibold font-mono {{ ($row['is_overdue'] ?? false) ? 'text-amber-600' : 'text-[#0071B9]' }}"
                                     data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">{{ $row['tempo_pendente'] ?? '-' }}</td>
                                 <td class="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap" style="max-width:120px" title="{{ $row['setor_execucao'] ?? '-' }}">
@@ -482,19 +476,17 @@ $(document).ready(function () {
             { },  // 3  Tipo
             { },  // 4  Status
             { },  // 5  Pendência
-            { },  // 6  Data Prescrição
-            { },  // 7  Lib. médica
-            { },  // 8  Liberado
-            { },  // 9  Prev. exec.
-            { },  // 10 Coletado
-            { },  // 11 Em aberto
-            { },  // 12 Setor exec.
-            { },  // 13 Unidade
-            { },  // 14 Prev. Alta
-            { width: '0', orderable: false, searchable: true },  // 15 tipo_raw
-            { width: '0', orderable: false, searchable: true },  // 16 vencido
-            { width: '0', orderable: false, searchable: true },  // 17 motivo_cat
-            { width: '0', orderable: false, searchable: true },  // 18 classif_raw
+            { },  // 6  Dt. Prescrição
+            { },  // 7  Coletado
+            { },  // 8  Resultado
+            { },  // 9  Em aberto
+            { },  // 10 Setor exec.
+            { },  // 11 Unidade
+            { },  // 12 Prev. Alta
+            { width: '0', orderable: false, searchable: true },  // 13 tipo_raw
+            { width: '0', orderable: false, searchable: true },  // 14 vencido
+            { width: '0', orderable: false, searchable: true },  // 15 motivo_cat
+            { width: '0', orderable: false, searchable: true },  // 16 classif_raw
         ],
         language: {
             url: '', decimal: ',', thousands: '.',
@@ -534,9 +526,9 @@ $(document).ready(function () {
     }
 
     function rebuildCascadeFilters() {
-        rebuildSelect('#filter-tipo',    15, 'Todos os tipos',          tipoLabelMap);
-        rebuildSelect('#filter-status',  17, 'Todos os status',         null);
-        rebuildSelect('#filter-classif', 18, 'Todas as classificações', null);
+        rebuildSelect('#filter-tipo',    13, 'Todos os tipos',          tipoLabelMap);
+        rebuildSelect('#filter-status',  15, 'Todos os status',         null);
+        rebuildSelect('#filter-classif', 16, 'Todas as classificações', null);
     }
 
     var kpiCssMap = {};
@@ -555,9 +547,9 @@ $(document).ready(function () {
         var catMap  = {};
         rows.every(function() {
             var d = this.data();
-            var cat = d[17] || '';
+            var cat = d[15] || '';
             if (cat) catMap[cat] = (catMap[cat] || 0) + 1;
-            if (d[16] === '1') overdue++;
+            if (d[14] === '1') overdue++;
         });
 
         var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Total visível</span></div>';
@@ -588,14 +580,14 @@ $(document).ready(function () {
     rebuildCascadeFilters();
     rebuildKpis();
 
-    $('#filter-tipo').on('change', function () { table.column(15).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#filter-status').on('change', function () { table.column(17).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#filter-classif').on('change', function () { table.column(18).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#chk-overdue').on('change', function () { table.column(16).search(this.checked ? '^1$' : '', true, false).draw(); });
+    $('#filter-tipo').on('change', function () { table.column(13).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
+    $('#filter-status').on('change', function () { table.column(15).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
+    $('#filter-classif').on('change', function () { table.column(16).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
+    $('#chk-overdue').on('change', function () { table.column(14).search(this.checked ? '^1$' : '', true, false).draw(); });
     $('#btn-clear-filters').on('click', function () {
         $('#filter-tipo, #filter-status, #filter-classif').val('');
         $('#chk-overdue').prop('checked', false);
-        table.columns([15, 16, 17, 18]).search('').draw();
+        table.columns([13, 14, 15, 16]).search('').draw();
         table.search('').draw();
     });
 

@@ -233,7 +233,7 @@ class PendingEventsReportController extends Controller
             'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Tipo', 'Classificação',
             'Pendência', 'Nr. Prescrição', 'Prescritor',
             'Status (Tasy)', 'Status (SCOLA)', 'Resultado Bacteriológico',
-            'Data Prescrição', 'Lib. Médica', 'Lib. Prescrição', 'Prev. Execução', 'Data Coleta',
+            'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)',
             'Em Aberto', 'Setor Execução', 'Vencido',
         ];
 
@@ -251,10 +251,8 @@ class PendingEventsReportController extends Controller
             $row['scola_status'] ?? '',
             $row['scola_resultado'] ?? '',
             $row['data_solicitacao'] ?? '',
-            $row['data_lib_medica'] ?? '',
-            $row['data_lib_prescricao'] ?? '',
-            $row['data_prev_execucao'] ?? '',
             $row['data_coleta'] ?? '',
+            $row['data_resultado'] ?? '',
             $row['tempo_pendente'] ?? '',
             $row['setor_execucao'] ?? '',
             ($row['is_overdue'] ?? false) ? 'Sim' : 'Não',
@@ -338,16 +336,12 @@ class PendingEventsReportController extends Controller
                     'setor_execucao' => PendingEventHelper::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
                     'classificacao' => PendingEventHelper::classificationLabel($event, $normalizedType),
-                    'data_prev_execucao' => $this->shortDate($event['dt_evento'] ?? null),
-                    'data_prev_execucao_sort' => $this->parseDateToTs($event['dt_evento'] ?? null) ?? 0,
                     'data_solicitacao' => $this->shortDate($event['dt_solicitacao'] ?? null),
                     'data_solicitacao_sort' => $this->parseDateToTs($event['dt_solicitacao'] ?? null) ?? 0,
-                    'data_lib_prescricao' => $this->shortDate($event['dt_autorizacao'] ?? null),
-                    'data_lib_prescricao_sort' => $this->parseDateToTs($event['dt_autorizacao'] ?? null) ?? 0,
-                    'data_lib_medica' => in_array($normalizedType, ['exame', 'proc_exame']) ? $this->shortDate($event['dt_liberacao_medico'] ?? null) : null,
-                    'data_lib_medica_sort' => in_array($normalizedType, ['exame', 'proc_exame']) ? ($this->parseDateToTs($event['dt_liberacao_medico'] ?? null) ?? 0) : 0,
                     'data_coleta' => $this->shortDate($event['dt_coleta'] ?? null),
                     'data_coleta_sort' => $this->parseDateToTs($event['dt_coleta'] ?? null) ?? 0,
+                    'data_resultado' => $this->shortDate($event['dt_resultado'] ?? null),
+                    'data_resultado_sort' => $this->parseDateToTs($event['dt_resultado'] ?? null) ?? 0,
                     'tempo_pendente' => $this->resolveTempoPendente(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
@@ -355,7 +349,7 @@ class PendingEventsReportController extends Controller
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status_execucao' => trim((string) ($event['status_laudo'] ?? '')),
                     'motivo_pendente' => $motivo,
-                    'motivo_categoria' => $this->categorizarMotivo($motivo, $normalizedType),
+                    'motivo_categoria' => $this->categorizarMotivo($motivo, $normalizedType, $event),
                     'nr_prescricao' => $event['nr_prescricao'] ?? null,
                     'nm_prescritor' => trim((string) ($event['nm_prescritor'] ?? '')),
                     'scola_status' => $event['scola_status'] ?? null,
@@ -445,7 +439,8 @@ class PendingEventsReportController extends Controller
         return PendingEventHelper::motivoPendente($event);
     }
 
-    private function categorizarMotivo(string $motivo, string $tipo): string
+    /** @param array<string, mixed> $event */
+    private function categorizarMotivo(string $motivo, string $tipo, array $event): string
     {
         if ($tipo === 'antibiotico') {
             return 'Antimicrobiano pendente';
@@ -453,62 +448,73 @@ class PendingEventsReportController extends Controller
         if ($tipo === 'consultoria') {
             return 'Aguardando resposta';
         }
-        if (str_starts_with($motivo, 'Resultado disponível')) {
-            return 'Resultado disponível';
+
+        // Scola-enriched: usa campos estruturados em vez de parsear $motivo
+        if (isset($event['scola_status']) && $event['scola_status'] !== '') {
+            if (! empty($event['scola_data_liberado']) && empty($event['scola_data_exportado'])) {
+                return 'Laudo liberado (SCOLA)';
+            }
+            if (! empty($event['scola_data_liberado'])) {
+                return 'Laudo disponível';
+            }
+            if (! empty($event['scola_rejected'])) {
+                return 'Amostra rejeitada pelo lab';
+            }
+            if (! empty($event['scola_nova_coleta'])) {
+                return 'Nova coleta necessária';
+            }
+            if (! empty($event['scola_data_colheita'])) {
+                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
+                    ? 'Resultado disponível'
+                    : 'Coletado — aguardando resultado';
+            }
+
+            return (bool) ($event['urgente'] ?? false)
+                ? 'Urgente — aguardando coleta'
+                : 'Aguardando coleta';
         }
-        if (str_contains($motivo, 'Laudo liberado no Scola')) {
-            return 'Laudo liberado (SCOLA)';
+
+        // Usa ie_status_execucao (domínio 1226) para exames e procedimentos
+        if (in_array($tipo, ['exame', 'proc_exame', 'procedimento'], true)) {
+            $code = trim((string) ($event['ie_status_execucao'] ?? ''));
+            $isProcedimento = $tipo === 'procedimento';
+
+            if (! $isProcedimento && ! empty($event['dt_coleta'])) {
+                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
+                    ? 'Resultado disponível'
+                    : 'Aguardando laudo';
+            }
+            if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
+                return 'Aguardando laudo';
+            }
+            // Procedimentos: código 14 = em preparo, 15 = em exame (na sala)
+            if ($isProcedimento) {
+                if ($code === '14') {
+                    return 'Em preparo';
+                }
+                if (in_array($code, ['15', '17', '18', '19'], true)) {
+                    return 'Em exame';
+                }
+            } else {
+                if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
+                    return 'Em execução';
+                }
+                if (in_array($code, ['10', '11', '12'], true)) {
+                    return 'Em preparo';
+                }
+                if (($event['_fonte'] ?? '') === 'agenda') {
+                    return 'Aguardando coleta';
+                }
+            }
+
+            return (bool) ($event['urgente'] ?? false)
+                ? 'Urgente — aguardando execução'
+                : 'Aguardando execução';
         }
-        if (str_contains($motivo, 'Laudo integrado no TASY')) {
-            return 'Laudo integrado no TASY';
-        }
-        if (str_contains($motivo, 'Laudo disponível') || str_contains($motivo, 'Laudo disponível em solicitação')) {
-            return 'Laudo disponível';
-        }
-        if (str_starts_with($motivo, 'Amostra rejeitada')) {
-            return 'Amostra rejeitada pelo lab';
-        }
-        if (str_starts_with($motivo, 'Nova coleta')) {
-            return 'Nova coleta necessária';
-        }
-        if (str_starts_with($motivo, 'Coletado')) {
-            return 'Coletado — aguardando resultado';
-        }
-        if (str_starts_with($motivo, 'Aguardando coleta')) {
-            return 'Aguardando coleta';
-        }
-        // Exames agendados via agenda_paciente → clinicamente equivale a "aguardando coleta"
-        if (in_array($tipo, ['exame', 'proc_exame'], true)
-            && (str_starts_with($motivo, 'Aguardando execução') || str_starts_with($motivo, 'Agendado'))
-        ) {
-            return 'Aguardando coleta';
-        }
-        if (str_starts_with($motivo, 'Aguardando laudo')) {
-            return 'Aguardando laudo';
-        }
-        if (str_starts_with($motivo, 'Em execução') || str_starts_with($motivo, 'Em exame')) {
-            return 'Em execução';
-        }
-        if (str_starts_with($motivo, 'Em preparo')) {
-            return 'Em preparo';
-        }
-        if (str_starts_with($motivo, 'Urgente')) {
-            return 'Urgente — aguardando coleta';
-        }
-        if (str_starts_with($motivo, 'Paciente chegou') || str_starts_with($motivo, 'Previsto — aguardando')) {
-            return 'Aguardando execução';
-        }
-        if (str_starts_with($motivo, 'Em avaliação') || str_starts_with($motivo, 'Em complemento')) {
-            return 'Em execução';
-        }
+
+        // Demais tipos: mapeamento por $motivo (strings produzidas por funções determinísticas)
         if (str_starts_with($motivo, 'Concluído') || str_starts_with($motivo, 'Executado — aguardando baixa')) {
             return 'Executado — baixa pendente';
-        }
-        if (str_starts_with($motivo, 'Aguardando atendimento') || str_starts_with($motivo, 'Em atendimento') || str_starts_with($motivo, 'Em recuperação')) {
-            return 'Em atendimento';
-        }
-        if (str_starts_with($motivo, 'Aguardando aprovação')) {
-            return 'Aguardando aprovação';
         }
         if (str_starts_with($motivo, 'Aguardando cirurgia') || str_starts_with($motivo, 'Cirurgia')) {
             return 'Aguardando cirurgia';
@@ -519,8 +525,23 @@ class PendingEventsReportController extends Controller
         if (str_starts_with($motivo, 'Sessão de quimioterapia')) {
             return 'Quimioterapia agendada';
         }
+        if (str_starts_with($motivo, 'Aguardando atendimento') || str_starts_with($motivo, 'Em atendimento') || str_starts_with($motivo, 'Em recuperação')) {
+            return 'Em atendimento';
+        }
+        if (str_starts_with($motivo, 'Aguardando aprovação')) {
+            return 'Aguardando aprovação';
+        }
+        if (str_starts_with($motivo, 'Paciente chegou') || str_starts_with($motivo, 'Previsto — aguardando')) {
+            return 'Aguardando execução';
+        }
         if (str_starts_with($motivo, 'Aguardando execução') || str_starts_with($motivo, 'Agendado')) {
             return 'Aguardando execução';
+        }
+        if (str_starts_with($motivo, 'Em execução') || str_starts_with($motivo, 'Em avaliação') || str_starts_with($motivo, 'Em complemento')) {
+            return 'Em execução';
+        }
+        if (str_starts_with($motivo, 'Urgente')) {
+            return 'Urgente — aguardando coleta';
         }
 
         return 'Outros';

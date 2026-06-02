@@ -247,6 +247,21 @@ class PatientPendingEventsService
 
         (new ScolaExamStatusService)->enrichEvents($results);
 
+        // Remove exames sem pendência clínica real — Scola em estado terminal sem baixa administrativa:
+        //   - scola_rejected: amostra rejeitada (status N + colheita) — sem laudo possível
+        //   - scola_nova_coleta: nova coleta necessária (status N sem colheita) — nova prescrição separada
+        //   - scola_data_exportado: resultado exportado para Tasy — resultado disponível
+        // Nota: "laudo integrado no tasy" (dt_resultado + dt_coleta set) filtrado no SQL da query.
+        foreach ($results as &$data) {
+            $data['events'] = array_values(array_filter(
+                $data['events'],
+                fn ($event) => empty($event['scola_rejected'])
+                    && empty($event['scola_nova_coleta'])
+                    && empty($event['scola_data_exportado'])
+            ));
+        }
+        unset($data);
+
         foreach ($results as &$data) {
             foreach ($data['events'] as &$event) {
                 $event['motivo_pendente'] = PendingEventHelper::motivoPendente($event);
@@ -324,7 +339,7 @@ class PatientPendingEventsService
                     LEFT JOIN tasy.result_laboratorio rl
                         ON  rl.nr_prescricao     = pm.nr_prescricao
                         AND rl.nr_seq_prescricao = pp.nr_sequencia
-                        AND rl.dt_coleta         IS NOT NULL
+                        AND (rl.dt_coleta IS NOT NULL OR rl.ds_resultado IS NOT NULL)
                     LEFT JOIN pp_laudo_agg pla
                         ON  pla.nr_prescricao          = pm.nr_prescricao
                         AND pla.nr_sequencia_prescricao = pp.nr_sequencia
@@ -378,6 +393,7 @@ class PatientPendingEventsService
                         AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                         -- AND (pp.nr_seq_proc_interno IS NULL OR pp.nr_seq_proc_interno NOT IN (5970, 1341, 5927))
                         AND rl.nr_prescricao IS NULL
+                        AND (pp.dt_resultado IS NULL OR pp.dt_coleta IS NULL)
                         AND pla.nr_prescricao IS NULL
                 )
                 SELECT

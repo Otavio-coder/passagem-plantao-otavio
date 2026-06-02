@@ -53,6 +53,8 @@ class ScolaExamStatusService
                     $event['scola_data_resultado'] = $status['scola_data_resultado'];
                     $event['scola_data_liberado'] = $status['scola_data_liberado'];
                     $event['scola_data_exportado'] = $status['scola_data_exportado'];
+                    $event['scola_rejected'] = (bool) ($status['rejected'] ?? false);
+                    $event['scola_nova_coleta'] = (bool) ($status['nova_coleta'] ?? false);
 
                     // SCOLA diz "aguardando integração TASY" mas dt_resultado já está em
                     // prescr_procedimento → laudo está no TASY, só falta data_exportacao_resultado
@@ -487,6 +489,8 @@ class ScolaExamStatusService
                     ? 'Amostra rejeitada pelo laboratório'
                     : 'Nova coleta necessária',
                 'integration_issue' => false,
+                'rejected' => $hasColheita,
+                'nova_coleta' => ! $hasColheita,
             ]);
         }
 

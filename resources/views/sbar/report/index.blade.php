@@ -382,7 +382,9 @@ window.sbarFilters = function () {
                 if (this.multiFilter !== 'all' && !c.multi.includes(this.multiFilter)) return false;
                 if (this.handoverFilter === 'done'     && !c.handover) return false;
                 if (this.handoverFilter === 'not_done' && c.handover)  return false;
-                if (this.dischargeFilter === 'today'   && !['alta','alta_medica','previsao_alta'].includes(c.discharge)) return false;
+                if (this.dischargeFilter === 'today'      && !['alta','alta_medica','previsao_alta'].includes(c.discharge)) return false;
+                if (this.dischargeFilter === 'previsao'   && c.discharge !== 'previsao_alta') return false;
+                if (this.dischargeFilter === 'no_previsao' && (!c.hasPatient || c.discharge !== '')) return false;
                 if (this.antibioticFilter === 'active' && !c.hasAntibiotic) return false;
                 if (this.internmentFilter === 'gt3'  && (c.internment < 0 || c.internment <= 3))  return false;
                 if (this.internmentFilter === 'gt7'  && (c.internment < 0 || c.internment <= 7))  return false;

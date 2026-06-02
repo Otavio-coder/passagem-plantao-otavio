@@ -128,13 +128,15 @@
             <i class="fa-solid fa-angle-left" style="font-size:10px;"></i>
         </button>
         <template x-for="(p,i) in pageNums(procPages, proc.page)" :key="i">
-            <template x-if="typeof p === 'number'">
-                <button @click="proc.page = p" :class="proc.page===p ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-indigo-50'"
-                        class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
-            </template>
-            <template x-if="typeof p === 'string'">
-                <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
-            </template>
+            <span class="contents">
+                <template x-if="typeof p === 'number'">
+                    <button @click="proc.page = p" :class="proc.page===p ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-indigo-50'"
+                            class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
+                </template>
+                <template x-if="typeof p === 'string'">
+                    <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
+                </template>
+            </span>
         </template>
         <button @click="proc.page = Math.min(procPages, proc.page+1)" :disabled="proc.page===procPages"
                 :class="proc.page===procPages ? 'opacity-40' : 'hover:bg-gray-100'"

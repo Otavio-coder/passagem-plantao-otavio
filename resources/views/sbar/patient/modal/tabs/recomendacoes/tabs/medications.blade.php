@@ -128,15 +128,17 @@
                 <i class="fa-solid fa-angle-left" style="font-size:10px;"></i>
             </button>
             <template x-for="(p, idx) in pageNums(medPages, medPage)" :key="idx">
-                <template x-if="typeof p === 'number'">
-                    <button @click="medPage = p"
-                            :class="medPage === p ? 'bg-[#BDAD02] text-gray-900 border-[#BDAD02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-[#BDAD02]/10'"
-                            class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors"
-                            x-text="p"></button>
-                </template>
-                <template x-if="typeof p === 'string'">
-                    <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
-                </template>
+                <span class="contents">
+                    <template x-if="typeof p === 'number'">
+                        <button @click="medPage = p"
+                                :class="medPage === p ? 'bg-[#BDAD02] text-gray-900 border-[#BDAD02]' : 'bg-white text-gray-600 border-gray-200 hover:bg-[#BDAD02]/10'"
+                                class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors"
+                                x-text="p"></button>
+                    </template>
+                    <template x-if="typeof p === 'string'">
+                        <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
+                    </template>
+                </span>
             </template>
             <button @click="medPage = Math.min(medPages, medPage + 1)" :disabled="medPage === medPages"
                     :class="medPage === medPages ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"

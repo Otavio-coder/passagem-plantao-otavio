@@ -125,12 +125,14 @@
     <div x-show="examPages > 1" class="flex items-center justify-center gap-1 pt-3">
         <button @click="examPage = Math.max(1, examPage-1)" :disabled="examPage===1" :class="examPage===1 ? 'opacity-40' : 'hover:bg-gray-100'" class="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center transition-colors"><i class="fa-solid fa-angle-left" style="font-size:10px;"></i></button>
         <template x-for="(p,i) in pageNums(examPages, examPage)" :key="i">
-            <template x-if="typeof p === 'number'">
-                <button @click="examPage = p" :class="examPage===p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50'" class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
-            </template>
-            <template x-if="typeof p === 'string'">
-                <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
-            </template>
+            <span class="contents">
+                <template x-if="typeof p === 'number'">
+                    <button @click="examPage = p" :class="examPage===p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50'" class="w-8 h-8 rounded-lg border text-[11px] font-bold transition-colors" x-text="p"></button>
+                </template>
+                <template x-if="typeof p === 'string'">
+                    <span class="w-8 text-center text-gray-400 text-sm leading-8">…</span>
+                </template>
+            </span>
         </template>
         <button @click="examPage = Math.min(examPages, examPage+1)" :disabled="examPage===examPages" :class="examPage===examPages ? 'opacity-40' : 'hover:bg-gray-100'" class="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center transition-colors"><i class="fa-solid fa-angle-right" style="font-size:10px;"></i></button>
     </div>

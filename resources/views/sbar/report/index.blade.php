@@ -406,6 +406,7 @@ window.sbarFilters = function () {
 
                 if (this.searchText.trim()) {
                     const q = this.searchText.toLowerCase().trim();
+                    if (!c.hasPatient) return false;
                     if (!c.name.includes(q) && !c.bed.toLowerCase().includes(q)) return false;
                 }
 

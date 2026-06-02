@@ -55,10 +55,23 @@
                                             </a>
                                         @endif
                                         @if($lastRefresh)
-                                            <span class="hidden xl:block text-white/80 text-xs font-montserrat mr-1">
+                                            <span class="hidden xl:block text-white/80 text-xs font-montserrat">
                                                 Última atualização: {{ $lastRefresh }}
                                             </span>
                                         @endif
+
+                                        <div class="hidden lg:flex items-center relative flex-shrink-0">
+                                            <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                            <input type="text"
+                                                   x-model="searchText"
+                                                   placeholder="Leito ou paciente..."
+                                                   class="bg-white text-gray-700 border border-gray-300 rounded-lg py-1.5 pl-7 pr-7 text-xs xl:text-sm focus:ring-2 focus:ring-[#0071B9]/40 w-44 xl:w-52"
+                                                   autocomplete="off">
+                                            <button x-show="searchText" x-cloak @click="searchText = ''"
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                                                <i class="fas fa-times text-xs"></i>
+                                            </button>
+                                        </div>
 
                                         <div class="hidden lg:flex items-center gap-2 flex-shrink-0">
                                             <button wire:click="refreshData"
@@ -305,6 +318,7 @@ window.sbarFilters = function () {
         dischargeFilter:   'all',
         antibioticFilter:  'all',
         internmentFilter:  'all',
+        searchText:        '',
         orderBy:           'bed',
         orderDir:          'asc',
         visibleCount:      0,
@@ -320,7 +334,7 @@ window.sbarFilters = function () {
             });
 
             ['mewsFilter','surgicalFilter','isolationFilter','pendingTypeFilter','multiFilter',
-             'bedsFilter','orderBy','orderDir','handoverFilter','dischargeFilter','antibioticFilter','internmentFilter']
+             'bedsFilter','orderBy','orderDir','handoverFilter','dischargeFilter','antibioticFilter','internmentFilter','searchText']
                 .forEach(prop => this.$watch(prop, () => this.applyFilters()));
 
             Livewire.hook('commit', ({ component, succeed, fail }) => {
@@ -390,6 +404,11 @@ window.sbarFilters = function () {
                 if (this.internmentFilter === 'gt7'  && (c.internment < 0 || c.internment <= 7))  return false;
                 if (this.internmentFilter === 'gt14' && (c.internment < 0 || c.internment <= 14)) return false;
 
+                if (this.searchText.trim()) {
+                    const q = this.searchText.toLowerCase().trim();
+                    if (!c.name.includes(q) && !c.bed.toLowerCase().includes(q)) return false;
+                }
+
                 return true;
             });
 
@@ -446,6 +465,7 @@ window.sbarFilters = function () {
             this.dischargeFilter   = 'all';
             this.antibioticFilter  = 'all';
             this.internmentFilter  = 'all';
+            this.searchText        = '';
             this.orderBy           = 'bed';
             this.orderDir          = 'asc';
             this.applyFilters();
@@ -462,6 +482,7 @@ window.sbarFilters = function () {
                 || this.dischargeFilter !== 'all'
                 || this.antibioticFilter !== 'all'
                 || this.internmentFilter !== 'all'
+                || this.searchText !== ''
                 || this.orderBy !== 'bed'
                 || this.orderDir !== 'asc';
         },

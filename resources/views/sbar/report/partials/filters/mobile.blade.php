@@ -66,6 +66,19 @@
         </button>
     </div>
 
+    <div class="mt-2 relative">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+        <input type="text"
+               x-model="searchText"
+               placeholder="Buscar leito ou paciente..."
+               class="w-full bg-white text-gray-700 border border-gray-300 rounded-lg py-2 pl-8 pr-8 text-xs sm:text-sm focus:ring-2 focus:ring-[#0071B9]/40"
+               autocomplete="off">
+        <button x-show="searchText" x-cloak @click="searchText = ''"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors">
+            <i class="fas fa-times text-xs"></i>
+        </button>
+    </div>
+
     <div x-show="filtersOpen" x-cloak
          class="mt-2 bg-white/10 rounded-lg p-3 space-y-2">
         <div class="grid grid-cols-2 gap-2">

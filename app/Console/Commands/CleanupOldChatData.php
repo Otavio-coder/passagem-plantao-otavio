@@ -83,7 +83,7 @@ class CleanupOldChatData extends Command
                     ->where('nr_atendimento', $nr)
                     ->where('created_at', '<', $cutoff)
                     ->orderBy('created_at')
-                    ->select(['id', 'user_id', 'content', 'created_at'])
+                    ->select(['id', 'user_id', 'content', 'created_at', 'sector_name'])
                     ->get();
 
                 if ($messages->isEmpty()) {
@@ -91,6 +91,14 @@ class CleanupOldChatData extends Command
 
                     continue;
                 }
+
+                // Coleta todos os setores distintos das mensagens sendo arquivadas
+                $sectorNames = $messages
+                    ->pluck('sector_name')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->toArray();
 
                 // Monta payload compacto (mesmo formato do import)
                 $payload = $messages->map(fn ($m) => [
@@ -116,7 +124,7 @@ class CleanupOldChatData extends Command
                 $msgIds = $messages->pluck('id')->toArray();
 
                 if (! $dryRun) {
-                    DB::transaction(function () use ($nr, $compressed, $firstAt, $lastAt, $msgIds, $payload, $payloadUsers, &$deleted) {
+                    DB::transaction(function () use ($nr, $compressed, $firstAt, $lastAt, $msgIds, $payload, $payloadUsers, $sectorNames, &$deleted) {
                         // Upsert no archive — mantém o registro existente se já houver,
                         // mesclando a contagem de mensagens ao invés de sobrescrever tudo
                         $existing = DB::table('chat_messages_archive')
@@ -135,6 +143,12 @@ class CleanupOldChatData extends Command
                             $merged = ChatArchivePayload::decode($mergedComp);
                             $allTs = array_column($merged['messages'], 'ts');
 
+                            // Mescla lista de setores com a já armazenada
+                            $existingSectors = $existing->sector_name
+                                ? json_decode($existing->sector_name, true) ?? []
+                                : [];
+                            $mergedSectors = array_values(array_unique(array_merge($existingSectors, $sectorNames)));
+
                             DB::table('chat_messages_archive')
                                 ->where('nr_atendimento', $nr)
                                 ->update([
@@ -144,6 +158,7 @@ class CleanupOldChatData extends Command
                                     'payload' => $mergedComp,
                                     'source' => 'cleanup_archive',
                                     'archived_at' => now(),
+                                    'sector_name' => ! empty($mergedSectors) ? json_encode($mergedSectors) : null,
                                 ]);
                         } else {
                             DB::table('chat_messages_archive')->insert([
@@ -154,6 +169,7 @@ class CleanupOldChatData extends Command
                                 'payload' => $compressed,
                                 'source' => 'cleanup_archive',
                                 'archived_at' => now(),
+                                'sector_name' => ! empty($sectorNames) ? json_encode($sectorNames) : null,
                             ]);
                         }
 

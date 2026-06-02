@@ -70,6 +70,8 @@ class ChatRepository
         $msg = ChatMessage::create([
             'nr_atendimento' => $data['nr_atendimento'],
             'cd_pessoa_fisica' => $data['cd_pessoa_fisica'] ?? null,
+            'sector_id' => $data['sector_id'] ?? null,
+            'sector_name' => $data['sector_name'] ?? null,
             'user_id' => $data['user_id'],
             'content' => $data['content'],
         ]);

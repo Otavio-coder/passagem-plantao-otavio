@@ -22,6 +22,8 @@
                 'cdPessoaFisica' => $currentPatient['cd_pessoa_fisica'] ?? null,
                 'bedUnit' => $patientDetails->bed_name ?? $patientDetails->cd_unidade_basica ?? null,
                 'internmentDays' => $currentPatient['internment_days'] ?? null,
+                'sectorId' => $currentPatient['cd_setor_atendimento'] ?? null,
+                'sectorName' => $currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? null,
             ], key('chat-' . ($currentPatient['nr_atendimento'] ?? 'empty')))
         </div>
     @else

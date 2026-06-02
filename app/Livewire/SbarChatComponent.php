@@ -23,6 +23,10 @@ class SbarChatComponent extends Component
 
     public $bedUnit;
 
+    public ?int $sectorId = null;
+
+    public ?string $sectorName = null;
+
     public ?int $internmentDays = null;
 
     /** Array plano de itens: ['type'=>'separator',...] ou ['type'=>'message',...] */
@@ -59,12 +63,14 @@ class SbarChatComponent extends Component
         'refreshChat' => 'refreshCurrentMessages',
     ];
 
-    public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null, $internmentDays = null)
+    public function mount($patientId = null, $cdPessoaFisica = null, $bedUnit = null, $internmentDays = null, $sectorId = null, $sectorName = null)
     {
         $this->patientId = $patientId;
         $this->cdPessoaFisica = $cdPessoaFisica;
         $this->bedUnit = $bedUnit;
         $this->internmentDays = is_numeric($internmentDays) ? (int) $internmentDays : null;
+        $this->sectorId = $sectorId ? (int) $sectorId : null;
+        $this->sectorName = $sectorName;
 
         $user = Auth::user();
         $this->currentUser = [
@@ -139,6 +145,8 @@ class SbarChatComponent extends Component
             $newMessage = $repo->storeMessage([
                 'nr_atendimento' => $this->patientId,
                 'cd_pessoa_fisica' => $this->cdPessoaFisica,
+                'sector_id' => $this->sectorId,
+                'sector_name' => $this->sectorName,
                 'user_id' => $this->currentUser['id'],
                 'content' => $message,
             ]);

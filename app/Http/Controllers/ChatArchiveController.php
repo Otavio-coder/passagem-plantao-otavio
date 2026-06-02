@@ -118,11 +118,12 @@ class ChatArchiveController extends Controller
     public function clientData()
     {
         $archiveRows = DB::table('chat_messages_archive')
-            ->select('nr_atendimento', 'message_count', 'last_message_at')
+            ->select('nr_atendimento', 'message_count', 'last_message_at', 'sector_name')
             ->get();
 
         $activeRows = DB::table('chat_messages')
-            ->selectRaw('nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at')
+            ->selectRaw("nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at,
+                         GROUP_CONCAT(DISTINCT sector_name ORDER BY sector_name SEPARATOR '||') AS sector_name")
             ->whereNotIn('nr_atendimento', DB::table('chat_messages_archive')->pluck('nr_atendimento'))
             ->groupBy('nr_atendimento')
             ->get();
@@ -143,7 +144,7 @@ class ChatArchiveController extends Controller
             return [
                 'nr_atendimento' => (string) $row->nr_atendimento,
                 'patient_name' => $o['name'] ?? '',
-                'sector_name' => $o['sector_name'] ?? '',
+                'sector_name' => $this->formatSectors($row->sector_name ?? $o['sector_name'] ?? null),
                 'dt_entrada' => $o['dt_entrada'] ?? '',
                 'dt_alta' => $o['dt_alta'] ?? '',
                 'still_admitted' => $o ? $o['still_admitted'] : null,
@@ -165,12 +166,13 @@ class ChatArchiveController extends Controller
         $start = max(0, (int) $request->input('start', 0));
         $length = min(100, max(1, (int) $request->input('length', 25)));
 
-        // UNION: registros arquivados + registros ativos não arquivados
-        $archiveSql = 'SELECT nr_atendimento, message_count, last_message_at FROM chat_messages_archive';
-        $activeSql = 'SELECT nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at
+        // UNION: archive tem sector_name como JSON; ativos têm sector_name por mensagem
+        $archiveSql = 'SELECT nr_atendimento, message_count, last_message_at, sector_name FROM chat_messages_archive';
+        $activeSql = "SELECT nr_atendimento, COUNT(*) AS message_count, MAX(created_at) AS last_message_at,
+                             GROUP_CONCAT(DISTINCT sector_name ORDER BY sector_name SEPARATOR '||') AS sector_name
                        FROM chat_messages
                        WHERE nr_atendimento NOT IN (SELECT nr_atendimento FROM chat_messages_archive)
-                       GROUP BY nr_atendimento';
+                       GROUP BY nr_atendimento";
 
         $unionSql = "({$archiveSql}) UNION ALL ({$activeSql})";
 
@@ -187,12 +189,7 @@ class ChatArchiveController extends Controller
             $query->where('last_message_at', '<=', $to.' 23:59:59');
         }
         if ($sector = trim($request->input('sector', ''))) {
-            $sectorNrs = $this->getAttendancesForSector($sector);
-            if (! empty($sectorNrs)) {
-                $query->whereIn('nr_atendimento', $sectorNrs);
-            } else {
-                $query->whereRaw('1 = 0');
-            }
+            $query->where('sector_name', 'like', "%{$sector}%");
         }
 
         $recordsFiltered = $query->count();
@@ -209,7 +206,6 @@ class ChatArchiveController extends Controller
         $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
         $orderByCol = $sortableMap[$orderColIdx] ?? 'last_message_at';
 
-        // Colunas Oracle (1=patient_name,2=sector_name,3=dt_entrada,4=dt_alta) → fallback
         if (! isset($sortableMap[$orderColIdx])) {
             $orderByCol = 'last_message_at';
         }
@@ -228,7 +224,7 @@ class ChatArchiveController extends Controller
             return [
                 'nr_atendimento' => $row->nr_atendimento,
                 'patient_name' => $o['name'] ?? null,
-                'sector_name' => $o['sector_name'] ?? null,
+                'sector_name' => $this->formatSectors($row->sector_name ?? $o['sector_name'] ?? null),
                 'dt_entrada' => $o['dt_entrada'] ?? null,
                 'dt_alta' => $o['dt_alta'] ?? null,
                 'still_admitted' => $o ? $o['still_admitted'] : null,
@@ -419,25 +415,31 @@ class ChatArchiveController extends Controller
         }
     }
 
-    private function getAttendancesForSector(string $search): array
+    /**
+     * Parses sector_name into a human-readable comma-separated string.
+     *
+     * Handles three input formats:
+     *  - JSON array (archive): '["HSR 2º","HDVS-CIEM"]' → 'HSR 2º, HDVS-CIEM'
+     *  - Pipe-separated (GROUP_CONCAT from active records): 'HSR 2º||HDVS-CIEM' → 'HSR 2º, HDVS-CIEM'
+     *  - Plain string (fallback from Oracle): 'HSR 2º' → 'HSR 2º'
+     */
+    private function formatSectors(?string $raw): ?string
     {
-        try {
-            $rows = DB::connection('tasy')->select('
-                SELECT DISTINCT ua.nr_atendimento
-                FROM tasy.unidade_atendimento ua
-                JOIN tasy.setor_atendimento sa ON ua.cd_setor_atendimento = sa.cd_setor_atendimento
-                WHERE UPPER(NVL(sa.ds_prescricao, sa.ds_setor_atendimento)) LIKE UPPER(:search)
-            ', ['search' => '%'.$search.'%']);
-
-            return array_map(fn ($r) => (int) $r->nr_atendimento, $rows);
-        } catch (\Exception $e) {
-            Log::warning('ChatArchive getAttendancesForSector failed', [
-                'exception' => $e,
-                'search' => $search,
-            ]);
-
-            return [];
+        if (! $raw) {
+            return null;
         }
+
+        if (str_starts_with($raw, '[')) {
+            $decoded = json_decode($raw, true);
+
+            return is_array($decoded) ? implode(', ', array_filter($decoded)) : $raw;
+        }
+
+        if (str_contains($raw, '||')) {
+            return implode(', ', array_filter(explode('||', $raw)));
+        }
+
+        return $raw;
     }
 
     private function fetchPatientData(array $nrs): array

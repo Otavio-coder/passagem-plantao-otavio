@@ -222,13 +222,14 @@
     /* Divider */
     .divider { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
 
-    /* Glossário colapsável */
+    /* Glossário colapsável (Alpine.js) */
     .glossary-item {
         border: 1px solid var(--rule);
         border-radius: 0.5rem;
         margin-bottom: 0.5rem;
+        overflow: hidden;
     }
-    .glossary-item summary {
+    .glossary-item .gi-summary {
         cursor: pointer;
         padding: 0.85rem 1rem;
         font-weight: 600;
@@ -237,17 +238,13 @@
         display: flex;
         align-items: center;
         gap: 0.6rem;
-        list-style: none !important;
         user-select: none;
         min-height: 48px;
         background: #f9fafb;
         transition: background 0.12s;
         -webkit-tap-highlight-color: rgba(0,77,157,0.08);
     }
-    .glossary-item summary::-webkit-details-marker { display: none; }
-    .glossary-item summary::marker { display: none; }
-    /* Chevron usando caractere — não depende de border que o Tailwind reset zera */
-    .glossary-item summary::before {
+    .glossary-item .gi-summary::before {
         content: '›';
         font-size: 1.2rem;
         line-height: 1;
@@ -259,10 +256,10 @@
         width: 1rem;
         text-align: center;
     }
-    .glossary-item[open] > summary::before { transform: rotate(90deg); }
-    .glossary-item[open] > summary { background: var(--brand-light); color: var(--brand); }
-    .glossary-item summary:hover { background: var(--brand-light); }
-    .glossary-item > p { margin: 0; padding: 0.75rem 1rem 0.9rem 2rem; font-size: 0.85rem; color: #374151; border-top: 1px solid var(--rule); }
+    .glossary-item.gi-open .gi-summary::before { transform: rotate(90deg); }
+    .glossary-item.gi-open .gi-summary { background: var(--brand-light); color: var(--brand); }
+    .glossary-item .gi-summary:hover { background: var(--brand-light); }
+    .glossary-item .gi-content { margin: 0; padding: 0.75rem 1rem 0.9rem 2rem; font-size: 0.85rem; color: #374151; border-top: 1px solid var(--rule); }
 
     /* Sidebar toggle mobile */
     #sidebar-toggle { display: none; }
@@ -322,6 +319,7 @@
         <a href="#sec-recursos"><span class="num">4</span> Recursos Disponíveis</a>
         <a href="#sec-relatorio-pendencias" class="sub">Relatório de Pendências</a>
         <a href="#sec-feedback" class="sub">Formulário de Feedback</a>
+        <a href="#sec-avaliacoes" class="sub">Avaliações do Turno</a>
         <a href="#sec-config"><span class="num">5</span> Configuração Inicial</a>
         <a href="#sec-painel"><span class="num">6</span> Painel de Passagem</a>
         <a href="#sec-filtros" class="sub">Filtros e Ordenação</a>
@@ -362,8 +360,7 @@
 
             <h1 class="manual-h1">Manual do Usuário</h1>
             <p class="manual-subtitle">
-                Sistema de Passagem de Plantão — Santa Casa de Porto Alegre<br>
-                Versão {{ date('Y') }} &nbsp;·&nbsp; Destinado a enfermeiros e coordenadores
+                Sistema de Passagem de Plantão — Santa Casa de Porto Alegre &nbsp;·&nbsp; Versão {{ date('Y') }}
             </p>
 
             <hr class="divider">
@@ -504,6 +501,26 @@
                 <div class="callout callout-tip">
                     <div class="callout-title">Por que o feedback importa</div>
                     O sistema é desenvolvido de forma contínua com base no uso real em campo. Relatos de lentidão, dados incorretos, funcionalidades confusas ou sugestões de melhoria recebidos pelo formulário são avaliados e priorizados pela equipe de desenvolvimento. Use o formulário sempre que encontrar algo que possa ser melhorado.
+                </div>
+            </section>
+
+            {{-- Avaliações do Turno --}}
+            <section class="section" id="sec-avaliacoes">
+                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">4.3 Avaliações do Turno</h3>
+
+                <p>O painel SBAR exibe um botão <strong>Avaliações</strong> no cabeçalho, que abre uma janela consolidada com todas as anotações registradas pela equipe no turno atual e no turno anterior para o setor selecionado. Isso permite uma revisão rápida do setor inteiro sem precisar abrir cada paciente individualmente.</p>
+
+                <p><strong>O que a janela exibe:</strong></p>
+                <ul>
+                    <li>Anotações agrupadas por turno (atual e anterior), com separação visual clara entre eles</li>
+                    <li>Nome do usuário, foto de perfil e horário exato de cada mensagem</li>
+                    <li>Identificação do paciente e número do leito correspondente a cada anotação</li>
+                    <li>Avaliações fixadas em destaque, diferenciadas das mensagens comuns</li>
+                </ul>
+
+                <div class="callout callout-tip">
+                    <div class="callout-title">Uso recomendado</div>
+                    Utilize este recurso ao assumir o turno para ter uma visão panorâmica de todas as anotações relevantes do setor antes de iniciar a passagem leito a leito. É especialmente útil em setores com muitos pacientes.
                 </div>
             </section>
 
@@ -834,7 +851,19 @@
                 <p>Lista completa de pendências, agrupadas por categoria (exames, procedimentos, hemoterapia, antimicrobianos etc.), com horários, status de execução e atraso calculado.</p>
 
                 <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Aba: Plano Terapêutico</h4>
-                <p>Apresenta as prescrições ativas do paciente organizadas por categoria: medicamentos, procedimentos e exames, nutrição, recomendações, intervenções de enfermagem, hemoterapia, quimioterapia, gasoterapia e diálise. Cada item exibe o número da prescrição, horários e detalhes de posologia.</p>
+                <p>Apresenta as prescrições ativas do paciente divididas em nove categorias, acessadas por abas internas:</p>
+                <ul>
+                    <li><strong>Medicamentos</strong> — prescrições ativas (sem suspensão), agrupadas por número de prescrição. Inclui filtro de busca por nome do medicamento e botão para exibir somente antimicrobianos. Ordenáveis por número de prescrição (crescente ou decrescente).</li>
+                    <li><strong>Proc. e Exames</strong> — procedimentos e exames prescritos. O filtro padrão exibe itens do dia anterior, do dia atual e do dia seguinte (Ontem–Hoje–Amanhã). Botão para visualizar todas as pendências abertas.</li>
+                    <li><strong>Hemoterapia</strong> — transfusões de sangue e hemoderivados prescritos, com produto, quantidade e status de execução.</li>
+                    <li><strong>Quimioterapia</strong> — ciclos quimioterápicos ativos ou agendados, com protocolo e fase do tratamento.</li>
+                    <li><strong>Nutrição</strong> — dietas hospitalares e suplementos nutricionais prescritos.</li>
+                    <li><strong>Recomendações</strong> — prescrições médicas textuais e orientações específicas de cuidado.</li>
+                    <li><strong>Intervenções</strong> — intervenções de enfermagem prescritas para o paciente.</li>
+                    <li><strong>Gasoterapia</strong> — terapia com gases medicinais e suporte ventilatório. Exibe modalidade de uso, tipo de gás, parâmetros ventilatórios (FiO₂, PEEP, PIP, volume corrente e frequência ventilatória), equipamentos prescritos e horários programados.</li>
+                    <li><strong>Diálise</strong> — terapia renal substitutiva. Exibe modalidade (hemodiálise ou diálise peritoneal), número de sessões por semana, dias de realização, duração da sessão, fluxo de sangue e índice Kt/V.</li>
+                </ul>
+                <p>A navegação por abas é paginada com 10 itens por página. Todas as categorias exibem apenas itens ativos no momento da consulta.</p>
 
                 <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Aba: Hemoculturas</h4>
                 <p>Histórico de hemoculturas do paciente com data de coleta, status de execução e resultado quando disponível via integração com o laboratório.</p>
@@ -1014,46 +1043,74 @@
                 <h2 class="s-title section-anchor"><span class="s-num">9.</span> Glossário</h2>
                 <p>Definições dos principais termos utilizados no sistema e neste manual.</p>
 
-                <details class="glossary-item" open>
-                    <summary>SBAR</summary>
-                    <p>Metodologia internacional de comunicação clínica estruturada. As letras significam: <strong>S</strong>ituação (o que está acontecendo com o paciente agora), <strong>B</strong>ackground (histórico clínico relevante), <strong>A</strong>valiação (interpretação da equipe sobre o estado atual) e <strong>R</strong>ecomendação (o que precisa ser feito ou acompanhado).</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>MEWS — Modified Early Warning Score</summary>
-                    <p>Escala de risco para pacientes adultos (18 anos ou mais). Calculada a partir de sinais vitais registrados no prontuário. Valores: 0–2 = estável, 3 = alerta, 4 = alto risco, ≥5 = crítico.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>PEWS — Pediatric Early Warning Score</summary>
-                    <p>Versão pediátrica do MEWS, aplicada a pacientes com menos de 18 anos. Avalia comportamento, função cardiovascular e respiratória.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Escala de Braden</summary>
-                    <p>Avalia o risco de desenvolvimento de lesão por pressão (LPP). Pontuações menores indicam maior risco. O sistema destaca pacientes com risco moderado a grave.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Escala de Morse</summary>
-                    <p>Avalia o risco de queda do paciente. Utilizada para priorizar intervenções preventivas. Risco alto: ≥45 pontos.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>TEV — Tromboembolismo Venoso</summary>
-                    <p>Risco de formação de coágulos venosos. O sistema exibe o resultado da avaliação de profilaxia registrado no prontuário.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Pendência assistencial</summary>
-                    <p>Item prescrito ou solicitado que ainda não foi executado: exame não coletado ou sem resultado, procedimento não realizado, medicamento não administrado, hemoterapia pendente, entre outros.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Alta médica vs. Alta efetivada</summary>
-                    <p><strong>Alta médica</strong>: o médico concedeu alta, mas o paciente ainda não saiu fisicamente do leito. <strong>Alta efetivada</strong>: o paciente já deixou a unidade. Ambos aparecem com destaque visual nos cartões.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Tasy</summary>
-                    <p>Prontuário eletrônico do paciente utilizado pela Santa Casa (sistema Oracle). O sistema de passagem de plantão lê os dados do Tasy em tempo quase real, mas não grava informações nele.</p>
-                </details>
-                <details class="glossary-item">
-                    <summary>Passagem de plantão estruturada</summary>
-                    <p>Funcionalidade que guia o enfermeiro por cada leito sob sua responsabilidade no momento da troca de turno, registrando o horário de início, fim e percentual de conclusão.</p>
-                </details>
+                <div class="glossary-item gi-open" x-data="{ open: true }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">SBAR</div>
+                    <p class="gi-content" x-show="open">Metodologia internacional de comunicação clínica estruturada. As letras significam: <strong>S</strong>ituação (o que está acontecendo com o paciente agora), <strong>B</strong>ackground (histórico clínico relevante), <strong>A</strong>valiação (interpretação da equipe sobre o estado atual) e <strong>R</strong>ecomendação (o que precisa ser feito ou acompanhado).</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">MEWS — Modified Early Warning Score</div>
+                    <p class="gi-content" x-show="open">Escala de risco para pacientes adultos (18 anos ou mais). Calculada a partir de sinais vitais registrados no prontuário. Valores: 0–2 = estável, 3 = alerta, 4 = alto risco, ≥5 = crítico.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">PEWS — Pediatric Early Warning Score</div>
+                    <p class="gi-content" x-show="open">Versão pediátrica do MEWS, aplicada a pacientes com menos de 18 anos. Avalia comportamento, função cardiovascular e respiratória.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Escala de Braden</div>
+                    <p class="gi-content" x-show="open">Avalia o risco de desenvolvimento de lesão por pressão (LPP). Pontuações menores indicam maior risco. O sistema destaca pacientes com risco moderado a grave.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Escala de Morse</div>
+                    <p class="gi-content" x-show="open">Avalia o risco de queda do paciente. Utilizada para priorizar intervenções preventivas. Risco alto: ≥45 pontos.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">TEV — Tromboembolismo Venoso</div>
+                    <p class="gi-content" x-show="open">Risco de formação de coágulos venosos. O sistema exibe o resultado da avaliação de profilaxia registrado no prontuário.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Pendência assistencial</div>
+                    <p class="gi-content" x-show="open">Item prescrito ou solicitado que ainda não foi executado: exame não coletado ou sem resultado, procedimento não realizado, medicamento não administrado, hemoterapia pendente, entre outros.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Alta médica vs. Alta efetivada</div>
+                    <p class="gi-content" x-show="open"><strong>Alta médica</strong>: o médico concedeu alta, mas o paciente ainda não saiu fisicamente do leito. <strong>Alta efetivada</strong>: o paciente já deixou a unidade. Ambos aparecem com destaque visual nos cartões.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Tasy</div>
+                    <p class="gi-content" x-show="open">Prontuário eletrônico do paciente utilizado pela Santa Casa (sistema Oracle). O sistema de passagem de plantão lê os dados do Tasy em tempo quase real, mas não grava informações nele.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Passagem de plantão estruturada</div>
+                    <p class="gi-content" x-show="open">Funcionalidade que guia o enfermeiro por cada leito sob sua responsabilidade no momento da troca de turno, registrando o horário de início, fim e percentual de conclusão.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Plano Terapêutico</div>
+                    <p class="gi-content" x-show="open">Aba da janela do paciente que consolida todas as prescrições ativas, organizada em nove categorias: medicamentos, procedimentos e exames, hemoterapia, quimioterapia, nutrição, recomendações, intervenções, gasoterapia e diálise. Leitura direta do prontuário eletrônico Tasy — não permite edição.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Gasoterapia</div>
+                    <p class="gi-content" x-show="open">Terapia com gases medicinais, incluindo oxigenoterapia e suporte ventilatório (ventilação mecânica invasiva ou não invasiva). Os parâmetros prescritos (FiO₂, PEEP, volume corrente etc.) são exibidos na aba Gasoterapia do Plano Terapêutico.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Diálise</div>
+                    <p class="gi-content" x-show="open">Terapia renal substitutiva para pacientes com insuficiência renal. O sistema exibe a modalidade (hemodiálise ou diálise peritoneal), parâmetros de sessão e frequência semanal. Dados provenientes diretamente do prontuário Tasy.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Avaliações do Turno</div>
+                    <p class="gi-content" x-show="open">Visão consolidada de todas as anotações do chat registradas no turno atual e no turno anterior para o setor selecionado. Acessada pelo botão <em>Avaliações</em> no cabeçalho do painel SBAR. Permite revisar rapidamente o setor inteiro sem abrir paciente por paciente.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">SCOLA</div>
+                    <p class="gi-content" x-show="open">Sistema de laboratório utilizado pela Santa Casa para gestão de exames. O sistema de passagem de plantão integra-se ao SCOLA para exibir o status atualizado de cada exame: coletado, aguardando resultado ou laudo liberado.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">LPP — Lesão por Pressão</div>
+                    <p class="gi-content" x-show="open">Dano localizado na pele ou tecidos subjacentes, geralmente sobre uma proeminência óssea. A Escala de Braden avalia o risco de desenvolvimento de LPP. Pacientes com pontuação baixa na Braden (alto risco) são destacados visualmente no sistema.</p>
+                </div>
+                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">PICC</div>
+                    <p class="gi-content" x-show="open">Cateter Central de Inserção Periférica. Dispositivo venoso de longa permanência, monitorado pelo serviço de Acessos Vasculares. A solicitação para avaliação desse serviço aparece como pendência multidisciplinar nos cartões do painel.</p>
+                </div>
             </section>
 
         </div>{{-- /manual-content --}}

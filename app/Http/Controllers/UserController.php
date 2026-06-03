@@ -153,6 +153,7 @@ class UserController extends Controller
         $action = $newStatus === 'I' ? 'bloqueado' : 'desbloqueado';
 
         Log::channel('audit')->info('user.block_toggle', [
+            'category' => 'user_management',
             'admin_id' => auth()->id(),
             'admin' => auth()->user()->name,
             'target_id' => $user->id,

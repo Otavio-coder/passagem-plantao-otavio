@@ -37,7 +37,7 @@ class PendingEventsReportController extends Controller
                 'sectors' => collect(),
                 'sectorsForFilter' => [],
                 'rows' => collect(),
-                'selectedHospital' => null,
+                'selectedHospitals' => [],
                 'selectedSectors' => [],
                 'sectorName' => null,
                 'totalRows' => 0,
@@ -54,13 +54,23 @@ class PendingEventsReportController extends Controller
             ->sortBy('hospital_name')
             ->values();
 
-        $selectedHospital = (int) $request->integer('hospital_id', (int) ($hospitals->first()['hospital_id'] ?? 0));
-        if (! $hospitals->pluck('hospital_id')->contains($selectedHospital)) {
-            $selectedHospital = (int) ($hospitals->first()['hospital_id'] ?? 0);
+        $allHospitalIds = $hospitals->pluck('hospital_id');
+
+        // Aceita hospital_ids[] (multi) ou hospital_id (legado single)
+        $rawHospitalIds = $request->input('hospital_ids', []);
+        if (empty($rawHospitalIds) && $request->has('hospital_id')) {
+            $rawHospitalIds = [$request->integer('hospital_id')];
+        }
+        $selectedHospitals = collect($rawHospitalIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allHospitalIds->contains($id))
+            ->unique()->values()->all();
+        if (empty($selectedHospitals)) {
+            $selectedHospitals = [$allHospitalIds->first()];
         }
 
         $sectors = $allSectors
-            ->filter(fn ($p) => (int) $p->hospital_code === $selectedHospital)
+            ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
             ->map(fn ($p) => [
                 'sector_code' => (int) $p->sector_code,
                 'sector_name' => $p->sector_name,
@@ -150,7 +160,7 @@ class PendingEventsReportController extends Controller
             'sectors' => $sectors,
             'sectorsForFilter' => $sectorsForFilter,
             'rows' => $rows,
-            'selectedHospital' => $selectedHospital,
+            'selectedHospitals' => $selectedHospitals,
             'selectedSectors' => $selectedSectors,
             'sectorName' => $sectorName,
             'totalRows' => $rows->count(),
@@ -171,14 +181,24 @@ class PendingEventsReportController extends Controller
             ->distinct()
             ->get();
 
-        $hospitals = $allSectors->map(fn ($p) => ['hospital_id' => (int) $p->hospital_code])->unique('hospital_id')->pluck('hospital_id');
-        $selectedHospital = (int) $request->integer('hospital_id', (int) ($hospitals->first() ?? 0));
+        $allHospitalIds = $allSectors->map(fn ($p) => (int) $p->hospital_code)->unique()->values();
 
-        $sectors = $allSectors
-            ->filter(fn ($p) => (int) $p->hospital_code === $selectedHospital)
-            ->map(fn ($p) => ['sector_code' => (int) $p->sector_code])
-            ->unique('sector_code')
-            ->pluck('sector_code');
+        $rawHospitalIds = $request->input('hospital_ids', []);
+        if (empty($rawHospitalIds) && $request->has('hospital_id')) {
+            $rawHospitalIds = [$request->integer('hospital_id')];
+        }
+        $selectedHospitals = collect($rawHospitalIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allHospitalIds->contains($id))
+            ->unique()->values()->all();
+        if (empty($selectedHospitals)) {
+            $selectedHospitals = [$allHospitalIds->first()];
+        }
+
+        $allowedSectors = $allSectors
+            ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
+            ->map(fn ($p) => (int) $p->sector_code)
+            ->unique()->values();
 
         $rawIds = $request->input('sector_ids', []);
         if (empty($rawIds) && $request->has('sector_id')) {
@@ -187,13 +207,13 @@ class PendingEventsReportController extends Controller
 
         $selectedSectors = collect($rawIds)
             ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $sectors->contains($id))
+            ->filter(fn ($id) => $allowedSectors->contains($id))
             ->unique()
             ->values()
             ->all();
 
-        if (empty($selectedSectors) && $sectors->isNotEmpty()) {
-            $selectedSectors = [$sectors->first()];
+        if (empty($selectedSectors) && $allowedSectors->isNotEmpty()) {
+            $selectedSectors = [$allowedSectors->first()];
         }
 
         $rows = collect();
@@ -235,6 +255,19 @@ class PendingEventsReportController extends Controller
         }
 
         $rows = $rows->sortByDesc('sort_ts')->values();
+
+        Log::channel('audit')->info('report.pending_events.export', [
+            'category' => 'report_export',
+            'user_id' => $user->id,
+            'user' => $user->name,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'hospitals' => $selectedHospitals,
+            'sectors' => $selectedSectors,
+            'row_count' => $rows->count(),
+            'filename' => 'pendencias_'.now()->format('Ymd_Hi').'.csv',
+            'occurred_at' => now()->toIso8601String(),
+        ]);
 
         $filename = 'pendencias_'.now()->format('Ymd_Hi').'.csv';
 
@@ -300,7 +333,15 @@ class PendingEventsReportController extends Controller
             PatientDataLoader::forSector($sectorId)->clearCache();
         }
 
-        $params = array_filter(['hospital_id' => $request->integer('hospital_id') ?: null]);
+        $hospitalIds = array_map('intval', (array) $request->input('hospital_ids', []));
+        if (empty($hospitalIds) && $request->has('hospital_id')) {
+            $hospitalIds = [(int) $request->integer('hospital_id')];
+        }
+
+        $params = [];
+        foreach (array_filter($hospitalIds) as $hid) {
+            $params['hospital_ids'][] = $hid;
+        }
         foreach ($sectorIds as $id) {
             $params['sector_ids'][] = $id;
         }

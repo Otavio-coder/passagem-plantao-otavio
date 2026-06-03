@@ -60,6 +60,22 @@
                 <p class="text-sm text-gray-500 mt-0.5">Panorama de usuários, setores, anotações e passagens de plantão</p>
             </div>
         </div>
+        <div class="flex items-center gap-2">
+            @if(session('cache_cleared'))
+            <span class="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                <i class="fas fa-check-circle"></i> Métricas atualizadas
+            </span>
+            @endif
+            <form method="POST" action="{{ route('chat.archive.clear-cache') }}">
+                @csrf
+                <button type="submit"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                        title="Limpa o cache e recarrega as métricas do zero (Oracle + MySQL)">
+                    <i class="fas fa-rotate-right text-[10px]"></i>
+                    Atualizar métricas
+                </button>
+            </form>
+        </div>
     </div>
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
@@ -247,8 +263,8 @@
                 <p class="text-xl font-bold text-[#004D9D]">{{ number_format($stats->total_msgs) }}</p>
             </div>
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-3 py-2.5">
-                <p class="text-[10px] text-gray-400">Cobertura</p>
-                <p class="text-xl font-bold {{ $coveragePct >= 70 ? 'text-emerald-600' : ($coveragePct >= 40 ? 'text-amber-500' : 'text-red-500') }}">{{ $coveragePct }}%</p>
+                <p class="text-[10px] text-gray-400" title="Dias com anotação / dias totais de internação dos atendimentos no sistema">Cobertura por dia</p>
+                <p class="text-xl font-bold {{ $coveragePct >= 70 ? 'text-emerald-600' : ($coveragePct >= 40 ? 'text-amber-500' : 'text-red-500') }}" title="Proporção de dias de internação que tiveram pelo menos uma anotação">{{ $coveragePct }}%</p>
             </div>
             @endif
         </div>

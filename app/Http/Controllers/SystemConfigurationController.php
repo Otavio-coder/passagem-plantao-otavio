@@ -121,6 +121,7 @@ class SystemConfigurationController extends Controller
                 ->toArray();
 
             Log::channel('audit')->info('preferences.updated', [
+                'category' => 'system_config',
                 'user_id' => $user->id,
                 'user' => $user->name,
                 'previous_sectors' => $previousSectors,

@@ -126,7 +126,7 @@
         </div>
         @if($totalRows > 0)
         <a id="btn-export"
-           href="{{ route('pending.report.export', array_merge(['hospital_id' => $selectedHospital], array_map(fn($id) => $id, $selectedSectors) ? ['sector_ids' => $selectedSectors] : [])) }}"
+           href="{{ route('pending.report.export', array_merge(['hospital_ids' => $selectedHospitals], $selectedSectors ? ['sector_ids' => $selectedSectors] : [])) }}"
            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition shadow-sm flex-shrink-0 min-h-[44px]"
            title="Exportar CSV compatível com Excel">
             <i class="fas fa-file-excel"></i>
@@ -139,20 +139,64 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3">
         <div class="flex flex-wrap gap-2">
 
-            {{-- Hospital --}}
-            <form method="GET" action="{{ route('pending.report') }}" id="form-hospital">
-                <select name="hospital_id"
-                    class="filter-control"
-                    style="min-width:140px"
-                    onchange="showPendingLoader(); this.form.submit()">
-                    @foreach($hospitals as $h)
-                        <option value="{{ $h['hospital_id'] }}"
-                            {{ (int)$selectedHospital === (int)$h['hospital_id'] ? 'selected' : '' }}>
-                            {{ $h['hospital_name'] }}
-                        </option>
-                    @endforeach
-                </select>
-            </form>
+            {{-- Hospital multi-select --}}
+            @php
+                $hospitalBtnLabel = match(true) {
+                    count($selectedHospitals) === 0 => 'Nenhum hospital',
+                    count($selectedHospitals) === $hospitals->count() => 'Todos os hospitais',
+                    count($selectedHospitals) === 1 => $hospitals->firstWhere('hospital_id', $selectedHospitals[0])['hospital_name'] ?? '1 hospital',
+                    default => count($selectedHospitals).' hospitais',
+                };
+            @endphp
+            <div class="relative" id="hospital-dropdown-wrap">
+                <button type="button" id="hospital-dropdown-btn"
+                        class="filter-control flex items-center gap-2 cursor-pointer"
+                        style="min-width:160px; padding-left:12px; padding-right:32px; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 8px center; background-size:14px">
+                    <span class="truncate flex-1 text-left">{{ $hospitalBtnLabel }}</span>
+                </button>
+                <div id="hospital-dropdown-panel" style="display:none"
+                     class="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 min-w-[240px] max-w-[340px]">
+                    <form method="GET" action="{{ route('pending.report') }}" id="form-hospitals">
+                        <div class="p-1 max-h-60 overflow-y-auto overscroll-contain">
+                            @foreach($hospitals as $h)
+                                <label class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700 min-h-[44px]">
+                                    <input type="checkbox" name="hospital_ids[]" value="{{ $h['hospital_id'] }}"
+                                           {{ in_array($h['hospital_id'], $selectedHospitals) ? 'checked' : '' }}
+                                           class="w-4 h-4 rounded border-gray-300 text-[#004D9D] flex-shrink-0">
+                                    <span class="truncate">{{ $h['hospital_name'] }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div class="border-t border-gray-100 p-2 flex items-center justify-between gap-2">
+                            <button type="button"
+                                    onclick="document.querySelectorAll('#form-hospitals input[type=checkbox]').forEach(c=>c.checked=true)"
+                                    class="text-xs font-medium text-[#004D9D] px-3 py-2 rounded-lg hover:bg-[#004D9D]/8 transition min-h-[36px]">Todos</button>
+                            <button type="button"
+                                    onclick="document.querySelectorAll('#form-hospitals input[type=checkbox]').forEach(c=>c.checked=false)"
+                                    class="text-xs font-medium text-gray-500 px-3 py-2 rounded-lg hover:bg-gray-100 transition min-h-[36px]">Limpar</button>
+                            <button type="submit" onclick="showPendingLoader()"
+                                    class="px-4 py-2 bg-[#004D9D] text-white text-sm font-semibold rounded-lg hover:bg-[#003d7a] transition min-h-[36px]">
+                                Aplicar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <script>
+                (function() {
+                    var btn = document.getElementById('hospital-dropdown-btn');
+                    var panel = document.getElementById('hospital-dropdown-panel');
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                    });
+                    document.addEventListener('click', function(e) {
+                        if (!document.getElementById('hospital-dropdown-wrap').contains(e.target)) {
+                            panel.style.display = 'none';
+                        }
+                    });
+                })();
+            </script>
 
             {{-- Setor multi-select --}}
             @php
@@ -174,9 +218,9 @@
                 <div id="sector-dropdown-panel" style="display:none"
                      class="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 min-w-[220px] max-w-[300px]">
                     <form method="GET" action="{{ route('pending.report') }}" id="form-sectors">
-                        @if($selectedHospital)
-                            <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
-                        @endif
+                        @foreach($selectedHospitals as $hid)
+                            <input type="hidden" name="hospital_ids[]" value="{{ $hid }}">
+                        @endforeach
                         <div class="p-1 max-h-72 overflow-y-auto overscroll-contain">
                             @foreach($sectorsForFilter as $s)
                                 <label class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700 min-h-[44px]">
@@ -235,14 +279,56 @@
                     @endforeach
                 </select>
 
-                {{-- Filtro: Classificação --}}
+                {{-- Filtro: Classificação multi-select --}}
                 @if(count($classificacoes) > 0)
-                <select id="filter-classif" class="filter-control" style="min-width:160px">
-                    <option value="">Todas as classificações</option>
-                    @foreach($classificacoes as $cl)
-                        <option value="{{ $cl }}">{{ $cl }}</option>
-                    @endforeach
-                </select>
+                <div class="relative" id="classif-dropdown-wrap">
+                    <button type="button" id="classif-dropdown-btn"
+                            class="filter-control flex items-center gap-2 cursor-pointer"
+                            style="min-width:160px; padding-left:12px; padding-right:32px; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 8px center; background-size:14px">
+                        <span id="classif-btn-label" class="truncate flex-1 text-left">Todas as classificações</span>
+                    </button>
+                    <div id="classif-dropdown-panel" style="display:none"
+                         class="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 min-w-[220px] max-w-[320px]">
+                        <div class="p-1 max-h-60 overflow-y-auto overscroll-contain" id="classif-checkbox-list">
+                            @foreach($classificacoes as $cl)
+                                <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700 min-h-[40px]">
+                                    <input type="checkbox" class="classif-check w-4 h-4 rounded border-gray-300 text-[#004D9D] flex-shrink-0" value="{{ $cl }}">
+                                    <span class="truncate">{{ $cl }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div class="border-t border-gray-100 p-2 flex items-center justify-between gap-2">
+                            <button type="button" id="classif-all"
+                                    class="text-xs font-medium text-[#004D9D] px-3 py-2 rounded-lg hover:bg-[#004D9D]/8 transition min-h-[36px]">Todos</button>
+                            <button type="button" id="classif-none"
+                                    class="text-xs font-medium text-gray-500 px-3 py-2 rounded-lg hover:bg-gray-100 transition min-h-[36px]">Limpar</button>
+                        </div>
+                    </div>
+                </div>
+                <script>
+                (function() {
+                    var btn = document.getElementById('classif-dropdown-btn');
+                    var panel = document.getElementById('classif-dropdown-panel');
+                    var label = document.getElementById('classif-btn-label');
+                    var checks = function() { return document.querySelectorAll('.classif-check'); };
+                    function applyFilter() {
+                        var selected = Array.from(checks()).filter(c => c.checked).map(c => c.value);
+                        if (selected.length === 0 || selected.length === checks().length) {
+                            label.textContent = 'Todas as classificações';
+                            if (window._dtTable) window._dtTable.column(16).search('', true, false).draw();
+                        } else {
+                            label.textContent = selected.length === 1 ? selected[0] : selected.length + ' classificações';
+                            var regex = '^(' + selected.map(v => $.fn.dataTable.util.escapeRegex(v)).join('|') + ')$';
+                            if (window._dtTable) window._dtTable.column(16).search(regex, true, false).draw();
+                        }
+                    }
+                    btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+                    document.addEventListener('click', function(e) { if (!document.getElementById('classif-dropdown-wrap').contains(e.target)) panel.style.display = 'none'; });
+                    document.getElementById('classif-all').addEventListener('click', function() { checks().forEach(c => c.checked = true); applyFilter(); });
+                    document.getElementById('classif-none').addEventListener('click', function() { checks().forEach(c => c.checked = false); applyFilter(); });
+                    document.getElementById('classif-checkbox-list').addEventListener('change', applyFilter);
+                })();
+                </script>
                 @endif
 
                 {{-- Só vencidos --}}
@@ -262,7 +348,9 @@
             @if(!empty($selectedSectors))
             <form method="POST" action="{{ route('pending.report.refresh') }}" id="form-refresh" class="ml-auto">
                 @csrf
-                <input type="hidden" name="hospital_id" value="{{ $selectedHospital }}">
+                @foreach($selectedHospitals as $hid)
+                    <input type="hidden" name="hospital_ids[]" value="{{ $hid }}">
+                @endforeach
                 @foreach($selectedSectors as $sid)
                     <input type="hidden" name="sector_ids[]" value="{{ $sid }}">
                 @endforeach
@@ -527,8 +615,7 @@ $(document).ready(function () {
 
     function rebuildCascadeFilters() {
         rebuildSelect('#filter-tipo',    13, 'Todos os tipos',          tipoLabelMap);
-        rebuildSelect('#filter-status',  15, 'Todos os status',         null);
-        rebuildSelect('#filter-classif', 16, 'Todas as classificações', null);
+        rebuildSelect('#filter-status',  15, 'Todos os status', null);
     }
 
     var kpiCssMap = {};
@@ -580,21 +667,25 @@ $(document).ready(function () {
     rebuildCascadeFilters();
     rebuildKpis();
 
+    window._dtTable = table;
     $('#filter-tipo').on('change', function () { table.column(13).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
     $('#filter-status').on('change', function () { table.column(15).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#filter-classif').on('change', function () { table.column(16).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
     $('#chk-overdue').on('change', function () { table.column(14).search(this.checked ? '^1$' : '', true, false).draw(); });
     $('#btn-clear-filters').on('click', function () {
-        $('#filter-tipo, #filter-status, #filter-classif').val('');
+        $('#filter-tipo, #filter-status').val('');
         $('#chk-overdue').prop('checked', false);
+        document.querySelectorAll('.classif-check').forEach(function(c) { c.checked = false; });
+        var lbl = document.getElementById('classif-btn-label');
+        if (lbl) lbl.textContent = 'Todas as classificações';
         table.columns([13, 14, 15, 16]).search('').draw();
         table.search('').draw();
     });
 
     @if(!empty($selectedSectors))
     (function() {
-        var base = '{{ route('pending.report.export') }}?hospital_id={{ $selectedHospital }}';
-        @foreach($selectedSectors as $sid) base += '&sector_ids[]={{ $sid }}'; @endforeach
+        var base = '{{ route('pending.report.export') }}?';
+        @foreach($selectedHospitals as $hid) base += 'hospital_ids[]={{ $hid }}&'; @endforeach
+        @foreach($selectedSectors as $sid) base += 'sector_ids[]={{ $sid }}&'; @endforeach
         var exportBtn = document.getElementById('btn-export');
         if (exportBtn) exportBtn.href = base;
     })();

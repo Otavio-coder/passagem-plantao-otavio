@@ -10,6 +10,7 @@ use App\Support\ChatArchiveUserResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -17,8 +18,25 @@ class ChatArchiveController extends Controller
 {
     // ── Index: carrega stats + ranking; tabela via DataTables AJAX ───────────
 
+    private const PANORAMA_CACHE_KEY = 'panorama_index_v1';
+
+    private const PANORAMA_CACHE_TTL = 3600; // 1 hora
+
+    public function clearCache()
+    {
+        Cache::forget(self::PANORAMA_CACHE_KEY);
+
+        return redirect()->route('admin.dashboard')->with('cache_cleared', true);
+    }
+
     public function index()
     {
+        $cached = Cache::get(self::PANORAMA_CACHE_KEY);
+
+        if ($cached) {
+            return view('chat.archive', $cached);
+        }
+
         // ── Métricas globais (arquivo)
         $stats = DB::table('chat_messages_archive')->selectRaw('
             COUNT(*)                                                        AS total,
@@ -43,19 +61,8 @@ class ChatArchiveController extends Controller
             })
             ->count('nr_atendimento');
 
-        // Atendimentos ativos com >= 3 mensagens (para o numerador da cobertura)
-        $activeConsistent = DB::table('chat_messages')
-            ->whereNotIn('nr_atendimento', function ($q) {
-                $q->select('nr_atendimento')->from('chat_messages_archive');
-            })
-            ->groupBy('nr_atendimento')
-            ->havingRaw('COUNT(*) >= 3')
-            ->get(['nr_atendimento'])
-            ->count();
-
         if ($stats) {
             $stats->total += $activeOnlyAttendances;
-            $stats->consistent += $activeConsistent;
             $stats->total_msgs += (int) ($activeStats->total_msgs ?? 0);
             if ($activeStats->oldest && (! $stats->oldest || $activeStats->oldest < $stats->oldest)) {
                 $stats->oldest = $activeStats->oldest;
@@ -65,14 +72,13 @@ class ChatArchiveController extends Controller
             }
         }
 
-        $coveragePct = ($stats && $stats->total > 0)
-            ? (int) round(($stats->consistent / $stats->total) * 100)
-            : 0;
+        // ── Cobertura: dias com anotação / dias totais de internação (via Oracle)
+        $coveragePct = $this->computeDayCoveragePct();
 
         // ── Série temporal: últimos 6 meses
         $seriesRaw = DB::table('chat_messages_archive')
             ->selectRaw("DATE_FORMAT(first_message_at, '%Y-%m') as month, COUNT(*) as attendances, SUM(message_count) as messages")
-            ->where('first_message_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('first_message_at', '>=', now()->subMonths(12)->startOfMonth())
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -81,15 +87,15 @@ class ChatArchiveController extends Controller
         // Inclui mensagens ativas na série temporal
         $activeSeriesRaw = DB::table('chat_messages')
             ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as messages")
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('created_at', '>=', now()->subMonths(12)->startOfMonth())
             ->groupBy('month')
             ->get()
             ->keyBy('month');
 
-        // Distribuição de setores por mês (chat_messages apenas — archive usa JSON)
+        // Distribuição de setores por mês — chat_messages (ativo)
         $sectorByMonth = DB::table('chat_messages')
             ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, sector_name, COUNT(*) as cnt")
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('created_at', '>=', now()->subMonths(12)->startOfMonth())
             ->whereNotNull('sector_name')
             ->where('sector_name', '!=', '')
             ->groupBy('month', 'sector_name')
@@ -98,17 +104,51 @@ class ChatArchiveController extends Controller
             ->get()
             ->groupBy('month');
 
+        // Distribuição de setores do archive (sector_name é JSON array ordenado por tempo decrescente;
+        // índice 0 = setor onde o paciente ficou mais tempo durante o período das mensagens)
+        $archiveSectorRaw = DB::table('chat_messages_archive')
+            ->selectRaw("DATE_FORMAT(first_message_at, '%Y-%m') as month, sector_name, message_count")
+            ->where('first_message_at', '>=', now()->subMonths(12)->startOfMonth())
+            ->whereNotNull('sector_name')
+            ->get();
+
+        $archiveSectorByMonth = [];
+        foreach ($archiveSectorRaw as $row) {
+            $names = json_decode($row->sector_name, true);
+            $primary = is_array($names) ? ($names[0] ?? null) : ($row->sector_name ?: null);
+            if (! $primary) {
+                continue;
+            }
+            $archiveSectorByMonth[$row->month][$primary] = ($archiveSectorByMonth[$row->month][$primary] ?? 0) + (int) $row->message_count;
+        }
+
         $ptMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         $months = [];
-        for ($i = 5; $i >= 0; $i--) {
+        for ($i = 11; $i >= 0; $i--) {
             $dt = now()->subMonths($i);
             $key = $dt->format('Y-m');
 
-            // Top 3 setores + Outros
-            $sectorRows = $sectorByMonth->get($key, collect());
-            $top3 = $sectorRows->take(3);
-            $othersCount = $sectorRows->skip(3)->sum('cnt');
-            $sectors = $top3->map(fn ($r) => ['name' => $r->sector_name, 'count' => $r->cnt])->values()->all();
+            // Combinar chat_messages + archive
+            $sectorCounts = [];
+            foreach ($sectorByMonth->get($key, collect()) as $r) {
+                $sectorCounts[$r->sector_name] = ($sectorCounts[$r->sector_name] ?? 0) + $r->cnt;
+            }
+            foreach ($archiveSectorByMonth[$key] ?? [] as $name => $cnt) {
+                $sectorCounts[$name] = ($sectorCounts[$name] ?? 0) + $cnt;
+            }
+            arsort($sectorCounts);
+
+            $sectors = [];
+            $i2 = 0;
+            $othersCount = 0;
+            foreach ($sectorCounts as $name => $cnt) {
+                if ($i2 < 3) {
+                    $sectors[] = ['name' => $name, 'count' => $cnt];
+                } else {
+                    $othersCount += $cnt;
+                }
+                $i2++;
+            }
             if ($othersCount > 0) {
                 $sectors[] = ['name' => 'Outros', 'count' => $othersCount];
             }
@@ -133,7 +173,7 @@ class ChatArchiveController extends Controller
         $sectorPanorama = $this->buildSectorPanorama();
         $feedbackStats = $this->buildFeedbackStats();
 
-        return view('chat.archive', compact(
+        $viewData = compact(
             'stats',
             'coveragePct',
             'topAnnotators',
@@ -147,7 +187,11 @@ class ChatArchiveController extends Controller
             'sectorPanorama',
             'feedbackStats',
             'recentShiftTimelines',
-        ));
+        );
+
+        Cache::put(self::PANORAMA_CACHE_KEY, $viewData, self::PANORAMA_CACHE_TTL);
+
+        return view('chat.archive', $viewData);
     }
 
     // ── DataTables client-side: retorna TODOS os registros de uma vez ────────
@@ -477,6 +521,67 @@ class ChatArchiveController extends Controller
         }
 
         return $raw;
+    }
+
+    /**
+     * Cobertura = dias com anotação / dias totais de internação dos atendimentos no sistema.
+     * Numerador (MySQL): dias distintos com mensagem por atendimento.
+     * Denominador (Oracle): diffInDays(dt_entrada, dt_alta ?? hoje) por atendimento.
+     */
+    private function computeDayCoveragePct(): int
+    {
+        // Numerador: dias cobertos por mensagens ativas
+        $activeCovered = DB::table('chat_messages')
+            ->selectRaw('nr_atendimento, COUNT(DISTINCT DATE(created_at)) as covered_days')
+            ->groupBy('nr_atendimento')
+            ->pluck('covered_days', 'nr_atendimento');
+
+        // Numerador: dias cobertos pelo archive (proxy: span entre primeira e última mensagem)
+        $archiveCovered = DB::table('chat_messages_archive')
+            ->selectRaw('nr_atendimento, GREATEST(1, DATEDIFF(last_message_at, first_message_at) + 1) as covered_days')
+            ->pluck('covered_days', 'nr_atendimento');
+
+        $coveredByNr = $activeCovered->union($archiveCovered);
+        $totalCoveredDays = $coveredByNr->sum();
+
+        if ($totalCoveredDays === 0) {
+            return 0;
+        }
+
+        // Denominador: admission_days via Oracle (query leve, sem subqueries por row)
+        $allNrs = $coveredByNr->keys()->map(fn ($v) => (int) $v)->toArray();
+        $totalAdmissionDays = 0;
+
+        foreach (array_chunk($allNrs, 500) as $chunk) {
+            $placeholders = implode(',', $chunk);
+
+            try {
+                $rows = DB::connection('tasy')->select("
+                    SELECT ap.nr_atendimento, ap.dt_entrada, ap.dt_alta
+                    FROM tasy.atendimento_paciente ap
+                    WHERE ap.nr_atendimento IN ({$placeholders})
+                ");
+            } catch (\Exception $e) {
+                Log::warning('[computeDayCoveragePct] Oracle error', ['exception' => $e->getMessage()]);
+
+                return 0;
+            }
+
+            foreach ($rows as $row) {
+                $entrada = $row->dt_entrada ? Carbon::parse($row->dt_entrada) : null;
+                if (! $entrada) {
+                    continue;
+                }
+                $alta = $row->dt_alta ? Carbon::parse($row->dt_alta) : now();
+                $totalAdmissionDays += (int) $entrada->diffInDays($alta);
+            }
+        }
+
+        if ($totalAdmissionDays === 0) {
+            return 0;
+        }
+
+        return (int) round(min($totalCoveredDays, $totalAdmissionDays) / $totalAdmissionDays * 100);
     }
 
     private function fetchPatientData(array $nrs): array

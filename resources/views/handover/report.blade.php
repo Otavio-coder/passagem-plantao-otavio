@@ -285,26 +285,61 @@
                     </div>
                     <div class="px-4 py-3">
                         <template x-if="nurseModal.data?.summary?.total_messages > 0">
-                            <div class="space-y-1.5">
-                                <template x-for="vItem in [
-                                    { label: 'Lacônicas (< 60 chars)', key: 'count_laconic', color: 'bg-amber-400' },
-                                    { label: 'Normais (60–200 chars)', key: 'count_normal', color: 'bg-emerald-500' },
-                                    { label: 'Detalhadas (> 200 chars)', key: 'count_verbose', color: 'bg-blue-500' }
-                                ]" :key="vItem.key">
-                                    <div>
-                                        <div class="flex justify-between text-[10px] mb-0.5">
-                                            <span class="text-gray-500" x-text="vItem.label"></span>
-                                            <span class="font-semibold text-gray-700 tabular-nums"
-                                                  x-text="nurseModal.data.summary[vItem.key] + ' (' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%)'"></span>
+                            <div class="space-y-3">
+                                {{-- Barras de distribuição por tamanho --}}
+                                <div class="space-y-1.5">
+                                    <template x-for="vItem in [
+                                        { label: 'Lacônicas (< 60 ch)', key: 'count_laconic', color: 'bg-amber-400' },
+                                        { label: 'Normais (60–200 ch)', key: 'count_normal', color: 'bg-emerald-500' },
+                                        { label: 'Detalhadas (> 200 ch)', key: 'count_verbose', color: 'bg-blue-500' }
+                                    ]" :key="vItem.key">
+                                        <div>
+                                            <div class="flex justify-between text-[10px] mb-0.5">
+                                                <span class="text-gray-500" x-text="vItem.label"></span>
+                                                <span class="font-semibold text-gray-700 tabular-nums"
+                                                      x-text="nurseModal.data.summary[vItem.key] + ' (' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%)'"></span>
+                                            </div>
+                                            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full" :class="vItem.color"
+                                                     :style="'width: ' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%'"></div>
+                                            </div>
                                         </div>
-                                        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                            <div class="h-full rounded-full" :class="vItem.color"
-                                                 :style="'width: ' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%'"></div>
-                                        </div>
+                                    </template>
+                                </div>
+
+                                {{-- Métricas qualitativas --}}
+                                <div class="grid grid-cols-3 gap-2 pt-1 border-t border-gray-100">
+                                    {{-- Consistência --}}
+                                    <div class="text-center">
+                                        <p class="text-[9px] text-gray-400 mb-0.5">Consistência</p>
+                                        <p class="text-xs font-bold tabular-nums"
+                                           :class="nurseModal.data.summary.consistency_label === 'consistente' ? 'text-emerald-600' : nurseModal.data.summary.consistency_label === 'variável' ? 'text-amber-500' : 'text-red-500'"
+                                           x-text="nurseModal.data.summary.consistency_label ?? '—'"></p>
+                                        <p class="text-[9px] text-gray-300 tabular-nums"
+                                           x-text="nurseModal.data.summary.consistency_cv != null ? 'CV ' + nurseModal.data.summary.consistency_cv : ''"
+                                           title="Coeficiente de variação do tamanho das mensagens. < 0.5 = consistente, 0.5–1.0 = variável, > 1.0 = irregular"></p>
                                     </div>
-                                </template>
+                                    {{-- Riqueza clínica --}}
+                                    <div class="text-center">
+                                        <p class="text-[9px] text-gray-400 mb-0.5" title="% de mensagens que contêm números — proxy para menção de valores clínicos (sinais vitais, exames, doses)">Riqueza clínica</p>
+                                        <p class="text-xs font-bold tabular-nums"
+                                           :class="nurseModal.data.summary.clinical_richness_pct >= 60 ? 'text-emerald-600' : nurseModal.data.summary.clinical_richness_pct >= 30 ? 'text-amber-500' : 'text-gray-400'"
+                                           x-text="nurseModal.data.summary.clinical_richness_pct + '%'"></p>
+                                        <p class="text-[9px] text-gray-300">msgs c/ valores</p>
+                                    </div>
+                                    {{-- Percentil entre pares --}}
+                                    <div class="text-center">
+                                        <p class="text-[9px] text-gray-400 mb-0.5" title="Percentil de tamanho médio de mensagem comparado com os demais plantonistas no período">Entre pares</p>
+                                        <p class="text-xs font-bold tabular-nums"
+                                           :class="nurseModal.data.summary.peer_percentile >= 70 ? 'text-blue-600' : nurseModal.data.summary.peer_percentile >= 40 ? 'text-gray-600' : 'text-gray-400'"
+                                           x-text="nurseModal.data.summary.peer_percentile != null ? 'P' + nurseModal.data.summary.peer_percentile : '—'"></p>
+                                        <p class="text-[9px] text-gray-300">percentil</p>
+                                    </div>
+                                </div>
+
+                                {{-- Comparação com média global --}}
                                 <template x-if="nurseModal.data.summary.global_avg_chars > 0">
-                                    <p class="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100"
+                                    <p class="text-[10px] text-gray-400 pt-1 border-t border-gray-100"
                                        x-text="'Média global: ' + nurseModal.data.summary.global_avg_chars + ' ch/msg — escreve ' + (nurseModal.data.summary.avg_chars_per_message > nurseModal.data.summary.global_avg_chars ? Math.round((nurseModal.data.summary.avg_chars_per_message / nurseModal.data.summary.global_avg_chars - 1) * 100) + '% mais' : Math.round((1 - nurseModal.data.summary.avg_chars_per_message / nurseModal.data.summary.global_avg_chars) * 100) + '% menos') + ' que a média.'"></p>
                                 </template>
                             </div>

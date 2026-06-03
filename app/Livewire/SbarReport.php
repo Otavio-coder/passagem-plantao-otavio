@@ -526,14 +526,41 @@ class SbarReport extends Component
                 ->mapWithKeys(fn ($code) => [$code => $sectorsMap->get($code)['sector_name'] ?? $code])
                 ->toArray();
 
-            Log::channel('audit')->info('preferences.updated', [
-                'source' => 'onboarding',
-                'user_id' => $user->id,
-                'user' => $user->name,
-                'previous_sectors' => $previousSectors,
-                'new_sectors' => $newSectors,
-                'ip' => request()->ip(),
-            ]);
+            $previousCodes = array_keys($previousSectors);
+            $newCodes = array_keys($newSectors);
+            $codesChanged = array_diff($previousCodes, $newCodes) || array_diff($newCodes, $previousCodes);
+
+            if ($codesChanged) {
+                // Troca real de setores selecionados
+                Log::channel('audit')->info('preferences.sectors_changed', [
+                    'category' => 'system_config',
+                    'user_id' => $user->id,
+                    'user' => $user->name,
+                    'added' => array_diff($newCodes, $previousCodes),
+                    'removed' => array_diff($previousCodes, $newCodes),
+                    'previous_sectors' => $previousSectors,
+                    'new_sectors' => $newSectors,
+                    'ip' => request()->ip(),
+                ]);
+            } else {
+                // Mesmos setores — verificar se só nomes mudaram (sync Tasy)
+                $nameChanges = [];
+                foreach ($newSectors as $code => $newName) {
+                    $oldName = $previousSectors[$code] ?? null;
+                    if ($oldName && $oldName !== $newName) {
+                        $nameChanges[$code] = ['from' => $oldName, 'to' => $newName];
+                    }
+                }
+                if (! empty($nameChanges)) {
+                    Log::channel('audit')->info('preferences.sector_names_synced', [
+                        'category' => 'system_config',
+                        'user_id' => $user->id,
+                        'user' => $user->name,
+                        'name_changes' => $nameChanges,
+                        'ip' => request()->ip(),
+                    ]);
+                }
+            }
 
             $this->showSectorOnboarding = false;
             $this->selectedSectors = [];
@@ -638,6 +665,7 @@ class SbarReport extends Component
             ->firstWhere('cd_setor_atendimento', $this->selectedSector)['ds_setor_atendimento'] ?? $this->selectedSector;
 
         Log::channel('audit')->info('sbar.viewed', [
+            'category' => 'sbar_access',
             'action' => $action,
             'user_id' => Auth::id(),
             'user' => Auth::user()->name ?? 'unknown',

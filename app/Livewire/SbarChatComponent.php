@@ -169,6 +169,7 @@ class SbarChatComponent extends Component
             $this->dispatch('handover-updated', nr: $this->patientId);
 
             Log::channel('audit')->info('chat.message.sent', [
+                'category' => 'chat_message',
                 'user_id' => $this->currentUser['id'],
                 'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $newMessage->id,
@@ -205,6 +206,7 @@ class SbarChatComponent extends Component
             $this->updateLocalMessagePin($messageId, $isPinned);
 
             Log::channel('audit')->info($isPinned ? 'chat.message.pinned' : 'chat.message.unpinned', [
+                'category' => 'chat_message',
                 'user_id' => $this->currentUser['id'],
                 'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $messageId,
@@ -253,15 +255,20 @@ class SbarChatComponent extends Component
                 return ['success' => false, 'error' => 'Tempo de edição expirado (6h após envio)'];
             }
 
+            $oldContent = $message->content;
+
             $repo = new ChatRepository;
             $repo->updateMessage($messageId, $newContent);
 
             Log::channel('audit')->info('chat.message.edited', [
+                'category' => 'chat_message',
                 'user_id' => $this->currentUser['id'],
                 'user' => $this->currentUser['display_name'] ?? $this->currentUser['name'],
                 'message_id' => $messageId,
                 'patient_id' => $this->patientId,
                 'bed' => $this->bedUnit,
+                'old_content' => $oldContent,
+                'new_content' => $newContent,
                 'ip' => request()->ip(),
             ]);
 

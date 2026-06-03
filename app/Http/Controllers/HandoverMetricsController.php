@@ -204,9 +204,9 @@ class HandoverMetricsController extends Controller
 
         $heatmapMax = max(1, $heatmapRaw->max('cnt'));
         $heatmap = [
-            ['key' => 'M', 'label' => 'Manhã',  'color' => '#D97706', 'hours' => range(7, 12)],
-            ['key' => 'T', 'label' => 'Tarde',  'color' => '#EA580C', 'hours' => range(13, 18)],
-            ['key' => 'N', 'label' => 'Noite',  'color' => '#4F46E5', 'hours' => array_merge(range(19, 23), range(0, 6))],
+            ['key' => 'M', 'label' => 'Manhã',  'color' => '#D97706', 'hours' => range(7, 13)],
+            ['key' => 'T', 'label' => 'Tarde',  'color' => '#EA580C', 'hours' => range(13, 19)],
+            ['key' => 'N', 'label' => 'Noite',  'color' => '#4F46E5', 'hours' => array_merge(range(19, 23), range(0, 7))],
         ];
         $heatmap = array_map(function ($row) use ($heatmapRaw, $heatmapMax) {
             $row['cells'] = array_map(fn ($h) => [
@@ -335,12 +335,14 @@ class HandoverMetricsController extends Controller
             ->selectRaw('
                 COUNT(*) as total_messages,
                 ROUND(AVG(CHAR_LENGTH(content)), 0) as avg_chars,
+                ROUND(STDDEV(CHAR_LENGTH(content)), 1) as stddev_chars,
                 ROUND(AVG(CHAR_LENGTH(content) - CHAR_LENGTH(REPLACE(content, " ", "")) + 1), 1) as avg_words,
                 MAX(CHAR_LENGTH(content)) as max_chars,
                 MIN(CHAR_LENGTH(content)) as min_chars,
                 SUM(CASE WHEN CHAR_LENGTH(content) < 60 THEN 1 ELSE 0 END) as count_laconic,
                 SUM(CASE WHEN CHAR_LENGTH(content) BETWEEN 60 AND 200 THEN 1 ELSE 0 END) as count_normal,
-                SUM(CASE WHEN CHAR_LENGTH(content) > 200 THEN 1 ELSE 0 END) as count_verbose
+                SUM(CASE WHEN CHAR_LENGTH(content) > 200 THEN 1 ELSE 0 END) as count_verbose,
+                SUM(CASE WHEN content REGEXP "[0-9]" THEN 1 ELSE 0 END) as count_with_numbers
             ')
             ->first();
 
@@ -358,6 +360,55 @@ class HandoverMetricsController extends Controller
         $combinedTotal = $liveTotal + $archTotal;
         $combinedAvgChars = $combinedTotal > 0 ? (int) round(($liveChars + $archChars) / $combinedTotal) : 0;
         $combinedAvgWords = $combinedTotal > 0 ? round(($liveWords + $archWords) / $combinedTotal, 1) : 0.0;
+
+        // Consistência: coeficiente de variação (CV = stddev/avg); combina live + archive via propagação de variância
+        $liveStddev = (float) ($msgStats->stddev_chars ?? 0);
+        $archStddev = $archiveMsgStats['stddev_chars'];
+        // Variância combinada via fórmula de pooled variance (ponderada por n)
+        $combinedVariance = 0.0;
+        if ($combinedTotal > 0) {
+            $pooledVar = 0.0;
+            if ($liveTotal > 0) {
+                $pooledVar += ($liveStddev ** 2) * $liveTotal + $liveTotal * (($liveChars / $liveTotal - $combinedAvgChars) ** 2);
+            }
+            if ($archTotal > 0) {
+                $archAvgChars = $archTotal > 0 ? $archChars / $archTotal : 0;
+                $pooledVar += ($archStddev ** 2) * $archTotal + $archTotal * (($archAvgChars - $combinedAvgChars) ** 2);
+            }
+            $combinedVariance = $pooledVar / $combinedTotal;
+        }
+        $combinedStddev = $combinedVariance > 0 ? sqrt($combinedVariance) : 0;
+        $consistencyCV = $combinedAvgChars > 0 ? round($combinedStddev / $combinedAvgChars, 2) : null;
+        $consistencyLabel = match (true) {
+            $consistencyCV === null => null,
+            $consistencyCV < 0.5 => 'consistente',
+            $consistencyCV < 1.0 => 'variável',
+            default => 'irregular',
+        };
+
+        // Riqueza clínica: % de mensagens com números (proxy para menção de valores — sinais vitais, exames, doses)
+        $liveClinical = (int) ($msgStats->count_with_numbers ?? 0);
+        $archClinical = $archiveMsgStats['count_with_numbers'];
+        $clinicalRichnessPct = $combinedTotal > 0
+            ? (int) round(($liveClinical + $archClinical) / $combinedTotal * 100)
+            : 0;
+
+        // Percentil vs todos os plantonistas no período
+        $allNursesAvgChars = DB::table('chat_messages')
+            ->where('created_at', '>=', $since)
+            ->whereNotNull('user_id')
+            ->selectRaw('user_id, ROUND(AVG(CHAR_LENGTH(content)), 0) as avg_chars')
+            ->groupBy('user_id')
+            ->pluck('avg_chars')
+            ->sort()
+            ->values()
+            ->all();
+
+        $peerPercentile = null;
+        if (count($allNursesAvgChars) > 1 && $combinedAvgChars > 0) {
+            $below = count(array_filter($allNursesAvgChars, fn ($v) => $v < $combinedAvgChars));
+            $peerPercentile = (int) round($below / count($allNursesAvgChars) * 100);
+        }
 
         $globalMsgStats = DB::table('chat_messages')
             ->where('created_at', '>=', $since)
@@ -422,6 +473,10 @@ class HandoverMetricsController extends Controller
                 'count_normal' => (int) ($msgStats->count_normal ?? 0) + $archiveMsgStats['count_normal'],
                 'count_verbose' => (int) ($msgStats->count_verbose ?? 0) + $archiveMsgStats['count_verbose'],
                 'verbosity_label' => self::verbosityLabel($avgChars),
+                'consistency_cv' => $consistencyCV,
+                'consistency_label' => $consistencyLabel,
+                'clinical_richness_pct' => $clinicalRichnessPct,
+                'peer_percentile' => $peerPercentile,
                 'avg_punctuality_min' => $avgPunct,
                 'beds_assigned' => $totalBedsAssigned ?: null,
                 'avg_coverage_pct' => ($totalBedsAssigned > 0 && $sessions->isNotEmpty())
@@ -439,7 +494,12 @@ class HandoverMetricsController extends Controller
 
     private function getArchiveMessageStats(string $userName, Carbon $since): array
     {
-        $empty = ['total' => 0, 'total_chars' => 0, 'total_words' => 0, 'max_chars' => 0, 'count_laconic' => 0, 'count_normal' => 0, 'count_verbose' => 0];
+        $empty = [
+            'total' => 0, 'total_chars' => 0, 'total_words' => 0,
+            'sum_sq_chars' => 0.0, 'stddev_chars' => 0.0,
+            'max_chars' => 0, 'count_laconic' => 0, 'count_normal' => 0,
+            'count_verbose' => 0, 'count_with_numbers' => 0,
+        ];
 
         $rows = DB::table('chat_messages_archive')
             ->where(function ($q) use ($since) {
@@ -452,6 +512,7 @@ class HandoverMetricsController extends Controller
         }
 
         $stats = $empty;
+        $charSamples = [];
         foreach ($rows as $row) {
             try {
                 $messages = json_decode(gzuncompress(base64_decode($row->payload)), true) ?? [];
@@ -470,6 +531,7 @@ class HandoverMetricsController extends Controller
                     $stats['total_chars'] += $chars;
                     $stats['total_words'] += $words;
                     $stats['max_chars'] = max($stats['max_chars'], $chars);
+                    $charSamples[] = $chars;
                     if ($chars < 60) {
                         $stats['count_laconic']++;
                     } elseif ($chars <= 200) {
@@ -477,10 +539,20 @@ class HandoverMetricsController extends Controller
                     } else {
                         $stats['count_verbose']++;
                     }
+                    if (preg_match('/[0-9]/', $content)) {
+                        $stats['count_with_numbers']++;
+                    }
                 }
             } catch (\Throwable) {
                 // skip corrupt rows
             }
+        }
+
+        // Compute stddev from collected samples
+        if (count($charSamples) > 1) {
+            $mean = array_sum($charSamples) / count($charSamples);
+            $variance = array_sum(array_map(fn ($v) => ($v - $mean) ** 2, $charSamples)) / count($charSamples);
+            $stats['stddev_chars'] = sqrt($variance);
         }
 
         return $stats;

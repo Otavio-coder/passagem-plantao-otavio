@@ -257,20 +257,34 @@ class PendingEventsReportController extends Controller
 
         $rows = $rows->sortByDesc('sort_ts')->values();
 
+        $hospitalNames = $allSectors
+            ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
+            ->mapWithKeys(fn ($p) => [(int) $p->hospital_code => $p->hospital_name])
+            ->unique()
+            ->all();
+
+        $sectorNames = $allSectors
+            ->filter(fn ($p) => in_array((int) $p->sector_code, $selectedSectors, true))
+            ->mapWithKeys(fn ($p) => [(int) $p->sector_code => $p->sector_name])
+            ->unique()
+            ->all();
+
+        $exportFilename = 'pendencias_'.now()->format('Ymd_Hi').'.csv';
+
         Log::channel('audit')->info('report.pending_events.export', [
             'category' => 'report_export',
             'user_id' => $user->id,
             'user' => $user->name,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
-            'hospitals' => $selectedHospitals,
-            'sectors' => $selectedSectors,
+            'hospitals' => $hospitalNames,
+            'sectors' => $sectorNames,
             'row_count' => $rows->count(),
-            'filename' => 'pendencias_'.now()->format('Ymd_Hi').'.csv',
+            'filename' => $exportFilename,
             'occurred_at' => now()->toIso8601String(),
         ]);
 
-        $filename = 'pendencias_'.now()->format('Ymd_Hi').'.csv';
+        $filename = $exportFilename;
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',

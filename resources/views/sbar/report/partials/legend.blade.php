@@ -207,7 +207,7 @@
                                     <p class="text-[11px] text-gray-600 bg-purple-50 border border-purple-100 rounded px-2 py-1.5">
                                         O card frontal prioriza pendências próximas (ontem, hoje e amanhã), além de tipos priorizados pelo sistema. Para ver a lista completa, use <span class="font-semibold">Ver todas</span>.
                                     </p>
-                                    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1">Ícones de Pendência</p>
+                                    <p class="text-[10px] font-semibold text-gray-500 mt-3 mb-1">Ícones de Pendência</p>
                                     <div class="space-y-2 text-xs">
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Procedimento</span> - Prescrição ativa (não cancelada, não bloqueada, com autorização) sem registro de execução finalizada</p>
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Exame</span> - Prescrição ativa sem coleta/baixa final registrada</p>
@@ -216,7 +216,7 @@
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Quimioterapia</span> - Sessão agendada ativa</p>
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Antimicrobiano</span> - Item ativo no período e não suspenso</p>
                                     </div>
-                                    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1">Status de Alta</p>
+                                    <p class="text-[10px] font-semibold text-gray-500 mt-3 mb-1">Status de Alta</p>
                                     <div class="space-y-2 text-xs">
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Alta Efetivada</span> - Paciente registrado com alta no prontuário</p>
                                         <p class="text-[11px] text-gray-700"><span class="font-semibold">Alta Médica</span> - Médico autorizou alta mas paciente ainda internado (sem registro de alta efetivada)</p>

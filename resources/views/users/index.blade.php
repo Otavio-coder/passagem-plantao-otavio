@@ -198,7 +198,7 @@
                     hospitals.forEach(hospital => {
                         const sectorList = sectors[hospital] || [];
                         html += `<div class="mb-3 last:mb-0">
-                            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                            <p class="text-[10px] font-semibold text-gray-400 mb-1.5">
                                 <i class="fas fa-hospital-symbol mr-1"></i>${$('<div>').text(hospital).html()}
                             </p>
                             <div class="flex flex-wrap gap-1.5">`;

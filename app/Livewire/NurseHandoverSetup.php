@@ -196,8 +196,11 @@ class NurseHandoverSetup extends Component
             NurseHandoverBed::insert($rows);
         }
 
+        $this->clearUserHandoverCache($user->id);
+
         $this->saved = true;
         $this->dispatch('nurse-beds-saved');
+        $this->dispatch('nurse-preferences-updated');
     }
 
     public function toggleOnlyAssignedBeds(): void
@@ -207,6 +210,21 @@ class NurseHandoverSetup extends Component
 
         $user->update(['only_assigned_beds' => $newValue]);
         $this->onlyAssignedBeds = $newValue;
+
+        $this->clearUserHandoverCache($user->id);
+        $this->dispatch('nurse-preferences-updated');
+    }
+
+    private function clearUserHandoverCache(int $userId): void
+    {
+        $sectorIds = UserSectorPreference::where('user_id', $userId)->pluck('sector_code');
+
+        foreach ($sectorIds as $sectorId) {
+            foreach (['M', 'T', 'N'] as $shift) {
+                Cache::forget("sector_handover_{$sectorId}_{$userId}_{$shift}");
+            }
+            Cache::forget("sector_patients_{$sectorId}_{$userId}");
+        }
     }
 
     public function render(): View

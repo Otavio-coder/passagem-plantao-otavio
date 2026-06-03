@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-dial'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-2">Diálise</p>
+    <p class="text-[10px] font-bold text-rose-700 mb-2">Diálise</p>
 
     <div x-show="dial.items.length === 0" class="bg-white rounded-lg border border-rose-200 py-8 text-center">
         <p class="text-xs text-rose-700/70">Sem informações de diálise.</p>

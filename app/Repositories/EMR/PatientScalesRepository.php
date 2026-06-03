@@ -2,6 +2,7 @@
 
 namespace App\Repositories\EMR;
 
+use App\Services\ShiftService;
 use App\Support\Scales\ScaleStyleHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -423,16 +424,7 @@ class PatientScalesRepository
             }
         }
 
-        $minutes = $dt->hour * 60 + $dt->minute;
-
-        if ($minutes >= 435 && $minutes <= 794) {
-            return 'M';
-        }
-        if ($minutes >= 795 && $minutes <= 1154) {
-            return 'T';
-        }
-
-        return 'N';
+        return ShiftService::shiftFromMinutes($dt->hour * 60 + $dt->minute);
     }
 
     private function needsAssessment(?string $timestamp, string $period): bool

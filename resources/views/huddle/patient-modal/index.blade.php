@@ -234,7 +234,7 @@
                              @keydown.escape.window="open = false"
                              @click.outside="open = false">
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] text-blue-100/80 font-medium uppercase tracking-wide whitespace-nowrap flex-shrink-0">
+                                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] text-blue-100/80 font-medium whitespace-nowrap flex-shrink-0">
                                     <x-heroicon-o-arrows-up-down class="w-3 h-3" />
                                     Trocar
                                 </span>

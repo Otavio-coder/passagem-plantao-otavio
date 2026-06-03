@@ -93,8 +93,8 @@
     @include('shared.navbar')
 </header>
 <!-- PRINCIPAL -->
-<main class="flex-1 overflow-y-auto bg-gray-50 pt-2">
-    <div class="relative py-2 md:py-4 flex justify-center">
+<main class="flex-1 overflow-y-auto bg-gray-50 pt-2 flex flex-col">
+    <div class="relative py-2 md:py-4 flex justify-center flex-1">
         <div class="w-full max-w-full relative px-2 md:px-4">
             <div class="w-full">
                 @yield('content')

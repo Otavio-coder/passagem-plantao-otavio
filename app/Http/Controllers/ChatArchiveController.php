@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FeedbackSubmission;
-use App\Models\ShiftHandover;
+use App\Services\ShiftService;
 use App\Support\ChatArchivePayload;
 use App\Support\ChatArchiveShiftResolver;
 use App\Support\ChatArchiveUserResolver;
@@ -43,8 +43,19 @@ class ChatArchiveController extends Controller
             })
             ->count('nr_atendimento');
 
+        // Atendimentos ativos com >= 3 mensagens (para o numerador da cobertura)
+        $activeConsistent = DB::table('chat_messages')
+            ->whereNotIn('nr_atendimento', function ($q) {
+                $q->select('nr_atendimento')->from('chat_messages_archive');
+            })
+            ->groupBy('nr_atendimento')
+            ->havingRaw('COUNT(*) >= 3')
+            ->get(['nr_atendimento'])
+            ->count();
+
         if ($stats) {
             $stats->total += $activeOnlyAttendances;
+            $stats->consistent += $activeConsistent;
             $stats->total_msgs += (int) ($activeStats->total_msgs ?? 0);
             if ($activeStats->oldest && (! $stats->oldest || $activeStats->oldest < $stats->oldest)) {
                 $stats->oldest = $activeStats->oldest;
@@ -75,25 +86,49 @@ class ChatArchiveController extends Controller
             ->get()
             ->keyBy('month');
 
+        // Distribuição de setores por mês (chat_messages apenas — archive usa JSON)
+        $sectorByMonth = DB::table('chat_messages')
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, sector_name, COUNT(*) as cnt")
+            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->whereNotNull('sector_name')
+            ->where('sector_name', '!=', '')
+            ->groupBy('month', 'sector_name')
+            ->orderBy('month')
+            ->orderByDesc('cnt')
+            ->get()
+            ->groupBy('month');
+
         $ptMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         $months = [];
         for ($i = 5; $i >= 0; $i--) {
             $dt = now()->subMonths($i);
             $key = $dt->format('Y-m');
+
+            // Top 3 setores + Outros
+            $sectorRows = $sectorByMonth->get($key, collect());
+            $top3 = $sectorRows->take(3);
+            $othersCount = $sectorRows->skip(3)->sum('cnt');
+            $sectors = $top3->map(fn ($r) => ['name' => $r->sector_name, 'count' => $r->cnt])->values()->all();
+            if ($othersCount > 0) {
+                $sectors[] = ['name' => 'Outros', 'count' => $othersCount];
+            }
+
             $months[$key] = [
                 'label' => $ptMonths[(int) $dt->format('n') - 1].'/'.$dt->format('y'),
                 'attendances' => (int) ($seriesRaw->get($key)?->attendances ?? 0),
                 'messages' => (int) ($seriesRaw->get($key)?->messages ?? 0)
                               + (int) ($activeSeriesRaw->get($key)?->messages ?? 0),
+                'sectors' => $sectors,
             ];
         }
 
-        [$topAnnotators, $shiftStats] = $this->computeStats();
+        [$topAnnotators, $shiftStats, $allAnnotators] = $this->computeStats();
         $shiftDistribution = $this->buildShiftDistribution($shiftStats);
         $seriesData = $this->buildMonthlySeries($months);
         $periodStart = $this->formatDate($stats?->oldest);
         $periodEnd = $this->formatDate($stats?->newest);
         $handoverMetrics = $this->buildHandoverMetrics();
+        $recentShiftTimelines = $this->buildRecentShiftTimelines();
         $userMetrics = $this->buildUserMetrics();
         $sectorPanorama = $this->buildSectorPanorama();
         $feedbackStats = $this->buildFeedbackStats();
@@ -102,6 +137,7 @@ class ChatArchiveController extends Controller
             'stats',
             'coveragePct',
             'topAnnotators',
+            'allAnnotators',
             'shiftDistribution',
             'seriesData',
             'periodStart',
@@ -109,7 +145,8 @@ class ChatArchiveController extends Controller
             'handoverMetrics',
             'userMetrics',
             'sectorPanorama',
-            'feedbackStats'
+            'feedbackStats',
+            'recentShiftTimelines',
         ));
     }
 
@@ -504,6 +541,22 @@ class ChatArchiveController extends Controller
         return ucfirst(strtolower($parts[0])).' '.ucfirst(strtolower(end($parts)));
     }
 
+    private function formatDuration(mixed $seconds): string
+    {
+        $sec = (int) $seconds;
+        if ($sec <= 0) {
+            return '—';
+        }
+        $min = (int) round($sec / 60);
+        if ($min < 60) {
+            return $min.'min';
+        }
+        $h = intdiv($min, 60);
+        $m = $min % 60;
+
+        return $m > 0 ? "{$h}h{$m}min" : "{$h}h";
+    }
+
     private function formatDate(mixed $value, string $format = 'd/m/Y'): ?string
     {
         if (empty($value)) {
@@ -557,6 +610,7 @@ class ChatArchiveController extends Controller
                 'label' => $month['label'],
                 'messages' => $month['messages'],
                 'percentage' => (int) round(($month['messages'] / $maxMessages) * 100),
+                'sectors' => $month['sectors'] ?? [],
             ];
         }, $months));
     }
@@ -655,11 +709,14 @@ class ChatArchiveController extends Controller
             }
         }
 
+        $m = ShiftService::SHIFT_M_START;
+        $t = ShiftService::SHIFT_T_START;
+        $n = ShiftService::SHIFT_N_START;
         $activeShifts = DB::table('chat_messages')
             ->selectRaw("
                 CASE
-                    WHEN HOUR(created_at) >= 7 AND HOUR(created_at) < 13 THEN 'manha'
-                    WHEN HOUR(created_at) >= 13 AND HOUR(created_at) < 19 THEN 'tarde'
+                    WHEN (HOUR(created_at)*60+MINUTE(created_at)) >= {$m} AND (HOUR(created_at)*60+MINUTE(created_at)) < {$t} THEN 'manha'
+                    WHEN (HOUR(created_at)*60+MINUTE(created_at)) >= {$t} AND (HOUR(created_at)*60+MINUTE(created_at)) < {$n} THEN 'tarde'
                     ELSE 'noite'
                 END AS turno,
                 COUNT(*) as cnt
@@ -674,41 +731,165 @@ class ChatArchiveController extends Controller
         }
 
         arsort($userCounts);
-        $top20 = array_slice($userCounts, 0, 20, true);
 
+        // Nomes para todos os usuários com atividade
+        $allUsernames = array_keys($userCounts);
         $users = DB::table('users')
-            ->whereIn('username', array_keys($top20))
+            ->whereIn('username', $allUsernames)
             ->get(['username', 'name', 'role', 'photo'])
             ->keyBy('username');
 
         $topAnnotators = [];
-        foreach ($top20 as $username => $count) {
+        $allAnnotators = [];
+        foreach ($userCounts as $username => $count) {
             $u = $users->get($username);
-            $rawPhoto = $u?->photo;
-            $photo = null;
-            if ($rawPhoto && strlen($rawPhoto) > 100) {
-                $decoded = base64_decode($rawPhoto, true);
-                if ($decoded !== false && strlen($decoded) > 50) {
-                    $photo = $rawPhoto;
-                }
-            }
             $displayName = $u ? $this->fullName($u->name) : $username;
             $role = $u ? trim((string) ($u->role ?? '')) : '';
-            $topAnnotators[] = [
+            $fullLabel = $role !== '' ? $displayName.' - '.$role : $displayName;
+
+            $allAnnotators[] = [
                 'username' => $username,
-                'name' => $role !== '' ? $displayName.' - '.$role : $displayName,
+                'name' => $fullLabel,
                 'count' => $count,
-                'tier' => match (true) {
-                    $count >= 100 => 'ouro',
-                    $count >= 50 => 'prata',
-                    $count >= 20 => 'bronze',
-                    default => 'participante',
-                },
-                'photo' => $photo,
+            ];
+
+            if (count($topAnnotators) < 20) {
+                $rawPhoto = $u?->photo;
+                $photo = null;
+                if ($rawPhoto && strlen($rawPhoto) > 100) {
+                    $decoded = base64_decode($rawPhoto, true);
+                    if ($decoded !== false && strlen($decoded) > 50) {
+                        $photo = $rawPhoto;
+                    }
+                }
+                $topAnnotators[] = [
+                    'username' => $username,
+                    'name' => $fullLabel,
+                    'count' => $count,
+                    'tier' => match (true) {
+                        $count >= 100 => 'ouro',
+                        $count >= 50 => 'prata',
+                        $count >= 20 => 'bronze',
+                        default => 'participante',
+                    },
+                    'photo' => $photo,
+                ];
+            }
+        }
+
+        return [$topAnnotators, $shiftStats, $allAnnotators];
+    }
+
+    private function buildRecentShiftTimelines(int $days = 14): array
+    {
+        $shiftLabels = ['M' => 'Manhã', 'T' => 'Tarde', 'N' => 'Noite'];
+        $shiftColors = ['M' => 'amber', 'T' => 'orange', 'N' => 'indigo'];
+
+        $since = now()->subDays($days)->startOfDay();
+
+        $rows = DB::table('chat_messages as cm')
+            ->join('users as u', 'u.id', '=', 'cm.user_id')
+            ->where('cm.created_at', '>=', $since)
+            ->orderBy('cm.created_at')
+            ->get(['cm.user_id', 'u.name as user_name', 'cm.nr_atendimento', 'cm.created_at', 'cm.content', 'cm.sector_name']);
+
+        // Agrupar por (user, shift, shift_date)
+        $grouped = [];
+        foreach ($rows as $row) {
+            $t = strtotime($row->created_at);
+            $hour = (int) date('H', $t);
+            $totalMin = $hour * 60 + (int) date('i', $t);
+            $shift = ShiftService::shiftFromMinutes($totalMin);
+            $shiftDate = ShiftService::shiftDateFromTimestamp($t);
+            $key = $row->user_id.'_'.$shift.'_'.$shiftDate;
+
+            if (! isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'user_id' => $row->user_id,
+                    'name' => $row->user_name,
+                    'sector_name' => $row->sector_name ?? '—',
+                    'shift' => $shift,
+                    'shift_date' => $shiftDate,
+                    'started_at_ts' => $t,
+                    'messages' => [],
+                ];
+            }
+            // Pega setor da primeira mensagem que tiver sector_name não-nulo
+            if (($grouped[$key]['sector_name'] === '—' || $grouped[$key]['sector_name'] === null) && $row->sector_name) {
+                $grouped[$key]['sector_name'] = $row->sector_name;
+            }
+            $grouped[$key]['messages'][] = ['ts' => $t, 'hour' => $hour, 'time' => date('H:i', $t), 'chars' => mb_strlen($row->content), 'preview' => mb_substr(trim($row->content), 0, 80)];
+        }
+
+        $result = [];
+        foreach ($grouped as $item) {
+            $msgs = $item['messages'];
+            $shift = $item['shift'];
+            $shiftDate = $item['shift_date'];
+
+            // Eixo completo do turno (com grace 30min — noite inclui hora 7, manhã inclui 13, tarde inclui 19)
+            $axisHours = match ($shift) {
+                'M' => range(7, 13),
+                'T' => range(13, 19),
+                default => [19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 6, 7],
+            };
+            $dist = array_fill_keys($axisHours, 0);
+            foreach ($msgs as $m) {
+                if (array_key_exists($m['hour'], $dist)) {
+                    $dist[$m['hour']]++;
+                }
+            }
+            $maxDist = max($dist) ?: 1;
+
+            // Gap analysis 45min → tempo ativo
+            $activeMin = 0;
+            $prevTs = null;
+            $blockStart = null;
+            $blockEnd = null;
+            foreach ($msgs as $m) {
+                $ts = $m['ts'];
+                // Mensagens de noite antes de 07:30 pertencem ao dia lógico anterior → ajustar timestamp
+                $msgTotalMin = $m['hour'] * 60 + (int) substr($m['time'], 3, 2);
+                if ($shift === 'N' && $msgTotalMin < ShiftService::SHIFT_M_START) {
+                    $ts = strtotime('+1 day', strtotime($shiftDate.' '.$m['time'].':00'));
+                }
+                if ($prevTs === null) {
+                    $blockStart = $blockEnd = $ts;
+                } elseif ($ts - $prevTs > 2700) {
+                    $activeMin += (int) round(($blockEnd - $blockStart) / 60);
+                    $blockStart = $blockEnd = $ts;
+                } else {
+                    $blockEnd = $ts;
+                }
+                $prevTs = $ts;
+            }
+            if ($blockStart !== null) {
+                $activeMin += (int) round(($blockEnd - $blockStart) / 60);
+            }
+
+            $result[] = [
+                'name' => $item['name'],
+                'sector_name' => $item['sector_name'],
+                'shift' => $shift,
+                'shift_label' => $shiftLabels[$shift] ?? $shift,
+                'shift_color' => $shiftColors[$shift] ?? 'gray',
+                'shift_date' => Carbon::parse($shiftDate)->format('d/m'),
+                'first_msg' => $msgs[0]['time'],
+                'last_msg' => end($msgs)['time'],
+                'message_count' => count($msgs),
+                'active_min' => $activeMin < 180 ? $activeMin : null,
+                'dist' => array_values($dist),
+                'axis_hours' => array_map(fn ($h) => str_pad($h, 2, '0', STR_PAD_LEFT), $axisHours),
+                'max_dist' => $maxDist,
+                'messages' => $msgs,
+                'started_at_ts' => $item['started_at_ts'],
             ];
         }
 
-        return [$topAnnotators, $shiftStats];
+        // Ordenar por data desc, hora início desc
+        usort($result, fn ($a, $b) => $b['started_at_ts'] <=> $a['started_at_ts']);
+
+        return $result;
     }
 
     /**
@@ -716,46 +897,81 @@ class ChatArchiveController extends Controller
      */
     private function buildHandoverMetrics(): array
     {
-        $total = ShiftHandover::count();
+        $shiftLabels = ['M' => 'Manhã', 'T' => 'Tarde', 'N' => 'Noite'];
+
+        // Fonte 1: activity_log (formato novo)
+        $logStart = DB::table('handover_activity_log')->min('occurred_at');
+        $logCutoff = $logStart ? Carbon::parse($logStart)->startOfDay() : now();
+
+        $logSessions = DB::table('handover_activity_log as hal')
+            ->join('users as u', 'u.id', '=', 'hal.user_id')
+            ->select([
+                'hal.user_id',
+                'u.name as user_name',
+                DB::raw('MAX(NULLIF(hal.sector_id, 0)) as sector_id'),
+                DB::raw('MAX(hal.sector_name) as sector_name'),
+                'hal.shift',
+                'hal.shift_date',
+                DB::raw('COUNT(DISTINCT hal.nr_atendimento) as beds_visited'),
+                DB::raw('TIMESTAMPDIFF(SECOND, MIN(hal.occurred_at), MAX(hal.occurred_at)) as duration_seconds'),
+                DB::raw('MIN(hal.occurred_at) as started_at'),
+                DB::raw('"M" as shift_key'),
+            ])
+            ->groupBy('hal.user_id', 'hal.shift', 'hal.shift_date', 'u.name')
+            ->having(DB::raw('SUM(CASE WHEN hal.event = "chat_post" THEN 1 ELSE 0 END)'), '>=', 1)
+            ->orderByDesc('started_at')
+            ->get()
+            ->map(fn ($s) => (object) array_merge((array) $s, ['shift_key' => $s->shift]));
+
+        // Fonte 2: chat_messages (formato histórico, antes do log)
+        $chatSessions = DB::table('chat_messages as cm')
+            ->join('users as u', 'u.id', '=', 'cm.user_id')
+            ->select([
+                'cm.user_id',
+                'u.name as user_name',
+                DB::raw('MAX(NULLIF(cm.sector_id, 0)) as sector_id'),
+                DB::raw('MAX(cm.sector_name) as sector_name'),
+                DB::raw(ShiftService::shiftSqlExpr('cm.created_at').' as shift'),
+                DB::raw(ShiftService::shiftDateSqlExpr('cm.created_at').' as shift_date'),
+                DB::raw('COUNT(DISTINCT cm.nr_atendimento) as beds_visited'),
+                DB::raw('TIMESTAMPDIFF(SECOND, MIN(cm.created_at), MAX(cm.created_at)) as duration_seconds'),
+                DB::raw('MIN(cm.created_at) as started_at'),
+            ])
+            // Usar shift_date (não created_at) no corte — turno noite passa da meia-noite
+            ->whereRaw(ShiftService::shiftDateSqlExpr('cm.created_at').' < ?', [$logCutoff->toDateString()])
+            ->groupBy('cm.user_id', 'shift', 'shift_date', 'u.name')
+            ->having('beds_visited', '>=', 1)
+            ->orderByDesc('started_at')
+            ->get()
+            ->map(fn ($s) => (object) array_merge((array) $s, ['shift_key' => $s->shift]));
+
+        $sessions = $logSessions->merge($chatSessions)->sortByDesc('started_at');
+
+        $total = $sessions->count();
 
         if ($total === 0) {
             return ['total' => 0, 'finished' => 0, 'avg_duration_min' => null, 'avg_beds' => null, 'recent' => []];
         }
 
-        $finished = ShiftHandover::whereNotNull('finished_at')->count();
+        // Sessões > 3h = enfermeira anotando ao longo do turno, não passagem concentrada
+        $compact = $sessions->filter(fn ($s) => $s->duration_seconds > 0 && $s->duration_seconds <= 10800);
 
-        $avgDuration = ShiftHandover::whereNotNull('duration_seconds')
-            ->avg('duration_seconds');
+        $recent = $sessions->take(5)->map(fn ($s) => [
+            'user_name' => $s->user_name,
+            'shift' => $shiftLabels[$s->shift] ?? $s->shift,
+            'sector_name' => $s->sector_name ?? '—',
+            'beds_visited' => (int) $s->beds_visited,
+            'duration' => $s->duration_seconds > 10800 ? '—' : $this->formatDuration($s->duration_seconds),
+            'started_at' => Carbon::parse($s->started_at)->format('d/m/Y H:i'),
+        ])->values()->all();
 
-        $avgBeds = ShiftHandover::whereNotNull('finished_at')
-            ->avg('beds_visited');
-
-        $recent = ShiftHandover::with('user:id,name')
-            ->whereNotNull('finished_at')
-            ->orderByDesc('started_at')
-            ->limit(10)
-            ->get()
-            ->map(fn ($h) => [
-                'user_name' => $h->user?->name ?? '—',
-                'shift' => match ($h->shift) {
-                    'morning' => 'Manhã',
-                    'afternoon' => 'Tarde',
-                    'night' => 'Noite',
-                    default => $h->shift,
-                },
-                'sector_name' => $h->sector_name,
-                'bed_codes' => $h->bed_codes ?? [],
-                'beds_visited' => $h->beds_visited,
-                'beds_total' => $h->beds_total,
-                'duration' => $h->formattedDuration(),
-                'started_at' => $h->started_at?->format('d/m/Y H:i'),
-            ])
-            ->all();
+        $avgDuration = $compact->avg('duration_seconds');
+        $avgBeds = $sessions->avg('beds_visited');
 
         return [
             'total' => $total,
-            'finished' => $finished,
-            'avg_duration_min' => $avgDuration !== null ? round($avgDuration / 60, 1) : null,
+            'finished' => $total,
+            'avg_duration_min' => $avgDuration !== null ? round($avgDuration / 60) : null,
             'avg_beds' => $avgBeds !== null ? round($avgBeds, 1) : null,
             'recent' => $recent,
         ];
@@ -780,7 +996,11 @@ class ChatArchiveController extends Controller
 
         $nurses = DB::table('users')
             ->where('status', 'A')
-            ->where('is_nurse', true)
+            ->where(function ($q) {
+                $q->where('is_nurse', true)
+                    ->orWhere('role', 'like', '%nfermeiro%')
+                    ->orWhere('role', 'like', '%nfermagem%');
+            })
             ->count();
 
         $topRoles = DB::table('users')

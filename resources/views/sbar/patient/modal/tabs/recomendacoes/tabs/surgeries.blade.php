@@ -1,7 +1,7 @@
 <div x-show="activeRecomendacaoTab === 'tab-surg'" style="display:none;" class="pt-3">
 
     @if(($planDisplayData['counts']['tab-surg'] ?? 0) > 0)
-    <p class="text-[10px] font-bold text-[#7712C7] uppercase tracking-wider mb-2">Cirurgias Agendadas</p>
+    <p class="text-[10px] font-bold text-[#7712C7] mb-2">Cirurgias Agendadas</p>
     <div class="space-y-2">
         @foreach($plan['surgery']['items'] as $surg)
         <div class="bg-white rounded-lg border shadow-sm px-3 py-2.5

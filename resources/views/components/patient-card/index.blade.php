@@ -65,17 +65,14 @@
                 @endif
 
                 {{-- Details Button --}}
-                <div
-                    class="mt-auto flex-shrink-0 p-1.5 border-t border-white/10 z-10"
-                    x-data='{ sbarPatient: @json($patient), hospitalName: @json($currentHospitalName) }'
-                >
+                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-white/10 z-10">
                     <button
                         type="button"
                         wire:loading.attr="disabled"
                         wire:loading.class="opacity-60 cursor-not-allowed hover:bg-white/20 hover:shadow-sm"
                         wire:target="changeHospital,changeSector,refreshData"
                         class="w-full bg-white/20 text-gray-700 px-3 py-2 md:py-3 lg:py-2 rounded-md flex items-center justify-center gap-2 shadow-sm transition-all duration-150 text-xs sm:text-sm md:text-base lg:text-sm font-medium backdrop-blur-[4px] cursor-pointer hover:bg-white/30 hover:shadow-md active:bg-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white/20 disabled:hover:shadow-sm"
-                        @click.prevent="$dispatch('openModal', { attendanceNumber: sbarPatient.nr_atendimento ?? 0, hospital: hospitalName, sbarPatient: sbarPatient, patients: window.__sbarModalPatients ?? [] })"
+                        @click.prevent="$dispatch('openModal', { attendanceNumber: {{ (int) ($patient['nr_atendimento'] ?? 0) }}, sectorId: {{ (int) ($patient['cd_setor_atendimento'] ?? 0) }}, hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }}, patients: window.__sbarModalPatients ?? [] })"
                     >
                         <span>Detalhes</span>
                     </button>

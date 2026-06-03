@@ -1,7 +1,7 @@
 <div x-show="activeRecomendacaoTab === 'tab-proc'" style="display:none;" class="pt-3">
 
     @if(($planDisplayData['counts']['tab-proc'] ?? 0) > 0)
-    <p class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-2">Procedimentos</p>
+    <p class="text-[10px] font-bold text-indigo-700 mb-2">Procedimentos</p>
     <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="relative flex-1 min-w-[160px]">
             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style="font-size:11px;"></i>

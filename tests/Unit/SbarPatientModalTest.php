@@ -19,45 +19,6 @@ class SbarPatientModalTest extends TestCase
     }
 
     #[Test]
-    public function it_sets_cd_pessoa_fisica_from_sbar_payload_in_current_patient(): void
-    {
-        $attendanceNumber = 12345;
-        $personId = 67890;
-
-        $tasyService = Mockery::mock(TasyService::class);
-        $tasyService->shouldReceive('getPatientAlerts')
-            ->once()
-            ->with($attendanceNumber, $personId)
-            ->andReturn([]);
-        $tasyService->shouldReceive('getPatientPrescriptions')
-            ->once()
-            ->with($attendanceNumber)
-            ->andReturn([]);
-        $tasyService->shouldReceive('getMedicationSchedule')
-            ->zeroOrMoreTimes()
-            ->with($attendanceNumber, Mockery::type('string'))
-            ->andReturn([]);
-
-        $component = new SbarPatientModal;
-        $component->boot($tasyService);
-        $component->currentPatient = [
-            'nr_atendimento' => $attendanceNumber,
-            'has_patient' => true,
-        ];
-
-        $payload = [
-            'cd_pessoa_fisica' => $personId,
-            'nm_pessoa_fisica' => 'Paciente Teste',
-        ];
-
-        $loadFromSbarData = new ReflectionMethod(SbarPatientModal::class, 'loadFromSbarData');
-        $loadFromSbarData->setAccessible(true);
-        $loadFromSbarData->invoke($component, $payload, $attendanceNumber);
-
-        $this->assertSame($personId, $component->currentPatient['cd_pessoa_fisica']);
-    }
-
-    #[Test]
     public function it_uses_pews_for_pediatric_patient_in_scales_data(): void
     {
         $component = new SbarPatientModal;
@@ -183,7 +144,10 @@ class SbarPatientModalTest extends TestCase
             [
                 'nr_atendimento' => 9999,
                 'label' => 'Atendimento 9999',
-                'sbar_payload' => [],
+                'cd_setor_atendimento' => 0,
+                'cd_unidade_basica' => null,
+                'ds_setor_atendimento' => null,
+                'ds_prescricao' => null,
             ],
         ], $component->modalPatients);
         $this->assertSame(0, $component->currentPatientIndex);
@@ -232,178 +196,26 @@ class SbarPatientModalTest extends TestCase
     }
 
     #[Test]
-    public function it_forwards_sbar_payload_when_switching_attendance_inside_modal(): void
+    public function it_populates_sector_fields_from_patients_list_on_setModalPatients(): void
     {
-        $component = new class extends SbarPatientModal
-        {
-            public ?array $capturedOpenModalArgs = null;
-
-            public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
-            {
-                $this->capturedOpenModalArgs = [
-                    'attendance' => (int) $attendanceNumber,
-                    'hospital' => $hospital,
-                    'sbar' => $sbarPatient,
-                    'patients' => $patients,
-                ];
-            }
-        };
-
-        $component->currentHospitalName = 'Hospital Teste';
-        $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
-
-        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
-        $setModalPatients->setAccessible(true);
-        $setModalPatients->invoke($component, [
-            [
-                'nr_atendimento' => 1001,
-                'label' => '1001 - Leito A1 - Paciente Um',
-                'sbar_payload' => [
-                    'nr_atendimento' => 1001,
-                    'nm_pessoa_fisica' => 'Paciente Um',
-                    'cd_pessoa_fisica' => 501,
-                    'ds_setor_atendimento' => 'UTI A',
-                ],
-            ],
-            [
-                'nr_atendimento' => 1002,
-                'label' => '1002 - Leito A2 - Paciente Dois',
-                'sbar_payload' => [
-                    'nr_atendimento' => 1002,
-                    'nm_pessoa_fisica' => 'Paciente Dois',
-                    'cd_pessoa_fisica' => 502,
-                    'ds_setor_atendimento' => 'UTI B',
-                ],
-            ],
-        ], 1001);
-
-        $component->goToPatientByAttendance(1002);
-
-        $this->assertNotNull($component->capturedOpenModalArgs);
-        $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
-        $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
-        $this->assertIsArray($component->capturedOpenModalArgs['sbar']);
-        $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
-    }
-
-    #[Test]
-    public function it_does_not_forward_minimal_payload_when_switching_attendance_inside_modal(): void
-    {
-        $component = new class extends SbarPatientModal
-        {
-            public ?array $capturedOpenModalArgs = null;
-
-            public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
-            {
-                $this->capturedOpenModalArgs = [
-                    'attendance' => (int) $attendanceNumber,
-                    'hospital' => $hospital,
-                    'sbar' => $sbarPatient,
-                ];
-            }
-        };
-
-        $component->currentHospitalName = 'Hospital Teste';
-        $component->currentPatient = ['nr_atendimento' => 1001, 'has_patient' => true];
-
-        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
-        $setModalPatients->setAccessible(true);
-        $setModalPatients->invoke($component, [
-            [
-                'nr_atendimento' => 1001,
-                'label' => '1001 - Leito A1 - Paciente Um',
-                'cd_pessoa_fisica' => 501,
-                'ds_setor_atendimento' => 'UTI A',
-            ],
-            [
-                'nr_atendimento' => 1002,
-                'label' => '1002 - Leito A2 - Paciente Dois',
-                'cd_pessoa_fisica' => 502,
-                'ds_setor_atendimento' => 'UTI B',
-            ],
-        ], 1001);
-
-        $component->goToPatientByAttendance(1002);
-
-        $this->assertNotNull($component->capturedOpenModalArgs);
-        $this->assertSame(1002, $component->capturedOpenModalArgs['attendance']);
-        $this->assertSame('Hospital Teste', $component->capturedOpenModalArgs['hospital']);
-        $this->assertSame(502, $component->capturedOpenModalArgs['sbar']['cd_pessoa_fisica'] ?? null);
-        $this->assertSame('UTI B', $component->capturedOpenModalArgs['sbar']['ds_setor_atendimento'] ?? null);
-    }
-
-    #[Test]
-    public function it_keeps_sector_fields_in_current_patient_when_opening_modal_with_navigation_payload(): void
-    {
-        $attendanceNumber = 12345;
-
-        $tasyService = Mockery::mock(TasyService::class)->shouldIgnoreMissing();
-        $tasyService->shouldReceive('getPatientPrescriptions')->zeroOrMoreTimes()->andReturn([]);
-        $tasyService->shouldReceive('getMedicationSchedule')->zeroOrMoreTimes()->andReturn([]);
-
         $component = new SbarPatientModal;
-        $component->boot($tasyService);
 
-        $component->openModal(
-            $attendanceNumber,
-            'Hospital Teste',
+        $setModalPatients = new ReflectionMethod(SbarPatientModal::class, 'setModalPatients');
+        $setModalPatients->setAccessible(true);
+        $setModalPatients->invoke($component, [
             [
-                'nr_atendimento' => $attendanceNumber,
-                'cd_pessoa_fisica' => 789,
-                'nm_pessoa_fisica' => 'Paciente Teste',
+                'nr_atendimento' => 12345,
                 'cd_unidade_basica' => 'UTI-05',
                 'ds_setor_atendimento' => 'UTI Adulto',
                 'ds_prescricao' => 'Prescrição UTI Adulto',
+                'cd_setor_atendimento' => 42,
             ],
-            []
-        );
+        ], 12345);
 
-        $this->assertSame('UTI-05', $component->currentPatient['cd_unidade_basica'] ?? null);
-        $this->assertSame('UTI Adulto', $component->currentPatient['ds_setor_atendimento'] ?? null);
-        $this->assertSame('Prescrição UTI Adulto', $component->currentPatient['ds_prescricao'] ?? null);
-    }
-
-    #[Test]
-    public function it_marks_navigation_payload_as_not_usable_sbar_snapshot(): void
-    {
-        $component = new SbarPatientModal;
-
-        $isUsablePayload = new ReflectionMethod(SbarPatientModal::class, 'isUsableSbarPayload');
-        $isUsablePayload->setAccessible(true);
-
-        $result = $isUsablePayload->invoke($component, [
-            'nr_atendimento' => 1002,
-            'cd_pessoa_fisica' => 502,
-            'nm_pessoa_fisica' => 'Paciente Dois',
-            'cd_unidade_basica' => 'A2',
-            'ds_setor_atendimento' => 'UTI B',
-            'ds_prescricao' => 'UTI B',
-        ]);
-
-        $this->assertFalse($result);
-    }
-
-    #[Test]
-    public function it_marks_full_sbar_payload_as_usable_snapshot(): void
-    {
-        $component = new SbarPatientModal;
-
-        $isUsablePayload = new ReflectionMethod(SbarPatientModal::class, 'isUsableSbarPayload');
-        $isUsablePayload->setAccessible(true);
-
-        $result = $isUsablePayload->invoke($component, [
-            'nr_atendimento' => 1002,
-            'cd_pessoa_fisica' => 502,
-            'nm_pessoa_fisica' => 'Paciente Dois',
-            'nr_prontuario' => '123456',
-            'age_detailed' => '67 anos',
-            'sexo' => 'M',
-            'convenio' => 'SUS',
-            'mews_score' => 3,
-            'has_isolation' => false,
-            'pending_events' => [],
-        ]);
-
-        $this->assertTrue($result);
+        $entry = $component->modalPatients[0];
+        $this->assertSame('UTI-05', $entry['cd_unidade_basica']);
+        $this->assertSame('UTI Adulto', $entry['ds_setor_atendimento']);
+        $this->assertSame('Prescrição UTI Adulto', $entry['ds_prescricao']);
+        $this->assertSame(42, $entry['cd_setor_atendimento']);
     }
 }

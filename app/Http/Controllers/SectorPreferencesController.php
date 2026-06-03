@@ -7,6 +7,7 @@ use App\Models\System\UserSectorPreference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class SectorPreferencesController extends Controller
 {
@@ -20,6 +21,15 @@ class SectorPreferencesController extends Controller
 
         $user = Auth::user();
         $sectorsFlat = collect(Sector::allowedForPreferences())->keyBy('sector_code');
+
+        // Clear user-specific handover caches for old sectors before replacing preferences.
+        $oldSectorIds = UserSectorPreference::where('user_id', $user->id)->pluck('sector_code');
+        foreach ($oldSectorIds as $sectorId) {
+            foreach (['M', 'T', 'N'] as $shift) {
+                Cache::forget("sector_handover_{$sectorId}_{$user->id}_{$shift}");
+            }
+            Cache::forget("sector_patients_{$sectorId}_{$user->id}");
+        }
 
         UserSectorPreference::where('user_id', $user->id)->delete();
 

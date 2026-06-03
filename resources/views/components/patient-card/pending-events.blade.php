@@ -212,7 +212,7 @@
                          class="rounded-xl border {{ $group['style']['border_header'] ?? 'border-gray-200' }} overflow-hidden">
 
                         <div class="flex items-center justify-between px-3 py-2 {{ $group['style']['bg_header'] ?? 'bg-white/30' }} border-b {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
-                            <span class="text-xs font-bold {{ $group['style']['text_header'] ?? 'text-[#062047]' }} uppercase tracking-wide">
+                            <span class="text-xs font-bold {{ $group['style']['text_header'] ?? 'text-[#062047]' }}">
                                 {{ $group['label'] ?? 'Pendências' }}
                             </span>
                         </div>

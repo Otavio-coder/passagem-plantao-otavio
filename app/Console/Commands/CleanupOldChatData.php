@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ShiftService;
 use App\Support\ChatArchivePayload;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -218,14 +219,12 @@ class CleanupOldChatData extends Command
 
     private function inferTurno(string $datetime): string
     {
-        $hour = (int) Carbon::parse($datetime)->format('H');
-        if ($hour >= 7 && $hour < 13) {
-            return 'manha';
-        }
-        if ($hour >= 13 && $hour < 19) {
-            return 'tarde';
-        }
+        $dt = Carbon::parse($datetime);
 
-        return 'noite';
+        return match (ShiftService::shiftFromMinutes($dt->hour * 60 + $dt->minute)) {
+            'M' => 'manha',
+            'T' => 'tarde',
+            default => 'noite',
+        };
     }
 }

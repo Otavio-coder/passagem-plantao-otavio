@@ -1,277 +1,451 @@
 @extends('layouts.app')
 
-@php
-$shiftBadge = [
-    'morning'   => 'bg-sky-100 text-sky-800',
-    'afternoon' => 'bg-amber-100 text-amber-800',
-    'night'     => 'bg-indigo-100 text-indigo-800',
-];
-@endphp
-
 @section('content')
-<div class="space-y-5">
+<div class="font-montserrat text-[#004D9D]"
+     x-data="metricsApp(@js($nurseStats ?? collect()), @js($sectorStats ?? collect()), @js($period ?? 30))">
 
-    {{-- ── Header ──────────────────────────────────────────────────────── --}}
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    {{-- ── Header ──────────────────────────────────────────────────────────── --}}
+    <div class="bg-[#004D9D]/90 px-4 py-3 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-3">
             <a href="{{ route('admin.dashboard') }}"
-               class="w-10 h-10 rounded-xl bg-[#004D9D]/10 flex items-center justify-center flex-shrink-0 hover:bg-[#004D9D]/20 transition-colors"
-               title="Histórico de anotações">
-                <i class="fas fa-arrow-left text-[#004D9D]"></i>
+               class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0 hover:bg-white/25 transition-colors">
+                <i class="fas fa-arrow-left text-white text-sm"></i>
             </a>
             <div>
-                <h1 class="text-xl font-bold text-gray-900 leading-tight">Métricas do Módulo de Passagem de Plantão</h1>
-                <p class="text-sm text-gray-500 mt-0.5">Sessões estruturadas de passagem registradas no sistema</p>
+                <h1 class="text-base font-bold text-white leading-tight font-montserrat">Passagem de Plantão — Análise</h1>
+                <p class="text-[10px] text-white/60 mt-0.5">Padrões inferidos da atividade real no sistema</p>
             </div>
         </div>
+        <div class="text-[10px] text-white/50 font-montserrat">{{ now()->format('d/m/Y') }}</div>
+    </div>
 
-        <form method="GET" action="{{ route('handover.metrics') }}" class="flex flex-wrap items-center gap-2">
-            <select name="period" onchange="this.form.submit()"
-                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30">
-                <option value="7"   {{ $period == 7   ? 'selected' : '' }}>Últimos 7 dias</option>
-                <option value="30"  {{ $period == 30  ? 'selected' : '' }}>Últimos 30 dias</option>
-                <option value="90"  {{ $period == 90  ? 'selected' : '' }}>Últimos 90 dias</option>
-                <option value="180" {{ $period == 180 ? 'selected' : '' }}>Últimos 6 meses</option>
-            </select>
+    {{-- ── Filtros ──────────────────────────────────────────────────────────── --}}
+    <div class="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
+        <form method="GET" action="{{ route('handover.metrics') }}" class="flex flex-wrap items-center gap-3">
+            <span class="text-[10px] font-semibold text-gray-500 font-montserrat">Período:</span>
+            @foreach([7=>'7 dias',30=>'30 dias',90=>'90 dias',180=>'6 meses'] as $val => $lbl)
+            <button type="submit" name="period" value="{{ $val }}"
+                    class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all font-montserrat {{ ($period==$val) ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]/40 hover:text-[#004D9D]' }}">
+                {{ $lbl }}
+            </button>
+            @endforeach
 
-            @if($sectors->isNotEmpty())
-            <select name="sector" onchange="this.form.submit()"
-                    class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#004D9D]/30 max-w-[200px]">
-                <option value="">Todos os setores</option>
-                @foreach($sectors as $s)
-                    <option value="{{ $s }}" {{ $sectorFilter === $s ? 'selected' : '' }}>{{ $s }}</option>
-                @endforeach
-            </select>
-            @endif
-
-            @if($sectorFilter)
-            <a href="{{ route('handover.report', ['period' => $period]) }}"
-               class="px-3 py-2 text-xs text-gray-500 hover:text-red-600 border border-gray-200 rounded-lg hover:border-red-300 transition-colors">
-                <i class="fas fa-times mr-1"></i>Limpar filtro
-            </a>
+            @if(isset($sectors) && $sectors->isNotEmpty())
+            <div class="flex items-center gap-2 ml-2">
+                <span class="text-[10px] font-semibold text-gray-500 font-montserrat">Setor:</span>
+                <select name="sector" onchange="this.form.submit()"
+                        class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#004D9D]/30 font-montserrat">
+                    <option value="">Todos</option>
+                    @foreach($sectors as $id => $name)
+                    <option value="{{ $id }}" {{ $sectorFilter !== null && $sectorFilter !== '' && $sectorFilter == $id ? 'selected' : '' }}>{{ $name }}</option>
+                    @endforeach
+                </select>
+                @if($sectorFilter)
+                <a href="{{ route('handover.metrics', ['period' => $period]) }}" class="text-[10px] text-gray-400 hover:text-[#004D9D] transition-colors">
+                    <i class="fas fa-times"></i> limpar
+                </a>
+                @endif
+            </div>
             @endif
         </form>
     </div>
 
-    @if($totalCompleted === 0)
-    <div class="bg-gray-50 border border-gray-200 rounded-xl px-6 py-12 text-center">
-        <i class="fas fa-clipboard-list text-gray-300 text-3xl mb-3 block"></i>
-        <p class="text-gray-500 font-medium">Nenhuma passagem concluída no período selecionado.</p>
-        <p class="text-gray-400 text-sm mt-1">Ajuste o filtro de período ou verifique se a funcionalidade está sendo utilizada.</p>
+    <div class="max-w-full mx-auto px-2 lg:px-3 xl:px-4 py-4 space-y-4">
+
+    @if($empty ?? true)
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+        <i class="fas fa-chart-bar text-gray-200 text-3xl mb-3 block"></i>
+        <p class="font-semibold text-gray-500 font-montserrat">Nenhuma passagem registrada no período</p>
+        <p class="text-xs text-gray-400 mt-1">Os dados aparecem conforme os enfermeiros usam o SBAR e escrevem anotações.</p>
     </div>
     @else
 
-    {{-- ── Sumário horizontal ─────────────────────────────────────────── --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-gray-100">
-
-            <div class="px-5 py-4">
-                <p class="text-sm text-gray-500 mb-1">Passagens concluídas</p>
-                <p class="text-3xl font-bold text-[#004D9D]">{{ number_format($totalCompleted) }}</p>
-                @if($completionRate !== null)
-                <p class="text-xs text-gray-400 mt-1">{{ $completionRate }}% de conclusão</p>
+    {{-- ── Por setor ────────────────────────────────────────────────────────── --}}
+    @if($sectorStats->isNotEmpty())
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        @foreach($sectorStats as $sector)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-gradient-to-r from-[#004D9D]/5 to-transparent flex items-center justify-between border-b border-gray-100">
+                <div>
+                    <p class="text-sm font-bold text-gray-900 font-montserrat">{{ $sector['sector_name'] }}</p>
+                    <p class="text-[10px] text-gray-400 mt-0.5 font-montserrat">{{ $sector['nurses_count'] }} plantonistas · {{ $sector['avg_beds'] }} leitos/sessão</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-[#004D9D] tabular-nums font-montserrat">{{ $sector['sessions'] }}</p>
+                    <p class="text-[10px] text-gray-400 font-montserrat">sessões</p>
+                </div>
+            </div>
+            <div class="px-4 py-3">
+                <p class="text-[10px] text-gray-400 font-montserrat mb-2">Distribuição por turno</p>
+                <div class="space-y-1.5">
+                    @foreach([['M','Manhã','#D97706',$sector['pct_M'],$sector['shift_M']],['T','Tarde','#EA580C',$sector['pct_T'],$sector['shift_T']],['N','Noite','#4F46E5',$sector['pct_N'],$sector['shift_N']]] as [$key,$lbl,$color,$pct,$cnt])
+                    <div>
+                        <div class="flex justify-between text-[10px] font-montserrat mb-0.5">
+                            <span class="text-gray-500">{{ $lbl }}</span>
+                            <span class="font-semibold text-gray-700">{{ $cnt }} <span class="text-gray-400 font-normal">({{ $pct }}%)</span></span>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full" style="width:{{ $pct }}%; background:{{ $color }}"></div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+                @if(!empty($sector['nurses']))
+                <div class="flex flex-wrap gap-1 mt-3">
+                    @foreach(array_slice($sector['nurses'], 0, 5) as $n)
+                    <span class="text-[9px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-montserrat">{{ $n }}</span>
+                    @endforeach
+                    @if(count($sector['nurses']) > 5)
+                    <span class="text-[9px] text-gray-400 font-montserrat px-1 py-0.5">+{{ count($sector['nurses']) - 5 }}</span>
+                    @endif
+                </div>
                 @endif
             </div>
-
-            <div class="px-5 py-4">
-                <p class="text-sm text-gray-500 mb-1">Enfermeiros ativos</p>
-                <p class="text-3xl font-bold text-[#004D9D]">{{ $activeNurses }}</p>
-                <p class="text-xs text-gray-400 mt-1">utilizaram o sistema</p>
-            </div>
-
-            <div class="px-5 py-4">
-                <p class="text-sm text-gray-500 mb-1">Setores com passagens</p>
-                <p class="text-3xl font-bold text-[#004D9D]">{{ $activeSectors }}</p>
-                <p class="text-xs text-gray-400 mt-1">setores registrados</p>
-            </div>
-
-            <div class="px-5 py-4">
-                <p class="text-sm text-gray-500 mb-1">Média de leitos</p>
-                <p class="text-3xl font-bold text-[#004D9D]">{{ $avgBeds ? number_format($avgBeds, 1) : '—' }}</p>
-                <p class="text-xs text-gray-400 mt-1">por passagem concluída</p>
-            </div>
-
         </div>
-    </div>
-
-    @if($totalAbandoned + $totalCanceled > 0)
-    <div class="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-        <i class="fas fa-triangle-exclamation flex-shrink-0 mt-0.5 text-amber-500"></i>
-        <span>
-            No período selecionado: <strong>{{ $totalAbandoned }}</strong> {{ $totalAbandoned === 1 ? 'sessão abandonada' : 'sessões abandonadas' }}
-            @if($totalCanceled > 0)e <strong>{{ $totalCanceled }}</strong> {{ $totalCanceled === 1 ? 'cancelada' : 'canceladas' }}@endif
-            — iniciadas mas não concluídas, não incluídas nos totais acima.
-        </span>
+        @endforeach
     </div>
     @endif
 
-    {{-- ── Dois painéis: turnos + gráfico ────────────────────────────── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-        {{-- Distribuição por turno --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3">
-            <p class="text-sm font-semibold text-gray-700">Por turno</p>
-
-            @foreach([
-                ['label' => 'Manhã',  'key' => 'Manhã',  'color' => 'bg-sky-400',    'text' => 'text-sky-700',    'bg' => 'bg-sky-50'],
-                ['label' => 'Tarde',  'key' => 'Tarde',  'color' => 'bg-amber-400',  'text' => 'text-amber-700',  'bg' => 'bg-amber-50'],
-                ['label' => 'Noite',  'key' => 'Noite',  'color' => 'bg-indigo-400', 'text' => 'text-indigo-700', 'bg' => 'bg-indigo-50'],
-            ] as $t)
-            @php $sh = $byShift[$t['key']] ?? ['sessions' => 0, 'nurses' => 0]; @endphp
-            <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg {{ $t['bg'] }}">
-                <div class="w-2 h-8 rounded-full {{ $t['color'] }} flex-shrink-0"></div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-xs font-medium {{ $t['text'] }}">{{ $t['label'] }}</p>
-                    <p class="text-xs text-gray-500">{{ $sh['nurses'] }} {{ $sh['nurses'] === 1 ? 'enfermeiro' : 'enfermeiros' }}</p>
-                </div>
-                <p class="text-2xl font-bold {{ $t['text'] }}">{{ $sh['sessions'] }}</p>
-            </div>
-            @endforeach
-        </div>
-
-        {{-- Gráfico diário --}}
-        @if(array_sum($dailyCounts) > 0)
-        <div class="sm:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-5">
-            <p class="text-sm font-semibold text-gray-700 mb-4">Passagens por dia — últimos {{ count($dailyLabels) }} dias</p>
-            @php $maxCount = max(1, max($dailyCounts)); @endphp
-            <div class="flex items-end gap-1 h-20">
-                @foreach($dailyCounts as $idx => $count)
-                @php $pct = round($count / $maxCount * 100); @endphp
-                <div class="flex-1 flex flex-col items-center justify-end h-full gap-1">
-                    @if($count > 0)
-                    <span class="text-[9px] text-gray-400 leading-none">{{ $count }}</span>
-                    @endif
-                    <div class="w-full rounded-t {{ $count > 0 ? 'bg-[#004D9D]' : 'bg-gray-100' }}"
-                         style="height: {{ max(2, $pct) }}%"
-                         title="{{ $dailyLabels[$idx] }}: {{ $count }}"></div>
-                </div>
-                @endforeach
-            </div>
-            <div class="flex gap-1 mt-1.5">
-                @foreach($dailyLabels as $label)
-                <div class="flex-1 text-center text-[9px] text-gray-400">{{ $label }}</div>
-                @endforeach
-            </div>
-        </div>
-        @endif
-    </div>
-
-    {{-- ── Por setor ───────────────────────────────────────────────────── --}}
-    @if($bySector->isNotEmpty())
+    {{-- ── Mapa de calor: distribuição de mensagens por hora ───────────────── --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-3.5 border-b border-gray-100">
-            <p class="text-sm font-semibold text-gray-700">Utilização por setor</p>
+        <div class="px-4 py-3 border-b border-gray-100">
+            <p class="text-sm font-semibold text-gray-800 font-montserrat">Distribuição de anotações por horário</p>
+            <p class="text-[10px] text-gray-400 font-montserrat">volume de mensagens escritas em cada hora do turno — período de {{ $period }} dias</p>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="border-b border-gray-100 bg-gray-50">
-                    <tr class="text-xs text-gray-500 font-medium">
-                        <th class="text-left px-5 py-3">Setor</th>
-                        <th class="text-right px-4 py-3">Passagens</th>
-                        <th class="text-right px-4 py-3 hidden sm:table-cell">Enfermeiros</th>
-                        <th class="text-right px-4 py-3 hidden sm:table-cell">Média de leitos</th>
-                        <th class="text-right px-4 py-3 hidden md:table-cell">Duração média</th>
-                        <th class="text-right px-5 py-3">Última passagem</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 text-sm">
-                    @foreach($bySector as $row)
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-5 py-3.5 font-medium text-gray-900">{{ $row['sector_name'] }}</td>
-                        <td class="px-4 py-3.5 text-right font-bold text-[#004D9D]">{{ $row['sessions'] }}</td>
-                        <td class="px-4 py-3.5 text-right text-gray-600 hidden sm:table-cell">{{ $row['nurses'] }}</td>
-                        <td class="px-4 py-3.5 text-right text-gray-600 hidden sm:table-cell">
-                            {{ $row['avg_beds'] ? number_format($row['avg_beds'], 1) : '—' }}
-                        </td>
-                        <td class="px-4 py-3.5 text-right text-gray-600 hidden md:table-cell">
-                            {{ $row['avg_min'] ? number_format($row['avg_min'], 1).'min' : '—' }}
-                        </td>
-                        <td class="px-5 py-3.5 text-right text-gray-400 text-xs">{{ $row['last_session'] ?? '—' }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
-
-    {{-- ── Registro de sessões ─────────────────────────────────────────── --}}
-    @if($recentSessions->isNotEmpty())
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-2">
-            <p class="text-sm font-semibold text-gray-700">Registro de sessões</p>
-            <span class="text-xs text-gray-400">últimas {{ $recentSessions->count() }} concluídas</span>
-        </div>
-
-        {{-- Mobile --}}
-        <div class="divide-y divide-gray-100 sm:hidden">
-            @foreach($recentSessions as $s)
-            <div class="px-4 py-3.5">
-                <div class="flex items-start justify-between gap-2 mb-1">
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium text-gray-900 text-sm truncate">{{ $s['user_name'] }}</p>
-                        <p class="text-xs text-gray-500 truncate">{{ $s['sector_name'] }}</p>
+        <div class="px-4 py-4 space-y-4">
+            @foreach($heatmap as $row)
+            <div>
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold font-montserrat w-10" style="color:{{ $row['color'] }}">{{ $row['label'] }}</span>
+                    <div class="flex gap-0.5 flex-1">
+                        @foreach($row['cells'] as $cell)
+                        @php $opacity = $cell['pct'] > 0 ? max(15, $cell['pct']) : 0; @endphp
+                        <div class="flex-1 flex flex-col items-center gap-0.5 group relative">
+                            <div class="w-full rounded-sm transition-all"
+                                 style="height:32px; background:{{ $row['color'] }}; opacity:{{ $cell['pct'] > 0 ? ($opacity/100) : '0.06' }}"
+                                 title="{{ $cell['hour'] }}h: {{ $cell['count'] }} msgs"></div>
+                            @if($cell['count'] > 0)
+                            <span class="text-[7px] font-semibold tabular-nums" style="color:{{ $row['color'] }}">{{ $cell['count'] }}</span>
+                            @else
+                            <span class="text-[7px] text-gray-200">·</span>
+                            @endif
+                            <span class="text-[7px] text-gray-300 font-montserrat">{{ $cell['hour'] }}</span>
+                        </div>
+                        @endforeach
                     </div>
-                    <span class="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 {{ $shiftBadge[$s['shift_key']] ?? 'bg-gray-100 text-gray-600' }}">
-                        {{ $s['shift'] }}
-                    </span>
-                </div>
-                <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
-                    <span>{{ $s['started_at'] }} {{ $s['started_time'] }}</span>
-                    <span>{{ $s['beds_visited'] }}/{{ $s['beds_expected'] ?: $s['beds_visited'] }} leitos</span>
-                    @if($s['duration_min'])<span>{{ $s['duration_min'] }}min</span>@endif
-                    @if($s['forced_finish'])<span class="text-amber-600 font-medium">encerramento forçado</span>@endif
                 </div>
             </div>
             @endforeach
         </div>
+    </div>
 
-        {{-- Desktop --}}
-        <div class="hidden sm:block overflow-x-auto">
-            <table class="w-full">
-                <thead class="border-b border-gray-100 bg-gray-50">
-                    <tr class="text-xs text-gray-500 font-medium">
-                        <th class="text-left px-5 py-3">Enfermeiro</th>
-                        <th class="text-left px-4 py-3">Setor</th>
-                        <th class="text-left px-4 py-3">Turno</th>
-                        <th class="text-right px-4 py-3">Leitos</th>
-                        <th class="text-right px-4 py-3">Duração</th>
-                        <th class="text-right px-5 py-3">Data / hora</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 text-sm">
-                    @foreach($recentSessions as $s)
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-5 py-3 font-medium text-gray-900">{{ $s['user_name'] }}</td>
-                        <td class="px-4 py-3 text-gray-600 max-w-[160px] truncate">{{ $s['sector_name'] }}</td>
-                        <td class="px-4 py-3">
-                            <span class="text-xs font-medium px-2 py-0.5 rounded-full {{ $shiftBadge[$s['shift_key']] ?? 'bg-gray-100 text-gray-600' }}">
-                                {{ $s['shift'] }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-right text-gray-700 tabular-nums">
-                            {{ $s['beds_visited'] }}
-                            @if($s['beds_expected'] && $s['beds_expected'] !== $s['beds_visited'])
-                            <span class="text-gray-400">/{{ $s['beds_expected'] }}</span>
-                            @endif
-                            @if($s['forced_finish'])
-                            <span class="ml-1.5 text-[10px] text-amber-600">forçada</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3 text-right text-gray-500 tabular-nums">
-                            {{ $s['duration_min'] ? $s['duration_min'].'min' : '—' }}
-                        </td>
-                        <td class="px-5 py-3 text-right text-gray-400 text-xs tabular-nums whitespace-nowrap">
-                            {{ $s['started_at'] }} {{ $s['started_time'] }}
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
+    {{-- ── Plantonistas ─────────────────────────────────────────────────────── --}}
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2 justify-between">
+            <div>
+                <p class="text-sm font-semibold text-gray-800 font-montserrat">Plantonistas</p>
+                <p class="text-[10px] text-gray-400 font-montserrat">
+                    {{ $nurseStats->count() }} ativos · clique para ver perfil
+                </p>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-[9px] text-gray-400 font-montserrat">Ordenar:</span>
+                @foreach(['sessions'=>'Sessões','avg_messages'=>'Msgs/sess','avg_beds'=>'Leitos'] as $col=>$lbl)
+                <button type="button" @click="setSort('{{ $col }}')"
+                        :class="sortBy==='{{ $col }}' ? 'bg-[#004D9D] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+                        class="text-[9px] font-bold px-2 py-1 rounded-md transition-colors font-montserrat flex items-center gap-0.5">
+                    {{ $lbl }}
+                    <i class="fas text-[7px]" :class="sortBy==='{{ $col }}' ? (sortDir==='desc'?'fa-arrow-down':'fa-arrow-up') : 'fa-arrow-down opacity-30'"></i>
+                </button>
+                @endforeach
+            </div>
+        </div>
+        <div class="divide-y divide-gray-50">
+            <template x-for="(nurse, idx) in pagedNurses" :key="nurse.user_id">
+                <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors cursor-pointer group"
+                     @click="openNurseModal(nurse.user_id)">
+                    <span class="text-xs font-bold text-gray-200 w-6 text-right flex-shrink-0 tabular-nums"
+                          x-text="nursePage * nursePerPage + idx + 1"></span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-gray-800 truncate font-montserrat" x-text="nurse.name"></p>
+                        <p class="text-[10px] text-gray-400 truncate font-montserrat" x-text="nurse.sectors || '—'"></p>
+                    </div>
+                    <div class="flex items-center gap-4 flex-shrink-0">
+                        <div class="text-center hidden sm:block">
+                            <p class="text-sm font-bold text-[#004D9D] tabular-nums font-montserrat" x-text="Math.round(nurse.sessions_per_week * 10) / 10 + '/sem'"></p>
+                            <p class="text-[9px] text-gray-400 font-montserrat">sessões</p>
+                        </div>
+                        <div class="text-center hidden md:block">
+                            <p class="text-sm font-bold text-gray-700 tabular-nums font-montserrat" x-text="Math.round(nurse.avg_messages) || '—'"></p>
+                            <p class="text-[9px] text-gray-400 font-montserrat">msgs/sess</p>
+                        </div>
+                        <div class="text-center hidden lg:block">
+                            <p class="text-sm font-bold text-gray-700 tabular-nums font-montserrat" x-text="Math.round(nurse.avg_beds) || '—'"></p>
+                            <p class="text-[9px] text-gray-400 font-montserrat">leitos</p>
+                        </div>
+                        <template x-if="nurse.shift_pct && Math.min(nurse.shift_pct.M, nurse.shift_pct.T, nurse.shift_pct.N) > 5">
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 hidden sm:inline-block">multi-turno</span>
+                        </template>
+                        <template x-if="nurse.verbosity_label && !(nurse.shift_pct && Math.min(nurse.shift_pct.M, nurse.shift_pct.T, nurse.shift_pct.N) > 5)">
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full hidden sm:inline-block"
+                                  :class="{'bg-amber-50 text-amber-700':nurse.verbosity_label==='lacônico','bg-emerald-50 text-emerald-700':nurse.verbosity_label==='normal','bg-blue-50 text-blue-700':nurse.verbosity_label==='detalhado'}"
+                                  x-text="nurse.verbosity_label"></span>
+                        </template>
+                        <span class="text-[9px] font-semibold text-gray-300 group-hover:text-[#004D9D] transition-colors">
+                            <i class="fas fa-chevron-right text-[8px]"></i>
+                        </span>
+                    </div>
+                </div>
+            </template>
+        </div>
+        {{-- Paginação da tabela --}}
+        <div class="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between" x-show="nurseTotalPages > 1">
+            <button @click="nursePage = Math.max(0, nursePage - 1)"
+                    :disabled="nursePage === 0"
+                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors font-montserrat">
+                <i class="fas fa-chevron-left text-[8px] mr-1"></i>Anterior
+            </button>
+            <span class="text-[10px] text-gray-400 font-montserrat"
+                  x-text="(nursePage + 1) + ' / ' + nurseTotalPages + ' · ' + sortedNurses.length + ' plantonistas'"></span>
+            <button @click="nursePage = Math.min(nurseTotalPages - 1, nursePage + 1)"
+                    :disabled="nursePage >= nurseTotalPages - 1"
+                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors font-montserrat">
+                Próxima<i class="fas fa-chevron-right text-[8px] ml-1"></i>
+            </button>
         </div>
     </div>
-    @endif
 
-    @endif
+    @endif {{-- /!empty --}}
+    </div>{{-- /px-4 --}}
+
+    {{-- ══ Modal de perfil ══════════════════════════════════════════════════════ --}}
+    <div x-show="nurseModal.open"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-start justify-center pt-4 px-3 pb-4 md:items-center md:p-6"
+         @click.self="nurseModal.open = false"
+         style="display:none">
+
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="nurseModal.open = false"></div>
+
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden font-montserrat" @click.stop>
+
+            <div class="bg-[#004D9D] px-5 py-4 flex items-center gap-3 flex-shrink-0">
+                <div class="flex-1 min-w-0">
+                    <div x-show="!nurseModal.loading && nurseModal.data">
+                        <h2 class="text-base font-bold text-white truncate" x-text="nurseModal.data?.name || ''"></h2>
+                        <p class="text-xs text-white/70 mt-0.5" x-text="nurseModal.data ? 'Últimos ' + nurseModal.data.period_days + ' dias' : ''"></p>
+                    </div>
+                    <div x-show="nurseModal.loading" class="flex items-center gap-2 text-white/80 text-sm">
+                        <i class="fas fa-circle-notch fa-spin"></i> Carregando...
+                    </div>
+                </div>
+                <button @click="nurseModal.open = false"
+                        class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center hover:bg-white/25 transition-colors flex-shrink-0">
+                    <i class="fas fa-times text-white text-sm"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto flex-1 p-4 space-y-4" x-show="!nurseModal.loading && nurseModal.data">
+
+                {{-- KPIs --}}
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-[#004D9D]/5 rounded-xl p-3 text-center border border-[#004D9D]/10">
+                        <p class="text-2xl font-bold text-[#004D9D] tabular-nums" x-text="nurseModal.data?.summary?.total_sessions ?? '—'"></p>
+                        <p class="text-[10px] text-gray-500 mt-0.5">sessões</p>
+                        <p class="text-[10px] text-[#004D9D] font-semibold tabular-nums mt-0.5"
+                           x-text="(nurseModal.data?.summary?.sessions_per_week ?? '—') + '/sem'"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3 text-center border border-gray-200">
+                        <p class="text-2xl font-bold text-gray-800 tabular-nums"
+                           x-text="nurseModal.data?.summary?.avg_beds ?? '—'"></p>
+                        <p class="text-[10px] text-gray-500 mt-0.5">leitos/sessão</p>
+                        <p class="text-[10px] text-gray-400 tabular-nums mt-0.5"
+                           x-text="nurseModal.data?.summary?.avg_messages_per_session ? nurseModal.data.summary.avg_messages_per_session + ' msgs/sess' : '—'"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3 text-center border border-gray-200">
+                        <p class="text-2xl font-bold tabular-nums"
+                           :class="nurseModal.data?.summary?.verbosity_label==='lacônico'?'text-amber-600':nurseModal.data?.summary?.verbosity_label==='detalhado'?'text-blue-600':'text-emerald-600'"
+                           x-text="nurseModal.data?.summary?.avg_chars_per_message ? nurseModal.data.summary.avg_chars_per_message + 'ch' : '—'"></p>
+                        <p class="text-[10px] text-gray-500 mt-0.5">chars/msg</p>
+                        <p class="text-[10px] font-semibold mt-0.5"
+                           :class="nurseModal.data?.summary?.verbosity_label==='lacônico'?'text-amber-600':nurseModal.data?.summary?.verbosity_label==='detalhado'?'text-blue-600':'text-emerald-600'"
+                           x-text="nurseModal.data?.summary?.verbosity_label"></p>
+                    </div>
+                </div>
+
+                {{-- Análise de escrita --}}
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-gray-100">
+                        <p class="text-sm font-semibold text-gray-800">Análise de escrita</p>
+                    </div>
+                    <div class="px-4 py-3">
+                        <template x-if="nurseModal.data?.summary?.total_messages > 0">
+                            <div class="space-y-1.5">
+                                <template x-for="vItem in [
+                                    { label: 'Lacônicas (< 60 chars)', key: 'count_laconic', color: 'bg-amber-400' },
+                                    { label: 'Normais (60–200 chars)', key: 'count_normal', color: 'bg-emerald-500' },
+                                    { label: 'Detalhadas (> 200 chars)', key: 'count_verbose', color: 'bg-blue-500' }
+                                ]" :key="vItem.key">
+                                    <div>
+                                        <div class="flex justify-between text-[10px] mb-0.5">
+                                            <span class="text-gray-500" x-text="vItem.label"></span>
+                                            <span class="font-semibold text-gray-700 tabular-nums"
+                                                  x-text="nurseModal.data.summary[vItem.key] + ' (' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%)'"></span>
+                                        </div>
+                                        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full" :class="vItem.color"
+                                                 :style="'width: ' + Math.round(nurseModal.data.summary[vItem.key] / nurseModal.data.summary.total_messages * 100) + '%'"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="nurseModal.data.summary.global_avg_chars > 0">
+                                    <p class="text-[10px] text-gray-400 pt-1.5 border-t border-gray-100"
+                                       x-text="'Média global: ' + nurseModal.data.summary.global_avg_chars + ' ch/msg — escreve ' + (nurseModal.data.summary.avg_chars_per_message > nurseModal.data.summary.global_avg_chars ? Math.round((nurseModal.data.summary.avg_chars_per_message / nurseModal.data.summary.global_avg_chars - 1) * 100) + '% mais' : Math.round((1 - nurseModal.data.summary.avg_chars_per_message / nurseModal.data.summary.global_avg_chars) * 100) + '% menos') + ' que a média.'"></p>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!nurseModal.data?.summary?.total_messages">
+                            <p class="text-xs text-gray-400 text-center py-3">Sem anotações no período.</p>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Distribuição por turno --}}
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-gray-100">
+                        <p class="text-sm font-semibold text-gray-800">Distribuição por turno</p>
+                    </div>
+                    <div class="px-4 py-3">
+                        <template x-if="nurseModal.data?.shift_distribution">
+                            <div class="flex gap-2">
+                                <template x-for="(count, key) in nurseModal.data.shift_distribution" :key="key">
+                                    <div class="flex-1 text-center bg-[#004D9D]/5 rounded-lg py-3">
+                                        <p class="text-lg font-bold text-[#004D9D] tabular-nums" x-text="count"></p>
+                                        <p class="text-[10px] text-gray-400" x-text="key==='M'?'Manhã':key==='T'?'Tarde':'Noite'"></p>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Passagens recentes com paginação --}}
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                        <p class="text-sm font-semibold text-gray-800">Passagens</p>
+                        <span class="text-[10px] text-gray-400"
+                              x-text="(nurseModal.data?.recent_sessions?.length || 0) + ' registradas'"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs font-montserrat">
+                            <thead>
+                                <tr class="bg-gray-50 text-[10px] text-gray-500">
+                                    <th class="px-3 py-2 text-left font-semibold">Data / Turno</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Setor</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Leitos</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Msgs</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="(s, i) in pagedSessions" :key="i">
+                                    <tr class="hover:bg-gray-50/50">
+                                        <td class="px-3 py-2.5">
+                                            <p class="font-semibold text-gray-700 tabular-nums" x-text="s.started_at"></p>
+                                            <p class="text-[10px] text-gray-400" x-text="s.shift"></p>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-gray-500 max-w-[110px] truncate" x-text="s.sector_name"></td>
+                                        <td class="px-3 py-2.5 text-right font-semibold text-gray-700 tabular-nums" x-text="s.beds_visited"></td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums"
+                                            :class="s.messages_written===0?'text-gray-300':'text-gray-600'"
+                                            x-text="s.messages_written||'—'"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="px-4 py-2 border-t border-gray-100 flex items-center justify-between"
+                         x-show="sessionTotalPages > 1">
+                        <button @click="sessionPage = Math.max(0, sessionPage - 1)"
+                                :disabled="sessionPage === 0"
+                                class="text-[10px] font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
+                            <i class="fas fa-chevron-left text-[8px] mr-1"></i>Anterior
+                        </button>
+                        <span class="text-[10px] text-gray-400"
+                              x-text="(sessionPage + 1) + ' / ' + sessionTotalPages"></span>
+                        <button @click="sessionPage = Math.min(sessionTotalPages - 1, sessionPage + 1)"
+                                :disabled="sessionPage >= sessionTotalPages - 1"
+                                class="text-[10px] font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
+                            Próxima<i class="fas fa-chevron-right text-[8px] ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 </div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('metricsApp', (nurseStats, sectorStats, period) => ({
+        nurseStats: nurseStats,
+        sectorStats: sectorStats,
+        period: period,
+        sortBy: 'sessions',
+        sortDir: 'desc',
+        nursePage: 0,
+        nursePerPage: 10,
+        nurseModal: { open: false, loading: false, data: null },
+        sessionPage: 0,
+        sessionPerPage: 15,
+
+        get sortedNurses() {
+            return [...this.nurseStats].sort((a, b) => {
+                const av = a[this.sortBy] ?? (this.sortDir==='desc' ? -Infinity : Infinity);
+                const bv = b[this.sortBy] ?? (this.sortDir==='desc' ? -Infinity : Infinity);
+                return this.sortDir === 'desc' ? bv - av : av - bv;
+            });
+        },
+        get pagedNurses() {
+            return this.sortedNurses.slice(this.nursePage * this.nursePerPage, (this.nursePage + 1) * this.nursePerPage);
+        },
+        get nurseTotalPages() {
+            return Math.ceil(this.sortedNurses.length / this.nursePerPage);
+        },
+        get pagedSessions() {
+            const all = this.nurseModal.data?.recent_sessions || [];
+            return all.slice(this.sessionPage * this.sessionPerPage, (this.sessionPage + 1) * this.sessionPerPage);
+        },
+        get sessionTotalPages() {
+            return Math.ceil((this.nurseModal.data?.recent_sessions?.length || 0) / this.sessionPerPage);
+        },
+
+        setSort(col) {
+            if (this.sortBy === col) { this.sortDir = this.sortDir==='desc'?'asc':'desc'; }
+            else { this.sortBy = col; this.sortDir = 'desc'; }
+            this.nursePage = 0;
+        },
+
+        async openNurseModal(userId) {
+            this.nurseModal.open = true;
+            this.nurseModal.loading = true;
+            this.nurseModal.data = null;
+            this.sessionPage = 0;
+            try {
+                const r = await fetch(`/administracao/panorama/passagens/metricas/enfermeiro/${userId}?period=${this.period}`,
+                    { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error();
+                this.nurseModal.data = await r.json();
+            } catch { this.nurseModal.data = null; }
+            finally { this.nurseModal.loading = false; }
+        },
+    }));
+});
+</script>
 @endsection

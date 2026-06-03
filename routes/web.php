@@ -82,11 +82,12 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
             ->name('pending.report.export');
 
         // Painel do Sistema
-        Route::middleware('can:ver historico chat')->prefix('historico')->group(function () {
+        Route::middleware('can:ver historico chat')->prefix('panorama')->group(function () {
             Route::get('/', [ChatArchiveController::class, 'index'])->name('admin.dashboard');
             Route::get('/dt', [ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
             Route::get('/data', [ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
             Route::get('/passagens/metricas', [HandoverMetricsController::class, 'index'])->name('handover.metrics');
+            Route::get('/passagens/metricas/enfermeiro/{userId}', [HandoverMetricsController::class, 'nurseDetail'])->name('handover.metrics.nurse');
             Route::get('/{nr}', [ChatArchiveController::class, 'show'])->name('chat.archive.show');
         });
 

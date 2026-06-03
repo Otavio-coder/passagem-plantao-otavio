@@ -5,6 +5,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('handover:prune-log --days=180')
+    ->weekly()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Arquiva mensagens com mais de 30 dias (chat_messages → chat_messages_archive)
 // Executa diariamente às 03:00
 Schedule::command('chat:cleanup --days=30')
@@ -16,12 +21,6 @@ Schedule::command('chat:cleanup --days=30')
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();
 
-// Marca sessões de passagem ativas sem atividade por mais de 20 minutos como abandoned
-Schedule::command('handover:mark-abandoned')
-    ->everyFiveMinutes()
-    ->withoutOverlapping()
-    ->runInBackground();
-
 // Limpa caches de dados de setor SBAR a cada hora para forçar re-carregamento
 // (demografia, escalas, pendências, multidisciplinar, etc.)
 Schedule::call(function () {
@@ -30,8 +29,7 @@ Schedule::call(function () {
         ->pluck('sector_id');
 
     $prefixes = ['sector_demographics_', 'sector_scales_', 'sector_clinical_',
-        'sector_multi_', 'sector_surgery_', 'sector_pending_fast_',
-        'sector_handover_'];
+        'sector_multi_', 'sector_surgery_', 'sector_pending_fast_'];
 
     foreach ($keys as $sectorId) {
         foreach ($prefixes as $prefix) {

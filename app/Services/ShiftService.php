@@ -6,6 +6,59 @@ use Carbon\Carbon;
 
 class ShiftService
 {
+    // Minutos desde meia-noite nos pontos de transição de turno (30min de tolerância no fim)
+    // Noite → Manhã: 07:30 (450 min)
+    // Manhã → Tarde: 13:30 (810 min)
+    // Tarde → Noite: 19:30 (1170 min)
+    public const SHIFT_M_START = 450;
+
+    public const SHIFT_T_START = 810;
+
+    public const SHIFT_N_START = 1170;
+
+    /** Expressão SQL CASE para classificar turno a partir de uma coluna datetime. */
+    public static function shiftSqlExpr(string $col): string
+    {
+        $m = self::SHIFT_M_START;
+        $t = self::SHIFT_T_START;
+        $n = self::SHIFT_N_START;
+
+        return "CASE WHEN (HOUR({$col})*60+MINUTE({$col})) >= {$m} AND (HOUR({$col})*60+MINUTE({$col})) < {$t} THEN 'M'"
+            ." WHEN (HOUR({$col})*60+MINUTE({$col})) >= {$t} AND (HOUR({$col})*60+MINUTE({$col})) < {$n} THEN 'T'"
+            ." ELSE 'N' END";
+    }
+
+    /** Expressão SQL CASE para calcular a data lógica do turno (noite cruza meia-noite). */
+    public static function shiftDateSqlExpr(string $col): string
+    {
+        $m = self::SHIFT_M_START;
+
+        return "CASE WHEN (HOUR({$col})*60+MINUTE({$col})) < {$m} THEN DATE({$col} - INTERVAL 1 DAY) ELSE DATE({$col}) END";
+    }
+
+    /** Classifica turno (M/T/N) a partir de minutos desde meia-noite. */
+    public static function shiftFromMinutes(int $minutes): string
+    {
+        if ($minutes >= self::SHIFT_M_START && $minutes < self::SHIFT_T_START) {
+            return 'M';
+        }
+        if ($minutes >= self::SHIFT_T_START && $minutes < self::SHIFT_N_START) {
+            return 'T';
+        }
+
+        return 'N';
+    }
+
+    /** Data lógica do turno a partir de um Unix timestamp. */
+    public static function shiftDateFromTimestamp(int $ts): string
+    {
+        $minutes = (int) date('H', $ts) * 60 + (int) date('i', $ts);
+
+        return $minutes < self::SHIFT_M_START
+            ? date('Y-m-d', strtotime('-1 day', $ts))
+            : date('Y-m-d', $ts);
+    }
+
     /**
      * Retorna o turno atual como 'M', 'T' ou 'N'
      */
@@ -17,19 +70,7 @@ class ShiftService
             $dt = now();
         }
 
-        $minutes = $dt->hour * 60 + $dt->minute;
-
-        // Manhã: 07:15 - 13:14 (435 - 794)
-        // Tarde: 13:15 - 19:14 (795 - 1154)
-        // Noite: 19:15 - 07:14 (1155+ e 0 - 434)
-        if ($minutes >= 435 && $minutes <= 794) {
-            return 'M';
-        }
-        if ($minutes >= 795 && $minutes <= 1154) {
-            return 'T';
-        }
-
-        return 'N';
+        return self::shiftFromMinutes($dt->hour * 60 + $dt->minute);
     }
 
     /**
@@ -40,11 +81,7 @@ class ShiftService
     {
         $dt = $dateTime ? Carbon::parse($dateTime) : now();
 
-        if ($dt->hour >= 0 && $dt->hour < 7) {
-            return $dt->copy()->subDay()->toDateString();
-        }
-
-        return $dt->toDateString();
+        return self::shiftDateFromTimestamp($dt->timestamp);
     }
 
     /**
@@ -59,22 +96,19 @@ class ShiftService
         if ($graceMinutes > 0) {
             $dt = $dt->copy()->subMinutes($graceMinutes);
         }
-        $hour = $dt->hour;
 
-        if ($hour >= 7 && $hour < 13) {
-            return ['shift' => 'morning',   'date' => $dt->toDateString()];
-        }
+        $minutes = $dt->hour * 60 + $dt->minute;
+        $shift = self::shiftFromMinutes($minutes);
+        $date = self::shiftDateFromTimestamp($dt->timestamp);
 
-        if ($hour >= 13 && $hour < 19) {
-            return ['shift' => 'afternoon', 'date' => $dt->toDateString()];
-        }
-
-        // Night shift — se entre 00:00 e 06:59, o turno começou ontem
-        $date = ($hour >= 0 && $hour < 7)
-            ? $dt->copy()->subDay()->toDateString()
-            : $dt->toDateString();
-
-        return ['shift' => 'night', 'date' => $date];
+        return [
+            'shift' => match ($shift) {
+                'M' => 'morning',
+                'T' => 'afternoon',
+                default => 'night',
+            },
+            'date' => $date,
+        ];
     }
 
     /**
@@ -88,18 +122,7 @@ class ShiftService
             return null;
         }
 
-        $minutes = $dt->hour * 60 + $dt->minute;
-        if ($minutes >= 435 && $minutes <= 794) {
-            return 'M';
-        }
-        if ($minutes >= 795 && $minutes <= 1154) {
-            return 'T';
-        }
-        if (($minutes >= 1155 && $minutes <= 1439) || ($minutes >= 0 && $minutes <= 434)) {
-            return 'N';
-        }
-
-        return null;
+        return self::shiftFromMinutes($dt->hour * 60 + $dt->minute);
     }
 
     /**
@@ -111,40 +134,22 @@ class ShiftService
     public static function getShiftWindow($now = null): array
     {
         $dt = $now ? Carbon::parse($now) : now();
-        $hour = $dt->hour;
+        $shift = self::shiftFromMinutes($dt->hour * 60 + $dt->minute);
         $today = $dt->toDateString();
 
-        if ($hour >= 7 && $hour < 13) {
-            return [
-                Carbon::parse("{$today} 07:00:00"),
-                Carbon::parse("{$today} 12:59:59"),
-            ];
-        }
-
-        if ($hour >= 13 && $hour < 19) {
-            return [
-                Carbon::parse("{$today} 13:00:00"),
-                Carbon::parse("{$today} 18:59:59"),
-            ];
-        }
-
-        // Noite: 19h do dia lógico até 06:59 do dia seguinte
-        if ($hour >= 19) {
-            $tomorrow = $dt->copy()->addDay()->toDateString();
-
-            return [
-                Carbon::parse("{$today} 19:00:00"),
-                Carbon::parse("{$tomorrow} 06:59:59"),
-            ];
-        }
-
-        // 00:00–06:59 → noite que começou ontem
-        $yesterday = $dt->copy()->subDay()->toDateString();
-
-        return [
-            Carbon::parse("{$yesterday} 19:00:00"),
-            Carbon::parse("{$today} 06:59:59"),
-        ];
+        return match ($shift) {
+            'M' => [
+                Carbon::parse("{$today} 07:30:00"),
+                Carbon::parse("{$today} 13:29:59"),
+            ],
+            'T' => [
+                Carbon::parse("{$today} 13:30:00"),
+                Carbon::parse("{$today} 19:29:59"),
+            ],
+            default => $dt->hour >= 19 || ($dt->hour === 19 && $dt->minute >= 30)
+                ? [Carbon::parse("{$today} 19:30:00"), Carbon::parse($dt->copy()->addDay()->toDateString().' 07:29:59')]
+                : [Carbon::parse($dt->copy()->subDay()->toDateString().' 19:30:00'), Carbon::parse("{$today} 07:29:59")],
+        };
     }
 
     /**
@@ -170,6 +175,21 @@ class ShiftService
         $shifted = $dt->copy()->addMinutes($graceMinutes);
 
         return self::getCurrentShift($shifted);
+    }
+
+    /**
+     * Returns ['shift' => 'M'|'T'|'N', 'date' => 'Y-m-d'] for activity log grouping.
+     * Activity within 60 min before a shift start is attributed to the incoming shift,
+     * matching the real-world pattern of nurses arriving early to do handover prep.
+     */
+    public static function getShiftContextForLog(Carbon $ts, int $toleranceMinutes = 60): array
+    {
+        // Aplica tolerância antecipando o timestamp (ex: 60min antes → classifica no turno entrante)
+        $effective = $ts->copy()->addMinutes($toleranceMinutes);
+        $shift = self::shiftFromMinutes($effective->hour * 60 + $effective->minute);
+        $date = self::shiftDateFromTimestamp($ts->timestamp);
+
+        return ['shift' => $shift, 'date' => $date];
     }
 
     public static function getShiftLabel(string $shift): string

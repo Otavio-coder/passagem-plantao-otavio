@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-int'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2">Intervenções</p>
+    <p class="text-[10px] font-bold text-amber-700 mb-2">Intervenções</p>
 
     <div x-show="int.items.length === 0" class="bg-white rounded-lg border border-amber-200 py-8 text-center">
         <p class="text-xs text-amber-700/70">Sem informações de intervenções.</p>

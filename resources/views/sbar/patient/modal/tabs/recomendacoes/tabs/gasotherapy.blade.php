@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-gas'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-cyan-700 uppercase tracking-wider mb-2">Gasoterapia</p>
+    <p class="text-[10px] font-bold text-cyan-700 mb-2">Gasoterapia</p>
 
     <div x-show="gas.items.length === 0" class="bg-white rounded-lg border border-cyan-200 py-8 text-center">
         <p class="text-xs text-cyan-700/70">Sem informações de gasoterapia.</p>

@@ -2,23 +2,20 @@
 
 namespace App\Support;
 
+use App\Services\ShiftService;
 use Carbon\Carbon;
 
 class ChatArchiveShiftResolver
 {
     public static function inferTurno(string $datetime): string
     {
-        $hour = (int) Carbon::parse($datetime)->format('H');
+        $dt = Carbon::parse($datetime);
 
-        if ($hour >= 7 && $hour < 13) {
-            return 'manha';
-        }
-
-        if ($hour >= 13 && $hour < 19) {
-            return 'tarde';
-        }
-
-        return 'noite';
+        return match (ShiftService::shiftFromMinutes($dt->hour * 60 + $dt->minute)) {
+            'M' => 'manha',
+            'T' => 'tarde',
+            default => 'noite',
+        };
     }
 
     public static function label(mixed $turno, mixed $timestamp = null): string

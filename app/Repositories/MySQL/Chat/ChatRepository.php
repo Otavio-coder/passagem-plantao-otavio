@@ -4,6 +4,7 @@ namespace App\Repositories\MySQL\Chat;
 
 use App\Events\ChatMessagePinned;
 use App\Events\ChatMessageSent;
+use App\Models\HandoverActivityLog;
 use App\Models\System\Chat\ChatMessage;
 use App\Models\System\Chat\ChatMessagePin;
 use Illuminate\Support\Collection;
@@ -77,6 +78,14 @@ class ChatRepository
         ]);
 
         $msg->load('user');
+
+        HandoverActivityLog::record(
+            HandoverActivityLog::EVENT_CHAT_POST,
+            (int) $msg->user_id,
+            (int) $msg->nr_atendimento,
+            (int) ($data['sector_id'] ?? 0),
+            $data['sector_name'] ?? null,
+        );
 
         try {
             event(new ChatMessageSent($msg));

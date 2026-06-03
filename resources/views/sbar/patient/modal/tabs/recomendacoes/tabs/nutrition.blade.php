@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-nut'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2">Plano Nutricional</p>
+    <p class="text-[10px] font-bold text-emerald-700 mb-2">Plano Nutricional</p>
 
     <div x-show="nut.items.length === 0" class="bg-white rounded-lg border border-emerald-200 py-8 text-center">
         <p class="text-xs text-emerald-700/70">Sem informações de nutrição.</p>
@@ -68,7 +68,7 @@
                 {{-- Dados do Jejum --}}
                 <div x-show="nutItem.is_fasting && (nutItem.fasting_type || nutItem.fasting_goal || nutItem.fasting_start || nutItem.fasting_end)"
                      class="bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 text-[11px] text-amber-800 leading-snug space-y-0.5">
-                    <p class="font-semibold text-amber-900 text-[10px] uppercase tracking-wide">Jejum</p>
+                    <p class="font-semibold text-amber-900 text-[10px]">Jejum</p>
                     <p x-show="nutItem.fasting_type"><span class="font-semibold">Tipo:</span> <span x-text="nutItem.fasting_type"></span></p>
                     <p x-show="nutItem.fasting_goal"><span class="font-semibold">Objetivo:</span> <span x-text="nutItem.fasting_goal"></span></p>
                     <p x-show="nutItem.fasting_start || nutItem.fasting_end">
@@ -81,7 +81,7 @@
 
                 {{-- Composição (produtos) --}}
                 <div x-show="(nutItem.products || []).length > 0" class="border-t border-emerald-100 pt-2">
-                    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Composição</p>
+                    <p class="text-[10px] font-semibold text-gray-500 mb-1">Composição</p>
                     <ul class="space-y-0.5">
                         <template x-for="(prod, pi) in (nutItem.products || [])" :key="pi">
                             <li class="text-[11px] text-gray-700 leading-snug flex items-baseline gap-1">

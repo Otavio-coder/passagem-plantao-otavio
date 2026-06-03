@@ -13,7 +13,7 @@
 
         <h1 class="text-xl font-bold text-[#004D9D] mb-1">Huddle de Alta</h1>
 
-        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">
+        <p class="text-xs font-semibold text-slate-400 mb-3">
             Em breve
         </p>
 

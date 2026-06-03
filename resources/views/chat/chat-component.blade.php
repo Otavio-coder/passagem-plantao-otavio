@@ -100,7 +100,7 @@
                     {{-- Shift name + user info --}}
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-1.5 leading-none">
-                            <p class="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-white/80 leading-none">
+                            <p class="text-[11px] sm:text-xs font-bold text-white/80 leading-none">
                                 Turno {{ $this->shiftDisplay['badge'] }}
                             </p>
                             @if(($this->messageStats['pinned_count'] ?? 0) > 0)

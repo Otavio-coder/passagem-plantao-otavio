@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
@@ -93,21 +94,29 @@ class PendingEventsReportController extends Controller
         $onlyAssignedBeds = (bool) $user->only_assigned_beds;
 
         foreach ($selectedSectors as $sectorId) {
-            $patients = PatientDataLoader::forSector($sectorId)
-                ->include('demographics', 'pending_events', 'multidisciplinary')
-                ->get();
+            $userCached = $onlyAssignedBeds
+                ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
+                : null;
 
-            if ($onlyAssignedBeds) {
-                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
-                    ->where('sector_id', $sectorId)
-                    ->pluck('bed_code')
-                    ->toArray();
+            if ($userCached !== null) {
+                $patients = $userCached;
+            } else {
+                $patients = PatientDataLoader::forSector($sectorId)
+                    ->include('demographics', 'pending_events', 'multidisciplinary')
+                    ->get();
 
-                if (! empty($assignedBeds)) {
-                    $patients = array_values(array_filter(
-                        $patients,
-                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
-                    ));
+                if ($onlyAssignedBeds) {
+                    $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                        ->where('sector_id', $sectorId)
+                        ->pluck('bed_code')
+                        ->toArray();
+
+                    if (! empty($assignedBeds)) {
+                        $patients = array_values(array_filter(
+                            $patients,
+                            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                        ));
+                    }
                 }
             }
 
@@ -192,21 +201,29 @@ class PendingEventsReportController extends Controller
         $onlyAssignedBeds = (bool) $user->only_assigned_beds;
 
         foreach ($selectedSectors as $sectorId) {
-            $patients = PatientDataLoader::forSector($sectorId)
-                ->include('demographics', 'pending_events', 'multidisciplinary')
-                ->get();
+            $userCached = $onlyAssignedBeds
+                ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
+                : null;
 
-            if ($onlyAssignedBeds) {
-                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
-                    ->where('sector_id', $sectorId)
-                    ->pluck('bed_code')
-                    ->toArray();
+            if ($userCached !== null) {
+                $patients = $userCached;
+            } else {
+                $patients = PatientDataLoader::forSector($sectorId)
+                    ->include('demographics', 'pending_events', 'multidisciplinary')
+                    ->get();
 
-                if (! empty($assignedBeds)) {
-                    $patients = array_values(array_filter(
-                        $patients,
-                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
-                    ));
+                if ($onlyAssignedBeds) {
+                    $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                        ->where('sector_id', $sectorId)
+                        ->pluck('bed_code')
+                        ->toArray();
+
+                    if (! empty($assignedBeds)) {
+                        $patients = array_values(array_filter(
+                            $patients,
+                            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                        ));
+                    }
                 }
             }
 
@@ -230,7 +247,7 @@ class PendingEventsReportController extends Controller
         ];
 
         $columns = [
-            'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Tipo', 'Classificação',
+            'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Prev. Alta', 'Tipo', 'Classificação',
             'Pendência', 'Nr. Prescrição', 'Prescritor',
             'Status (Tasy)', 'Status (SCOLA)', 'Resultado Bacteriológico',
             'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)',
@@ -242,6 +259,7 @@ class PendingEventsReportController extends Controller
             $row['ugb'] ?? '',
             $row['atendimento'] ?? '',
             $row['setor_origem'] ?? '',
+            $row['prev_alta'] ?? '',
             $row['tipo_label'] ?? '',
             $row['classificacao'] ?? '',
             $row['item'] ?? '',

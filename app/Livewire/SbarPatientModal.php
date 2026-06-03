@@ -3,13 +3,15 @@
 namespace App\Livewire;
 
 use App\Models\EMR\Core\Patient;
-use App\Models\ShiftHandover;
+use App\Models\HandoverActivityLog;
+use App\Models\NurseHandoverBed;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
 use Livewire\Attributes\On;
@@ -34,7 +36,7 @@ class SbarPatientModal extends Component
 
     public $loadingPatient = false;
 
-    /** @var array<int, array{nr_atendimento:int,label:string,sbar_payload?:array<string,mixed>}> */
+    /** @var array<int, array{nr_atendimento:int,label:string,cd_setor_atendimento:int,cd_unidade_basica:string|null,ds_setor_atendimento:string|null,ds_prescricao:string|null}> */
     public array $modalPatients = [];
 
     public ?int $currentPatientIndex = null;
@@ -49,22 +51,11 @@ class SbarPatientModal extends Component
     /** Date shown in the medication schedule grid (Y-m-d). Navigable with shiftScheduleDay(). */
     public string $scheduleDate = '';
 
-    /** Whether the modal is locked in nurse handover mode. */
-    public bool $handoverMode = false;
-
-    /** ISO timestamp when the handover session started, used for the timer. */
-    public string $handoverStartedAt = '';
-
-    /** Session token for multi-tab safety (passed through finish/cancel events). */
-    public string $handoverSessionToken = '';
-
-    /** Attendance numbers of beds actually visited during handover (de-duplicated). */
-    public array $visitedBedsAttendances = [];
+    public int $currentSectorId = 0;
 
     /** @var array Per-medication hour slots: [ med_id => [ 'HH:MI' => 'administered'|'scheduled'|'missed' ] ] */
     public array $medicationSchedule = [];
 
-    // Model centralizada
     protected $patientModel;
 
     protected TasyService $tasyService;
@@ -81,79 +72,69 @@ class SbarPatientModal extends Component
         $this->scheduleDate = now()->format('Y-m-d');
     }
 
-    #[On('openPatientModalHandover')]
-    public function openFromHandover(array $data): void
-    {
-        $attendanceNumber = $data['attendanceNumber'] ?? null;
-        $patients = $data['patients'] ?? [];
-
-        if (! $attendanceNumber) {
-            return;
-        }
-
-        if (! empty($data['handoverMode'])) {
-            $this->handoverMode = true;
-            $this->handoverStartedAt = $data['startedAt'] ?? now()->toISOString();
-            $this->handoverSessionToken = $data['sessionToken'] ?? '';
-            $this->visitedBedsAttendances = [];
-        }
-
-        $sbarPatient = collect($patients)
-            ->firstWhere('nr_atendimento', (int) $attendanceNumber);
-
-        $this->openModal((int) $attendanceNumber, '', $sbarPatient ?? null, $patients);
-    }
-
     #[On('openModal')]
-    public function openModal($attendanceNumber, $hospital = '', $sbarPatient = null, $patients = [])
+    public function openModal($attendanceNumber, $sectorId = 0, $hospital = '', $patients = [])
     {
         if (! $attendanceNumber || $attendanceNumber == 0) {
             return;
         }
 
         try {
-            $previousVisited = $this->visitedBedsAttendances;
             $this->resetModalState();
-            $this->visitedBedsAttendances = $previousVisited;
 
-            if ($this->handoverMode) {
-                $nr = (int) $attendanceNumber;
-                if ($nr > 0 && ! in_array($nr, $this->visitedBedsAttendances, true)) {
-                    $this->visitedBedsAttendances[] = $nr;
-                }
-            }
-
-            // Se a lista de pacientes não veio via evento (window.__sbarModalPatients não executa
-            // no morph do Livewire), busca os pacientes do setor direto do cache de demographics
-            // (já aquecido pelo SbarReport, lookup Redis ~1 ms).
+            // Fallback: when nav list wasn't passed (e.g. Livewire morph lost the JS var),
+            // load demographics from the already-warm sector cache and filter by assigned beds.
             $patientsList = is_array($patients) ? $patients : [];
-            if (empty($patientsList) && is_array($sbarPatient)) {
-                $sectorId = (int) ($sbarPatient['cd_setor_atendimento'] ?? 0);
-                if ($sectorId > 0) {
-                    try {
-                        $patientsList = array_values(
+            $sectorId = (int) $sectorId;
+            if (empty($patientsList) && $sectorId > 0) {
+                try {
+                    $user = Auth::user();
+                    $userCached = $user->only_assigned_beds
+                        ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
+                        : null;
+
+                    if ($userCached !== null) {
+                        $patientsList = array_values($userCached);
+                    } else {
+                        $all = array_values(
                             PatientDataLoader::forSector($sectorId)->include('demographics')->get()
                         );
-                    } catch (\Throwable $e) {
-                        Log::warning('PatientModal: Failed to load sector patients for navigation', [
-                            'sector_id' => $sectorId,
-                            'error' => $e->getMessage(),
-                        ]);
+                        if ($user->only_assigned_beds) {
+                            $bedCodes = NurseHandoverBed::where('user_id', $user->id)
+                                ->where('sector_id', $sectorId)
+                                ->pluck('bed_code')
+                                ->toArray();
+                            if (! empty($bedCodes)) {
+                                $all = array_values(array_filter(
+                                    $all,
+                                    fn ($p) => in_array($p['cd_unidade_basica'] ?? '', $bedCodes, true)
+                                ));
+                            }
+                        }
+                        $patientsList = $all;
                     }
+                } catch (\Throwable $e) {
+                    Log::warning('PatientModal: Failed to load sector patients for navigation', [
+                        'sector_id' => $sectorId,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
+            $this->currentSectorId = $sectorId;
             $this->setModalPatients($patientsList, (int) $attendanceNumber);
             $this->loadingPatient = true;
             $this->showModal = true;
             $this->dispatch('modal-opened');
 
+            $navEntry = collect($this->modalPatients)->firstWhere('nr_atendimento', (int) $attendanceNumber);
             $this->currentPatient = [
                 'nr_atendimento' => $attendanceNumber,
                 'has_patient' => true,
-                'cd_unidade_basica' => is_array($sbarPatient) ? ($sbarPatient['cd_unidade_basica'] ?? null) : null,
-                'ds_setor_atendimento' => is_array($sbarPatient) ? ($sbarPatient['ds_setor_atendimento'] ?? null) : null,
-                'ds_prescricao' => is_array($sbarPatient) ? ($sbarPatient['ds_prescricao'] ?? null) : null,
+                'cd_setor_atendimento' => $sectorId ?: ($navEntry['cd_setor_atendimento'] ?? null),
+                'cd_unidade_basica' => $navEntry['cd_unidade_basica'] ?? null,
+                'ds_setor_atendimento' => $navEntry['ds_setor_atendimento'] ?? null,
+                'ds_prescricao' => $navEntry['ds_prescricao'] ?? null,
             ];
             $this->currentHospitalName = $hospital;
 
@@ -162,11 +143,15 @@ class SbarPatientModal extends Component
                 'shift' => $this->currentShift,
             ]);
 
-            if (is_array($sbarPatient) && $this->isUsableSbarPayload($sbarPatient)) {
-                $this->loadFromSbarData($sbarPatient, $attendanceNumber);
-            } else {
-                $this->loadPatientData($attendanceNumber);
-            }
+            HandoverActivityLog::record(
+                HandoverActivityLog::EVENT_MODAL_OPEN,
+                Auth::id(),
+                (int) $attendanceNumber,
+                $sectorId,
+                $navEntry['ds_setor_atendimento'] ?? null,
+            );
+
+            $this->loadPatientData($attendanceNumber);
 
         } catch (\Exception $e) {
             Log::error('PatientModal: Error in openModal', [
@@ -189,37 +174,16 @@ class SbarPatientModal extends Component
                 $patient = is_array($rawPatient) ? $rawPatient : (array) $rawPatient;
                 $attendance = (int) ($patient['nr_atendimento'] ?? 0);
                 $existingLabel = trim((string) ($patient['label'] ?? ''));
-                $sbarPayload = $patient['sbar_payload'] ?? [];
-                if (! is_array($sbarPayload)) {
-                    $sbarPayload = [];
-                }
-
-                $navigationPayload = [
-                    'nr_atendimento' => $attendance,
-                    'cd_pessoa_fisica' => isset($patient['cd_pessoa_fisica']) ? (int) $patient['cd_pessoa_fisica'] : null,
-                    'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
-                    'ds_setor_atendimento' => $patient['ds_setor_atendimento'] ?? null,
-                    'ds_prescricao' => $patient['ds_prescricao'] ?? null,
-                ];
-                $navigationPayload = array_filter(
-                    $navigationPayload,
-                    fn ($value) => ! (is_null($value) || $value === '')
-                );
-
-                if (empty($sbarPayload) && $this->isUsableSbarPayload($patient)) {
-                    $sbarPayload = $patient;
-                }
-
-                if (empty($sbarPayload) && ! empty($navigationPayload)) {
-                    $sbarPayload = $navigationPayload;
-                }
 
                 return [
                     'nr_atendimento' => $attendance,
                     'label' => $existingLabel !== ''
                         ? $existingLabel
                         : $this->buildPatientNavigationLabel($patient, $attendance),
-                    'sbar_payload' => is_array($sbarPayload) ? $sbarPayload : [],
+                    'cd_setor_atendimento' => (int) ($patient['cd_setor_atendimento'] ?? 0),
+                    'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
+                    'ds_setor_atendimento' => $patient['ds_setor_atendimento'] ?? null,
+                    'ds_prescricao' => $patient['ds_prescricao'] ?? null,
                 ];
             })
             ->filter(fn (array $patient) => $patient['nr_atendimento'] > 0)
@@ -231,7 +195,10 @@ class SbarPatientModal extends Component
             $normalized[] = [
                 'nr_atendimento' => $currentAttendance,
                 'label' => sprintf('Atendimento %d', $currentAttendance),
-                'sbar_payload' => [],
+                'cd_setor_atendimento' => 0,
+                'cd_unidade_basica' => null,
+                'ds_setor_atendimento' => null,
+                'ds_prescricao' => null,
             ];
         }
 
@@ -244,30 +211,15 @@ class SbarPatientModal extends Component
             $this->modalPatients[] = [
                 'nr_atendimento' => $currentAttendance,
                 'label' => sprintf('Atendimento %d', $currentAttendance),
-                'sbar_payload' => [],
+                'cd_setor_atendimento' => 0,
+                'cd_unidade_basica' => null,
+                'ds_setor_atendimento' => null,
+                'ds_prescricao' => null,
             ];
             $currentIndex = count($this->modalPatients) - 1;
         }
 
         $this->currentPatientIndex = $currentIndex === false ? null : (int) $currentIndex;
-    }
-
-    /**
-     * Payload mínimo (somente identificação/label/leito) não deve ser usado como snapshot completo.
-     * Isso evita que a UI fique sem dados ao navegar entre atendimentos no modal.
-     */
-    private function isUsableSbarPayload(array $payload): bool
-    {
-        // Exige ao menos um campo clínico/SBAR rico que não vem do DemographicsLoader.
-        // Payloads com apenas dados demográficos devem ir para loadPatientData() para
-        // garantir escalas, avaliação de enfermagem, hemoculturas e dados clínicos completos.
-        return array_key_exists('mews_score', $payload)
-            || array_key_exists('pews_score', $payload)
-            || array_key_exists('braden_score', $payload)
-            || array_key_exists('has_isolation', $payload)
-            || array_key_exists('alergias_detalhadas', $payload)
-            || (isset($payload['pending_events']) && is_array($payload['pending_events']))
-            || (isset($payload['hemoc_history']) && is_array($payload['hemoc_history']));
     }
 
     /**
@@ -292,77 +244,6 @@ class SbarPatientModal extends Component
         }
 
         return $attendance.' - '.implode(' - ', $parts);
-    }
-
-    private function loadFromSbarData(array $sbarData, int $attendanceNumber): void
-    {
-        try {
-            $details = (object) $sbarData;
-
-            // Busca campos que não vêm no payload do SBAR
-            $details->alerts = [];
-            $personId = $sbarData['cd_pessoa_fisica'] ?? null;
-            if ($personId) {
-                try {
-                    $details->alerts = $this->tasyService->getPatientAlerts($attendanceNumber, (int) $personId);
-                } catch (\Throwable $e) {
-                    Log::warning('PatientModal: Failed to fetch alerts', [
-                        'attendance' => $attendanceNumber,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            try {
-                $details->cid_history = $this->tasyService->getPatientCidHistory($attendanceNumber);
-            } catch (\Throwable $e) {
-                Log::warning('PatientModal: Failed to fetch CID history', [
-                    'attendance' => $attendanceNumber,
-                    'error' => $e->getMessage(),
-                ]);
-                $details->cid_history = [];
-            }
-
-            $this->patientDetails = $details;
-            $this->patientAlerts = $details->alerts;
-
-            $this->currentPatient = array_merge($this->currentPatient, [
-                'cd_pessoa_fisica' => $sbarData['cd_pessoa_fisica'] ?? null,
-                'nm_pessoa_fisica' => $sbarData['nm_pessoa_fisica'] ?? 'Paciente',
-                'nm_social' => $sbarData['nm_social'] ?? null,
-                'nr_prontuario' => $sbarData['nr_prontuario'] ?? 'N/A',
-                'age_detailed' => $sbarData['age_detailed'] ?? 'N/A',
-                'sexo' => $sbarData['sexo'] ?? 'N/A',
-                'convenio' => $sbarData['convenio'] ?? 'N/A',
-                'hospital_name' => $sbarData['hospital_name'] ?? $this->currentHospitalName,
-                'cd_unidade_basica' => $sbarData['cd_unidade_basica'] ?? ($this->currentPatient['cd_unidade_basica'] ?? null),
-                'ds_setor_atendimento' => $sbarData['ds_setor_atendimento'] ?? ($this->currentPatient['ds_setor_atendimento'] ?? null),
-                'ds_prescricao' => $sbarData['ds_prescricao'] ?? ($this->currentPatient['ds_prescricao'] ?? null),
-                'pending_events' => is_array($sbarData['pending_events'] ?? null) ? $sbarData['pending_events'] : [],
-                'hemoc_history' => is_array($sbarData['hemoc_history'] ?? null) ? $sbarData['hemoc_history'] : [],
-            ]);
-
-            $this->checkAndShowAlertsModal();
-
-        } catch (\Throwable $e) {
-            Log::warning('PatientModal: Failed to load from SBAR data, falling back to DB', [
-                'attendance' => $attendanceNumber,
-                'error' => $e->getMessage(),
-            ]);
-            $this->loadPatientData($attendanceNumber);
-
-            return;
-        }
-
-        $this->loadingPatient = false;
-        $this->loadPrescriptionsData($attendanceNumber);
-
-        $this->dispatch('patient-data-loaded', [
-            'patientId' => $attendanceNumber,
-            'shift' => $this->currentShift,
-            'success' => true,
-            'hasAlerts' => ! empty($this->patientAlerts),
-        ]);
     }
 
     /**
@@ -454,10 +335,8 @@ class SbarPatientModal extends Component
             $this->patientDetails = $this->patientModel->getFullPatientDataWithoutCPOE($attendanceNumber);
 
             if ($this->patientDetails) {
-                // Extrai alertas dos dados completos
                 $this->patientAlerts = $this->patientDetails->alerts ?? [];
 
-                // Atualiza dados do paciente atual
                 $this->currentPatient = array_merge($this->currentPatient, [
                     'cd_pessoa_fisica' => $this->patientDetails->cd_pessoa_fisica ?? null,
                     'nm_pessoa_fisica' => $this->patientDetails->nm_pessoa_fisica ?? 'Paciente',
@@ -469,7 +348,6 @@ class SbarPatientModal extends Component
                     'hospital_name' => $this->patientDetails->hospital_name ?? $this->currentHospitalName,
                 ]);
 
-                // Verifica e mostra alertas se necessário
                 $this->checkAndShowAlertsModal();
             } else {
                 $this->patientAlerts = [];
@@ -512,7 +390,6 @@ class SbarPatientModal extends Component
             'trace' => $e->getTraceAsString(),
         ]);
 
-        // Define dados básicos para exibir mensagem de erro
         if (! $this->currentPatient) {
             $this->currentPatient = [
                 'nr_atendimento' => $attendanceNumber,
@@ -663,8 +540,8 @@ class SbarPatientModal extends Component
         $this->currentPatientIndex = $targetIndex;
         $this->openModal(
             (int) $targetPatient['nr_atendimento'],
+            (int) ($targetPatient['cd_setor_atendimento'] ?? 0),
             $this->currentHospitalName,
-            $targetPatient['sbar_payload'] ?? null,
             $this->modalPatients
         );
     }
@@ -687,52 +564,20 @@ class SbarPatientModal extends Component
         $this->loadPatientData($this->currentPatient['nr_atendimento']);
     }
 
-    public function finishHandover(): void
-    {
-        $this->dispatch('handoverFinishedFromModal', [
-            'startedAt' => $this->handoverStartedAt,
-            'bedsVisited' => count($this->visitedBedsAttendances),
-            'sessionToken' => $this->handoverSessionToken,
-        ]);
-
-        $this->handoverMode = false;
-        $this->handoverStartedAt = '';
-        $this->handoverSessionToken = '';
-        $this->visitedBedsAttendances = [];
-        $this->showModal = false;
-        $this->resetModalState();
-        $this->dispatch('modal-closed');
-    }
-
-    public function cancelHandover(): void
-    {
-        $this->dispatch('cancelNurseHandoverSession');
-
-        $this->handoverMode = false;
-        $this->handoverStartedAt = '';
-        $this->handoverSessionToken = '';
-        $this->visitedBedsAttendances = [];
-        $this->showModal = false;
-        $this->resetModalState();
-        $this->dispatch('modal-closed');
-    }
-
-    public function updateHandoverActivity(): void
-    {
-        if (! $this->handoverSessionToken) {
-            return;
-        }
-
-        ShiftHandover::where('session_token', $this->handoverSessionToken)
-            ->where('user_id', Auth::id())
-            ->where('status', ShiftHandover::STATUS_ACTIVE)
-            ->update(['last_activity_at' => now()]);
-    }
-
     public function closeModal()
     {
+        $sectorId = $this->currentSectorId;
         $this->showModal = false;
         $this->resetModalState();
+
+        if ($sectorId > 0 && Auth::check()) {
+            $userId = Auth::id();
+            foreach (['M', 'T', 'N'] as $shift) {
+                Cache::forget("sector_handover_{$sectorId}_{$userId}_{$shift}");
+            }
+            $this->dispatch('handover-cache-cleared');
+        }
+
         $this->dispatch('modal-closed');
         $this->dispatch('closeModal');
     }
@@ -996,7 +841,6 @@ class SbarPatientModal extends Component
         $isPediatric = isset($this->patientDetails->age) && intval($this->patientDetails->age) < 18;
         $scales = [];
 
-        // MEWS (adultos) ou PEWS (pediátricos)
         if (! $isPediatric) {
             $scales['mews'] = [
                 'score' => $this->patientDetails->mews_score ?? null,
@@ -1015,7 +859,6 @@ class SbarPatientModal extends Component
             ];
         }
 
-        // Escalas comuns
         $scales['braden'] = [
             'score' => $this->patientDetails->braden_score ?? null,
             'timestamp' => $this->patientDetails->braden_timestamp ?? null,

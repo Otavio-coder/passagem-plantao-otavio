@@ -1,5 +1,5 @@
 <div x-show="activeRecomendacaoTab === 'tab-rec'" style="display:none;" class="pt-3">
-    <p class="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Recomendações</p>
+    <p class="text-[10px] font-bold text-slate-700 mb-2">Recomendações</p>
 
     <div x-show="ord.items.length === 0" class="bg-white rounded-lg border border-slate-200 py-8 text-center">
         <p class="text-xs text-slate-500">Sem informações de recomendações.</p>

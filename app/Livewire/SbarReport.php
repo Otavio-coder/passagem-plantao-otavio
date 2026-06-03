@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Models\EMR\Core\Sector;
 use App\Models\NurseHandoverBed;
-use App\Models\ShiftHandover;
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
 use App\Services\ShiftService;
@@ -45,20 +44,10 @@ class SbarReport extends Component
     /** Verdadeiro durante o carregamento inicial até o wire:init disparar loadPatients(). */
     public bool $isLoading = true;
 
-    // Recuperação de passagem de plantão em andamento
-    public bool $hasActiveHandoverSession = false;
-
-    public ?int $activeHandoverSectorId = null;
-
-    public ?int $activeHandoverId = null;
-
     // Onboarding de setores
     public bool $showSectorOnboarding = false;
 
     public array $selectedSectors = [];
-
-    // Lembrete de configuração de leitos (exibido uma vez após login para enfermeiros)
-    public bool $showBedReminder = false;
 
     // Serviços
     protected TasyService $tasyService;
@@ -68,8 +57,8 @@ class SbarReport extends Component
     protected $listeners = [
         'refreshData' => 'refreshData',
         'sectorOnboardingSaved' => 'onSectorOnboardingSaved',
-        'handover-updated' => 'onHandoverUpdated',
-        'nurseHandoverCompleted' => 'onNurseHandoverCompleted',
+        'nurse-preferences-updated' => 'onNursePreferencesUpdated',
+        'handover-cache-cleared' => 'onHandoverCacheCleared',
     ];
 
     public function boot(TasyService $tasyService, UserDisplayNameResolver $userDisplayNameResolver)
@@ -127,11 +116,6 @@ class SbarReport extends Component
             ->toArray();
     }
 
-    /**
-     * Pacientes do setor selecionado. Persistido; invalidado na troca de setor ou hospital
-     * via unset($this->patients). Carrega dados completos do paciente via PatientDataLoader, com cache
-     * dinâmico de 5 min para eventos pendentes e passagem de plantão, e cache estático de 15 min para dados do Tasy.
-     */
     #[Computed(persist: true)]
     public function patients(): array
     {
@@ -140,18 +124,52 @@ class SbarReport extends Component
         }
 
         try {
+            $user = Auth::user();
+            $handoverCacheKey = "sector_handover_{$this->selectedSector}_".Auth::id().'_'.ShiftService::getCurrentShift();
+
+            if ($user->only_assigned_beds) {
+                $bedCodes = NurseHandoverBed::where('user_id', $user->id)
+                    ->where('sector_id', $this->selectedSector)
+                    ->pluck('bed_code')
+                    ->toArray();
+
+                if (! empty($bedCodes)) {
+                    // Per-user cache: on hit skips all Oracle/loader calls (~5ms Redis).
+                    // On miss: runs full sector loaders (uses warm sector caches when available),
+                    // filters to assigned beds, stores only the N beds this nurse needs.
+                    $patients = Cache::remember(
+                        "sector_patients_{$this->selectedSector}_{$user->id}",
+                        900,
+                        fn () => $this->applyBedFilter(
+                            PatientDataLoader::forSector($this->selectedSector)
+                                ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
+                                ->get()
+                        )
+                    );
+
+                    $withHandover = Cache::remember(
+                        $handoverCacheKey,
+                        300,
+                        fn () => $this->injectHandoverStatus($patients)
+                    );
+
+                    return $this->preparePatientsForView($withHandover);
+                }
+            }
+
             $patients = PatientDataLoader::forSector($this->selectedSector)
                 ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
                 ->get();
 
+            $filtered = $this->applyBedFilter($patients);
+
             $withHandover = Cache::remember(
-                "sector_handover_{$this->selectedSector}_".ShiftService::getCurrentShift(),
-                300, // 5 min — atualiza dentro do mesmo turno sem re-consultar as tabelas MySQL de chat
-                fn () => $this->injectHandoverStatus($patients)
+                $handoverCacheKey,
+                300,
+                fn () => $this->injectHandoverStatus($filtered)
             );
 
-            // Apply per-user bed filter after cache retrieval so cache stays shared across users.
-            return $this->preparePatientsForView($this->applyBedFilter($withHandover));
+            return $this->preparePatientsForView($withHandover);
         } catch (\Exception $e) {
             Log::error('Error loading patients', [
                 'exception' => $e,
@@ -351,12 +369,6 @@ class SbarReport extends Component
             }
 
             $this->lastRefresh = now()->format('H:i:s');
-
-            $this->checkActiveHandoverSession();
-
-            if (session()->pull('nurse_bed_reminder') && $user->isNurse()) {
-                $this->showBedReminder = true;
-            }
         } catch (\Exception $e) {
             Log::error('SBAR mount error', [
                 'exception' => $e,
@@ -427,11 +439,8 @@ class SbarReport extends Component
     {
         try {
             if ($this->selectedSector) {
-                // Invalida apenas caches dinâmicos (eventos pendentes + passagem de plantão).
-                // Dados demográficos, escalas, clínico, multidisciplinar e cirurgia
-                // são estáveis durante a sessão e expiram naturalmente pelo TTL.
-                // Evita disparar carga completa do Oracle a cada clique em "Atualizar".
                 PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
+                $this->clearUserHandoverCache($this->selectedSector);
             }
 
             unset($this->patients);
@@ -469,11 +478,6 @@ class SbarReport extends Component
     {
         unset($this->patients);
         $this->lastRefresh = now()->format('H:i:s');
-    }
-
-    public function dismissBedReminder(): void
-    {
-        $this->showBedReminder = false;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -568,75 +572,30 @@ class SbarReport extends Component
     // Event handlers
     // ──────────────────────────────────────────────────────────────────────────
 
-    public function startHandover(): void
+    public function onHandoverCacheCleared(): void
     {
-        if (! $this->selectedSector) {
-            return;
-        }
-
-        $this->dispatch('openNurseHandoverSession', sectorId: (int) $this->selectedSector);
-    }
-
-    public function onHandoverUpdated(?string $nr = null): void
-    {
-        // Invalida o cache computado — o próximo render re-busca o status de passagem
-        // via query em batch no MySQL, mantendo o cache Oracle de 15 min do TasyService.
+        // sector_handover_* já foi limpo no modal antes do dispatch.
+        // Invalidar o computed força recompute: usa sector_patients_* (quente, ~5ms)
+        // e re-executa injectHandoverStatus (MySQL, ~100ms) sem tocar no Oracle.
         unset($this->patients);
-
-        $this->hasActiveHandoverSession = false;
-        $this->activeHandoverId = null;
-        $this->activeHandoverSectorId = null;
     }
 
-    /**
-     * Fired when the nurse finishes a handover session. Clears dynamic caches
-     * (including handover-status) so the card bullet points update immediately.
-     */
-    public function onNurseHandoverCompleted(int $sectorId): void
+    public function onNursePreferencesUpdated(): void
     {
         if ($this->selectedSector) {
-            PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
+            $this->clearUserHandoverCache($this->selectedSector);
         }
-
         unset($this->patients);
         $this->lastRefresh = now()->format('H:i:s');
-        $this->hasActiveHandoverSession = false;
-        $this->activeHandoverId = null;
-        $this->activeHandoverSectorId = null;
     }
 
-    public function resumeHandover(): void
+    private function clearUserHandoverCache(int $sectorId): void
     {
-        if (! $this->activeHandoverId) {
-            return;
+        $userId = Auth::id();
+        foreach (['M', 'T', 'N'] as $shift) {
+            Cache::forget("sector_handover_{$sectorId}_{$userId}_{$shift}");
         }
-
-        $this->dispatch('resumeNurseHandoverSession', data: [
-            'handoverId' => $this->activeHandoverId,
-        ]);
-    }
-
-    public function dismissHandoverRecovery(): void
-    {
-        $this->hasActiveHandoverSession = false;
-        $this->activeHandoverId = null;
-        $this->activeHandoverSectorId = null;
-    }
-
-    private function checkActiveHandoverSession(): void
-    {
-        [$shiftStart, $shiftEnd] = ShiftService::getShiftWindow();
-
-        $active = ShiftHandover::where('user_id', Auth::id())
-            ->where('status', ShiftHandover::STATUS_ACTIVE)
-            ->whereBetween('started_at', [$shiftStart, $shiftEnd])
-            ->first();
-
-        if ($active) {
-            $this->hasActiveHandoverSession = true;
-            $this->activeHandoverId = $active->id;
-            $this->activeHandoverSectorId = $active->sector_ids[0] ?? null;
-        }
+        Cache::forget("sector_patients_{$sectorId}_{$userId}");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -661,26 +620,8 @@ class SbarReport extends Component
             'onboardingSectorsData' => $this->showSectorOnboarding
                 ? Sector::allowedForPreferencesGroupedByHospital()
                 : [],
-            'canStartHandover' => $this->canStartHandover,
             'onlyAssignedBeds' => (bool) Auth::user()?->only_assigned_beds,
-            'showBedReminder' => $this->showBedReminder,
         ]);
-    }
-
-    #[Computed]
-    public function canStartHandover(): bool
-    {
-        try {
-            $user = Auth::user();
-
-            return $user->isNurse()
-                && $this->selectedSector !== null
-                && NurseHandoverBed::where('user_id', $user->id)
-                    ->where('sector_id', $this->selectedSector)
-                    ->exists();
-        } catch (\Throwable) {
-            return false;
-        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

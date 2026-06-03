@@ -7,7 +7,6 @@
     'canGoPrevious' => false,
     'canGoNext' => false,
     'activeAlertsCount' => 0,
-    'handoverMode' => false,
 ])
 
 @php
@@ -43,8 +42,7 @@
             localStorage.setItem('patient_modal_header_tip_seen', '1');
         }
      }">
-    {{-- Close Button (hidden during handover) --}}
-    @if(!$handoverMode)
+    {{-- Close Button --}}
     <button
         @click="showModal = false; $wire.closeModal();"
         class="absolute top-2.5 right-3 sm:top-1/2 sm:-translate-y-1/2 sm:right-4 z-10 flex items-center justify-center w-8 h-8 sm:w-8 sm:h-8 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -52,7 +50,6 @@
     >
         <x-heroicon-o-x-mark class="w-5 h-5" />
     </button>
-    @endif
 
     {{-- Header Content --}}
     <div class="pr-12 sm:pr-12">
@@ -207,7 +204,7 @@
              @keydown.escape.window="open = false"
              @click.outside="open = false">
             <div class="flex items-center gap-2 min-w-0">
-                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] text-blue-100/80 font-medium uppercase tracking-wide whitespace-nowrap flex-shrink-0">
+                <span class="hidden sm:inline-flex items-center gap-1 text-[10px] text-blue-100/80 font-medium whitespace-nowrap flex-shrink-0">
                     <x-heroicon-o-arrows-up-down class="w-3 h-3" />
                     Trocar
                 </span>

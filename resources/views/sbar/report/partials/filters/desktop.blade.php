@@ -126,26 +126,5 @@
             </button>
         </div>
 
-        @if($canStartHandover)
-        <div class="flex flex-col justify-end flex-shrink-0">
-            <button wire:click="startHandover"
-                    wire:loading.attr="disabled"
-                    wire:target="startHandover"
-                    :disabled="isInitialLoading"
-                    class="inline-flex items-center justify-center gap-1.5 px-3 xl:px-4 py-2 min-w-[136px] xl:min-w-[152px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg text-white text-xs xl:text-sm font-semibold transition-colors shadow-md whitespace-nowrap">
-                <span wire:loading.remove wire:target="startHandover" class="inline-flex items-center gap-1.5">
-                    <i class="fas fa-play text-[11px] xl:text-xs"></i>
-                    <span>Iniciar Passagem</span>
-                </span>
-                <span wire:loading wire:target="startHandover" class="inline-flex items-center gap-1.5">
-                    <svg class="animate-spin h-3.5 w-3.5 xl:h-4 xl:w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    <span>Abrindo...</span>
-                </span>
-            </button>
-        </div>
-        @endif
     </div>
 </div>

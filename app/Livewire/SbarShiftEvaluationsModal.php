@@ -10,6 +10,7 @@ use App\Services\ShiftService;
 use App\Services\UserDisplayNameResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Isolate;
@@ -88,35 +89,30 @@ class SbarShiftEvaluationsModal extends Component
         $this->loading = true;
 
         try {
-            // Demographics vêm do cache do PatientDataLoader (15 min TTL).
-            $patients = PatientDataLoader::forSector($this->sectorId)
-                ->include('demographics')
-                ->get();
-
-            if (empty($patients)) {
-                $this->beds = [];
-                $this->photos = [];
-                $this->shiftsMeta = [];
-                $this->sectorName = '';
-
-                return;
-            }
-
-            $this->sectorName = $patients[0]['ds_setor_atendimento'] ?? 'Setor';
-
-            // Filtra por leitos atribuídos quando a preferência estiver ativa.
             $user = Auth::user();
-            if ($user->only_assigned_beds) {
-                $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
-                    ->where('sector_id', $this->sectorId)
-                    ->pluck('bed_code')
-                    ->toArray();
+            $userCached = $user->only_assigned_beds
+                ? Cache::get("sector_patients_{$this->sectorId}_{$user->id}")
+                : null;
 
-                if (! empty($assignedBeds)) {
-                    $patients = array_values(array_filter(
-                        $patients,
-                        fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
-                    ));
+            if ($userCached !== null) {
+                $patients = $userCached;
+            } else {
+                $patients = PatientDataLoader::forSector($this->sectorId)
+                    ->include('demographics')
+                    ->get();
+
+                if ($user->only_assigned_beds) {
+                    $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                        ->where('sector_id', $this->sectorId)
+                        ->pluck('bed_code')
+                        ->toArray();
+
+                    if (! empty($assignedBeds)) {
+                        $patients = array_values(array_filter(
+                            $patients,
+                            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                        ));
+                    }
                 }
             }
 

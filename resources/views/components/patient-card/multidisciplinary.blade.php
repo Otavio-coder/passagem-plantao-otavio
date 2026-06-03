@@ -119,13 +119,13 @@
                                     </div>
                                     @if(!empty($request['ds_motivo_consulta']))
                                         <div class="bg-white rounded-lg p-3 mb-3 border border-gray-200 shadow-sm">
-                                            <div class="text-[10px] font-semibold text-gray-500 uppercase mb-1">Pedido / Motivo da Consulta:</div>
+                                            <div class="text-[10px] font-semibold text-gray-500 mb-1">Pedido / Motivo da Consulta:</div>
                                             <div class="text-sm text-gray-800 whitespace-pre-line">{{ $request['ds_motivo_consulta'] }}</div>
                                         </div>
                                     @endif
                                     @if(!empty($request['ds_parecer']))
                                         <div class="bg-green-50 rounded-lg p-3 border border-green-200">
-                                            <div class="text-[10px] font-semibold text-green-700 uppercase mb-1">Resposta / Parecer:</div>
+                                            <div class="text-[10px] font-semibold text-green-700 mb-1">Resposta / Parecer:</div>
                                             <div class="text-sm text-gray-800 whitespace-pre-line">{{ $request['ds_parecer'] }}</div>
                                             @if(!empty($request['nm_responsavel_resposta']))
                                                 <div class="text-xs text-gray-600 mt-2 pt-2 border-t border-green-200">

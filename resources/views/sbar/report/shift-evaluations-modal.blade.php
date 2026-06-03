@@ -1,7 +1,7 @@
 <div
     x-data="{
         show: $wire.entangle('isOpen'),
-        activeTab: 'previous',
+        activeTab: 'current',
         search: '',
 
         get shifts() { return this.$wire.shiftsMeta || []; },
@@ -37,7 +37,7 @@
         init() {
             this.$watch('show', v => {
                 document.body.style.overflow = v ? 'hidden' : '';
-                if (!v) { this.search = ''; this.activeTab = 'previous'; }
+                if (!v) { this.search = ''; this.activeTab = 'current'; }
             });
         }
     }"

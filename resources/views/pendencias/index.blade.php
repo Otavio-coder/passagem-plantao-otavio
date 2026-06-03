@@ -552,10 +552,10 @@ $(document).ready(function () {
             if (d[14] === '1') overdue++;
         });
 
-        var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Total visível</span></div>';
+        var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Pendências</span></div>';
         if (overdue > 0) {
             var overdueActive = $('#chk-overdue').prop('checked') ? ' active' : '';
-            html += '<div class="kpi-card kpi-overdue' + overdueActive + '" data-kpi-overdue="1"><span class="kpi-count">' + overdue + '</span><span class="kpi-label">Vencidos</span></div>';
+            html += '<div class="kpi-card kpi-overdue' + overdueActive + '" data-kpi-overdue="1"><span class="kpi-count">' + overdue + '</span><span class="kpi-label">SLA Violado</span></div>';
         }
         Object.entries(catMap).sort(function(a, b) { return b[1] - a[1]; }).forEach(function(pair) {
             var cat = pair[0], count = pair[1];

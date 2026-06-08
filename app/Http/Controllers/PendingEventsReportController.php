@@ -156,6 +156,8 @@ class PendingEventsReportController extends Controller
         $categorias = $rows->pluck('motivo_categoria')->filter()->unique()->sort()->values()->all();
         $classificacoes = $rows->pluck('classificacao')->filter()->unique()->sort()->values()->all();
 
+        $this->logAccess('view', ['sector_ids' => $selectedSectors, 'hospital_ids' => $selectedHospitals]);
+
         return view('pendencias.index', [
             'hospitals' => $hospitals,
             'sectors' => $sectors,
@@ -334,11 +336,15 @@ class PendingEventsReportController extends Controller
         $output .= stream_get_contents($handle);
         fclose($handle);
 
+        $this->logAccess('export');
+
         return response($output, 200, $headers);
     }
 
     public function refresh(Request $request): RedirectResponse
     {
+        $this->logAccess('refresh');
+
         $sectorIds = array_map('intval', (array) $request->input('sector_ids', []));
         if (empty($sectorIds) && $request->has('sector_id')) {
             $sectorIds = [(int) $request->integer('sector_id')];
@@ -698,5 +704,19 @@ class PendingEventsReportController extends Controller
     private function truncate(string $value, int $max): string
     {
         return mb_strlen($value) <= $max ? $value : mb_substr($value, 0, $max - 1).'…';
+    }
+
+    private function logAccess(string $event, array $context = []): void
+    {
+        try {
+            DB::table('pending_events_access_logs')->insert([
+                'user_id' => Auth::id(),
+                'event' => $event,
+                'context' => $context ? json_encode($context) : null,
+                'occurred_at' => now(),
+            ]);
+        } catch (\Throwable) {
+            // não bloqueia a requisição se o log falhar
+        }
     }
 }

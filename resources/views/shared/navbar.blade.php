@@ -104,6 +104,12 @@
                                             <span class="ml-2">Panorama do Sistema</span>
                                         </a>
                                     @endcan
+                                    @can('configurar sistema')
+                                        <a href="{{ route('admin.commands') }}" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded {{ request()->routeIs('admin.commands') ? 'bg-blue-50 text-blue-700' : '' }}" role="menuitem">
+                                            <i class="fas fa-terminal w-4 text-sky-600 text-sm flex-shrink-0"></i>
+                                            <span class="ml-2">Comandos</span>
+                                        </a>
+                                    @endcan
                                     @can('ver logs')
                                         <a href="{{ route('log-viewer.index') }}" target="_blank" class="text-gray-600 hover:text-gray-800 hover:bg-blue-50 px-3 py-2 flex items-center text-sm rounded" role="menuitem">
                                             <svg class="h-4 w-4 text-sky-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -269,6 +275,12 @@
                             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
                                 <i class="fas fa-clock-rotate-left text-sky-600 w-5"></i>
                                 <span>Panorama do Sistema</span>
+                            </a>
+                        @endcan
+                        @can('configurar sistema')
+                            <a href="{{ route('admin.commands') }}" class="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-blue-100 px-3 py-3 text-sm rounded transition">
+                                <i class="fas fa-terminal text-sky-600 w-5"></i>
+                                <span>Comandos</span>
                             </a>
                         @endcan
                         @can('ver logs')

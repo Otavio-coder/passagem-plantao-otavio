@@ -5,6 +5,20 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
+// Recalcula contagem de mensagens arquivadas por plantonista (domingos 03:00)
+Schedule::command('cache:rebuild-archive-stats')
+    ->weekly()
+    ->sundays()
+    ->at('03:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Análise de escrita IA: equipe + plantonistas sem análise (sábados 02:00)
+Schedule::command('analysis:run --period=30 --delay=4')
+    ->weeklyOn(6, '02:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('handover:prune-log --days=180')
     ->weekly()
     ->withoutOverlapping()

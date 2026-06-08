@@ -18,7 +18,7 @@ class ChatArchiveController extends Controller
 {
     // ── Index: carrega stats + ranking; tabela via DataTables AJAX ───────────
 
-    private const PANORAMA_CACHE_KEY = 'panorama_index_v1';
+    private const PANORAMA_CACHE_KEY = 'panorama_index_v3';
 
     private const PANORAMA_CACHE_TTL = 3600; // 1 hora
 
@@ -162,13 +162,9 @@ class ChatArchiveController extends Controller
             ];
         }
 
-        [$topAnnotators, $shiftStats, $allAnnotators] = $this->computeStats();
-        $shiftDistribution = $this->buildShiftDistribution($shiftStats);
         $seriesData = $this->buildMonthlySeries($months);
         $periodStart = $this->formatDate($stats?->oldest);
         $periodEnd = $this->formatDate($stats?->newest);
-        $handoverMetrics = $this->buildHandoverMetrics();
-        $recentShiftTimelines = $this->buildRecentShiftTimelines();
         $userMetrics = $this->buildUserMetrics();
         $sectorPanorama = $this->buildSectorPanorama();
         $feedbackStats = $this->buildFeedbackStats();
@@ -176,17 +172,12 @@ class ChatArchiveController extends Controller
         $viewData = compact(
             'stats',
             'coveragePct',
-            'topAnnotators',
-            'allAnnotators',
-            'shiftDistribution',
             'seriesData',
             'periodStart',
             'periodEnd',
-            'handoverMetrics',
             'userMetrics',
             'sectorPanorama',
             'feedbackStats',
-            'recentShiftTimelines',
         );
 
         Cache::put(self::PANORAMA_CACHE_KEY, $viewData, self::PANORAMA_CACHE_TTL);
@@ -1125,6 +1116,67 @@ class ChatArchiveController extends Controller
             ->limit(8)
             ->get(['name', 'username', 'role', 'photo', 'last_access_at']);
 
+        // ── Leitos configurados por plantonista ───────────────────────────────
+        $bedsConfigured = DB::table('nurse_handover_beds as b')
+            ->join('users as u', 'u.id', '=', 'b.user_id')
+            ->select([
+                'b.user_id',
+                'u.name as user_name',
+                DB::raw('COUNT(*) as bed_count'),
+                DB::raw('GROUP_CONCAT(DISTINCT b.bed_code ORDER BY b.bed_code SEPARATOR ", ") as bed_list'),
+            ])
+            ->groupBy('b.user_id', 'u.name')
+            ->orderByDesc('bed_count')
+            ->get();
+
+        // Plantonistas que usaram o sistema (chat_messages) mas não têm leitos
+        $usersWithBedIds = $bedsConfigured->pluck('user_id')->all();
+        $withoutBeds = DB::table('chat_messages')
+            ->join('users as u', 'u.id', '=', 'chat_messages.user_id')
+            ->whereNotIn('chat_messages.user_id', $usersWithBedIds ?: [0])
+            ->whereNotNull('chat_messages.user_id')
+            ->selectRaw('chat_messages.user_id, u.name as user_name, COUNT(*) as msg_count')
+            ->groupBy('chat_messages.user_id', 'u.name')
+            ->orderByDesc('msg_count')
+            ->get();
+
+        // ── Relatório de pendências: uso ──────────────────────────────────────
+        $pendingStats = DB::table('pending_events_access_logs as p')
+            ->join('users as u', 'u.id', '=', 'p.user_id')
+            ->selectRaw("
+                SUM(CASE WHEN p.event = 'view'    THEN 1 ELSE 0 END) AS total_views,
+                SUM(CASE WHEN p.event = 'export'  THEN 1 ELSE 0 END) AS total_exports,
+                SUM(CASE WHEN p.event = 'refresh' THEN 1 ELSE 0 END) AS total_refreshes,
+                SUM(CASE WHEN p.event = 'view'    AND p.occurred_at >= ? THEN 1 ELSE 0 END) AS views_7d,
+                SUM(CASE WHEN p.event = 'view'    AND p.occurred_at >= ? THEN 1 ELSE 0 END) AS views_30d,
+                COUNT(DISTINCT p.user_id) AS unique_users
+            ", [now()->subDays(7), now()->subDays(30)])
+            ->first();
+
+        $pendingTopUsers = DB::table('pending_events_access_logs as p')
+            ->join('users as u', 'u.id', '=', 'p.user_id')
+            ->where('p.event', 'view')
+            ->selectRaw('u.name, COUNT(*) as cnt')
+            ->groupBy('u.name')
+            ->orderByDesc('cnt')
+            ->limit(5)
+            ->get();
+
+        // ── Insights do handover_activity_log ────────────────────────────────
+        $auditInsights = DB::table('handover_activity_log')
+            ->selectRaw("
+                COUNT(DISTINCT CONCAT(user_id,'_',shift,'_',shift_date)) AS total_sessions,
+                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END)  AS total_opens,
+                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END)  AS total_posts,
+                COUNT(DISTINCT nr_atendimento)                          AS unique_patients,
+                COUNT(DISTINCT user_id)                                 AS unique_users
+            ")
+            ->first();
+
+        $auditCoverageRate = ($auditInsights->total_opens > 0)
+            ? (int) round($auditInsights->total_posts / $auditInsights->total_opens * 100)
+            : null;
+
         return [
             'total_active' => $totalActive,
             'last_7d' => $last7,
@@ -1132,6 +1184,18 @@ class ChatArchiveController extends Controller
             'nurses' => $nurses,
             'top_roles' => $topRoles,
             'recent_access' => $recentAccess,
+            'beds_configured' => $bedsConfigured,
+            'beds_without' => $withoutBeds,
+            'pending_stats' => $pendingStats,
+            'pending_top_users' => $pendingTopUsers,
+            'audit_insights' => [
+                'total_sessions' => (int) ($auditInsights->total_sessions ?? 0),
+                'total_opens' => (int) ($auditInsights->total_opens ?? 0),
+                'total_posts' => (int) ($auditInsights->total_posts ?? 0),
+                'unique_patients' => (int) ($auditInsights->unique_patients ?? 0),
+                'unique_users' => (int) ($auditInsights->unique_users ?? 0),
+                'coverage_rate' => $auditCoverageRate,
+            ],
         ];
     }
 

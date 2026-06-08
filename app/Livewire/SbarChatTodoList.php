@@ -134,7 +134,7 @@ class SbarChatTodoList extends Component
         $totalPages = max(1, (int) ceil($totalCount / $this->perPage));
         $start = ($this->currentPage - 1) * $this->perPage;
 
-        return view('livewire.sbar-chat-todo-list', [
+        return view('sbar.report.chat-todo-list', [
             'paginatedTodos' => array_slice($this->todos, $start, $this->perPage),
             'totalCount' => $totalCount,
             'totalPages' => $totalPages,

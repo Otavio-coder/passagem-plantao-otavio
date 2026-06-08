@@ -238,7 +238,7 @@ class CommandCenter extends Component
         $scheduleItems = $this->buildScheduleList();
         $hasActiveRun = $activeRun && in_array($activeRun->status, ['pending', 'running']);
 
-        return view('livewire.command-center', compact('recentRuns', 'activeRun', 'scheduleItems', 'hasActiveRun'));
+        return view('commands.command-center', compact('recentRuns', 'activeRun', 'scheduleItems', 'hasActiveRun'));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

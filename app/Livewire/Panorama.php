@@ -388,7 +388,7 @@ class Panorama extends Component
 
     public function render()
     {
-        return view('livewire.panorama', [
+        return view('panorama.index', [
             'sessions' => $this->sessions,
             'nurseStats' => $this->nurseStats,
             'sectorStats' => $this->sectorStats,

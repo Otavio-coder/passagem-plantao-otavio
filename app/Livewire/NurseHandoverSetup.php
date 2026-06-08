@@ -229,7 +229,7 @@ class NurseHandoverSetup extends Component
 
     public function render(): View
     {
-        return view('livewire.nurse-handover-setup', [
+        return view('handover.setup', [
             'hospitals' => $this->hospitals(),
             'chips' => $this->selectedChips(),
         ]);

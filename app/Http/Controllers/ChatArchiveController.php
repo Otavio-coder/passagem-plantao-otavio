@@ -1172,7 +1172,50 @@ class ChatArchiveController extends Controller
             ->limit(5)
             ->get();
 
-        // ── Insights do handover_activity_log ────────────────────────────────
+        // ── chat_analytics_daily: agregações dos JSON fields ─────────────────
+        $analyticsRows = DB::table('chat_analytics_daily')
+            ->select('hour_counts', 'content_tags', 'char_buckets', 'shift', 'message_count', 'date')
+            ->get();
+
+        $hourAgg = array_fill(0, 24, 0);
+        $tagAgg = [];
+        $bucketAgg = [];
+
+        foreach ($analyticsRows as $row) {
+            if ($row->hour_counts) {
+                foreach (json_decode($row->hour_counts, true) ?? [] as $h => $c) {
+                    $hourAgg[(int) $h] = ($hourAgg[(int) $h] ?? 0) + (int) $c;
+                }
+            }
+            if ($row->content_tags) {
+                foreach (json_decode($row->content_tags, true) ?? [] as $tag => $c) {
+                    $tagAgg[$tag] = ($tagAgg[$tag] ?? 0) + (int) $c;
+                }
+            }
+            if ($row->char_buckets) {
+                foreach (json_decode($row->char_buckets, true) ?? [] as $bucket => $c) {
+                    $bucketAgg[$bucket] = ($bucketAgg[$bucket] ?? 0) + (int) $c;
+                }
+            }
+        }
+
+        $dailySummary = DB::table('chat_analytics_daily')
+            ->selectRaw('SUM(message_count) as total_msgs, COUNT(DISTINCT date) as active_days')
+            ->first();
+
+        $peakDay = DB::table('chat_analytics_daily')
+            ->selectRaw('date, SUM(message_count) as msgs')
+            ->groupBy('date')
+            ->orderByDesc('msgs')
+            ->first();
+
+        $dailyByShift = DB::table('chat_analytics_daily')
+            ->selectRaw('shift, SUM(message_count) as msgs, COUNT(DISTINCT date) as days')
+            ->groupBy('shift')
+            ->get()
+            ->mapWithKeys(fn ($r) => [$r->shift => ['msgs' => (int) $r->msgs, 'days' => (int) $r->days]]);
+
+        // ── handover_activity_log: cobertura ──────────────────────────────────
         $auditInsights = DB::table('handover_activity_log')
             ->selectRaw("
                 COUNT(DISTINCT CONCAT(user_id,'_',shift,'_',shift_date)) AS total_sessions,
@@ -1187,24 +1230,11 @@ class ChatArchiveController extends Controller
             ? (int) round($auditInsights->total_posts / $auditInsights->total_opens * 100)
             : null;
 
-        // Últimos 30 dias
-        $auditLast30 = DB::table('handover_activity_log')
-            ->where('occurred_at', '>=', now()->subDays(30))
-            ->selectRaw("
-                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
-                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
-                COUNT(DISTINCT nr_atendimento)                         AS patients,
-                COUNT(DISTINCT user_id)                                AS users
-            ")
-            ->first();
-
-        // Por turno (M/T/N)
         $auditByShift = DB::table('handover_activity_log')
             ->selectRaw("
                 shift,
                 SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
-                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
-                COUNT(DISTINCT user_id) AS users
+                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts
             ")
             ->groupBy('shift')
             ->orderByRaw("FIELD(shift,'M','T','N')")
@@ -1212,72 +1242,8 @@ class ChatArchiveController extends Controller
             ->mapWithKeys(fn ($r) => [$r->shift => [
                 'opens' => (int) $r->opens,
                 'posts' => (int) $r->posts,
-                'users' => (int) $r->users,
                 'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
             ]]);
-
-        // Top usuários por engajamento
-        $auditTopUsers = DB::table('handover_activity_log as a')
-            ->join('users as u', 'u.id', '=', 'a.user_id')
-            ->selectRaw("
-                u.name,
-                COALESCE(u.role, '') AS role,
-                SUM(CASE WHEN a.event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
-                SUM(CASE WHEN a.event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
-                COUNT(DISTINCT a.nr_atendimento) AS patients
-            ")
-            ->groupBy('u.name', 'u.role')
-            ->orderByRaw('opens + posts DESC')
-            ->limit(8)
-            ->get()
-            ->map(fn ($r) => array_merge((array) $r, [
-                'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
-            ]));
-
-        // Top setores por engajamento
-        $auditTopSectors = DB::table('handover_activity_log')
-            ->whereNotNull('sector_name')
-            ->where('sector_name', '!=', '')
-            ->selectRaw("
-                sector_name,
-                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
-                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts
-            ")
-            ->groupBy('sector_name')
-            ->orderByRaw('opens + posts DESC')
-            ->limit(6)
-            ->get()
-            ->map(fn ($r) => array_merge((array) $r, [
-                'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
-            ]));
-
-        // Pendências: top setores (extrai sector_ids do context JSON)
-        $pendingTopSectorIds = DB::table('pending_events_access_logs')
-            ->where('event', 'view')
-            ->whereNotNull('context')
-            ->pluck('context')
-            ->flatMap(fn ($ctx) => json_decode($ctx, true)['sector_ids'] ?? [])
-            ->map(fn ($id) => (int) $id)
-            ->filter()
-            ->countBy()
-            ->sortDesc()
-            ->take(5);
-
-        $sectorNames = DB::table('user_sector_preferences')
-            ->whereIn('sector_code', $pendingTopSectorIds->keys()->all())
-            ->select('sector_code', 'sector_name')
-            ->distinct()
-            ->get()
-            ->pluck('sector_name', 'sector_code');
-
-        $pendingTopSectors = $pendingTopSectorIds->map(fn ($cnt, $id) => [
-            'sector_name' => $sectorNames[$id] ?? "Setor $id",
-            'views' => $cnt,
-        ])->values();
-
-        $pendingExportRate = ($pendingStats->total_views ?? 0) > 0
-            ? (int) round(($pendingStats->total_exports ?? 0) / $pendingStats->total_views * 100)
-            : null;
 
         return [
             'total_active' => $totalActive,
@@ -1289,10 +1255,15 @@ class ChatArchiveController extends Controller
             'recent_access' => $recentAccess,
             'beds_configured' => $bedsConfigured,
             'beds_without' => $withoutBeds,
-            'pending_stats' => $pendingStats,
-            'pending_top_users' => $pendingTopUsers,
-            'pending_top_sectors' => $pendingTopSectors,
-            'pending_export_rate' => $pendingExportRate,
+            'daily_analytics' => [
+                'total_msgs' => (int) ($dailySummary->total_msgs ?? 0),
+                'active_days' => (int) ($dailySummary->active_days ?? 0),
+                'peak_day' => $peakDay ? ['date' => $peakDay->date, 'msgs' => (int) $peakDay->msgs] : null,
+                'by_shift' => $dailyByShift,
+                'hour_counts' => $hourAgg,
+                'content_tags' => $tagAgg,
+                'char_buckets' => $bucketAgg,
+            ],
             'audit_insights' => [
                 'total_sessions' => (int) ($auditInsights->total_sessions ?? 0),
                 'total_opens' => (int) ($auditInsights->total_opens ?? 0),
@@ -1300,15 +1271,7 @@ class ChatArchiveController extends Controller
                 'unique_patients' => (int) ($auditInsights->unique_patients ?? 0),
                 'unique_users' => (int) ($auditInsights->unique_users ?? 0),
                 'coverage_rate' => $auditCoverageRate,
-                'last_30d' => [
-                    'opens' => (int) ($auditLast30->opens ?? 0),
-                    'posts' => (int) ($auditLast30->posts ?? 0),
-                    'patients' => (int) ($auditLast30->patients ?? 0),
-                    'users' => (int) ($auditLast30->users ?? 0),
-                ],
                 'by_shift' => $auditByShift,
-                'top_users' => $auditTopUsers,
-                'top_sectors' => $auditTopSectors,
             ],
         ];
     }

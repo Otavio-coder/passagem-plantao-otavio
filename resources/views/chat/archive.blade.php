@@ -311,88 +311,60 @@
             @endif
         </div>
 
-        {{-- Insights: Audit log + Pendências --}}
+        {{-- Logs de atividade --}}
         @php
+            $da = $userMetrics['daily_analytics'];
             $ai = $userMetrics['audit_insights'];
-            $ps = $userMetrics['pending_stats'];
-        @endphp
-        @if($ai['total_opens'] > 0 || ($ps->total_views ?? 0) > 0)
-        @php
             $shiftLabels = ['M' => 'Manhã', 'T' => 'Tarde', 'N' => 'Noite'];
-            $byShift = $ai['by_shift'] ?? collect();
-            $topUsers = $ai['top_users'] ?? collect();
-            $topSectors = $ai['top_sectors'] ?? collect();
-            $l30 = $ai['last_30d'] ?? [];
-            $pendingTopSectors = $userMetrics['pending_top_sectors'] ?? collect();
-            $exportRate = $userMetrics['pending_export_rate'];
+            $shiftColors = ['M' => 'bg-amber-400', 'T' => 'bg-sky-400', 'N' => 'bg-indigo-400'];
+            $totalDailyMsgs = $da['total_msgs'];
         @endphp
+        @if($totalDailyMsgs > 0)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-4 py-2.5 border-b border-gray-100 flex items-center gap-2">
-                <i class="fas fa-chart-line text-[#004D9D] text-xs"></i>
-                <p class="text-xs font-semibold text-gray-700">Uso do sistema</p>
+                <i class="fas fa-chart-bar text-[#004D9D] text-xs"></i>
+                <p class="text-xs font-semibold text-gray-700">Logs de atividade</p>
             </div>
             <div class="px-4 py-3 space-y-4">
 
-                {{-- ── Passagem de plantão ── --}}
-                @if($ai['total_opens'] > 0)
+                {{-- ── Resumo geral (chat_analytics_daily) ── --}}
                 <div>
-                    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Passagem de plantão</p>
-
-                    {{-- KPIs totais --}}
-                    <div class="grid grid-cols-2 gap-2 mb-2">
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <p class="text-base font-bold text-[#004D9D] tabular-nums">{{ number_format($ai['total_opens']) }}</p>
-                            <p class="text-[9px] text-gray-400">leitos consultados (total)</p>
+                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Chat</p>
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div class="bg-gray-50 rounded-lg px-2 py-2 text-center">
+                            <p class="text-base font-bold text-[#004D9D] tabular-nums">{{ number_format($da['total_msgs']) }}</p>
+                            <p class="text-[9px] text-gray-400">mensagens totais</p>
                         </div>
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <p class="text-base font-bold text-emerald-600 tabular-nums">{{ number_format($ai['total_posts']) }}</p>
-                            <p class="text-[9px] text-gray-400">anotações registradas (total)</p>
+                        <div class="bg-gray-50 rounded-lg px-2 py-2 text-center">
+                            <p class="text-base font-bold text-gray-700 tabular-nums">{{ $da['active_days'] }}</p>
+                            <p class="text-[9px] text-gray-400">dias ativos</p>
                         </div>
+                        @if($da['peak_day'])
+                        <div class="bg-gray-50 rounded-lg px-2 py-2 text-center">
+                            <p class="text-base font-bold text-purple-600 tabular-nums">{{ $da['peak_day']['msgs'] }}</p>
+                            <p class="text-[9px] text-gray-400">pico ({{ \Carbon\Carbon::parse($da['peak_day']['date'])->format('d/m') }})</p>
+                        </div>
+                        @endif
                     </div>
 
-                    {{-- Cobertura geral --}}
-                    @php $cr = $ai['coverage_rate']; @endphp
-                    @if($cr !== null)
-                    <div class="mb-2">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[9px] text-gray-400">Taxa de cobertura (abertos → anotados)</span>
-                            <span class="text-[10px] font-bold tabular-nums {{ $cr >= 70 ? 'text-emerald-600' : ($cr >= 40 ? 'text-amber-600' : 'text-red-500') }}">{{ $cr }}%</span>
-                        </div>
-                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full transition-all {{ $cr >= 70 ? 'bg-emerald-500' : ($cr >= 40 ? 'bg-amber-400' : 'bg-red-400') }}" style="width:{{ min($cr, 100) }}%"></div>
-                        </div>
-                        <p class="text-[9px] text-gray-400 mt-1">{{ $ai['unique_patients'] }} pac. únicos · {{ $ai['unique_users'] }} plantonistas · {{ $ai['total_sessions'] }} sessões</p>
-                    </div>
-                    @endif
-
-                    {{-- Últimos 30 dias --}}
-                    @if(($l30['opens'] ?? 0) > 0)
-                    <div class="bg-blue-50 rounded-lg px-3 py-2 mb-2">
-                        <p class="text-[9px] font-semibold text-blue-600 mb-1">Últimos 30 dias</p>
-                        <div class="grid grid-cols-4 gap-1 text-center">
-                            <div><p class="text-xs font-bold text-blue-700 tabular-nums">{{ $l30['opens'] }}</p><p class="text-[8px] text-blue-400">consultados</p></div>
-                            <div><p class="text-xs font-bold text-emerald-600 tabular-nums">{{ $l30['posts'] }}</p><p class="text-[8px] text-blue-400">anotados</p></div>
-                            <div><p class="text-xs font-bold text-gray-700 tabular-nums">{{ $l30['patients'] }}</p><p class="text-[8px] text-blue-400">pacientes</p></div>
-                            <div><p class="text-xs font-bold text-gray-700 tabular-nums">{{ $l30['users'] }}</p><p class="text-[8px] text-blue-400">profissionais</p></div>
-                        </div>
-                    </div>
-                    @endif
-
-                    {{-- Por turno --}}
-                    @if($byShift->isNotEmpty())
-                    <div class="mb-2">
-                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Por turno</p>
+                    {{-- Por turno: volume de mensagens --}}
+                    @if($da['by_shift']->isNotEmpty())
+                    @php $maxShiftMsgs = $da['by_shift']->max('msgs') ?: 1; @endphp
+                    <div class="mb-3">
+                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Mensagens por turno</p>
                         <div class="space-y-1.5">
                             @foreach(['M','T','N'] as $sh)
-                            @php $s = $byShift[$sh] ?? null; @endphp
-                            @if($s)
+                            @php $sv = $da['by_shift'][$sh] ?? null; @endphp
+                            @if($sv)
                             <div class="flex items-center gap-2">
-                                <span class="text-[9px] font-semibold text-gray-500 w-12 flex-shrink-0">{{ $shiftLabels[$sh] }}</span>
-                                <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden relative">
-                                    @php $pct = $s['coverage'] ?? 0; @endphp
-                                    <div class="h-full rounded-full {{ $pct >= 70 ? 'bg-emerald-400' : ($pct >= 40 ? 'bg-amber-400' : 'bg-red-300') }}" style="width:{{ min($pct, 100) }}%"></div>
+                                <span class="text-[9px] font-medium text-gray-500 w-10 flex-shrink-0">{{ $shiftLabels[$sh] }}</span>
+                                <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full {{ $shiftColors[$sh] }}"
+                                         style="width:{{ round($sv['msgs'] / $maxShiftMsgs * 100) }}%"></div>
                                 </div>
-                                <span class="text-[9px] tabular-nums text-gray-500 w-14 flex-shrink-0 text-right">{{ $s['opens'] }}→{{ $s['posts'] }} @if($s['coverage'] !== null)<span class="text-gray-400">({{ $s['coverage'] }}%)</span>@endif</span>
+                                <span class="text-[9px] tabular-nums text-gray-500 w-24 text-right flex-shrink-0">
+                                    {{ number_format($sv['msgs']) }} msgs · {{ $sv['days'] }}d
+                                </span>
                             </div>
                             @endif
                             @endforeach
@@ -400,112 +372,139 @@
                     </div>
                     @endif
 
-                    {{-- Top setores --}}
-                    @if($topSectors->isNotEmpty())
-                    <div class="mb-2">
-                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Setores com mais atividade</p>
-                        @php $maxAct = $topSectors->max(fn($s) => $s['opens'] + $s['posts']) ?: 1; @endphp
+                    {{-- Horário de pico (hour_counts) --}}
+                    @php
+                        $hours = $da['hour_counts'];
+                        $maxHour = max($hours) ?: 1;
+                        $topHour = array_search(max($hours), $hours);
+                    @endphp
+                    @if($maxHour > 0)
+                    <div class="mb-3">
+                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">
+                            Distribuição por hora
+                            <span class="font-normal text-gray-400"> — pico às {{ str_pad($topHour, 2, '0', STR_PAD_LEFT) }}h</span>
+                        </p>
+                        <div class="flex items-end gap-px h-8">
+                            @for($h = 0; $h < 24; $h++)
+                            @php
+                                $val = $hours[$h] ?? 0;
+                                $pct = $maxHour > 0 ? round($val / $maxHour * 100) : 0;
+                                $isShiftM = $h >= 7 && $h < 13;
+                                $isShiftT = $h >= 13 && $h < 19;
+                                $barColor = $isShiftM ? 'bg-amber-300' : ($isShiftT ? 'bg-sky-300' : 'bg-indigo-300');
+                            @endphp
+                            <div class="flex-1 flex flex-col justify-end group relative"
+                                 title="{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}h: {{ $val }}">
+                                <div class="w-full rounded-sm {{ $barColor }}" style="height:{{ max($pct, 2) }}%"></div>
+                            </div>
+                            @endfor
+                        </div>
+                        <div class="flex justify-between text-[8px] text-gray-300 mt-0.5 px-px">
+                            <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
+                        </div>
+                        <p class="text-[8px] text-gray-300 mt-0.5">
+                            <span class="inline-block w-2 h-2 rounded-sm bg-amber-300 mr-0.5"></span>Manhã
+                            <span class="inline-block w-2 h-2 rounded-sm bg-sky-300 mx-0.5 ml-2"></span>Tarde
+                            <span class="inline-block w-2 h-2 rounded-sm bg-indigo-300 mx-0.5 ml-2"></span>Noite
+                        </p>
+                    </div>
+                    @endif
+
+                    {{-- Tipos de conteúdo (content_tags) --}}
+                    @if(!empty($da['content_tags']))
+                    @php
+                        $tags = collect($da['content_tags'])->filter()->sortDesc();
+                        $maxTag = $tags->max() ?: 1;
+                    @endphp
+                    <div class="mb-3">
+                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Tipos de anotação</p>
                         <div class="space-y-1">
-                            @foreach($topSectors as $sec)
-                            @php $actTotal = $sec['opens'] + $sec['posts']; @endphp
+                            @foreach($tags as $tag => $cnt)
                             <div class="flex items-center gap-2">
-                                <span class="text-[9px] text-gray-600 truncate flex-1" title="{{ $sec['sector_name'] }}">{{ $sec['sector_name'] }}</span>
-                                <div class="w-16 h-2 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
-                                    <div class="h-full bg-[#004D9D]/40 rounded-full" style="width:{{ round($actTotal / $maxAct * 100) }}%"></div>
+                                <span class="text-[9px] text-gray-600 truncate flex-1 capitalize">{{ $tag }}</span>
+                                <div class="w-20 h-2 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                                    <div class="h-full bg-[#004D9D]/50 rounded-full" style="width:{{ round($cnt / $maxTag * 100) }}%"></div>
                                 </div>
-                                <span class="text-[9px] text-gray-400 tabular-nums w-12 text-right flex-shrink-0">{{ $sec['opens'] }}+{{ $sec['posts'] }}</span>
+                                <span class="text-[9px] text-gray-400 tabular-nums w-10 text-right flex-shrink-0">{{ number_format($cnt) }}</span>
                             </div>
                             @endforeach
                         </div>
                     </div>
                     @endif
 
-                    {{-- Top plantonistas --}}
-                    @if($topUsers->isNotEmpty())
+                    {{-- Qualidade das mensagens (char_buckets) --}}
+                    @if(!empty($da['char_buckets']))
+                    @php
+                        $buckets = $da['char_buckets'];
+                        $totalBuckets = array_sum($buckets) ?: 1;
+                        $bucketColors = ['curtas' => 'bg-red-300', 'adequadas' => 'bg-emerald-400', 'longas' => 'bg-blue-400'];
+                        $bucketLabels = ['curtas' => 'Curtas (<30c)', 'adequadas' => 'Adequadas', 'longas' => 'Longas (>150c)'];
+                    @endphp
                     <div>
-                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Plantonistas mais ativos</p>
-                        <div class="space-y-1">
-                            @foreach($topUsers as $u)
-                            <div class="flex items-center gap-1.5 text-[9px]">
-                                <span class="text-gray-600 truncate flex-1" title="{{ $u['name'] }}">{{ $u['name'] }}</span>
-                                @if($u['coverage'] !== null)
-                                <span class="px-1.5 py-px rounded text-[8px] font-semibold flex-shrink-0 {{ $u['coverage'] >= 70 ? 'bg-emerald-100 text-emerald-700' : ($u['coverage'] >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600') }}">{{ $u['coverage'] }}%</span>
-                                @endif
-                                <span class="text-gray-400 tabular-nums flex-shrink-0 w-16 text-right">{{ $u['opens'] }}↗ {{ $u['posts'] }}✎</span>
-                            </div>
+                        <p class="text-[9px] font-semibold text-gray-400 mb-1.5">Qualidade das mensagens</p>
+                        <div class="flex h-3 rounded-full overflow-hidden gap-px">
+                            @foreach(['curtas','adequadas','longas'] as $b)
+                            @php $bval = $buckets[$b] ?? 0; $bpct = round($bval / $totalBuckets * 100); @endphp
+                            @if($bpct > 0)
+                            <div class="{{ $bucketColors[$b] }} h-full" style="width:{{ $bpct }}%"
+                                 title="{{ $bucketLabels[$b] }}: {{ $bval }} ({{ $bpct }}%)"></div>
+                            @endif
                             @endforeach
                         </div>
-                        <p class="text-[8px] text-gray-300 mt-1">↗ leitos abertos · ✎ anotações · % cobertura</p>
+                        <div class="flex gap-3 mt-1">
+                            @foreach(['curtas','adequadas','longas'] as $b)
+                            @php $bval = $buckets[$b] ?? 0; @endphp
+                            <span class="text-[8px] text-gray-400 flex items-center gap-0.5">
+                                <span class="inline-block w-1.5 h-1.5 rounded-sm {{ $bucketColors[$b] }}"></span>
+                                {{ $bucketLabels[$b] }}: {{ number_format($bval) }}
+                            </span>
+                            @endforeach
+                        </div>
                     </div>
                     @endif
                 </div>
-                @endif
 
-                {{-- ── Relatório de pendências ── --}}
-                @if(($ps->total_views ?? 0) > 0)
+                {{-- ── Cobertura da passagem (handover_activity_log) ── --}}
+                @if($ai['total_opens'] > 0)
                 <div class="pt-3 border-t border-gray-100">
-                    <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Relatório de pendências</p>
+                    <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Passagem de plantão</p>
 
-                    {{-- KPIs --}}
-                    <div class="grid grid-cols-2 gap-1.5 mb-2">
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <p class="text-sm font-bold text-gray-700 tabular-nums">{{ number_format($ps->total_views) }}</p>
-                            <p class="text-[9px] text-gray-400">acessos totais</p>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <p class="text-sm font-bold text-sky-600 tabular-nums">{{ $ps->views_7d }}</p>
-                            <p class="text-[9px] text-gray-400">últimos 7 dias</p>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <p class="text-sm font-bold text-gray-600 tabular-nums">{{ $ps->total_exports }}</p>
-                            <p class="text-[9px] text-gray-400">exports CSV</p>
-                        </div>
-                        <div class="bg-gray-50 rounded-lg px-3 py-2">
-                            <div class="flex items-center gap-1">
-                                <p class="text-sm font-bold text-gray-600 tabular-nums">{{ $ps->unique_users }}</p>
-                                @if($exportRate !== null)
-                                <span class="text-[8px] text-purple-600 font-semibold ml-auto">{{ $exportRate }}% export</span>
-                                @endif
-                            </div>
-                            <p class="text-[9px] text-gray-400">usuários únicos</p>
-                        </div>
-                    </div>
-
-                    @if(($ps->total_refreshes ?? 0) > 0)
-                    <p class="text-[9px] text-gray-400 mb-2">{{ $ps->total_refreshes }} refreshes manuais (usuários buscaram dados atualizados)</p>
-                    @endif
-
-                    {{-- Top usuários --}}
-                    @if($userMetrics['pending_top_users']->isNotEmpty())
+                    @php $cr = $ai['coverage_rate']; @endphp
+                    @if($cr !== null)
                     <div class="mb-2">
-                        <p class="text-[9px] font-semibold text-gray-400 mb-1">Mais frequentes</p>
-                        <div class="space-y-0.5">
-                            @foreach($userMetrics['pending_top_users'] as $u)
-                            <div class="flex items-center justify-between text-[10px]">
-                                <span class="text-gray-600 truncate">{{ $u->name }}</span>
-                                <span class="text-gray-400 tabular-nums flex-shrink-0 ml-2">{{ $u->cnt }}x</span>
-                            </div>
-                            @endforeach
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[9px] text-gray-400">Cobertura (leitos abertos → anotados)</span>
+                            <span class="text-[10px] font-bold tabular-nums {{ $cr >= 70 ? 'text-emerald-600' : ($cr >= 40 ? 'text-amber-600' : 'text-red-500') }}">{{ $cr }}%</span>
                         </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full {{ $cr >= 70 ? 'bg-emerald-500' : ($cr >= 40 ? 'bg-amber-400' : 'bg-red-400') }}"
+                                 style="width:{{ min($cr, 100) }}%"></div>
+                        </div>
+                        <p class="text-[9px] text-gray-400 mt-1">
+                            {{ $ai['unique_patients'] }} pac. únicos · {{ $ai['unique_users'] }} plantonistas · {{ $ai['total_sessions'] }} sessões
+                        </p>
                     </div>
                     @endif
 
-                    {{-- Top setores consultados --}}
-                    @if($pendingTopSectors->isNotEmpty())
-                    <div>
-                        <p class="text-[9px] font-semibold text-gray-400 mb-1">Setores mais consultados</p>
-                        @php $maxPv = $pendingTopSectors->max('views') ?: 1; @endphp
-                        <div class="space-y-1">
-                            @foreach($pendingTopSectors as $sec)
-                            <div class="flex items-center gap-2">
-                                <span class="text-[9px] text-gray-600 truncate flex-1">{{ $sec['sector_name'] }}</span>
-                                <div class="w-16 h-2 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
-                                    <div class="h-full bg-sky-400/60 rounded-full" style="width:{{ round($sec['views'] / $maxPv * 100) }}%"></div>
-                                </div>
-                                <span class="text-[9px] text-gray-400 tabular-nums w-8 text-right flex-shrink-0">{{ $sec['views'] }}</span>
+                    @if(!empty($ai['by_shift']))
+                    <div class="space-y-1.5">
+                        @foreach(['M','T','N'] as $sh)
+                        @php $s = $ai['by_shift'][$sh] ?? null; @endphp
+                        @if($s)
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] font-medium text-gray-500 w-10 flex-shrink-0">{{ $shiftLabels[$sh] }}</span>
+                            <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                @php $pct = $s['coverage'] ?? 0; @endphp
+                                <div class="h-full rounded-full {{ $pct >= 70 ? 'bg-emerald-400' : ($pct >= 40 ? 'bg-amber-400' : 'bg-red-300') }}"
+                                     style="width:{{ min($pct, 100) }}%"></div>
                             </div>
-                            @endforeach
+                            <span class="text-[9px] tabular-nums text-gray-500 w-20 text-right flex-shrink-0">
+                                {{ $s['opens'] }}→{{ $s['posts'] }}
+                                @if($s['coverage'] !== null)<span class="text-gray-400"> ({{ $s['coverage'] }}%)</span>@endif
+                            </span>
                         </div>
+                        @endif
+                        @endforeach
                     </div>
                     @endif
                 </div>

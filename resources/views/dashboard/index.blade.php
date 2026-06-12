@@ -167,9 +167,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <div class="flex-1">
-                <span class="font-semibold">Dica: configure apenas seus setores.</span>
-                <span class="text-sky-700"> O painel carrega mais rápido e fica focado no que importa para você. Você pode ajustar quando quiser em </span>
-                <a href="{{ route('user.preferences.index') }}" class="font-semibold underline hover:text-sky-900">Meus Setores</a>.
+                <span class="font-semibold">Dica: configure seus leitos na Passagem de Plantão.</span>
+                <span class="text-sky-700"> Ao definir quais leitos são seus, a passagem fica objetiva e focada apenas no que você acompanha. Acesse o painel, clique em "Meus Leitos" e selecione os leitos do seu turno.</span>
             </div>
             <button @click="show = false; localStorage.setItem('dashboard_sector_tip_dismissed', '1')"
                     class="flex-shrink-0 text-sky-400 hover:text-sky-600 transition-colors ml-1"

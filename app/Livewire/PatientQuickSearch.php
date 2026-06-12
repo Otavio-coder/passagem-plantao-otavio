@@ -3,11 +3,8 @@
 namespace App\Livewire;
 
 use App\Repositories\EMR\PatientQuickSearchRepository;
-use Livewire\Attributes\Isolate;
-use Livewire\Attributes\On;
 use Livewire\Component;
 
-#[Isolate]
 class PatientQuickSearch extends Component
 {
     public bool $isOpen = false;
@@ -29,7 +26,6 @@ class PatientQuickSearch extends Component
 
     public ?string $error = null;
 
-    #[On('open-patient-quick-search')]
     public function open(): void
     {
         $this->isOpen = true;

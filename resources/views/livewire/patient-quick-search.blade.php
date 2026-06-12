@@ -2,7 +2,7 @@
     BETA: Consulta Rápida de Paciente
     Modal global — aberto via: window.dispatchEvent(new CustomEvent('open-patient-quick-search'))
 --}}
-<div>
+<div x-data x-on:open-patient-quick-search.window="$wire.open()">
     @if($isOpen)
     <div
         x-data

@@ -535,7 +535,7 @@ class PatientPendingEventsService
                 'dt_autorizacao' => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
                 'dt_liberacao_medico' => $row->dt_liberacao_medico ? date('d/m/Y H:i', strtotime($row->dt_liberacao_medico)) : null,
                 'dt_coleta' => $row->dt_coleta ? date('d/m/Y H:i', strtotime($row->dt_coleta)) : null,
-                'dt_resultado' => $row->dt_resultado ? date('d/m/Y H:i', strtotime($row->dt_resultado)) : null,
+                'dt_resultado' => ($row->dt_resultado && $row->dt_coleta) ? date('d/m/Y H:i', strtotime($row->dt_resultado)) : null,
                 'ie_amostra' => $isExam ? ($row->ie_amostra ?? null) : null,
                 'setor_execucao' => $row->setor_desc_raw ?? ($row->cd_setor_execucao ?? null),
                 'tempo_pendente' => $tempo,

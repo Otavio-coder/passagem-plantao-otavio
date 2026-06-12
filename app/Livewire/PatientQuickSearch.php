@@ -28,6 +28,7 @@ class PatientQuickSearch extends Component
 
     public ?string $error = null;
 
+    #[On('open-patient-quick-search')]
     public function open(): void
     {
         $this->isOpen = true;

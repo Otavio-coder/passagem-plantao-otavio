@@ -3,8 +3,6 @@
     Modal global — aberto via: window.dispatchEvent(new CustomEvent('open-patient-quick-search'))
 --}}
 <div>
-    <span x-data @open-patient-quick-search.window="$wire.open()"></span>
-
     @if($isOpen)
     <div
         x-data

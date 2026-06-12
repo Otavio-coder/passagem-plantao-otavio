@@ -68,7 +68,7 @@
 
                     {{-- Consulta Rápida de Paciente (beta) --}}
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white"
-                         onclick="window.dispatchEvent(new CustomEvent('open-patient-quick-search'))">
+                         onclick="Livewire.dispatch('open-patient-quick-search')">
                         <div class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
                                 <i class="fas fa-magnifying-glass-plus text-sm sm:text-lg"></i>

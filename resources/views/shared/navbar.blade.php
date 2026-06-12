@@ -68,7 +68,7 @@
                         <button type="button"
                                 title="Consulta Rápida de Paciente (beta)"
                                 class="nav-link border-transparent"
-                                onclick="window.dispatchEvent(new CustomEvent('open-patient-quick-search'))">
+                                onclick="Livewire.dispatch('open-patient-quick-search')">
                             <i class="fas fa-magnifying-glass-plus"></i>
                             <span class="hidden lg:inline">Busca</span>
                         </button>
@@ -242,7 +242,7 @@
             </a>
 
             <button type="button"
-                    onclick="toggleNavbar('mobile-menu'); window.dispatchEvent(new CustomEvent('open-patient-quick-search'))"
+                    onclick="toggleNavbar('mobile-menu'); Livewire.dispatch('open-patient-quick-search')"
                     class="flex justify-between items-center text-sm text-gray-700 w-full text-left">
                 <div class="px-2 pt-2 pb-3 flex flex-col">
                     <span class="font-semibold">

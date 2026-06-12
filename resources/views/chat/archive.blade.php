@@ -185,11 +185,52 @@
 
                 @if($userMetrics['recent_access']->isNotEmpty())
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div class="px-3 py-2 border-b border-gray-100">
+                    <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                         <p class="text-xs text-gray-500 font-medium">Acessos recentes</p>
+                        @if($userMetrics['today_access']->isNotEmpty())
+                            <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                                {{ $userMetrics['today_access']->count() }} hoje
+                            </span>
+                        @endif
                     </div>
-                    <div class="divide-y divide-gray-50">
-                        @foreach($userMetrics['recent_access']->take(5) as $u)
+
+                    {{-- Hoje --}}
+                    @if($userMetrics['today_access']->isNotEmpty())
+                    <div class="px-3 pt-2 pb-1">
+                        <p class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide mb-1">Hoje</p>
+                        <div class="space-y-1">
+                            @foreach($userMetrics['today_access'] as $u)
+                            @php
+                                $words = preg_split('/[\s.]+/', trim($u->name ?: 'U')) ?: ['U'];
+                                $ini = strtoupper(substr($words[0] ?? 'U', 0, 1));
+                                if (count($words) > 1) $ini .= strtoupper(substr(end($words), 0, 1));
+                                $palette = ['4F46E5','0891B2','059669','B45309','7C3AED','0284C7','BE185D','0F766E'];
+                                $bg = '#'.($palette[abs(crc32($u->name ?: 'U')) % count($palette)]);
+                                $hasPhoto = !empty($u->photo) && strlen($u->photo) > 100;
+                                $ts = $u->last_access_at ? \Carbon\Carbon::parse($u->last_access_at)->format('H:i') : '—';
+                            @endphp
+                            <div class="flex items-center gap-2">
+                                @if($hasPhoto)
+                                    <img src="data:image/jpeg;base64,{{ $u->photo }}" alt="{{ $u->name }}" class="w-5 h-5 rounded-full object-cover flex-shrink-0">
+                                @else
+                                    <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[7px] font-bold flex-shrink-0" style="background:{{ $bg }}">{{ $ini }}</div>
+                                @endif
+                                <p class="text-xs text-gray-700 truncate flex-1">{{ $u->name }}</p>
+                                <span class="text-[10px] text-emerald-500 flex-shrink-0 font-mono">{{ $ts }}</span>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="border-t border-dashed border-gray-100 mx-3 my-1"></div>
+                    @endif
+
+                    {{-- Anteriores --}}
+                    <div class="divide-y divide-gray-50 px-0">
+                        @php
+                            $todayIds = $userMetrics['today_access']->pluck('username')->all();
+                            $previousAccess = $userMetrics['recent_access']->filter(fn($u) => !in_array($u->username, $todayIds))->take(5);
+                        @endphp
+                        @foreach($previousAccess as $u)
                         @php
                             $words = preg_split('/[\s.]+/', trim($u->name ?: 'U')) ?: ['U'];
                             $ini = strtoupper(substr($words[0] ?? 'U', 0, 1));

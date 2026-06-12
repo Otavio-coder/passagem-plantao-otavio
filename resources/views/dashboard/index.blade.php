@@ -155,6 +155,33 @@
         </div>
     </div>
 
+    {{-- Lembrete sobre configuração de setores (usuários que já configuraram) --}}
+    @php $hasSectors = auth()->check() && auth()->user()->hasConfiguredSectors(); @endphp
+    @if($hasSectors)
+    <div x-data="{ show: localStorage.getItem('dashboard_sector_tip_dismissed') !== '1' }"
+         x-show="show"
+         x-cloak
+         class="w-full px-4 pb-4 flex justify-center">
+        <div class="w-full max-w-7xl bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex items-start gap-3 text-sm text-sky-800">
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div class="flex-1">
+                <span class="font-semibold">Dica: configure apenas seus setores.</span>
+                <span class="text-sky-700"> O painel carrega mais rápido e fica focado no que importa para você. Você pode ajustar quando quiser em </span>
+                <a href="{{ route('user.preferences.index') }}" class="font-semibold underline hover:text-sky-900">Meus Setores</a>.
+            </div>
+            <button @click="show = false; localStorage.setItem('dashboard_sector_tip_dismissed', '1')"
+                    class="flex-shrink-0 text-sky-400 hover:text-sky-600 transition-colors ml-1"
+                    aria-label="Fechar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    @endif
+
     {{-- Onboarding: primeiro login sem setores configurados --}}
     @php $needsOnboarding = auth()->check() && ! auth()->user()->hasConfiguredSectors(); @endphp
     @if($needsOnboarding)

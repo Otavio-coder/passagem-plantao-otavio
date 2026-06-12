@@ -1112,6 +1112,13 @@ class ChatArchiveController extends Controller
             ->limit(10)
             ->get();
 
+        $todayAccess = DB::table('users')
+            ->whereNotNull('last_access_at')
+            ->where('status', 'A')
+            ->where('last_access_at', '>=', now()->startOfDay())
+            ->orderByDesc('last_access_at')
+            ->get(['name', 'username', 'role', 'photo', 'last_access_at']);
+
         $recentAccess = DB::table('users')
             ->whereNotNull('last_access_at')
             ->where('status', 'A')
@@ -1278,6 +1285,7 @@ class ChatArchiveController extends Controller
             'last_30d' => $last30,
             'nurses' => $nurses,
             'top_roles' => $topRoles,
+            'today_access' => $todayAccess,
             'recent_access' => $recentAccess,
             'beds_configured' => $bedsConfigured,
             'beds_without' => $withoutBeds,

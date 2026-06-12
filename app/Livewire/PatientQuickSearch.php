@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Repositories\EMR\PatientQuickSearchRepository;
 use Livewire\Attributes\Isolate;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Isolate]

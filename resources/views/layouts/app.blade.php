@@ -104,7 +104,7 @@
 
 <!-- PWA Install Button -->
 <div id="pwa-install-banner"
-     class="hidden fixed top-16 right-4 z-50 w-80 sm:w-96"
+     class="hidden fixed top-16 right-4 z-[99999] w-80 sm:w-96"
      role="complementary"
      aria-label="Instalar aplicativo">
     <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
@@ -150,7 +150,7 @@
 @if(auth()->user()->handoverBeds()->doesntExist())
 <!-- Aviso: configurar leitos -->
 <div id="beds-notice-banner"
-     class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm"
+     class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[99999] w-[calc(100%-2rem)] max-w-sm"
      role="dialog"
      aria-label="Configurar leitos">
     <div class="bg-white rounded-2xl shadow-2xl border border-blue-100 overflow-hidden">

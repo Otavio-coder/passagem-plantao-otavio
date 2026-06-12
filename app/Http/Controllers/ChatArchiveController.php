@@ -1180,6 +1180,98 @@ class ChatArchiveController extends Controller
             ? (int) round($auditInsights->total_posts / $auditInsights->total_opens * 100)
             : null;
 
+        // Últimos 30 dias
+        $auditLast30 = DB::table('handover_activity_log')
+            ->where('occurred_at', '>=', now()->subDays(30))
+            ->selectRaw("
+                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
+                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
+                COUNT(DISTINCT nr_atendimento)                         AS patients,
+                COUNT(DISTINCT user_id)                                AS users
+            ")
+            ->first();
+
+        // Por turno (M/T/N)
+        $auditByShift = DB::table('handover_activity_log')
+            ->selectRaw("
+                shift,
+                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
+                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
+                COUNT(DISTINCT user_id) AS users
+            ")
+            ->groupBy('shift')
+            ->orderByRaw("FIELD(shift,'M','T','N')")
+            ->get()
+            ->mapWithKeys(fn ($r) => [$r->shift => [
+                'opens' => (int) $r->opens,
+                'posts' => (int) $r->posts,
+                'users' => (int) $r->users,
+                'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
+            ]]);
+
+        // Top usuários por engajamento
+        $auditTopUsers = DB::table('handover_activity_log as a')
+            ->join('users as u', 'u.id', '=', 'a.user_id')
+            ->selectRaw("
+                u.name,
+                COALESCE(u.role, '') AS role,
+                SUM(CASE WHEN a.event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
+                SUM(CASE WHEN a.event = 'chat_post'  THEN 1 ELSE 0 END) AS posts,
+                COUNT(DISTINCT a.nr_atendimento) AS patients
+            ")
+            ->groupBy('u.name', 'u.role')
+            ->orderByRaw('opens + posts DESC')
+            ->limit(8)
+            ->get()
+            ->map(fn ($r) => array_merge((array) $r, [
+                'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
+            ]));
+
+        // Top setores por engajamento
+        $auditTopSectors = DB::table('handover_activity_log')
+            ->whereNotNull('sector_name')
+            ->where('sector_name', '!=', '')
+            ->selectRaw("
+                sector_name,
+                SUM(CASE WHEN event = 'modal_open' THEN 1 ELSE 0 END) AS opens,
+                SUM(CASE WHEN event = 'chat_post'  THEN 1 ELSE 0 END) AS posts
+            ")
+            ->groupBy('sector_name')
+            ->orderByRaw('opens + posts DESC')
+            ->limit(6)
+            ->get()
+            ->map(fn ($r) => array_merge((array) $r, [
+                'coverage' => $r->opens > 0 ? (int) round($r->posts / $r->opens * 100) : null,
+            ]));
+
+        // Pendências: top setores (extrai sector_ids do context JSON)
+        $pendingTopSectorIds = DB::table('pending_events_access_logs')
+            ->where('event', 'view')
+            ->whereNotNull('context')
+            ->pluck('context')
+            ->flatMap(fn ($ctx) => json_decode($ctx, true)['sector_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->countBy()
+            ->sortDesc()
+            ->take(5);
+
+        $sectorNames = DB::table('user_sector_preferences')
+            ->whereIn('sector_code', $pendingTopSectorIds->keys()->all())
+            ->select('sector_code', 'sector_name')
+            ->distinct()
+            ->get()
+            ->pluck('sector_name', 'sector_code');
+
+        $pendingTopSectors = $pendingTopSectorIds->map(fn ($cnt, $id) => [
+            'sector_name' => $sectorNames[$id] ?? "Setor $id",
+            'views' => $cnt,
+        ])->values();
+
+        $pendingExportRate = ($pendingStats->total_views ?? 0) > 0
+            ? (int) round(($pendingStats->total_exports ?? 0) / $pendingStats->total_views * 100)
+            : null;
+
         return [
             'total_active' => $totalActive,
             'last_7d' => $last7,
@@ -1191,6 +1283,8 @@ class ChatArchiveController extends Controller
             'beds_without' => $withoutBeds,
             'pending_stats' => $pendingStats,
             'pending_top_users' => $pendingTopUsers,
+            'pending_top_sectors' => $pendingTopSectors,
+            'pending_export_rate' => $pendingExportRate,
             'audit_insights' => [
                 'total_sessions' => (int) ($auditInsights->total_sessions ?? 0),
                 'total_opens' => (int) ($auditInsights->total_opens ?? 0),
@@ -1198,6 +1292,15 @@ class ChatArchiveController extends Controller
                 'unique_patients' => (int) ($auditInsights->unique_patients ?? 0),
                 'unique_users' => (int) ($auditInsights->unique_users ?? 0),
                 'coverage_rate' => $auditCoverageRate,
+                'last_30d' => [
+                    'opens' => (int) ($auditLast30->opens ?? 0),
+                    'posts' => (int) ($auditLast30->posts ?? 0),
+                    'patients' => (int) ($auditLast30->patients ?? 0),
+                    'users' => (int) ($auditLast30->users ?? 0),
+                ],
+                'by_shift' => $auditByShift,
+                'top_users' => $auditTopUsers,
+                'top_sectors' => $auditTopSectors,
             ],
         ];
     }

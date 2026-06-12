@@ -6,6 +6,7 @@ use App\Repositories\EMR\PatientAlertsRepository;
 use App\Repositories\EMR\PatientClinicalRepository;
 use App\Repositories\EMR\PatientMultidisciplinaryRepository;
 use App\Repositories\EMR\PatientPrescriptionsRepository;
+use App\Repositories\EMR\PatientQuickSearchRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
 use App\Services\Tasy\TasyService;
@@ -33,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PatientSurgeryRepository::class, PatientSurgeryRepository::class);
         $this->app->bind(PatientMultidisciplinaryRepository::class, PatientMultidisciplinaryRepository::class);
         $this->app->bind(PatientPrescriptionsRepository::class, PatientPrescriptionsRepository::class);
+        $this->app->bind(PatientQuickSearchRepository::class, PatientQuickSearchRepository::class);
     }
 
     /**

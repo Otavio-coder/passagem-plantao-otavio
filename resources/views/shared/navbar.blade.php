@@ -65,6 +65,14 @@
                             <span class="hidden lg:inline xl:hidden">Pend.</span>
                         </a>
 
+                        <button type="button"
+                                title="Consulta Rápida de Paciente (beta)"
+                                class="nav-link border-transparent"
+                                onclick="window.dispatchEvent(new CustomEvent('open-patient-quick-search'))">
+                            <i class="fas fa-magnifying-glass-plus"></i>
+                            <span class="hidden lg:inline">Busca</span>
+                        </button>
+
                         @canany(['ver usuarios', 'ver perfis', 'ver logs', 'configurar sistema', 'ver historico chat'])
                             <div class="relative">
                                 <button type="button"
@@ -232,6 +240,19 @@
                 </div>
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
+
+            <button type="button"
+                    onclick="toggleNavbar('mobile-menu'); window.dispatchEvent(new CustomEvent('open-patient-quick-search'))"
+                    class="flex justify-between items-center text-sm text-gray-700 w-full text-left">
+                <div class="px-2 pt-2 pb-3 flex flex-col">
+                    <span class="font-semibold">
+                        Consulta Rápida
+                        <span class="text-[9px] font-medium text-gray-400 ml-1">BETA</span>
+                    </span>
+                    <span class="text-xs text-gray-400">Cirurgias, procedimentos e coletas pendentes</span>
+                </div>
+                <i class="fas fa-magnifying-glass-plus text-sm text-gray-400"></i>
+            </button>
 
             <a href="{{ route('feedback') }}" class="flex justify-between items-center text-sm text-gray-700">
                 <div class="px-2 pt-2 pb-3 flex flex-col">

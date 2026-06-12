@@ -1,25 +1,31 @@
 {{-- Indicador de conexão — JS em resources/js/connection-status.js --}}
+{{--
+    Mobile: posicionado no canto inferior direito (evita zona de swipe esquerda).
+    Desktop: canto inferior esquerdo.
+    Pill auto-compacta (só dot) após 4s em status "good".
+--}}
 <div
     x-data="connectionStatus"
     data-heartbeat-url="{{ route('session.heartbeat') }}"
-    class="fixed bottom-3 left-3 z-[99999] flex flex-col items-start gap-1.5"
+    class="fixed bottom-3 right-3 sm:bottom-3 sm:left-3 sm:right-auto z-[99999] flex flex-col items-end sm:items-start gap-1.5"
     role="status"
     aria-live="assertive"
+    @click.outside="expanded = false"
 >
-    {{-- Pill compacto --}}
+    {{-- Pill --}}
     <button
-        @click="expanded = !expanded"
+        @click="expanded = !expanded; if (expanded) scheduleAutoClose()"
         type="button"
-        class="flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-medium shadow transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-white/60"
-        :class="pillClass"
+        class="flex items-center gap-1.5 rounded-full border shadow transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-white/60 touch-manipulation"
+        :class="[pillClass, compact && status === 'good' ? 'px-1.5 py-1.5' : 'px-2 py-1 text-[11px] font-medium']"
         :aria-label="label"
     >
-        <span class="relative flex h-1.5 w-1.5 flex-shrink-0">
+        <span class="relative flex h-2 w-2 sm:h-1.5 sm:w-1.5 flex-shrink-0">
             <span x-show="status !== 'good'" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" :class="dotPingClass"></span>
-            <span class="relative inline-flex rounded-full h-1.5 w-1.5" :class="dotPingClass"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 sm:h-1.5 sm:w-1.5" :class="dotPingClass"></span>
         </span>
-        <span x-text="label"></span>
-        <span x-show="pingMs !== null" class="opacity-60" x-text="pingMs + 'ms'" x-cloak></span>
+        <span x-show="!compact || status !== 'good'" x-text="label" class="text-[11px] font-medium"></span>
+        <span x-show="(!compact || status !== 'good') && pingMs !== null" class="opacity-60 text-[11px]" x-text="pingMs + 'ms'" x-cloak></span>
     </button>
 
     {{-- Detalhe expandido --}}

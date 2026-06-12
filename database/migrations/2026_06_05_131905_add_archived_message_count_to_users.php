@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->unsignedInteger('archived_message_count')->nullable()->after('writing_analyzed_at')
+            $table->unsignedInteger('archived_message_count')->nullable()->after('photo')
                 ->comment('Contagem de mensagens no chat_messages_archive — populado por cache:rebuild-archive-stats');
         });
     }

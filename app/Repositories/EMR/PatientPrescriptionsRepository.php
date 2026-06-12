@@ -1027,7 +1027,7 @@ class PatientPrescriptionsRepository
             'dt_liberacao' => ! empty($row->dt_liberacao_raw) ? Carbon::parse($row->dt_liberacao_raw)->format('d/m/Y H:i') : null,
             'classificacao' => ! empty($row->ds_grupo_lab) ? trim((string) $row->ds_grupo_lab) : null,
             'status_laudo' => ! empty($row->ds_status_laudo) ? trim((string) $row->ds_status_laudo) : null,
-            'tempo_pendente' => $this->formatTempoPendenteFromDate(
+            'tempo_pendente' => $this->formatPendingDurationFromDate(
                 ! empty($row->dt_solicitacao_raw) ? (string) $row->dt_solicitacao_raw : (! empty($row->scheduled_raw) ? (string) $row->scheduled_raw : null)
             ),
             'resultado_laudo' => ! empty($row->ds_resultado_laudo) ? trim((string) $row->ds_resultado_laudo) : null,
@@ -1038,7 +1038,7 @@ class PatientPrescriptionsRepository
         ];
     }
 
-    private function formatTempoPendenteFromDate(?string $date): ?string
+    private function formatPendingDurationFromDate(?string $date): ?string
     {
         if (empty($date)) {
             return null;

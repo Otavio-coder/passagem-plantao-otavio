@@ -2,6 +2,7 @@
 @section('title', 'Panorama do Sistema')
 
 @push('head')
+<link rel="stylesheet" href="https://unpkg.com/cal-heatmap/dist/cal-heatmap.css">
 <style>
     [x-cloak] { display: none !important; }
 
@@ -43,7 +44,58 @@
     }
     #archive-table_wrapper .dt-paging button:hover:not(.current) { background-color: #F3F4F6; }
     #archive-table th { white-space: nowrap; }
+    main { background-color: transparent !important; }
 </style>
+@endpush
+
+@push('page-bg')
+@php
+    mt_srand(42);
+    $_r  = fn() => mt_rand() / mt_getrandmax();
+    $cols = 14;
+    $BASE = 100 / $cols;
+    $H    = $BASE * (sqrt(3) / 2);
+    $rowY = [-$H * 0.4];
+    $nRows = (int) ceil(110 / $H) + 1;
+    for ($i = 1; $i <= $nRows; $i++) {
+        $rowY[] = $rowY[$i - 1] + $H * (0.55 + $_r() * 0.9);
+    }
+    $lines = [];
+    $rowCount = count($rowY);
+    foreach ($rowY as $ri => $y) {
+        $pts = [];
+        $x = -$BASE * (0.3 + $_r() * 0.8);
+        $edge = $ri === 0 || $ri === $rowCount - 1;
+        while ($x < 100 + $BASE * 1.5) {
+            $pts[] = ['x' => $x, 'y' => $y + ($edge ? 0 : ($_r() - 0.5) * $H * 0.28)];
+            $x += $BASE * (0.45 + $_r() * 1.15);
+        }
+        $lines[] = $pts;
+    }
+    $f   = fn($p) => number_format($p['x'], 2, '.', '') . ',' . number_format($p['y'], 2, '.', '');
+    $att = 'fill="rgba(7,55,114,0)" stroke="rgba(7,55,114,0.028)" stroke-width="0.12"';
+    $svgPoly = '';
+    for ($ri = 0; $ri < count($lines) - 1; $ri++) {
+        $top = $lines[$ri]; $bot = $lines[$ri + 1];
+        $ti = 0; $bi = 0; $tl = count($top); $bl = count($bot);
+        while ($ti < $tl - 1 || $bi < $bl - 1) {
+            $tn = $ti < $tl - 1 ? $top[$ti + 1]['x'] : PHP_INT_MAX;
+            $bn = $bi < $bl - 1 ? $bot[$bi + 1]['x'] : PHP_INT_MAX;
+            if ($tn <= $bn && $ti < $tl - 1) {
+                if ($bi < $bl) $svgPoly .= '<polygon points="'.$f($top[$ti]).' '.$f($top[$ti+1]).' '.$f($bot[$bi]).'" '.$att.'/>';
+                $ti++;
+            } elseif ($bi < $bl - 1) {
+                if ($ti < $tl) $svgPoly .= '<polygon points="'.$f($top[$ti]).' '.$f($bot[$bi]).' '.$f($bot[$bi+1]).'" '.$att.'/>';
+                $bi++;
+            } else { break; }
+        }
+    }
+@endphp
+<div class="fixed inset-0 pointer-events-none select-none overflow-hidden bg-gray-50" aria-hidden="true" style="z-index:0">
+    <svg class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+        {!! $svgPoly !!}
+    </svg>
+</div>
 @endpush
 
 @section('content')
@@ -574,10 +626,13 @@
     </div>
 
 </div>
+{{-- /triangle-mesh wrapper --}}
 
 @endsection
 
 @push('scripts')
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/cal-heatmap/dist/cal-heatmap.min.js"></script>
 <script>
 function esc(str) {
     const d = document.createElement('div');

@@ -1,4 +1,5 @@
 import forms from '@tailwindcss/forms';
+import typography from '@tailwindcss/typography';
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -12,6 +13,9 @@ export default {
 
     theme: {
         extend: {
+            fontFamily: {
+                mono: ['Montserrat', 'sans-serif'],
+            },
             colors: {
                 'santacasa': {
                     100: '#0071B9',
@@ -23,5 +27,5 @@ export default {
         },
     },
 
-    plugins: [forms],
+    plugins: [forms, typography],
 };

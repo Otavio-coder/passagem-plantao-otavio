@@ -11,7 +11,12 @@ return new class extends Migration
         Schema::dropIfExists('writing_team_analyses');
 
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['writing_analysis', 'writing_analyzed_at']);
+            $toDrop = array_filter(['writing_analysis', 'writing_analyzed_at'],
+                fn ($col) => Schema::hasColumn('users', $col)
+            );
+            if (! empty($toDrop)) {
+                $table->dropColumn(array_values($toDrop));
+            }
         });
     }
 

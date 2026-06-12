@@ -24,7 +24,10 @@ class ChatArchiveController extends Controller
 
     public function clearCache()
     {
-        Cache::forget(self::PANORAMA_CACHE_KEY);
+        // Limpa todas as chaves panorama_ no cache (index + top_terms por período/setor)
+        DB::table('cache')
+            ->where('key', 'like', '%panorama_%')
+            ->delete();
 
         return redirect()->route('admin.dashboard')->with('cache_cleared', true);
     }
@@ -352,7 +355,7 @@ class ChatArchiveController extends Controller
                     'ts' => strtotime($m->created_at),
                     'date' => date('d/m/Y H:i', strtotime($m->created_at)),
                     'user' => $m->user_id,
-                    'turno' => ChatArchiveShiftResolver::label(ChatArchiveShiftResolver::inferTurno($m->created_at)),
+                    'turno' => ChatArchiveShiftResolver::label(ChatArchiveShiftResolver::inferShift($m->created_at)),
                     'text' => $m->content ?? '',
                 ])->values()->all(),
                 $activeMessages->mapWithKeys(function ($message) {
@@ -722,7 +725,7 @@ class ChatArchiveController extends Controller
 
         foreach ($messages as $message) {
             $timestamp = (int) ($message['ts'] ?? 0);
-            $turnoLabel = $this->normalizeTurnoLabel($message['turno'] ?? null);
+            $turnoLabel = $this->normalizeShiftLabel($message['turno'] ?? null);
             $groupDate = $timestamp > 0 ? date('Y-m-d', $timestamp) : 'unknown';
             $groupKey = $groupDate.'|'.$turnoLabel;
 
@@ -748,7 +751,7 @@ class ChatArchiveController extends Controller
         return $timeline;
     }
 
-    private function normalizeTurnoLabel(mixed $turno): string
+    private function normalizeShiftLabel(mixed $turno): string
     {
         $normalized = mb_strtolower(trim((string) $turno));
 

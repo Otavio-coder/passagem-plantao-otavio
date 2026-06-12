@@ -7,7 +7,7 @@ use Carbon\Carbon;
 
 class ChatArchiveShiftResolver
 {
-    public static function inferTurno(string $datetime): string
+    public static function inferShift(string $datetime): string
     {
         $dt = Carbon::parse($datetime);
 
@@ -32,7 +32,7 @@ class ChatArchiveShiftResolver
                 ? date('Y-m-d H:i:s', (int) $timestamp)
                 : (string) $timestamp;
 
-            return match (self::inferTurno($datetime)) {
+            return match (self::inferShift($datetime)) {
                 'manha' => 'Manhã',
                 'tarde' => 'Tarde',
                 default => 'Noite',

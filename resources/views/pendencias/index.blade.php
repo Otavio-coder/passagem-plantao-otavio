@@ -405,10 +405,10 @@
                  0  Paciente        1  Leito           2  Atend.
                  3  Tipo            4  Status          5  Pendência
                  6  Dt. Prescrição  7  Coletado        8  Resultado
-                 9  Em aberto      10  Setor exec.     11 Unidade
-                12  Prev. Alta
-                13 tipo_evento (hidden) 14 vencido (hidden)
-                15 motivo_categoria (hidden) 16 classificacao (hidden)
+                 9  Em aberto      10 Unidade
+                11  Prev. Alta
+                12 tipo_evento (hidden) 13 vencido (hidden)
+                14 motivo_categoria (hidden) 15 classificacao (hidden)
             --}}
             <div id="kpi-bar"></div>
 
@@ -426,7 +426,6 @@
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Coletado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Resultado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Em aberto</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Setor exec.</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Prev. Alta</th>
                             <th class="hidden">tipo_raw</th>
@@ -510,9 +509,6 @@
                                     data-order="{{ $row['data_resultado_sort'] ?? 0 }}">{{ $row['data_resultado'] ?? '-' }}</td>
                                 <td class="px-2 py-2.5 text-[11px] whitespace-nowrap font-semibold font-mono {{ ($row['is_overdue'] ?? false) ? 'text-amber-600' : 'text-[#0071B9]' }}"
                                     data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">{{ $row['tempo_pendente'] ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap" style="max-width:120px" title="{{ $row['setor_execucao'] ?? '-' }}">
-                                    <div class="truncate">{{ $row['setor_execucao'] ?? '-' }}</div>
-                                </td>
                                 <td class="px-3 py-2.5 text-xs text-gray-700 font-medium whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}" style="max-width:130px" title="{{ $row['setor_origem'] ?? '-' }}">
                                     <div class="truncate">{{ $row['setor_origem'] ?? '-' }}</div>
                                 </td>
@@ -568,13 +564,12 @@ $(document).ready(function () {
             { },  // 7  Coletado
             { },  // 8  Resultado
             { },  // 9  Em aberto
-            { },  // 10 Setor exec.
-            { },  // 11 Unidade
-            { },  // 12 Prev. Alta
-            { width: '0', orderable: false, searchable: true },  // 13 tipo_raw
-            { width: '0', orderable: false, searchable: true },  // 14 vencido
-            { width: '0', orderable: false, searchable: true },  // 15 motivo_cat
-            { width: '0', orderable: false, searchable: true },  // 16 classif_raw
+            { },  // 10 Unidade
+            { },  // 11 Prev. Alta
+            { width: '0', orderable: false, searchable: true },  // 12 tipo_raw
+            { width: '0', orderable: false, searchable: true },  // 13 vencido
+            { width: '0', orderable: false, searchable: true },  // 14 motivo_cat
+            { width: '0', orderable: false, searchable: true },  // 15 classif_raw
         ],
         language: {
             url: '', decimal: ',', thousands: '.',

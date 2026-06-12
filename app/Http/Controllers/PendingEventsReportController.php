@@ -301,7 +301,7 @@ class PendingEventsReportController extends Controller
             'Pendência', 'Nr. Prescrição', 'Prescritor',
             'Status (Tasy)', 'Status (SCOLA)', 'Resultado Bacteriológico',
             'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)',
-            'Em Aberto', 'Setor Execução', 'Vencido',
+            'Em Aberto', 'Vencido',
         ];
 
         $csvRows = $rows->map(fn (array $row): array => [
@@ -322,7 +322,6 @@ class PendingEventsReportController extends Controller
             $row['data_coleta'] ?? '',
             $row['data_resultado'] ?? '',
             $row['tempo_pendente'] ?? '',
-            $row['setor_execucao'] ?? '',
             ($row['is_overdue'] ?? false) ? 'Sim' : 'Não',
         ])->all();
 
@@ -413,7 +412,6 @@ class PendingEventsReportController extends Controller
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
-                    'setor_execucao' => PendingEventHelper::executionSectorLabel($event),
                     'item' => $this->normalizeItemLabel($event),
                     'classificacao' => PendingEventHelper::classificationLabel($event, $normalizedType),
                     'data_solicitacao' => $this->shortDate($event['dt_solicitacao'] ?? null),
@@ -422,7 +420,7 @@ class PendingEventsReportController extends Controller
                     'data_coleta_sort' => $this->parseDateToTs($event['dt_coleta'] ?? null) ?? 0,
                     'data_resultado' => $this->shortDate($event['dt_resultado'] ?? null),
                     'data_resultado_sort' => $this->parseDateToTs($event['dt_resultado'] ?? null) ?? 0,
-                    'tempo_pendente' => $this->resolveTempoPendente(
+                    'tempo_pendente' => $this->resolvePendingDuration(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
@@ -457,10 +455,9 @@ class PendingEventsReportController extends Controller
                     'tipo_label' => 'Consultoria',
                     'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
                     'classificacao' => null,
-                    'setor_execucao' => '-',
                     'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
                     'data_prev_execucao' => '-',
-                    'tempo_pendente' => $this->formatTempoPendente($req['dt_registro'] ?? null),
+                    'tempo_pendente' => $this->formatPendingDuration($req['dt_registro'] ?? null),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status' => $status,
                     'motivo_pendente' => 'Aguardando resposta',
@@ -651,7 +648,7 @@ class PendingEventsReportController extends Controller
         }
     }
 
-    private function formatTempoPendente(?string $date): string
+    private function formatPendingDuration(?string $date): string
     {
         if (empty($date)) {
             return '-';
@@ -686,16 +683,16 @@ class PendingEventsReportController extends Controller
         }
     }
 
-    private function resolveTempoPendente(?string $tempoOriginal, ?string $referenceDate): string
+    private function resolvePendingDuration(?string $tempoOriginal, ?string $referenceDate): string
     {
         $tempoOriginal = trim((string) $tempoOriginal);
 
         if ($tempoOriginal === '') {
-            return $this->formatTempoPendente($referenceDate);
+            return $this->formatPendingDuration($referenceDate);
         }
 
         if (preg_match('/^0\s*h\b/i', $tempoOriginal) === 1) {
-            return $this->formatTempoPendente($referenceDate);
+            return $this->formatPendingDuration($referenceDate);
         }
 
         return $tempoOriginal;

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ChatAnalyticsService;
 use App\Services\ShiftService;
 use App\Support\ChatArchivePayload;
 use Carbon\Carbon;
@@ -84,7 +85,7 @@ class CleanupOldChatData extends Command
                     ->where('nr_atendimento', $nr)
                     ->where('created_at', '<', $cutoff)
                     ->orderBy('created_at')
-                    ->select(['id', 'user_id', 'content', 'created_at', 'sector_name'])
+                    ->select(['id', 'user_id', 'content', 'created_at', 'sector_id', 'sector_name'])
                     ->get();
 
                 if ($messages->isEmpty()) {
@@ -106,7 +107,7 @@ class CleanupOldChatData extends Command
                     'ts' => Carbon::parse($m->created_at)->timestamp,
                     'u' => $usernames[$m->user_id] ?? 'user_'.$m->user_id,
                     'm' => $m->content,
-                    't' => $this->inferTurno($m->created_at),
+                    't' => $this->inferShift($m->created_at),
                 ])->values()->toArray();
 
                 $payloadUsers = [];
@@ -125,6 +126,9 @@ class CleanupOldChatData extends Command
                 $msgIds = $messages->pluck('id')->toArray();
 
                 if (! $dryRun) {
+                    // Registra analytics antes de mover para o blob comprimido
+                    app(ChatAnalyticsService::class)->record($messages);
+
                     DB::transaction(function () use ($nr, $compressed, $firstAt, $lastAt, $msgIds, $payload, $payloadUsers, $sectorNames, &$deleted) {
                         // Upsert no archive — mantém o registro existente se já houver,
                         // mesclando a contagem de mensagens ao invés de sobrescrever tudo
@@ -217,7 +221,7 @@ class CleanupOldChatData extends Command
         return $errors > 0 ? 1 : 0;
     }
 
-    private function inferTurno(string $datetime): string
+    private function inferShift(string $datetime): string
     {
         $dt = Carbon::parse($datetime);
 

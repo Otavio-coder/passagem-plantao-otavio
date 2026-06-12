@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="font-montserrat text-[#004D9D]"
+<div class="text-[#004D9D]"
      x-data="metricsApp(@js($nurseStats ?? collect()), @js($sectorStats ?? collect()), @js($period ?? 30))">
 
     {{-- ── Header ──────────────────────────────────────────────────────────── --}}
@@ -12,29 +12,29 @@
                 <i class="fas fa-arrow-left text-white text-sm"></i>
             </a>
             <div>
-                <h1 class="text-base font-bold text-white leading-tight font-montserrat">Passagem de Plantão — Análise</h1>
+                <h1 class="text-base font-bold text-white leading-tight">Passagem de Plantão — Análise</h1>
                 <p class="text-[10px] text-white/60 mt-0.5">Padrões inferidos da atividade real no sistema</p>
             </div>
         </div>
-        <div class="text-[10px] text-white/50 font-montserrat">{{ now()->format('d/m/Y') }}</div>
+        <div class="text-[10px] text-white/50">{{ now()->format('d/m/Y') }}</div>
     </div>
 
     {{-- ── Filtros ──────────────────────────────────────────────────────────── --}}
     <div class="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
         <form method="GET" action="{{ route('handover.metrics') }}" class="flex flex-wrap items-center gap-3">
-            <span class="text-[10px] font-semibold text-gray-500 font-montserrat">Período:</span>
+            <span class="text-[10px] font-semibold text-gray-500">Período:</span>
             @foreach([7=>'7 dias',30=>'30 dias',90=>'90 dias',180=>'6 meses'] as $val => $lbl)
             <button type="submit" name="period" value="{{ $val }}"
-                    class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all font-montserrat {{ ($period==$val) ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]/40 hover:text-[#004D9D]' }}">
+                    class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all {{ ($period==$val) ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#004D9D]/40 hover:text-[#004D9D]' }}">
                 {{ $lbl }}
             </button>
             @endforeach
 
             @if(isset($sectors) && $sectors->isNotEmpty())
             <div class="flex items-center gap-2 ml-2">
-                <span class="text-[10px] font-semibold text-gray-500 font-montserrat">Setor:</span>
+                <span class="text-[10px] font-semibold text-gray-500">Setor:</span>
                 <select name="sector" onchange="this.form.submit()"
-                        class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#004D9D]/30 font-montserrat">
+                        class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#004D9D]/30">
                     <option value="">Todos</option>
                     @foreach($sectors as $id => $name)
                     <option value="{{ $id }}" {{ $sectorFilter !== null && $sectorFilter !== '' && $sectorFilter == $id ? 'selected' : '' }}>{{ $name }}</option>
@@ -55,7 +55,7 @@
     @if($empty ?? true)
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
         <i class="fas fa-chart-bar text-gray-200 text-3xl mb-3 block"></i>
-        <p class="font-semibold text-gray-500 font-montserrat">Nenhuma passagem registrada no período</p>
+        <p class="font-semibold text-gray-500">Nenhuma passagem registrada no período</p>
         <p class="text-xs text-gray-400 mt-1">Os dados aparecem conforme os enfermeiros usam o SBAR e escrevem anotações.</p>
     </div>
     @else
@@ -67,20 +67,20 @@
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-4 py-3 bg-gradient-to-r from-[#004D9D]/5 to-transparent flex items-center justify-between border-b border-gray-100">
                 <div>
-                    <p class="text-sm font-bold text-gray-900 font-montserrat">{{ $sector['sector_name'] }}</p>
-                    <p class="text-[10px] text-gray-400 mt-0.5 font-montserrat">{{ $sector['nurses_count'] }} plantonistas · {{ $sector['avg_beds'] }} leitos/sessão</p>
+                    <p class="text-sm font-bold text-gray-900">{{ $sector['sector_name'] }}</p>
+                    <p class="text-[10px] text-gray-400 mt-0.5">{{ $sector['nurses_count'] }} plantonistas · {{ $sector['avg_beds'] }} leitos/sessão</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-2xl font-bold text-[#004D9D] tabular-nums font-montserrat">{{ $sector['sessions'] }}</p>
-                    <p class="text-[10px] text-gray-400 font-montserrat">sessões</p>
+                    <p class="text-2xl font-bold text-[#004D9D] tabular-nums">{{ $sector['sessions'] }}</p>
+                    <p class="text-[10px] text-gray-400">sessões</p>
                 </div>
             </div>
             <div class="px-4 py-3">
-                <p class="text-[10px] text-gray-400 font-montserrat mb-2">Distribuição por turno</p>
+                <p class="text-[10px] text-gray-400 mb-2">Distribuição por turno</p>
                 <div class="space-y-1.5">
                     @foreach([['M','Manhã','#D97706',$sector['pct_M'],$sector['shift_M']],['T','Tarde','#EA580C',$sector['pct_T'],$sector['shift_T']],['N','Noite','#4F46E5',$sector['pct_N'],$sector['shift_N']]] as [$key,$lbl,$color,$pct,$cnt])
                     <div>
-                        <div class="flex justify-between text-[10px] font-montserrat mb-0.5">
+                        <div class="flex justify-between text-[10px] mb-0.5">
                             <span class="text-gray-500">{{ $lbl }}</span>
                             <span class="font-semibold text-gray-700">{{ $cnt }} <span class="text-gray-400 font-normal">({{ $pct }}%)</span></span>
                         </div>
@@ -93,10 +93,10 @@
                 @if(!empty($sector['nurses']))
                 <div class="flex flex-wrap gap-1 mt-3">
                     @foreach(array_slice($sector['nurses'], 0, 5) as $n)
-                    <span class="text-[9px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-montserrat">{{ $n }}</span>
+                    <span class="text-[9px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{{ $n }}</span>
                     @endforeach
                     @if(count($sector['nurses']) > 5)
-                    <span class="text-[9px] text-gray-400 font-montserrat px-1 py-0.5">+{{ count($sector['nurses']) - 5 }}</span>
+                    <span class="text-[9px] text-gray-400 px-1 py-0.5">+{{ count($sector['nurses']) - 5 }}</span>
                     @endif
                 </div>
                 @endif
@@ -109,14 +109,14 @@
     {{-- ── Mapa de calor: distribuição de mensagens por hora ───────────────── --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-100">
-            <p class="text-sm font-semibold text-gray-800 font-montserrat">Distribuição de anotações por horário</p>
-            <p class="text-[10px] text-gray-400 font-montserrat">volume de mensagens escritas em cada hora do turno — período de {{ $period }} dias</p>
+            <p class="text-sm font-semibold text-gray-800">Distribuição de anotações por horário</p>
+            <p class="text-[10px] text-gray-400">volume de mensagens escritas em cada hora do turno — período de {{ $period }} dias</p>
         </div>
         <div class="px-4 py-4 space-y-4">
             @foreach($heatmap as $row)
             <div>
                 <div class="flex items-center gap-2 mb-1.5">
-                    <span class="text-[10px] font-bold font-montserrat w-10" style="color:{{ $row['color'] }}">{{ $row['label'] }}</span>
+                    <span class="text-[10px] font-bold w-10" style="color:{{ $row['color'] }}">{{ $row['label'] }}</span>
                     <div class="flex gap-0.5 flex-1">
                         @foreach($row['cells'] as $cell)
                         @php $opacity = $cell['pct'] > 0 ? max(15, $cell['pct']) : 0; @endphp
@@ -129,7 +129,7 @@
                             @else
                             <span class="text-[7px] text-gray-200">·</span>
                             @endif
-                            <span class="text-[7px] text-gray-300 font-montserrat">{{ $cell['hour'] }}</span>
+                            <span class="text-[7px] text-gray-300">{{ $cell['hour'] }}</span>
                         </div>
                         @endforeach
                     </div>
@@ -143,17 +143,17 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2 justify-between">
             <div>
-                <p class="text-sm font-semibold text-gray-800 font-montserrat">Plantonistas</p>
-                <p class="text-[10px] text-gray-400 font-montserrat">
+                <p class="text-sm font-semibold text-gray-800">Plantonistas</p>
+                <p class="text-[10px] text-gray-400">
                     {{ $nurseStats->count() }} ativos · clique para ver perfil
                 </p>
             </div>
             <div class="flex items-center gap-1.5">
-                <span class="text-[9px] text-gray-400 font-montserrat">Ordenar:</span>
+                <span class="text-[9px] text-gray-400">Ordenar:</span>
                 @foreach(['sessions'=>'Sessões','avg_messages'=>'Msgs/sess','avg_beds'=>'Leitos'] as $col=>$lbl)
                 <button type="button" @click="setSort('{{ $col }}')"
                         :class="sortBy==='{{ $col }}' ? 'bg-[#004D9D] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
-                        class="text-[9px] font-bold px-2 py-1 rounded-md transition-colors font-montserrat flex items-center gap-0.5">
+                        class="text-[9px] font-bold px-2 py-1 rounded-md transition-colors flex items-center gap-0.5">
                     {{ $lbl }}
                     <i class="fas text-[7px]" :class="sortBy==='{{ $col }}' ? (sortDir==='desc'?'fa-arrow-down':'fa-arrow-up') : 'fa-arrow-down opacity-30'"></i>
                 </button>
@@ -167,21 +167,21 @@
                     <span class="text-xs font-bold text-gray-200 w-6 text-right flex-shrink-0 tabular-nums"
                           x-text="nursePage * nursePerPage + idx + 1"></span>
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-gray-800 truncate font-montserrat" x-text="nurse.name"></p>
-                        <p class="text-[10px] text-gray-400 truncate font-montserrat" x-text="nurse.sectors || '—'"></p>
+                        <p class="text-xs font-semibold text-gray-800 truncate" x-text="nurse.name"></p>
+                        <p class="text-[10px] text-gray-400 truncate" x-text="nurse.sectors || '—'"></p>
                     </div>
                     <div class="flex items-center gap-4 flex-shrink-0">
                         <div class="text-center hidden sm:block">
-                            <p class="text-sm font-bold text-[#004D9D] tabular-nums font-montserrat" x-text="Math.round(nurse.sessions_per_week * 10) / 10 + '/sem'"></p>
-                            <p class="text-[9px] text-gray-400 font-montserrat">sessões</p>
+                            <p class="text-sm font-bold text-[#004D9D] tabular-nums" x-text="Math.round(nurse.sessions_per_week * 10) / 10 + '/sem'"></p>
+                            <p class="text-[9px] text-gray-400">sessões</p>
                         </div>
                         <div class="text-center hidden md:block">
-                            <p class="text-sm font-bold text-gray-700 tabular-nums font-montserrat" x-text="Math.round(nurse.avg_messages) || '—'"></p>
-                            <p class="text-[9px] text-gray-400 font-montserrat">msgs/sess</p>
+                            <p class="text-sm font-bold text-gray-700 tabular-nums" x-text="Math.round(nurse.avg_messages) || '—'"></p>
+                            <p class="text-[9px] text-gray-400">msgs/sess</p>
                         </div>
                         <div class="text-center hidden lg:block">
-                            <p class="text-sm font-bold text-gray-700 tabular-nums font-montserrat" x-text="Math.round(nurse.avg_beds) || '—'"></p>
-                            <p class="text-[9px] text-gray-400 font-montserrat">leitos</p>
+                            <p class="text-sm font-bold text-gray-700 tabular-nums" x-text="Math.round(nurse.avg_beds) || '—'"></p>
+                            <p class="text-[9px] text-gray-400">leitos</p>
                         </div>
                         <template x-if="nurse.shift_pct && Math.min(nurse.shift_pct.M, nurse.shift_pct.T, nurse.shift_pct.N) > 5">
                             <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 hidden sm:inline-block">multi-turno</span>
@@ -202,14 +202,14 @@
         <div class="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between" x-show="nurseTotalPages > 1">
             <button @click="nursePage = Math.max(0, nursePage - 1)"
                     :disabled="nursePage === 0"
-                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors font-montserrat">
+                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
                 <i class="fas fa-chevron-left text-[8px] mr-1"></i>Anterior
             </button>
-            <span class="text-[10px] text-gray-400 font-montserrat"
+            <span class="text-[10px] text-gray-400"
                   x-text="(nursePage + 1) + ' / ' + nurseTotalPages + ' · ' + sortedNurses.length + ' plantonistas'"></span>
             <button @click="nursePage = Math.min(nurseTotalPages - 1, nursePage + 1)"
                     :disabled="nursePage >= nurseTotalPages - 1"
-                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors font-montserrat">
+                    class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
                 Próxima<i class="fas fa-chevron-right text-[8px] ml-1"></i>
             </button>
         </div>
@@ -232,7 +232,7 @@
 
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="nurseModal.open = false"></div>
 
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden font-montserrat" @click.stop>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden" @click.stop>
 
             <div class="bg-[#004D9D] px-5 py-4 flex items-center gap-3 flex-shrink-0">
                 <div class="flex-1 min-w-0">
@@ -377,7 +377,7 @@
                               x-text="(nurseModal.data?.recent_sessions?.length || 0) + ' registradas'"></span>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-xs font-montserrat">
+                        <table class="w-full text-xs">
                             <thead>
                                 <tr class="bg-gray-50 text-[10px] text-gray-500">
                                     <th class="px-3 py-2 text-left font-semibold">Data / Turno</th>

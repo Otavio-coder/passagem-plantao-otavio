@@ -18,9 +18,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .font-montserrat {
-            font-family: 'Montserrat', sans-serif;
-        }
         /* Top progress bar */
         #page-progress {
             position: fixed;
@@ -87,6 +84,7 @@
     </script>
 </head>
 <body class="flex flex-col h-screen overflow-hidden text-gray-800 bg-gray-300 antialiased">
+@stack('page-bg')
 <div id="page-progress"></div>
 <!-- NAVBAR (inclui menu mobile integrado) -->
 <header class="sticky top-0 z-40 w-full bg-white shadow-md">

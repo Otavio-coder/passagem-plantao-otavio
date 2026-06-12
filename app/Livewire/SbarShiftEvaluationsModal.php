@@ -209,7 +209,7 @@ class SbarShiftEvaluationsModal extends Component
                 };
 
                 // Classifica cada mensagem no turno correto e formata para exibição.
-                $mensagensPorTurno = ['current' => [], 'previous' => [], 'previous2' => []];
+                $messagesByShift = ['current' => [], 'previous' => [], 'previous2' => []];
 
                 if ($nrAtendimento && isset($messagesByAttendance[$nrAtendimento])) {
                     foreach ($messagesByAttendance[$nrAtendimento] as $message) {
@@ -222,7 +222,7 @@ class SbarShiftEvaluationsModal extends Component
                         );
                         $msgReactions = $reactionsByMessage->get($message->id, collect());
 
-                        $mensagensPorTurno[$shiftKey][] = [
+                        $messagesByShift[$shiftKey][] = [
                             'id' => $message->id,
                             'content' => nl2br(e($message->content)),
                             'user_id' => $userId,
@@ -238,10 +238,10 @@ class SbarShiftEvaluationsModal extends Component
                     }
                 }
 
-                $totais = array_map('count', $mensagensPorTurno);
+                $totais = array_map('count', $messagesByShift);
                 $hasPinned = array_map(
                     fn ($msgs) => collect($msgs)->contains('is_pinned', true),
-                    $mensagensPorTurno
+                    $messagesByShift
                 );
 
                 $this->beds[] = [
@@ -254,7 +254,7 @@ class SbarShiftEvaluationsModal extends Component
                     'internment_label' => $this->buildInternmentLabel($patient, $hasPatient),
                     'alta_label' => $altaLabel,
                     'alta_formatted' => $altaFormatted,
-                    'mensagens' => $mensagensPorTurno,
+                    'mensagens' => $messagesByShift,
                     'totais' => $totais,
                     'has_pinned' => $hasPinned,
                 ];

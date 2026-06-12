@@ -1011,12 +1011,80 @@
 
                 {{-- Ação IA --}}
                 @if($sector['sector_id'])
+                @php $sectorOpen = $sectorAnalysisOpenId === $sector['sector_id']; @endphp
                 <div class="px-3 pb-3">
                     <button type="button"
-                            wire:click="openSectorAnalysis({{ $sector['sector_id'] }}, '{{ addslashes($sector['sector_name']) }}')"
-                            class="w-full text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#004D9D]/5 text-[#004D9D] border border-[#004D9D]/20 hover:bg-[#004D9D]/10 transition-colors">
-                        Análise IA deste setor
+                            wire:click="toggleSectorAnalysis({{ $sector['sector_id'] }}, '{{ addslashes($sector['sector_name']) }}')"
+                            class="w-full flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors
+                                   {{ $sectorOpen ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-[#004D9D]/5 text-[#004D9D] border-[#004D9D]/20 hover:bg-[#004D9D]/10' }}">
+                        <span>Análise IA deste setor</span>
+                        <svg class="w-3 h-3 transition-transform {{ $sectorOpen ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                     </button>
+
+                    {{-- Painel inline análise de setor --}}
+                    @if($sectorOpen)
+                    <div class="mt-2 rounded-xl border border-[#004D9D]/15 bg-[#004D9D]/3 overflow-hidden"
+                         x-data x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+
+                        {{-- Controles de período --}}
+                        <div class="flex flex-wrap items-center gap-1.5 px-3 py-2.5 border-b border-[#004D9D]/10">
+                            <span class="text-[10px] font-semibold text-gray-500">Período:</span>
+                            @foreach([7 => '7d', 30 => '30d', 90 => '90d', 180 => '6m'] as $days => $label)
+                            <button type="button" wire:click="setSectorAnalysisDays({{ $days }})"
+                                    class="text-[10px] font-semibold px-2 py-0.5 rounded transition-colors
+                                           {{ $sectorAnalysisDays === $days ? 'bg-[#004D9D] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#004D9D]/40 hover:text-[#004D9D]' }}">
+                                {{ $label }}
+                            </button>
+                            @endforeach
+                            <div class="ml-auto">
+                                @if($sectorAnalysis && $sectorAnalysis->isCompleted())
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-gray-400">{{ $sectorAnalysis->generated_at?->format('d/m H:i') }} · {{ number_format($sectorAnalysis->total_messages) }} msg</span>
+                                    <button wire:click="generateSectorAnalysis"
+                                            wire:loading.attr="disabled"
+                                            wire:target="generateSectorAnalysis"
+                                            class="text-[10px] font-semibold px-2 py-0.5 rounded border border-[#004D9D]/30 text-[#004D9D] hover:bg-[#004D9D]/5 transition-colors disabled:opacity-50">
+                                        <span wire:loading.remove wire:target="generateSectorAnalysis">Regenerar</span>
+                                        <span wire:loading wire:target="generateSectorAnalysis">Analisando...</span>
+                                    </button>
+                                </div>
+                                @else
+                                <button wire:click="generateSectorAnalysis"
+                                        wire:loading.attr="disabled"
+                                        wire:target="generateSectorAnalysis"
+                                        class="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded bg-[#004D9D] text-white hover:bg-[#003d7a] transition-colors disabled:opacity-50">
+                                    <svg wire:loading wire:target="generateSectorAnalysis" class="animate-spin w-2.5 h-2.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    <span wire:loading.remove wire:target="generateSectorAnalysis">Gerar análise</span>
+                                    <span wire:loading wire:target="generateSectorAnalysis">Analisando...</span>
+                                </button>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- Resultado --}}
+                        <div class="px-3 py-2.5">
+                            @if(!$sectorAnalysis)
+                            <p class="text-[11px] text-gray-400 py-1">Selecione o período e gere a análise.</p>
+                            @elseif($sectorAnalysis->isProcessing())
+                            <div class="flex items-center gap-2 py-1">
+                                <svg class="animate-spin w-3.5 h-3.5 text-[#004D9D]" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                <span class="text-[11px] text-gray-500">Processando análise...</span>
+                            </div>
+                            @elseif($sectorAnalysis->isFailed())
+                            <p class="text-[11px] text-red-500 py-1"><i class="fas fa-triangle-exclamation mr-1"></i>{{ Str::limit($sectorAnalysis->error_message, 120) }}</p>
+                            @elseif($sectorAnalysis->isCompleted())
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <span class="text-[10px] text-gray-500"><span class="font-semibold text-gray-700">{{ number_format($sectorAnalysis->total_messages) }}</span> msgs</span>
+                                <span class="text-[10px] text-gray-500"><span class="font-semibold text-gray-700">{{ number_format($sectorAnalysis->total_patients) }}</span> pacientes</span>
+                                <span class="text-[10px] text-gray-500"><span class="font-semibold text-gray-700">{{ number_format($sectorAnalysis->total_professionals) }}</span> profissionais</span>
+                            </div>
+                            <div class="prose prose-sm prose-gray max-w-none text-xs leading-relaxed">
+                                {!! Str::markdown($sectorAnalysis->analysis_text ?? '') !!}
+                            </div>
+                            @endif
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 @endif
 
@@ -1360,9 +1428,6 @@
         </div>
     </div>
     @endif
-
-    {{-- ══ Modal: Análise Setorial com IA — componente Livewire dedicado ═══════ --}}
-    @livewire('handover-sector-analysis', [], key('handover-sector-analysis'))
 
     {{-- ── Modal: IA desativada ─────────────────────────────────────────────── --}}
     <div x-data="{ open: false }"

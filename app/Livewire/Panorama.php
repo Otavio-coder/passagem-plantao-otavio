@@ -53,6 +53,16 @@ class Panorama extends Component
 
     public bool $generalAnalysisLoading = false;
 
+    // ── Sector analysis (inline panel per card) ────────────────────────────────
+
+    public ?int $sectorAnalysisOpenId = null;
+
+    public string $sectorAnalysisName = '';
+
+    public int $sectorAnalysisDays = 30;
+
+    public ?int $sectorAnalysisId = null;
+
     // ── Reactive ───────────────────────────────────────────────────────────────
 
     public function setPeriod(?int $period): void
@@ -148,11 +158,72 @@ class Panorama extends Component
         $this->nurseAiAnalysis = null;
     }
 
-    // ── Análise setorial — delega ao HandoverSectorAnalysis (child component) ───
+    // ── Sector analysis (inline) ──────────────────────────────────────────────
 
-    public function openSectorAnalysis(int $sectorId, string $sectorName): void
+    public function toggleSectorAnalysis(int $sectorId, string $sectorName): void
     {
-        $this->dispatch('openHandoverSectorAnalysis', sectorId: $sectorId, sectorName: $sectorName);
+        if ($this->sectorAnalysisOpenId === $sectorId) {
+            $this->sectorAnalysisOpenId = null;
+            $this->sectorAnalysisId = null;
+
+            return;
+        }
+
+        $this->sectorAnalysisOpenId = $sectorId;
+        $this->sectorAnalysisName = $sectorName;
+        $this->sectorAnalysisDays = 30;
+        $this->sectorAnalysisId = null;
+        $this->findExistingSectorAnalysis();
+    }
+
+    public function setSectorAnalysisDays(int $days): void
+    {
+        $this->sectorAnalysisDays = $days;
+        $this->sectorAnalysisId = null;
+        $this->findExistingSectorAnalysis();
+    }
+
+    public function generateSectorAnalysis(): void
+    {
+        if (! env('PRISM_WRITING_ANALYSIS', false)) {
+            $this->dispatch('show-ai-disabled');
+
+            return;
+        }
+
+        $end = now();
+        $start = now()->subDays($this->sectorAnalysisDays)->startOfDay();
+
+        $analysis = HandoverAiAnalysis::create([
+            'analysis_type' => 'sector',
+            'sector_id' => $this->sectorAnalysisOpenId,
+            'sector_name' => $this->sectorAnalysisName,
+            'period_start' => $start->toDateString(),
+            'period_end' => $end->toDateString(),
+            'generated_by' => Auth::id(),
+            'status' => 'pending',
+        ]);
+
+        $this->sectorAnalysisId = $analysis->id;
+
+        try {
+            app(HandoverAiAnalysisService::class)->analyze($analysis);
+        } catch (\Throwable) {
+            // status updated to failed inside service
+        }
+    }
+
+    private function findExistingSectorAnalysis(): void
+    {
+        if (! $this->sectorAnalysisOpenId) {
+            return;
+        }
+
+        $end = now();
+        $start = now()->subDays($this->sectorAnalysisDays)->startOfDay();
+
+        $existing = HandoverAiAnalysis::findCompleted('sector', $start, $end, $this->sectorAnalysisOpenId);
+        $this->sectorAnalysisId = $existing?->id;
     }
 
     public function analyzeTermsWithAi(): void
@@ -819,6 +890,7 @@ class Panorama extends Component
             'aiCharDistributionAnalysis' => $this->aiCharDistributionAnalysis,
             'aiActivityAnalysis' => $this->aiActivityAnalysis,
             'generalAnalysis' => $this->generalAnalysisId ? HandoverAiAnalysis::find($this->generalAnalysisId) : null,
+            'sectorAnalysis' => $this->sectorAnalysisId ? HandoverAiAnalysis::find($this->sectorAnalysisId) : null,
         ]);
     }
 

@@ -127,7 +127,7 @@
                             <p class="text-sm font-semibold text-gray-900 truncate">{{ $patient['nm_paciente'] }}</p>
                             <p class="text-[10px] text-gray-500">
                                 Pront. {{ $patient['nr_prontuario'] ?? '—' }}
-                                @if($patient['dt_nascimento'])· {{ \Carbon\Carbon::parse($patient['dt_nascimento'])->age }} anos@endif
+                                @if($patient['dt_nascimento']) · {{ \Carbon\Carbon::parse($patient['dt_nascimento'])->age }} anos @endif
                             </p>
                             <p class="text-[10px] text-gray-500 truncate">
                                 @if($patient['leito'])<span class="font-medium">Leito {{ $patient['leito'] }}</span> · @endif

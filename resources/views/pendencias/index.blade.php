@@ -315,11 +315,11 @@
                         var selected = Array.from(checks()).filter(c => c.checked).map(c => c.value);
                         if (selected.length === 0 || selected.length === checks().length) {
                             label.textContent = 'Todas as classificações';
-                            if (window._dtTable) window._dtTable.column(16).search('', true, false).draw();
+                            if (window._dtTable) window._dtTable.column(15).search('', true, false).draw();
                         } else {
                             label.textContent = selected.length === 1 ? selected[0] : selected.length + ' classificações';
                             var regex = '^(' + selected.map(v => $.fn.dataTable.util.escapeRegex(v)).join('|') + ')$';
-                            if (window._dtTable) window._dtTable.column(16).search(regex, true, false).draw();
+                            if (window._dtTable) window._dtTable.column(15).search(regex, true, false).draw();
                         }
                     }
                     btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
@@ -409,6 +409,7 @@
                 11  Prev. Alta
                 12 tipo_evento (hidden) 13 vencido (hidden)
                 14 motivo_categoria (hidden) 15 classificacao (hidden)
+                NB: setor-filter usa col 15 (classificacao), filtro-tipo=12, filtro-status=14, overdue=13
             --}}
             <div id="kpi-bar"></div>
 
@@ -609,8 +610,8 @@ $(document).ready(function () {
     }
 
     function rebuildCascadeFilters() {
-        rebuildSelect('#filter-tipo',    13, 'Todos os tipos',          tipoLabelMap);
-        rebuildSelect('#filter-status',  15, 'Todos os status', null);
+        rebuildSelect('#filter-tipo',    12, 'Todos os tipos',          tipoLabelMap);
+        rebuildSelect('#filter-status',  14, 'Todos os status', null);
     }
 
     var kpiCssMap = {};
@@ -629,9 +630,9 @@ $(document).ready(function () {
         var catMap  = {};
         rows.every(function() {
             var d = this.data();
-            var cat = d[15] || '';
+            var cat = d[14] || '';
             if (cat) catMap[cat] = (catMap[cat] || 0) + 1;
-            if (d[14] === '1') overdue++;
+            if (d[13] === '1') overdue++;
         });
 
         var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Pendências</span></div>';
@@ -663,16 +664,16 @@ $(document).ready(function () {
     rebuildKpis();
 
     window._dtTable = table;
-    $('#filter-tipo').on('change', function () { table.column(13).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#filter-status').on('change', function () { table.column(15).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#chk-overdue').on('change', function () { table.column(14).search(this.checked ? '^1$' : '', true, false).draw(); });
+    $('#filter-tipo').on('change', function () { table.column(12).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
+    $('#filter-status').on('change', function () { table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
+    $('#chk-overdue').on('change', function () { table.column(13).search(this.checked ? '^1$' : '', true, false).draw(); });
     $('#btn-clear-filters').on('click', function () {
         $('#filter-tipo, #filter-status').val('');
         $('#chk-overdue').prop('checked', false);
         document.querySelectorAll('.classif-check').forEach(function(c) { c.checked = false; });
         var lbl = document.getElementById('classif-btn-label');
         if (lbl) lbl.textContent = 'Todas as classificações';
-        table.columns([13, 14, 15, 16]).search('').draw();
+        table.columns([12, 13, 14, 15]).search('').draw();
         table.search('').draw();
     });
 

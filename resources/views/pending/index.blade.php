@@ -4,7 +4,6 @@
 <style>
     html, body { height: auto !important; min-height: 100vh; overflow-y: auto !important; }
     main { overflow-y: visible !important; }
-    .col-unidade-hidden { display: none !important; }
 
     /* Badge de status */
     .badge-status {
@@ -78,7 +77,6 @@
     #pendencias-table thead th { position: sticky; top: 0; z-index: 5; }
     #pendencias-table td, #pendencias-table th { white-space: nowrap; }
     #pendencias-table td.wrap-cell { white-space: normal; }
-    /* DataTables paginação e busca */
     .dataTables_wrapper .dataTables_filter input,
     .dataTables_wrapper .dataTables_length select {
         border: 1px solid #d1d5db; border-radius: 6px;
@@ -118,13 +116,11 @@
                 <h1 class="text-xl font-bold text-gray-900 leading-tight">Relatório de Pendências</h1>
                 <p class="text-sm text-gray-500 mt-0.5">
                     {{ $sectorName ?: 'Pendências em aberto por setor' }}
-                    @if($totalRows > 0)
-                        &mdash; <span class="font-semibold text-[#004D9D]">{{ $totalRows }}</span> pendências
-                    @endif
+                    <span id="total-count-wrapper" class="hidden">&mdash; <span id="total-rows-count" class="font-semibold text-[#004D9D]">0</span> pendências</span>
                 </p>
             </div>
         </div>
-        @if($totalRows > 0)
+        @if(!empty($selectedSectors))
         <a id="btn-export"
            href="{{ route('pending.report.export', array_merge(['hospital_ids' => $selectedHospitals], $selectedSectors ? ['sector_ids' => $selectedSectors] : [])) }}"
            class="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition shadow-sm flex-shrink-0 min-h-[44px]"
@@ -262,26 +258,19 @@
                 })();
             </script>
 
-            @if($rows->count() > 0)
-                {{-- Filtro: Tipo --}}
+            @if(!empty($selectedSectors))
+                {{-- Filtro: Tipo — populado via JS em initComplete --}}
                 <select id="filter-tipo" class="filter-control" style="min-width:150px">
                     <option value="">Todos os tipos</option>
-                    @foreach($tipoLabels as $tipoKey => $tipoLabel)
-                        <option value="{{ $tipoKey }}">{{ $tipoLabel }}</option>
-                    @endforeach
                 </select>
 
-                {{-- Filtro: Status --}}
+                {{-- Filtro: Status — populado via JS em initComplete --}}
                 <select id="filter-status" class="filter-control" style="min-width:190px">
                     <option value="">Todos os status</option>
-                    @foreach($categorias as $cat)
-                        <option value="{{ $cat }}">{{ $cat }}</option>
-                    @endforeach
                 </select>
 
-                {{-- Filtro: Classificação multi-select --}}
-                @if(count($classificacoes) > 0)
-                <div class="relative" id="classif-dropdown-wrap">
+                {{-- Filtro: Classificação multi-select — populado via JS, oculto até ter dados --}}
+                <div class="relative" id="classif-dropdown-wrap" style="display:none">
                     <button type="button" id="classif-dropdown-btn"
                             class="filter-control flex items-center gap-2 cursor-pointer"
                             style="min-width:160px; padding-left:12px; padding-right:32px; background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\"); background-repeat:no-repeat; background-position:right 8px center; background-size:14px">
@@ -289,14 +278,7 @@
                     </button>
                     <div id="classif-dropdown-panel" style="display:none"
                          class="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 min-w-[220px] max-w-[320px]">
-                        <div class="p-1 max-h-60 overflow-y-auto overscroll-contain" id="classif-checkbox-list">
-                            @foreach($classificacoes as $cl)
-                                <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700 min-h-[40px]">
-                                    <input type="checkbox" class="classif-check w-4 h-4 rounded border-gray-300 text-[#004D9D] flex-shrink-0" value="{{ $cl }}">
-                                    <span class="truncate">{{ $cl }}</span>
-                                </label>
-                            @endforeach
-                        </div>
+                        <div class="p-1 max-h-60 overflow-y-auto overscroll-contain" id="classif-checkbox-list"></div>
                         <div class="border-t border-gray-100 p-2 flex items-center justify-between gap-2">
                             <button type="button" id="classif-all"
                                     class="text-xs font-medium text-[#004D9D] px-3 py-2 rounded-lg hover:bg-[#004D9D]/8 transition min-h-[36px]">Todos</button>
@@ -310,26 +292,29 @@
                     var btn = document.getElementById('classif-dropdown-btn');
                     var panel = document.getElementById('classif-dropdown-panel');
                     var label = document.getElementById('classif-btn-label');
-                    var checks = function() { return document.querySelectorAll('.classif-check'); };
+                    function checks() { return document.querySelectorAll('.classif-check'); }
                     function applyFilter() {
-                        var selected = Array.from(checks()).filter(c => c.checked).map(c => c.value);
+                        var selected = Array.from(checks()).filter(function(c) { return c.checked; }).map(function(c) { return c.value; });
                         if (selected.length === 0 || selected.length === checks().length) {
                             label.textContent = 'Todas as classificações';
                             if (window._dtTable) window._dtTable.column(15).search('', true, false).draw();
                         } else {
                             label.textContent = selected.length === 1 ? selected[0] : selected.length + ' classificações';
-                            var regex = '^(' + selected.map(v => $.fn.dataTable.util.escapeRegex(v)).join('|') + ')$';
+                            var regex = '^(' + selected.map(function(v) { return $.fn.dataTable.util.escapeRegex(v); }).join('|') + ')$';
                             if (window._dtTable) window._dtTable.column(15).search(regex, true, false).draw();
                         }
                     }
-                    btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
-                    document.addEventListener('click', function(e) { if (!document.getElementById('classif-dropdown-wrap').contains(e.target)) panel.style.display = 'none'; });
-                    document.getElementById('classif-all').addEventListener('click', function() { checks().forEach(c => c.checked = true); applyFilter(); });
-                    document.getElementById('classif-none').addEventListener('click', function() { checks().forEach(c => c.checked = false); applyFilter(); });
-                    document.getElementById('classif-checkbox-list').addEventListener('change', applyFilter);
+                    if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+                    document.addEventListener('click', function(e) {
+                        var wrap = document.getElementById('classif-dropdown-wrap');
+                        if (wrap && !wrap.contains(e.target)) panel.style.display = 'none';
+                    });
+                    document.getElementById('classif-all') && document.getElementById('classif-all').addEventListener('click', function() { checks().forEach(function(c) { c.checked = true; }); applyFilter(); });
+                    document.getElementById('classif-none') && document.getElementById('classif-none').addEventListener('click', function() { checks().forEach(function(c) { c.checked = false; }); applyFilter(); });
+                    document.getElementById('classif-checkbox-list') && document.getElementById('classif-checkbox-list').addEventListener('change', applyFilter);
+                    window._applyClassifFilter = applyFilter;
                 })();
                 </script>
-                @endif
 
                 {{-- Só vencidos --}}
                 <label class="inline-flex items-center gap-2 cursor-pointer min-h-[40px] px-3 bg-white border border-gray-200 rounded-lg whitespace-nowrap select-none text-sm text-gray-600 hover:bg-gray-50 transition">
@@ -385,7 +370,7 @@
             <span class="text-white text-sm font-medium tracking-wide">Carregando pendências...</span>
         </div>
     </div>
-    @if($rows->count() > 0)
+    @if(!empty($selectedSectors))
     <script>document.getElementById('pending-loading').style.display = 'flex';</script>
     @endif
 
@@ -399,17 +384,15 @@
             </div>
         @endif
 
-        @if($rows->count() > 0)
+        @if(!empty($selectedSectors))
             {{--
-                Colunas DataTables (índices):
-                 0  Paciente        1  Leito           2  Atend.
-                 3  Tipo            4  Status          5  Pendência
-                 6  Dt. Prescrição  7  Coletado        8  Resultado
-                 9  Em aberto      10 Unidade
-                11  Prev. Alta
-                12 tipo_evento (hidden) 13 vencido (hidden)
-                14 motivo_categoria (hidden) 15 classificacao (hidden)
-                NB: setor-filter usa col 15 (classificacao), filtro-tipo=12, filtro-status=14, overdue=13
+                Colunas DataTables (índices, data: object keys):
+                 0  paciente         1  ugb             2  atendimento
+                 3  tipo_label       4  motivo_categoria 5  item
+                 6  data_solicitacao 7  data_coleta      8  data_resultado
+                 9  tempo_pendente  10  setor_origem    11  prev_alta
+                12  tipo_evento (hidden) 13 is_overdue (hidden)
+                14  motivo_categoria (hidden) 15 classificacao (hidden)
             --}}
             <div id="kpi-bar"></div>
 
@@ -427,113 +410,24 @@
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Coletado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Resultado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Em aberto</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}">Unidade</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Unidade</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Prev. Alta</th>
-                            <th class="hidden">tipo_raw</th>
-                            <th class="hidden">vencido</th>
-                            <th class="hidden">motivo_cat</th>
-                            <th class="hidden">classif_raw</th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @foreach($rows as $row)
-                            @php
-                                $statusExec = $row['status_execucao'] ?? '';
-                                $isExam = in_array($row['tipo_evento'] ?? '', ['exame', 'proc_exame']);
-                                $motCat = $row['motivo_categoria'] ?? '';
-                                $badgeCls = match($motCat) {
-                                    'Aguardando coleta', 'Urgente — aguardando coleta' => $motCat === 'Urgente — aguardando coleta' ? 'badge-urgente' : 'badge-aguard-coleta',
-                                    'Coletado — aguardando resultado' => 'badge-coletado',
-                                    'Resultado disponível' => 'badge-resultado',
-                                    'Laudo disponível' => 'badge-laudo',
-                                    'Laudo liberado (SCOLA)' => 'badge-laudo-scola',
-                                    'Nova coleta necessária' => 'badge-nova-coleta',
-                                    'Em execução', 'Em preparo' => 'badge-execucao',
-                                    'Antimicrobiano pendente' => 'badge-antimicrobiano',
-                                    default => 'badge-outros',
-                                };
-                            @endphp
-                            <tr class="hover:bg-[#004D9D]/[0.03] transition-colors">
-                                <td class="px-3 py-2.5 text-xs text-gray-800 font-medium" style="min-width:120px;max-width:150px" title="{{ $row['paciente'] }}">
-                                    <div class="truncate">{{ $row['paciente'] }}</div>
-                                </td>
-                                <td class="px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap">{{ $row['ugb'] }}</td>
-                                <td class="px-3 py-2.5 text-xs text-gray-700 font-mono font-medium whitespace-nowrap">{{ $row['atendimento'] }}</td>
-                                <td class="px-3 py-2.5 text-xs" style="min-width:110px">
-                                    <div class="truncate text-gray-700 font-semibold">{{ $row['tipo_label'] ?? '-' }}</div>
-                                    @if(!empty($row['classificacao']) && $row['classificacao'] !== '-')
-                                        <div class="truncate text-[10px] text-gray-400 mt-0.5">{{ $row['classificacao'] }}</div>
-                                    @endif
-                                </td>
-                                <td class="px-3 py-2.5 text-xs text-gray-600" style="min-width:160px">
-                                    @if($motCat)
-                                        <span class="badge-status {{ $badgeCls }} mb-1">{{ $motCat }}</span>
-                                    @endif
-                                    @if(!empty($row['motivo_pendente']))
-                                        <div class="flex items-start gap-1 text-[10px] mt-1">
-                                            <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" />
-                                            <span class="text-gray-500 font-medium mr-0.5">Tasy:</span>
-                                            <span class="text-gray-600">{{ $row['motivo_pendente'] }}</span>
-                                        </div>
-                                    @endif
-                                    @if($isExam && !empty($row['scola_status']))
-                                        <div class="flex items-start gap-1 text-[10px] mt-0.5">
-                                            <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" />
-                                            <span class="text-gray-500 font-medium mr-0.5">SCOLA:</span>
-                                            <span class="text-gray-600">{{ $row['scola_status'] }}</span>
-                                        </div>
-                                    @endif
-                                    @if(!empty($row['scola_resultado']))
-                                        <div class="flex items-start gap-1 text-[10px] mt-0.5">
-                                            <i class="fas fa-flask flex-shrink-0 mt-0.5 text-emerald-500" style="font-size:10px;width:12px"></i>
-                                            <span class="text-emerald-700 font-semibold">{{ $row['scola_resultado'] }}</span>
-                                        </div>
-                                    @endif
-                                </td>
-                                <td class="px-3 py-2.5 text-xs wrap-cell" style="min-width:180px;max-width:220px">
-                                    <div class="text-gray-700 font-medium leading-snug" title="{{ $row['item'] }}">{{ $row['item'] }}</div>
-                                    @if(!empty($row['nr_prescricao']))
-                                        <div class="text-[10px] text-gray-400 font-mono mt-0.5">#{{ $row['nr_prescricao'] }}</div>
-                                    @endif
-                                    @if(!empty($row['nm_prescritor']))
-                                        <div class="text-[10px] text-gray-400 mt-0.5 truncate" title="{{ $row['nm_prescritor'] }}">{{ $row['nm_prescritor'] }}</div>
-                                    @endif
-                                    @if($statusExec !== '')
-                                        <span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight bg-gray-50 text-gray-600 border-gray-200">{{ $statusExec }}</span>
-                                    @endif
-                                </td>
-                                <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
-                                    data-order="{{ $row['data_solicitacao_sort'] ?? 0 }}">{{ $row['data_solicitacao'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] text-gray-500 whitespace-nowrap font-mono"
-                                    data-order="{{ $row['data_coleta_sort'] ?? 0 }}">{{ $row['data_coleta'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] whitespace-nowrap font-mono {{ !empty($row['data_resultado']) ? 'text-emerald-700 font-semibold' : 'text-gray-300' }}"
-                                    data-order="{{ $row['data_resultado_sort'] ?? 0 }}">{{ $row['data_resultado'] ?? '-' }}</td>
-                                <td class="px-2 py-2.5 text-[11px] whitespace-nowrap font-semibold font-mono {{ ($row['is_overdue'] ?? false) ? 'text-amber-600' : 'text-[#0071B9]' }}"
-                                    data-order="{{ $row['tempo_pendente_sort'] ?? 0 }}">{{ $row['tempo_pendente'] ?? '-' }}</td>
-                                <td class="px-3 py-2.5 text-xs text-gray-700 font-medium whitespace-nowrap col-unidade {{ count($selectedSectors) <= 1 ? 'col-unidade-hidden' : '' }}" style="max-width:130px" title="{{ $row['setor_origem'] ?? '-' }}">
-                                    <div class="truncate">{{ $row['setor_origem'] ?? '-' }}</div>
-                                </td>
-                                <td class="px-2 py-2.5 text-xs font-semibold whitespace-nowrap {{ !empty($row['prev_alta']) ? 'text-purple-700' : 'text-gray-300' }}">
-                                    {{ $row['prev_alta'] ?? '—' }}
-                                </td>
-                                <td class="hidden">{{ $row['tipo_evento'] ?? '' }}</td>
-                                <td class="hidden">{{ ($row['is_overdue'] ?? false) ? '1' : '0' }}</td>
-                                <td class="hidden">{{ $row['motivo_categoria'] ?? '' }}</td>
-                                <td class="hidden">{{ $row['classificacao'] ?? '' }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
 
         @else
-            @if(!empty($selectedSectors))
-                <div class="flex flex-col items-center justify-center py-20 text-center">
-                    <x-heroicon-o-check-circle class="w-12 h-12 text-emerald-300 mb-4" />
-                    <h3 class="text-base font-semibold text-gray-700 mb-1">Nenhuma pendência encontrada</h3>
-                    <p class="text-sm text-gray-400">Não há pendências em aberto para este setor.</p>
-                </div>
-            @endif
+            <div class="flex flex-col items-center justify-center py-20 text-center">
+                <x-heroicon-o-building-office-2 class="w-12 h-12 text-gray-200 mb-4" />
+                <h3 class="text-base font-semibold text-gray-700 mb-1">Nenhum setor selecionado</h3>
+                <p class="text-sm text-gray-400">Selecione um hospital e setor no filtro acima.</p>
+            </div>
         @endif
     </div>
 </div>
@@ -544,33 +438,178 @@ function showPendingLoader() { document.getElementById('pending-loading').style.
 function hidePendingLoader() { document.getElementById('pending-loading').style.display = 'none'; }
 </script>
 
-@if($rows->count() > 0)
+@if(!empty($selectedSectors))
 <script>
 $(document).ready(function () {
 
+    function esc(s) {
+        if (s === null || s === undefined) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    var multiSector = {{ count($selectedSectors) > 1 ? 'true' : 'false' }};
+
+    var dtDataUrl = (function () {
+        var params = new URLSearchParams();
+        @foreach($selectedHospitals as $hid)
+        params.append('hospital_ids[]', {{ $hid }});
+        @endforeach
+        @foreach($selectedSectors as $sid)
+        params.append('sector_ids[]', {{ $sid }});
+        @endforeach
+        return '{{ route('pending.report.data') }}?' + params.toString();
+    })();
+
+    function renderStatus(r) {
+        var html = '';
+        if (r.motivo_categoria) {
+            html += '<span class="badge-status ' + esc(r.badge_cls) + ' mb-1">' + esc(r.motivo_categoria) + '</span>';
+        }
+        if (r.motivo_pendente) {
+            html += '<div class="flex items-start gap-1 text-[10px] mt-1">'
+                + '<i class="fas fa-notes-medical flex-shrink-0 mt-0.5 text-gray-400" style="font-size:10px;width:12px"></i>'
+                + '<span class="text-gray-500 font-medium mr-0.5">Tasy:</span>'
+                + '<span class="text-gray-600">' + esc(r.motivo_pendente) + '</span></div>';
+        }
+        if (r.is_exam && r.scola_status) {
+            html += '<div class="flex items-start gap-1 text-[10px] mt-0.5">'
+                + '<i class="fas fa-flask flex-shrink-0 mt-0.5 text-gray-400" style="font-size:10px;width:12px"></i>'
+                + '<span class="text-gray-500 font-medium mr-0.5">SCOLA:</span>'
+                + '<span class="text-gray-600">' + esc(r.scola_status) + '</span></div>';
+        }
+        if (r.scola_resultado) {
+            html += '<div class="flex items-start gap-1 text-[10px] mt-0.5">'
+                + '<i class="fas fa-flask flex-shrink-0 mt-0.5 text-emerald-500" style="font-size:10px;width:12px"></i>'
+                + '<span class="text-emerald-700 font-semibold">' + esc(r.scola_resultado) + '</span></div>';
+        }
+        return html || '<span class="text-gray-300">—</span>';
+    }
+
+    var tableReady = false;
+    var tipoLabelMap = {};
+
     var table = $('#pendencias-table').DataTable({
+        ajax: { url: dtDataUrl, dataSrc: 'data', cache: true },
+        deferRender: true,
         pageLength: 25,
         lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }],
         autoWidth: false,
         scrollX: false,
         order: [],
         columns: [
-            { },  // 0  Paciente
-            { },  // 1  Leito
-            { },  // 2  Atend.
-            { },  // 3  Tipo
-            { },  // 4  Status
-            { },  // 5  Pendência
-            { },  // 6  Dt. Prescrição
-            { },  // 7  Coletado
-            { },  // 8  Resultado
-            { },  // 9  Em aberto
-            { },  // 10 Unidade
-            { },  // 11 Prev. Alta
-            { width: '0', orderable: false, searchable: true },  // 12 tipo_raw
-            { width: '0', orderable: false, searchable: true },  // 13 vencido
-            { width: '0', orderable: false, searchable: true },  // 14 motivo_cat
-            { width: '0', orderable: false, searchable: true },  // 15 classif_raw
+            // 0 Paciente
+            {
+                data: 'paciente',
+                render: function (d, t) {
+                    if (t !== 'display') { return d || ''; }
+                    return '<div class="truncate text-xs text-gray-800 font-medium" style="min-width:120px;max-width:150px" title="' + esc(d) + '">' + esc(d) + '</div>';
+                },
+            },
+            // 1 Leito
+            { data: 'ugb', className: 'px-3 py-2.5 text-xs text-gray-600 font-mono whitespace-nowrap' },
+            // 2 Atendimento
+            { data: 'atendimento', className: 'px-3 py-2.5 text-xs text-gray-700 font-mono font-medium whitespace-nowrap' },
+            // 3 Tipo
+            {
+                data: 'tipo_label',
+                render: function (d, t, r) {
+                    if (t !== 'display') { return d || ''; }
+                    var html = '<div class="truncate text-gray-700 font-semibold">' + esc(d || '-') + '</div>';
+                    if (r.classificacao) { html += '<div class="truncate text-[10px] text-gray-400 mt-0.5">' + esc(r.classificacao) + '</div>'; }
+                    return html;
+                },
+            },
+            // 4 Status
+            {
+                data: 'motivo_categoria',
+                render: function (d, t, r) {
+                    if (t !== 'display') { return d || ''; }
+                    return renderStatus(r);
+                },
+            },
+            // 5 Pendência
+            {
+                data: 'item',
+                className: 'wrap-cell',
+                render: function (d, t, r) {
+                    if (t !== 'display') { return d || ''; }
+                    var html = '<div class="text-gray-700 font-medium leading-snug" style="min-width:180px;max-width:220px" title="' + esc(d) + '">' + esc(d) + '</div>';
+                    if (r.nr_prescricao) { html += '<div class="text-[10px] text-gray-400 font-mono mt-0.5">#' + esc(r.nr_prescricao) + '</div>'; }
+                    if (r.nm_prescritor) { html += '<div class="text-[10px] text-gray-400 mt-0.5 truncate" title="' + esc(r.nm_prescritor) + '">' + esc(r.nm_prescritor) + '</div>'; }
+                    if (r.status_execucao) { html += '<span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight bg-gray-50 text-gray-600 border-gray-200">' + esc(r.status_execucao) + '</span>'; }
+                    return html;
+                },
+            },
+            // 6 Dt. Prescrição
+            {
+                data: 'data_solicitacao',
+                render: function (d, t, r) {
+                    if (t === 'sort') { return r.data_solicitacao_sort || 0; }
+                    return '<span class="text-[11px] text-gray-500 whitespace-nowrap font-mono">' + esc(d || '-') + '</span>';
+                },
+            },
+            // 7 Coletado
+            {
+                data: 'data_coleta',
+                render: function (d, t, r) {
+                    if (t === 'sort') { return r.data_coleta_sort || 0; }
+                    return '<span class="text-[11px] text-gray-500 whitespace-nowrap font-mono">' + esc(d || '-') + '</span>';
+                },
+            },
+            // 8 Resultado
+            {
+                data: 'data_resultado',
+                render: function (d, t, r) {
+                    if (t === 'sort') { return r.data_resultado_sort || 0; }
+                    if (!d) { return '<span class="text-[11px] text-gray-300 whitespace-nowrap font-mono">-</span>'; }
+                    return '<span class="text-[11px] text-emerald-700 font-semibold whitespace-nowrap font-mono">' + esc(d) + '</span>';
+                },
+            },
+            // 9 Em aberto
+            {
+                data: 'tempo_pendente',
+                render: function (d, t, r) {
+                    if (t === 'sort') { return r.tempo_pendente_sort || 0; }
+                    var cls = r.is_overdue ? 'text-amber-600' : 'text-[#0071B9]';
+                    return '<span class="text-[11px] whitespace-nowrap font-semibold font-mono ' + cls + '">' + esc(d || '-') + '</span>';
+                },
+            },
+            // 10 Unidade
+            {
+                data: 'setor_origem',
+                visible: multiSector,
+                render: function (d, t) {
+                    if (t !== 'display') { return d || ''; }
+                    return '<div class="truncate text-xs text-gray-700 font-medium" style="max-width:130px" title="' + esc(d) + '">' + esc(d || '-') + '</div>';
+                },
+            },
+            // 11 Prev. Alta
+            {
+                data: 'prev_alta',
+                render: function (d, t) {
+                    if (t !== 'display') { return d || ''; }
+                    if (!d) { return '<span class="text-xs font-semibold text-gray-300">—</span>'; }
+                    return '<span class="text-xs font-semibold text-purple-700">' + esc(d) + '</span>';
+                },
+            },
+            // 12 tipo_evento (hidden — filtro tipo)
+            { data: 'tipo_evento', visible: false, searchable: true, orderable: false },
+            // 13 is_overdue (hidden — filtro vencido)
+            {
+                data: 'is_overdue',
+                visible: false,
+                searchable: true,
+                orderable: false,
+                render: function (d) { return d ? '1' : '0'; },
+            },
+            // 14 motivo_categoria (hidden — filtro status)
+            { data: 'motivo_categoria', visible: false, searchable: true, orderable: false },
+            // 15 classificacao (hidden — filtro classificação)
+            { data: 'classificacao', visible: false, searchable: true, orderable: false },
         ],
         language: {
             url: '', decimal: ',', thousands: '.',
@@ -580,59 +619,105 @@ $(document).ready(function () {
             lengthMenu: '_MENU_ por página',
             loadingRecords: 'Carregando...', processing: 'Processando...',
             search: 'Buscar:', zeroRecords: 'Nenhum resultado para este filtro',
-            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' },
         },
         dom: '<"flex flex-wrap items-center justify-between gap-3 mb-3 px-3 pt-3"lf>t<"flex flex-wrap items-center justify-between gap-2 mt-3 px-3 pb-2"ip>',
-        initComplete: function () {
-            $('#pendencias-table_filter input').addClass('filter-control').css('min-width','180px');
-            $('#pendencias-table_length select').addClass('filter-control').css('min-width','80px');
+        initComplete: function (settings, json) {
+            if (json && json.meta) {
+                populateFilterDropdowns(json.meta.tipo_labels, json.meta.categorias, json.meta.classificacoes);
+                var total = json.meta.total || 0;
+                if (total > 0) {
+                    var cnt = document.getElementById('total-rows-count');
+                    var wrap = document.getElementById('total-count-wrapper');
+                    if (cnt) { cnt.textContent = total; }
+                    if (wrap) { wrap.classList.remove('hidden'); }
+                }
+            }
+            tableReady = true;
+            rebuildCascadeFilters();
+            rebuildKpis();
+            $('#pendencias-table_filter input').addClass('filter-control').css('min-width', '180px');
+            $('#pendencias-table_length select').addClass('filter-control').css('min-width', '80px');
             $('#pendencias-table_filter label, #pendencias-table_length label').addClass('text-sm text-gray-600 flex items-center gap-2');
             $('#pendencias-table_info, #pendencias-table_paginate').addClass('text-sm text-gray-500');
             hidePendingLoader();
-        }
+        },
     });
 
     window._pendenciasTable = table;
-    setTimeout(hidePendingLoader, 8000);
+    window._dtTable = table;
+    setTimeout(hidePendingLoader, 12000);
 
-    var tipoLabelMap = @json($tipoLabels);
+    function populateFilterDropdowns(tipoLabels, categorias, classificacoes) {
+        tipoLabelMap = tipoLabels || {};
+        var tipoSel = document.getElementById('filter-tipo');
+        if (tipoSel && tipoLabels) {
+            var tipoHtml = '<option value="">Todos os tipos</option>';
+            Object.keys(tipoLabels).sort(function (a, b) {
+                return (tipoLabels[a] || a).localeCompare(tipoLabels[b] || b, 'pt-BR');
+            }).forEach(function (k) {
+                tipoHtml += '<option value="' + esc(k) + '">' + esc(tipoLabels[k] || k) + '</option>';
+            });
+            tipoSel.innerHTML = tipoHtml;
+        }
+
+        var statusSel = document.getElementById('filter-status');
+        if (statusSel && categorias) {
+            var statusHtml = '<option value="">Todos os status</option>';
+            categorias.forEach(function (cat) {
+                statusHtml += '<option value="' + esc(cat) + '">' + esc(cat) + '</option>';
+            });
+            statusSel.innerHTML = statusHtml;
+        }
+
+        if (classificacoes && classificacoes.length > 0) {
+            var classifList = document.getElementById('classif-checkbox-list');
+            if (classifList) {
+                var classifHtml = '';
+                classificacoes.forEach(function (cl) {
+                    classifHtml += '<label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700 min-h-[40px]">'
+                        + '<input type="checkbox" class="classif-check w-4 h-4 rounded border-gray-300 text-[#004D9D] flex-shrink-0" value="' + esc(cl) + '">'
+                        + '<span class="truncate">' + esc(cl) + '</span></label>';
+                });
+                classifList.innerHTML = classifHtml;
+                classifList.addEventListener('change', function () {
+                    if (window._applyClassifFilter) { window._applyClassifFilter(); }
+                });
+            }
+            var wrap = document.getElementById('classif-dropdown-wrap');
+            if (wrap) { wrap.style.display = ''; }
+        }
+    }
 
     function rebuildSelect(selector, colIdx, allLabel, labelMap) {
         var $sel = $(selector);
         var currentVal = $sel.val();
-        var vals = table.column(colIdx, { filter: 'applied' }).data().unique().sort().toArray().filter(function(v) { return v !== null && v !== ''; });
+        var vals = table.column(colIdx, { filter: 'applied' }).data().unique().sort().toArray().filter(function (v) { return v !== null && v !== ''; });
         var html = '<option value="">' + allLabel + '</option>';
-        vals.forEach(function(v) {
+        vals.forEach(function (v) {
             var label = (labelMap && labelMap[v]) ? labelMap[v] : v;
-            html += '<option value="' + $('<div>').text(v).html() + '"' + (v === currentVal ? ' selected' : '') + '>' + $('<div>').text(label).html() + '</option>';
+            html += '<option value="' + esc(v) + '"' + (v === currentVal ? ' selected' : '') + '>' + esc(label) + '</option>';
         });
         $sel.html(html);
     }
 
     function rebuildCascadeFilters() {
-        rebuildSelect('#filter-tipo',    12, 'Todos os tipos',          tipoLabelMap);
-        rebuildSelect('#filter-status',  14, 'Todos os status', null);
+        rebuildSelect('#filter-tipo', 12, 'Todos os tipos', tipoLabelMap);
+        rebuildSelect('#filter-status', 14, 'Todos os status', null);
     }
-
-    var kpiCssMap = {};
-    $('#pendencias-table .badge-status').each(function() {
-        var text = $(this).text().trim();
-        var badgeCls = $(this).attr('class').split(/\s+/).find(function(c) { return c.startsWith('badge-') && c !== 'badge-status' && c !== 'mb-1'; });
-        if (text && badgeCls && !kpiCssMap[text]) kpiCssMap[text] = badgeCls;
-    });
 
     var activeKpiFilter = '';
 
     function rebuildKpis() {
-        var rows    = table.rows({ filter: 'applied' });
-        var total   = rows.count();
+        var rows = table.rows({ filter: 'applied' });
+        var total = rows.count();
         var overdue = 0;
-        var catMap  = {};
-        rows.every(function() {
+        var catMap = {};
+        rows.every(function () {
             var d = this.data();
-            var cat = d[14] || '';
-            if (cat) catMap[cat] = (catMap[cat] || 0) + 1;
-            if (d[13] === '1') overdue++;
+            var cat = d.motivo_categoria || '';
+            if (cat) { catMap[cat] = (catMap[cat] || 0) + 1; }
+            if (d.is_overdue) { overdue++; }
         });
 
         var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Pendências</span></div>';
@@ -640,50 +725,60 @@ $(document).ready(function () {
             var overdueActive = $('#chk-overdue').prop('checked') ? ' active' : '';
             html += '<div class="kpi-card kpi-overdue' + overdueActive + '" data-kpi-overdue="1"><span class="kpi-count">' + overdue + '</span><span class="kpi-label">SLA Violado</span></div>';
         }
-        Object.entries(catMap).sort(function(a, b) { return b[1] - a[1]; }).forEach(function(pair) {
-            var cat = pair[0], count = pair[1];
+        Object.entries(catMap).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (pair) {
+            var cat = pair[0];
+            var count = pair[1];
             var isActive = (activeKpiFilter === cat) ? ' active' : '';
-            html += '<div class="kpi-card' + isActive + '" data-kpi="' + $('<div>').text(cat).html() + '"><span class="kpi-count">' + count + '</span><span class="kpi-label">' + $('<div>').text(cat).html() + '</span></div>';
+            html += '<div class="kpi-card' + isActive + '" data-kpi="' + esc(cat) + '"><span class="kpi-count">' + count + '</span><span class="kpi-label">' + esc(cat) + '</span></div>';
         });
         $('#kpi-bar').html(html);
 
-        $('#kpi-bar .kpi-card[data-kpi]').on('click', function() {
+        $('#kpi-bar .kpi-card[data-kpi]').on('click', function () {
             var val = $(this).data('kpi');
             activeKpiFilter = (activeKpiFilter === val) ? '' : val;
             $('#filter-status').val(activeKpiFilter).trigger('change');
         });
-        $('#kpi-bar .kpi-card[data-kpi-overdue]').on('click', function() {
+        $('#kpi-bar .kpi-card[data-kpi-overdue]').on('click', function () {
             var chk = $('#chk-overdue');
             chk.prop('checked', !chk.prop('checked')).trigger('change');
         });
     }
 
-    $('#filter-status').on('change', function() { activeKpiFilter = $(this).val(); });
-    table.on('draw', function() { rebuildCascadeFilters(); rebuildKpis(); });
-    rebuildCascadeFilters();
-    rebuildKpis();
+    table.on('draw', function () {
+        if (tableReady) {
+            rebuildCascadeFilters();
+            rebuildKpis();
+        }
+    });
 
-    window._dtTable = table;
-    $('#filter-tipo').on('change', function () { table.column(12).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#filter-status').on('change', function () { table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw(); });
-    $('#chk-overdue').on('change', function () { table.column(13).search(this.checked ? '^1$' : '', true, false).draw(); });
+    $('#filter-status').on('change', function () { activeKpiFilter = $(this).val(); });
+
+    $('#filter-tipo').on('change', function () {
+        table.column(12).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
+    });
+    $('#filter-status').on('change', function () {
+        table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
+    });
+    $('#chk-overdue').on('change', function () {
+        table.column(13).search(this.checked ? '^1$' : '', true, false).draw();
+    });
     $('#btn-clear-filters').on('click', function () {
         $('#filter-tipo, #filter-status').val('');
         $('#chk-overdue').prop('checked', false);
-        document.querySelectorAll('.classif-check').forEach(function(c) { c.checked = false; });
+        document.querySelectorAll('.classif-check').forEach(function (c) { c.checked = false; });
         var lbl = document.getElementById('classif-btn-label');
-        if (lbl) lbl.textContent = 'Todas as classificações';
+        if (lbl) { lbl.textContent = 'Todas as classificações'; }
         table.columns([12, 13, 14, 15]).search('').draw();
         table.search('').draw();
     });
 
     @if(!empty($selectedSectors))
-    (function() {
+    (function () {
         var base = '{{ route('pending.report.export') }}?';
         @foreach($selectedHospitals as $hid) base += 'hospital_ids[]={{ $hid }}&'; @endforeach
         @foreach($selectedSectors as $sid) base += 'sector_ids[]={{ $sid }}&'; @endforeach
         var exportBtn = document.getElementById('btn-export');
-        if (exportBtn) exportBtn.href = base;
+        if (exportBtn) { exportBtn.href = base; }
     })();
     @endif
 });

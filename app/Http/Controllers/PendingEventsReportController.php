@@ -9,6 +9,7 @@ use App\Services\UserDisplayNameResolver;
 use App\Support\PendingEventHelper;
 use App\Support\PendingEventTypeClassifier;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -33,15 +34,13 @@ class PendingEventsReportController extends Controller
             ->get();
 
         if ($allSectors->isEmpty()) {
-            return view('pendencias.index', [
+            return view('pending.index', [
                 'hospitals' => collect(),
                 'sectors' => collect(),
                 'sectorsForFilter' => [],
-                'rows' => collect(),
                 'selectedHospitals' => [],
                 'selectedSectors' => [],
                 'sectorName' => null,
-                'totalRows' => 0,
                 'errorMessage' => 'Nenhum setor configurado no sistema. Solicite ao administrador.',
             ]);
         }
@@ -100,76 +99,22 @@ class PendingEventsReportController extends Controller
             $selectedSectors = [$allowedSectorCodes->first()];
         }
 
-        $rows = collect();
-
-        $onlyAssignedBeds = (bool) $user->only_assigned_beds;
-
-        foreach ($selectedSectors as $sectorId) {
-            $userCached = $onlyAssignedBeds
-                ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
-                : null;
-
-            if ($userCached !== null) {
-                $patients = $userCached;
-            } else {
-                $patients = PatientDataLoader::forSector($sectorId)
-                    ->include('demographics', 'pending_events', 'multidisciplinary')
-                    ->get();
-
-                if ($onlyAssignedBeds) {
-                    $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
-                        ->where('sector_id', $sectorId)
-                        ->pluck('bed_code')
-                        ->toArray();
-
-                    if (! empty($assignedBeds)) {
-                        $patients = array_values(array_filter(
-                            $patients,
-                            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
-                        ));
-                    }
-                }
-            }
-
-            $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null)
-                ?? $sectors->firstWhere('sector_code', $sectorId)['sector_name']
-                ?? (string) $sectorId;
-
-            $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
-
-            $rows = $rows->merge($this->buildRows(collect($patients)));
-        }
-
-        $rows = $rows->sortByDesc('sort_ts')->values();
-
         $sectorName = count($selectedSectors) === 1
             ? ($sectors->firstWhere('sector_code', $selectedSectors[0])['sector_name'] ?? null)
             : count($selectedSectors).' setores selecionados';
 
-        // Pré-computa array simples para o Alpine.js — evita expressões complexas no Blade
         $sectorsForFilter = $sectors
             ->map(fn ($s) => ['code' => (int) $s['sector_code'], 'name' => (string) $s['sector_name']])
             ->values()
             ->all();
 
-        $tipoLabels = $rows->pluck('tipo_label', 'tipo_evento')->filter()->unique()->sort()->all();
-        $categorias = $rows->pluck('motivo_categoria')->filter()->unique()->sort()->values()->all();
-        $classificacoes = $rows->pluck('classificacao')->filter()->unique()->sort()->values()->all();
-
-        $this->logAccess('view', ['sector_ids' => $selectedSectors, 'hospital_ids' => $selectedHospitals]);
-
-        return view('pendencias.index', [
+        return view('pending.index', [
             'hospitals' => $hospitals,
             'sectors' => $sectors,
             'sectorsForFilter' => $sectorsForFilter,
-            'rows' => $rows,
             'selectedHospitals' => $selectedHospitals,
             'selectedSectors' => $selectedSectors,
             'sectorName' => $sectorName,
-            'totalRows' => $rows->count(),
-            'tipoLabels' => $tipoLabels,
-            'categorias' => $categorias,
-            'classificacoes' => $classificacoes,
             'errorMessage' => null,
         ]);
     }
@@ -224,36 +169,11 @@ class PendingEventsReportController extends Controller
         $onlyAssignedBeds = (bool) $user->only_assigned_beds;
 
         foreach ($selectedSectors as $sectorId) {
-            $userCached = $onlyAssignedBeds
-                ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
-                : null;
-
-            if ($userCached !== null) {
-                $patients = $userCached;
-            } else {
-                $patients = PatientDataLoader::forSector($sectorId)
-                    ->include('demographics', 'pending_events', 'multidisciplinary')
-                    ->get();
-
-                if ($onlyAssignedBeds) {
-                    $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
-                        ->where('sector_id', $sectorId)
-                        ->pluck('bed_code')
-                        ->toArray();
-
-                    if (! empty($assignedBeds)) {
-                        $patients = array_values(array_filter(
-                            $patients,
-                            fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
-                        ));
-                    }
-                }
-            }
-
-            $sectorLabel = (! empty($patients) ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null) : null) ?? (string) $sectorId;
-
+            $patients = $this->loadSectorPatients($sectorId, $user, $onlyAssignedBeds);
+            $sectorLabel = (! empty($patients)
+                ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null)
+                : null) ?? (string) $sectorId;
             $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
-
             $rows = $rows->merge($this->buildRows(collect($patients)));
         }
 
@@ -367,6 +287,145 @@ class PendingEventsReportController extends Controller
         }
 
         return redirect()->route('pending.report', $params);
+    }
+
+    public function jsonData(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $selectedSectors = $this->resolveAuthorizedSectorIds($request, $user);
+
+        if (empty($selectedSectors)) {
+            return response()->json([
+                'data' => [],
+                'meta' => ['total' => 0, 'tipo_labels' => [], 'categorias' => [], 'classificacoes' => []],
+            ]);
+        }
+
+        $rows = collect();
+        $onlyAssignedBeds = (bool) $user->only_assigned_beds;
+
+        foreach ($selectedSectors as $sectorId) {
+            $patients = $this->loadSectorPatients($sectorId, $user, $onlyAssignedBeds);
+            $sectorLabel = (! empty($patients)
+                ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null)
+                : null) ?? (string) $sectorId;
+            $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
+            $rows = $rows->merge($this->buildRows(collect($patients)));
+        }
+
+        $rows = $rows->sortByDesc('sort_ts')->values();
+
+        $data = $rows->map(function (array $row): array {
+            $motCat = $row['motivo_categoria'] ?? '';
+
+            return [
+                'paciente' => $row['paciente'] ?? '-',
+                'ugb' => $row['ugb'] ?? '-',
+                'atendimento' => $row['atendimento'] ?? '-',
+                'tipo_label' => $row['tipo_label'] ?? '-',
+                'classificacao' => $row['classificacao'] ?? '',
+                'motivo_categoria' => $motCat,
+                'badge_cls' => $this->buildBadgeCls($motCat),
+                'motivo_pendente' => $row['motivo_pendente'] ?? '',
+                'is_exam' => in_array($row['tipo_evento'] ?? '', ['exame', 'proc_exame'], true),
+                'scola_status' => $row['scola_status'] ?? '',
+                'scola_resultado' => $row['scola_resultado'] ?? '',
+                'item' => $row['item'] ?? '',
+                'nr_prescricao' => $row['nr_prescricao'] ?? '',
+                'nm_prescritor' => $row['nm_prescritor'] ?? '',
+                'status_execucao' => $row['status_execucao'] ?? '',
+                'data_solicitacao' => $row['data_solicitacao'] ?? '',
+                'data_solicitacao_sort' => $row['data_solicitacao_sort'] ?? 0,
+                'data_coleta' => $row['data_coleta'] ?? '',
+                'data_coleta_sort' => $row['data_coleta_sort'] ?? 0,
+                'data_resultado' => $row['data_resultado'] ?? '',
+                'data_resultado_sort' => $row['data_resultado_sort'] ?? 0,
+                'tempo_pendente' => $row['tempo_pendente'] ?? '-',
+                'tempo_pendente_sort' => $row['tempo_pendente_sort'] ?? 0,
+                'setor_origem' => $row['setor_origem'] ?? '-',
+                'prev_alta' => $row['prev_alta'] ?? '',
+                'tipo_evento' => $row['tipo_evento'] ?? '',
+                'is_overdue' => (bool) ($row['is_overdue'] ?? false),
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => count($data),
+                'tipo_labels' => $rows->pluck('tipo_label', 'tipo_evento')->filter()->unique()->sort()->all(),
+                'categorias' => $rows->pluck('motivo_categoria')->filter()->unique()->sort()->values()->all(),
+                'classificacoes' => $rows->pluck('classificacao')->filter()->unique()->sort()->values()->all(),
+            ],
+        ]);
+    }
+
+    private function resolveAuthorizedSectorIds(Request $request, $user): array
+    {
+        $allowed = UserSectorPreference::query()
+            ->where('user_id', $user->id)
+            ->distinct()
+            ->pluck('sector_code')
+            ->map(fn ($c) => (int) $c);
+
+        $rawIds = $request->input('sector_ids', []);
+        if (empty($rawIds) && $request->has('sector_id')) {
+            $rawIds = [$request->integer('sector_id')];
+        }
+
+        return collect($rawIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allowed->contains($id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function loadSectorPatients(int $sectorId, $user, bool $onlyAssignedBeds): array
+    {
+        $userCached = $onlyAssignedBeds
+            ? Cache::get("sector_patients_{$sectorId}_{$user->id}")
+            : null;
+
+        if ($userCached !== null) {
+            return $userCached;
+        }
+
+        $patients = PatientDataLoader::forSector($sectorId)
+            ->include('demographics', 'pending_events', 'multidisciplinary')
+            ->get();
+
+        if ($onlyAssignedBeds) {
+            $assignedBeds = NurseHandoverBed::where('user_id', $user->id)
+                ->where('sector_id', $sectorId)
+                ->pluck('bed_code')
+                ->toArray();
+
+            if (! empty($assignedBeds)) {
+                $patients = array_values(array_filter(
+                    $patients,
+                    fn (array $p) => in_array($p['cd_unidade_basica'] ?? '', $assignedBeds, true)
+                ));
+            }
+        }
+
+        return $patients;
+    }
+
+    private function buildBadgeCls(string $motCat): string
+    {
+        return match ($motCat) {
+            'Urgente — aguardando coleta' => 'badge-urgente',
+            'Aguardando coleta' => 'badge-aguard-coleta',
+            'Coletado — aguardando resultado' => 'badge-coletado',
+            'Resultado disponível' => 'badge-resultado',
+            'Laudo disponível' => 'badge-laudo',
+            'Laudo liberado (SCOLA)' => 'badge-laudo-scola',
+            'Nova coleta necessária' => 'badge-nova-coleta',
+            'Em execução', 'Em preparo' => 'badge-execucao',
+            'Antimicrobiano pendente' => 'badge-antimicrobiano',
+            default => 'badge-outros',
+        };
     }
 
     private function buildRows(Collection $patients): Collection
@@ -630,6 +689,13 @@ class PendingEventsReportController extends Controller
             return null;
         }
         try {
+            // PatientPendingEventsService pre-formats dates as d/m/Y H:i — use createFromFormat
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}/', $date)) {
+                $fmt = str_contains($date, ':') ? 'd/m/Y H:i' : 'd/m/Y';
+
+                return Carbon::createFromFormat($fmt, $date)->format('d/m H:i');
+            }
+
             return Carbon::parse($date)->format('d/m H:i');
         } catch (\Throwable) {
             return null;
@@ -642,6 +708,12 @@ class PendingEventsReportController extends Controller
             return null;
         }
         try {
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}/', $date)) {
+                $fmt = str_contains($date, ':') ? 'd/m/Y H:i' : 'd/m/Y';
+
+                return Carbon::createFromFormat($fmt, $date)->timestamp;
+            }
+
             return Carbon::parse($date)->timestamp;
         } catch (\Throwable) {
             return null;

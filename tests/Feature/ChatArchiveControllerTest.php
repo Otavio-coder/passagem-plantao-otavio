@@ -39,7 +39,7 @@ class ChatArchiveControllerTest extends TestCase
         $response = $this
             ->withoutMiddleware()
             ->actingAs($user)
-            ->get(route('chat.archive.show', ['nr' => '12345']));
+            ->get(route('metrics.show', ['nr' => '12345']));
 
         $response->assertOk();
         $response->assertViewHas('timeline', function (array $timeline): bool {

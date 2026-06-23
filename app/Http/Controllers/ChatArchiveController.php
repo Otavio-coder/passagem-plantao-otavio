@@ -171,6 +171,7 @@ class ChatArchiveController extends Controller
         $userMetrics = $this->buildUserMetrics();
         $sectorPanorama = $this->buildSectorPanorama();
         $feedbackStats = $this->buildFeedbackStats();
+        $logInsights = $this->buildLogInsights();
 
         $viewData = compact(
             'stats',
@@ -181,6 +182,7 @@ class ChatArchiveController extends Controller
             'userMetrics',
             'sectorPanorama',
             'feedbackStats',
+            'logInsights',
         );
 
         Cache::put(self::PANORAMA_CACHE_KEY, $viewData, self::PANORAMA_CACHE_TTL);
@@ -1273,6 +1275,15 @@ class ChatArchiveController extends Controller
                 'coverage_rate' => $auditCoverageRate,
                 'by_shift' => $auditByShift,
             ],
+            'pending_insights' => [
+                'total_views' => (int) ($pendingStats->total_views ?? 0),
+                'total_exports' => (int) ($pendingStats->total_exports ?? 0),
+                'total_refreshes' => (int) ($pendingStats->total_refreshes ?? 0),
+                'views_7d' => (int) ($pendingStats->views_7d ?? 0),
+                'views_30d' => (int) ($pendingStats->views_30d ?? 0),
+                'unique_users' => (int) ($pendingStats->unique_users ?? 0),
+                'top_users' => $pendingTopUsers,
+            ],
         ];
     }
 
@@ -1337,5 +1348,156 @@ class ChatArchiveController extends Controller
             ->get();
 
         return ['total' => $total, 'by_rating' => $byRating, 'recent' => $recent];
+    }
+
+    /**
+     * Parseia os arquivos audit-*.log e laravel-*.log dos últimos 30 dias.
+     *
+     * @return array{
+     *   audit: array{
+     *     total: int,
+     *     by_event: array<string, int>,
+     *     by_user: array<string, int>,
+     *     by_day: array<string, int>,
+     *     exports: list<array<string, mixed>>,
+     *     recent: list<array<string, mixed>>
+     *   },
+     *   errors: array{
+     *     total: int,
+     *     by_day: array<string, int>,
+     *     recent: list<array<string, mixed>>
+     *   }
+     * }
+     */
+    private function buildLogInsights(): array
+    {
+        $logPath = storage_path('logs');
+        $since = now()->subDays(30);
+
+        // ── Audit logs ────────────────────────────────────────────────────────
+        $auditTotal = 0;
+        $auditByEvent = [];
+        $auditByUser = [];
+        $auditByDay = [];
+        $exports = [];
+        $auditRecent = [];
+
+        $auditPattern = '/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \w+\.INFO: ([\w.]+) (\{.*\})$/';
+
+        foreach (glob($logPath.'/audit-*.log') as $file) {
+            // Skip files older than 30 days (by filename date)
+            preg_match('/audit-(\d{4}-\d{2}-\d{2})\.log$/', $file, $dm);
+            if (isset($dm[1]) && Carbon::parse($dm[1])->lt($since)) {
+                continue;
+            }
+
+            $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (! preg_match($auditPattern, trim($line), $m)) {
+                    continue;
+                }
+
+                $ts = $m[1];
+                $event = $m[2];
+                $ctx = json_decode($m[3], true) ?? [];
+
+                if (Carbon::parse($ts)->lt($since)) {
+                    continue;
+                }
+
+                $auditTotal++;
+                $auditByEvent[$event] = ($auditByEvent[$event] ?? 0) + 1;
+                $day = substr($ts, 0, 10);
+                $auditByDay[$day] = ($auditByDay[$day] ?? 0) + 1;
+
+                $user = $ctx['user'] ?? ($ctx['user_id'] ? "user#{$ctx['user_id']}" : '—');
+                $auditByUser[$user] = ($auditByUser[$user] ?? 0) + 1;
+
+                if ($event === 'report.pending_events.export') {
+                    $exports[] = [
+                        'ts' => $ts,
+                        'user' => $user,
+                        'sectors' => is_array($ctx['sectors'] ?? null)
+                            ? implode(', ', array_values($ctx['sectors']))
+                            : ($ctx['sectors'] ?? '—'),
+                        'row_count' => $ctx['row_count'] ?? null,
+                        'filename' => $ctx['filename'] ?? null,
+                    ];
+                }
+
+                if (count($auditRecent) < 20) {
+                    $auditRecent[] = [
+                        'ts' => $ts,
+                        'event' => $event,
+                        'user' => $user,
+                        'ctx' => $ctx,
+                    ];
+                }
+            }
+        }
+
+        arsort($auditByEvent);
+        arsort($auditByUser);
+        ksort($auditByDay);
+
+        $recentExports = array_slice(array_reverse($exports), 0, 10);
+
+        // ── Laravel error logs ────────────────────────────────────────────────
+        $errorTotal = 0;
+        $errorByDay = [];
+        $errorRecent = [];
+
+        $errorPattern = '/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \w+\.ERROR: (.+?)(?= \{|\{"|\[|\s*$)/';
+
+        foreach (glob($logPath.'/laravel-*.log') as $file) {
+            preg_match('/laravel-(\d{4}-\d{2}-\d{2})\.log$/', $file, $dm);
+            if (isset($dm[1]) && Carbon::parse($dm[1])->lt($since)) {
+                continue;
+            }
+
+            $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (! str_contains($line, '].ERROR:')) {
+                    continue;
+                }
+                if (! preg_match($errorPattern, trim($line), $m)) {
+                    continue;
+                }
+
+                $ts = $m[1];
+                if (Carbon::parse($ts)->lt($since)) {
+                    continue;
+                }
+
+                $errorTotal++;
+                $day = substr($ts, 0, 10);
+                $errorByDay[$day] = ($errorByDay[$day] ?? 0) + 1;
+
+                if (count($errorRecent) < 10) {
+                    $errorRecent[] = [
+                        'ts' => $ts,
+                        'message' => mb_substr(trim($m[2]), 0, 120),
+                    ];
+                }
+            }
+        }
+
+        ksort($errorByDay);
+
+        return [
+            'audit' => [
+                'total' => $auditTotal,
+                'by_event' => $auditByEvent,
+                'by_user' => $auditByUser,
+                'by_day' => $auditByDay,
+                'exports' => $recentExports,
+                'recent' => $auditRecent,
+            ],
+            'errors' => [
+                'total' => $errorTotal,
+                'by_day' => $errorByDay,
+                'recent' => $errorRecent,
+            ],
+        ];
     }
 }

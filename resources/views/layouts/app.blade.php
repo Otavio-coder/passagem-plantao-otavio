@@ -464,7 +464,6 @@
 
 @auth
 <x-ui.connection-status />
-@livewire('patient-quick-search')
 @endauth
 </body>
 </html>

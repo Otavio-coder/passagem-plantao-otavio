@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\ChatArchiveController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\PatientPrescriptionsController;
 use App\Http\Controllers\PendingEventsReportController;
 use App\Http\Controllers\ProfileController;
@@ -75,6 +75,8 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
         // Relatório de Pendências
         Route::get('/pendencias', [PendingEventsReportController::class, 'index'])
             ->name('pending.report');
+        Route::get('/pendencias/data', [PendingEventsReportController::class, 'jsonData'])
+            ->name('pending.report.data');
         Route::post('/pendencias/refresh', [PendingEventsReportController::class, 'refresh'])
             ->name('pending.report.refresh');
         Route::get('/pendencias/export', [PendingEventsReportController::class, 'export'])
@@ -84,12 +86,11 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
         Route::middleware('can:configurar sistema')->get('/comandos', fn () => view('commands.index'))->name('admin.commands');
 
         Route::middleware('can:ver historico chat')->prefix('panorama')->group(function () {
-            Route::get('/', [ChatArchiveController::class, 'index'])->name('admin.dashboard');
-            Route::post('/cache/clear', [ChatArchiveController::class, 'clearCache'])->name('chat.archive.clear-cache');
-            Route::get('/dt', [ChatArchiveController::class, 'datatables'])->name('chat.archive.datatables');
-            Route::get('/data', [ChatArchiveController::class, 'clientData'])->name('chat.archive.client-data');
+            Route::get('/', [MetricsController::class, 'index'])->name('admin.dashboard');
+            Route::post('/cache/clear', [MetricsController::class, 'clearCache'])->name('metrics.cache.clear');
+            Route::get('/data', [MetricsController::class, 'clientData'])->name('metrics.client-data');
             Route::redirect('/passagens/metricas', '/administracao/panorama')->name('handover.metrics');
-            Route::get('/{nr}', [ChatArchiveController::class, 'show'])->name('chat.archive.show');
+            Route::get('/{nr}', [MetricsController::class, 'show'])->name('metrics.show');
         });
 
         Route::middleware('can:ver usuarios')->prefix('usuarios')->group(function () {

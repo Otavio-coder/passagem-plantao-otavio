@@ -70,16 +70,16 @@
 {{-- ════════════════════════════════════════════════════════
      TABS — cada sub-tab em arquivo dedicado
 ════════════════════════════════════════════════════════ --}}
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.medications')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.exams')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.procedures')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.surgeries')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.nutrition')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.hemotherapy')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.chemotherapy')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.orders')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.interventions')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.gasotherapy')
-@include('sbar.patient.modal.tabs.recomendacoes.tabs.dialysis')
+@include('sbar.patient.modal.tabs.recommendations.tabs.medications')
+@include('sbar.patient.modal.tabs.recommendations.tabs.exams')
+@include('sbar.patient.modal.tabs.recommendations.tabs.procedures')
+@include('sbar.patient.modal.tabs.recommendations.tabs.surgeries')
+@include('sbar.patient.modal.tabs.recommendations.tabs.nutrition')
+@include('sbar.patient.modal.tabs.recommendations.tabs.hemotherapy')
+@include('sbar.patient.modal.tabs.recommendations.tabs.chemotherapy')
+@include('sbar.patient.modal.tabs.recommendations.tabs.orders')
+@include('sbar.patient.modal.tabs.recommendations.tabs.interventions')
+@include('sbar.patient.modal.tabs.recommendations.tabs.gasotherapy')
+@include('sbar.patient.modal.tabs.recommendations.tabs.dialysis')
 
 </div>{{-- /x-data therapeuticPlan --}}

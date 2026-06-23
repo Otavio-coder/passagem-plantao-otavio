@@ -168,7 +168,7 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0 overflow-y-auto overflow-x-hidden"
                              style="display: none;">
-                            <x-sbar::situacao
+                            <x-sbar::situation
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
                                 :patientDetails="$patientDetails"
@@ -203,7 +203,7 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0"
                              style="display: none;">
-                            <x-sbar::avaliacao
+                            <x-sbar::assessment
                                 :loadingPatient="$loadingPatient"
                                 :currentPatient="$currentPatient"
                                 :patientDetails="$patientDetails"
@@ -220,7 +220,7 @@
                              x-transition:leave-end="opacity-0"
                              class="absolute inset-0 overflow-y-auto overflow-x-hidden"
                              style="display: none;">
-                            <x-sbar::recomendacoes
+                            <x-sbar::recommendations
                                 :planLoaded="$planLoaded"
                                 :planError="$planError"
                                 :prescriptions="$prescriptions"

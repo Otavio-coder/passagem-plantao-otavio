@@ -13,7 +13,7 @@
 
     @if($planLoaded && $prescriptions)
 
-        @include('sbar.patient.modal.tabs.recomendacoes.plan', [
+        @include('sbar.patient.modal.tabs.recommendations.plan', [
             'plan'               => $prescriptions,
             'scheduleDate'       => $scheduleDate,
             'medicationSchedule' => $medicationSchedule,

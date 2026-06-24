@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Métricas do Sistema')
+@section('title', 'Panorama do Sistema')
 
 @push('head')
 <link rel="stylesheet" href="https://unpkg.com/cal-heatmap/dist/cal-heatmap.css">
@@ -43,7 +43,7 @@
                 <i class="fas fa-gauge-high text-[#004D9D]"></i>
             </div>
             <div>
-                <h1 class="text-xl font-bold text-gray-900 leading-tight">Métricas do Sistema</h1>
+                <h1 class="text-xl font-bold text-gray-900 leading-tight">Panorama do Sistema</h1>
                 <p class="text-sm text-gray-500 mt-0.5">Usuários, setores, anotações e passagens de plantão</p>
             </div>
         </div>

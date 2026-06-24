@@ -415,11 +415,10 @@ class PendingEventsReportController extends Controller
     private function buildBadgeCls(string $motCat): string
     {
         return match ($motCat) {
-            'Urgente — aguardando coleta' => 'badge-urgente',
+            'Urgente — aguardando coleta', 'Urgente — aguardando execução' => 'badge-urgente',
             'Aguardando coleta' => 'badge-aguard-coleta',
-            'Coletado — aguardando resultado' => 'badge-coletado',
             'Aguardando laudo' => 'badge-laudo',
-            'Em execução', 'Em preparo' => 'badge-execucao',
+            'Em andamento' => 'badge-execucao',
             'Antimicrobiano pendente' => 'badge-antimicrobiano',
             default => 'badge-outros',
         };
@@ -583,40 +582,35 @@ class PendingEventsReportController extends Controller
         }
 
         // Usa ie_status_execucao (domínio 1226) para exames e procedimentos.
-        // Scola é informação complementar — exibida como coluna separada no relatório, não define a categoria.
+        // Grupos espelham os de motivoExame/motivoProcedimento em PendingEventHelper.
         if (in_array($tipo, ['exame', 'proc_exame', 'procedimento'], true)) {
             $code = trim((string) ($event['ie_status_execucao'] ?? ''));
             $isProcedimento = $tipo === 'procedimento';
             $preCollectionCodes = ['10', '11', '13'];
+            $postCollectionCodes = ['19', '20', '22', '25', '26', '28', '30', '33', '35', '36', '37', '38', '43', '44', '45', '50', '90'];
 
-            if (! $isProcedimento && ! empty($event['dt_coleta'])) {
-                if (! in_array($code, $preCollectionCodes, true)) {
-                    return 'Aguardando laudo';
-                }
-
+            // dt_coleta set = pós-coleta independente do código
+            if (! empty($event['dt_coleta'])) {
                 return 'Aguardando laudo';
             }
-            if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
+
+            if (in_array($code, $postCollectionCodes, true)) {
                 return 'Aguardando laudo';
             }
-            // Procedimentos: código 14 = em preparo, 15 = em exame (na sala)
-            if ($isProcedimento) {
-                if ($code === '14') {
-                    return 'Em preparo';
-                }
-                if (in_array($code, ['15', '17', '18', '19'], true)) {
-                    return 'Em exame';
-                }
-            } else {
-                if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
-                    return 'Em execução';
-                }
-                if (in_array($code, ['10', '11', '12'], true)) {
-                    return 'Em preparo';
-                }
-                if (($event['_fonte'] ?? '') === 'agenda') {
-                    return 'Aguardando coleta';
-                }
+
+            // Pré-coleta
+            if (in_array($code, $preCollectionCodes, true)) {
+                return (bool) ($event['urgente'] ?? false) ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
+            }
+
+            // Em andamento: 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento
+            if (in_array($code, ['14', '15', '17', '18'], true)) {
+                return $isProcedimento ? 'Em andamento' : 'Em andamento';
+            }
+
+            // agenda_paciente sem código reconhecido
+            if (($event['_fonte'] ?? '') === 'agenda') {
+                return 'Aguardando coleta';
             }
 
             return (bool) ($event['urgente'] ?? false)

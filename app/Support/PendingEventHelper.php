@@ -551,24 +551,36 @@ class PendingEventHelper
         //                 50=Central laudos, 90=Em revisão
         $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
-        // Pré-coleta com dt_coleta set = inconsistência Tasy (coleta registrada, status não atualizado).
         $preCollectionCodes = ['10', '11', '13'];
-
-        // Pós-coleta: exame realizado, laudo em qualquer fase de produção/revisão.
+        $inProgressCodes = ['14', '15', '17', '18'];
         $postCollectionCodes = ['19', '20', '22', '25', '26', '28', '30', '33', '35', '36', '37', '38', '43', '44', '45', '50', '90'];
 
-        if (! empty($event['dt_coleta']) || in_array($code, $postCollectionCodes, true)) {
-            if ($status !== '' && ! in_array($code, $preCollectionCodes, true)) {
-                return $status;
-            }
-
+        // dt_coleta set mas status pré-coleta = inconsistência Tasy — forçar "Aguardando laudo".
+        if (! empty($event['dt_coleta']) && in_array($code, $preCollectionCodes, true)) {
             return 'Aguardando laudo';
         }
 
-        if (in_array($code, ['14', '15', '17', '18'], true)) {
+        // Pós-coleta: exame realizado, laudo em qualquer fase de produção/revisão.
+        if (! empty($event['dt_coleta']) || in_array($code, $postCollectionCodes, true)) {
+            return $status !== '' ? $status : 'Aguardando laudo';
+        }
+
+        // Em andamento (14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento).
+        if (in_array($code, $inProgressCodes, true)) {
             return $status !== '' ? $status : 'Em andamento';
         }
 
+        // Pré-coleta conhecida (10=Prescrito, 11=Chegada setor, 13=Previsto):
+        // usa label Tasy diretamente; urgente recebe prefixo explícito.
+        if (in_array($code, $preCollectionCodes, true)) {
+            if ($status !== '') {
+                return $urgente ? 'Urgente — '.lcfirst($status) : $status;
+            }
+
+            return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
+        }
+
+        // Código desconhecido / vazio → fallback genérico.
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
     }
 

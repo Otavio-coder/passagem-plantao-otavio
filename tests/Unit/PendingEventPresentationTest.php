@@ -178,6 +178,42 @@ class PendingEventPresentationTest extends TestCase
     }
 
     #[Test]
+    public function motivo_exame_pre_coleta_com_label_tasy_usa_label_diretamente(): void
+    {
+        // Códigos pré-coleta (10, 11, 13) com label Tasy disponível
+        // devem retornar o label do domínio 1226, não "Aguardando coleta" hardcoded.
+        $casos = [
+            ['code' => '10', 'label' => 'Prescrito'],
+            ['code' => '11', 'label' => 'Chegada setor'],
+            ['code' => '13', 'label' => 'Previsto'],
+        ];
+
+        foreach ($casos as $caso) {
+            $motivo = PendingEventHelper::motivoPendente([
+                'tipo' => 'exame',
+                'ie_status_execucao' => $caso['code'],
+                'status_laudo' => $caso['label'],
+                'urgente' => false,
+            ]);
+            $this->assertSame($caso['label'], $motivo, "Código {$caso['code']} com label Tasy deveria retornar label diretamente");
+        }
+    }
+
+    #[Test]
+    public function motivo_exame_pre_coleta_urgente_com_label_tasy_adiciona_prefixo(): void
+    {
+        // Urgente + código pré-coleta + label Tasy → "Urgente — [label em minúsculo]"
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '10',
+            'status_laudo' => 'Prescrito',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Urgente — prescrito', $motivo);
+    }
+
+    #[Test]
     public function motivo_exame_aguardando_laudo_por_dt_coleta_sem_label_tasy(): void
     {
         // Quando status_laudo está vazio (valor_dominio não retornou label),

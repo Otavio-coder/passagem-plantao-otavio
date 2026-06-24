@@ -300,10 +300,9 @@
                                     </div>
                                     <template x-if="(ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor))">
                                         <div class="mt-1 space-y-0.5">
-                                            <template x-if="ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)">
+                                            <template x-if="ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo) && ev.motivo_pendente !== ev.status_laudo">
                                                 <div class="flex items-center gap-1 text-[10px] text-gray-600">
                                                     <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
-                                                    <span class="font-medium text-gray-500">Tasy:</span>
                                                     <span x-text="ev.motivo_pendente"></span>
                                                 </div>
                                             </template>

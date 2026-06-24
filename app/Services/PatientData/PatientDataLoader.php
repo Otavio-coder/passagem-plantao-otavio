@@ -16,6 +16,7 @@ use App\Services\PatientData\Loaders\SurgeryLoader;
 use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\Tasy\TasyFormatter;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Orquestrador de carregamento de dados de pacientes por setor.
@@ -78,7 +79,9 @@ class PatientDataLoader
      */
     public function get(): array
     {
+        $t0 = hrtime(true);
         $demographics = $this->loaders['demographics']->load($this->sectorId, []);
+        $tDemo = round((hrtime(true) - $t0) / 1e6);
 
         $attendanceNumbers = array_values(array_filter(
             array_keys($demographics),
@@ -90,7 +93,12 @@ class PatientDataLoader
             fn ($k) => $k !== 'demographics' && isset($this->loaders[$k])
         ));
 
+        $t1 = hrtime(true);
         $loaded = $this->runLoaders($otherKeys, $attendanceNumbers);
+        $tLoaders = round((hrtime(true) - $t1) / 1e6);
+
+        $tTotal = round((hrtime(true) - $t0) / 1e6);
+        Log::warning('[PatientDataLoader] sector='.$this->sectorId.' patients='.count($attendanceNumbers).' demo='.$tDemo.'ms loaders='.$tLoaders.'ms total='.$tTotal.'ms keys='.implode(',', $otherKeys));
 
         $applyScaleStyling = in_array('scales', $this->requested, true);
         $formatter = $applyScaleStyling ? new TasyFormatter : null;
@@ -159,6 +167,11 @@ class PatientDataLoader
     }
 
     /**
+     * Runs non-demographics loaders sequentially, logging each loader's duration.
+     * Parallel execution via pcntl_fork is not safe inside HTTP request handlers
+     * (corrupts FastCGI connection state). Cache warming via the artisan command
+     * is the correct approach for reducing cold-load time.
+     *
      * @param  string[]  $keys
      * @return array<int, array<int, mixed>>
      */
@@ -168,9 +181,14 @@ class PatientDataLoader
             return [];
         }
 
-        return array_map(
-            fn ($key) => $this->loaders[$key]->load($this->sectorId, $attendanceNumbers),
-            $keys
-        );
+        $results = [];
+
+        foreach ($keys as $key) {
+            $t = hrtime(true);
+            $results[] = $this->loaders[$key]->load($this->sectorId, $attendanceNumbers);
+            Log::warning('[PatientDataLoader] key='.$key.' ms='.round((hrtime(true) - $t) / 1e6));
+        }
+
+        return $results;
     }
 }

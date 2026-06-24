@@ -80,6 +80,12 @@
                                 <span>{{ $patient['first_pending_event']['motivo_pendente'] }}</span>
                             </div>
                         @endif
+                        @if(!empty($patient['first_pending_event']['scola_status']))
+                            <div class="flex items-center gap-1 mt-0.5 text-[9px] text-teal-600 leading-tight">
+                                <x-healthicons-o-lab-search class="w-2.5 h-2.5 flex-shrink-0 opacity-70" />
+                                <span>Scola: {{ $patient['first_pending_event']['scola_status'] }}</span>
+                            </div>
+                        @endif
                     </div>
                     @if($patient['first_pending_style']['show_pulse'] ?? false)
                         <span class="w-1.5 h-1.5 rounded-full {{ $patient['first_pending_style']['pulse_color'] ?? 'bg-gray-400' }} animate-pulse flex-shrink-0 mt-1"></span>

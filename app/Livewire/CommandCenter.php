@@ -85,6 +85,17 @@ class CommandCenter extends Component
                     'confirm' => false,
                     'danger' => false,
                 ],
+                [
+                    'id' => 'pending-cache',
+                    'label' => 'Limpar cache de pendências',
+                    'description' => 'Remove sector_pending_fast_* de todos os setores. Útil após correções em prescrições, Scola ou quando pendências não aparecem corretamente.',
+                    'icon' => 'fa-list-check',
+                    'sync' => true,
+                    'command' => 'cache:clear-pending',
+                    'options' => [],
+                    'confirm' => false,
+                    'danger' => false,
+                ],
             ],
             'Manutenção' => [
                 [
@@ -163,6 +174,42 @@ class CommandCenter extends Component
                 Cache::forget($command['options'][0] ?? '');
                 $exitCode = 0;
                 $output = 'Cache key removida: '.($command['options'][0] ?? '');
+            } elseif ($command['command'] === 'cache:clear-sbar') {
+                $sectorIds = DB::table('user_sector_preferences')
+                    ->distinct()
+                    ->pluck('sector_code')
+                    ->map(fn ($v) => (int) $v)
+                    ->filter()
+                    ->unique();
+
+                $prefixes = [
+                    'sector_demographics_', 'sector_scales_', 'sector_clinical_',
+                    'sector_multi_', 'sector_surgery_', 'sector_pending_fast_',
+                    'sector_patients_sbar_',
+                ];
+
+                foreach ($sectorIds as $id) {
+                    foreach ($prefixes as $prefix) {
+                        Cache::forget($prefix.$id);
+                    }
+                }
+
+                $exitCode = 0;
+                $output = "Cache SBAR removido para {$sectorIds->count()} setor(es) ({$sectorIds->count()} × ".count($prefixes).' keys).';
+            } elseif ($command['command'] === 'cache:clear-pending') {
+                $sectorIds = DB::table('user_sector_preferences')
+                    ->distinct()
+                    ->pluck('sector_code')
+                    ->map(fn ($v) => (int) $v)
+                    ->filter()
+                    ->unique();
+
+                foreach ($sectorIds as $id) {
+                    Cache::forget("sector_pending_fast_{$id}");
+                }
+
+                $exitCode = 0;
+                $output = "Cache de pendências removido para {$sectorIds->count()} setor(es).";
             } else {
                 $exitCode = Artisan::call($command['command'], $command['options']);
                 $output = Artisan::output() ?: '(sem saída)';

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Support\PendingEventHelper;
 use App\Support\PendingEventTypeClassifier;
 use App\View\Presenters\PendingEventPresenter;
 use PHPUnit\Framework\Attributes\Test;
@@ -131,7 +132,7 @@ class PendingEventPresentationTest extends TestCase
             'sala' => null,
         ]);
 
-        $this->assertSame('Status agenda: PS - Paciente em sala', $diagnostic);
+        $this->assertSame('Paciente em sala', $diagnostic);
     }
 
     // ── motivoPendente — Exames ───────────────────────────────────────────────
@@ -161,9 +162,11 @@ class PendingEventPresentationTest extends TestCase
     }
 
     #[Test]
-    public function motivo_exame_aguardando_laudo_por_status(): void
+    public function motivo_exame_usa_label_valor_dominio_diretamente(): void
     {
-        // Domínio 1030 código 20 = "Coleta do material" (material coletado, aguardando resultado)
+        // Quando status_laudo (ds_status_execucao_label de valor_dominio) está disponível,
+        // é retornado diretamente — prioridade sobre nossa interpretação.
+        // Código 20 do domínio 1226 = "Coleta do material" no Tasy.
         $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Coleta do material',
@@ -171,15 +174,17 @@ class PendingEventPresentationTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Aguardando laudo', $motivo);
+        $this->assertSame('Coleta do material', $motivo);
     }
 
     #[Test]
-    public function motivo_exame_aguardando_laudo_por_dt_coleta(): void
+    public function motivo_exame_aguardando_laudo_por_dt_coleta_sem_label_tasy(): void
     {
+        // Quando status_laudo está vazio (valor_dominio não retornou label),
+        // fallback para nossa interpretação baseada em dt_coleta.
         $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
-            'status_laudo' => 'Pendente',
+            'status_laudo' => '',
             'dt_coleta' => '2026-04-06 10:00:00',
             'urgente' => false,
         ]);
@@ -188,9 +193,42 @@ class PendingEventPresentationTest extends TestCase
     }
 
     #[Test]
-    public function motivo_exame_em_analise(): void
+    public function motivo_exame_dt_coleta_com_status_pre_coleta_usa_fallback(): void
     {
-        // Domínio 1226 código 30 = laudo sem liberação → aguardando laudo
+        // dt_coleta preenchido mas ie_status_execucao ainda em código pré-coleta (10="Prescrito")
+        // indica inconsistência no Tasy — coleta foi registrada mas status não atualizado.
+        // Deve retornar fallback "Aguardando laudo", não o label "Prescrito" do domínio 1226.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '10',
+            'status_laudo' => 'Prescrito',
+            'dt_coleta' => '2026-01-02 16:38:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_dt_coleta_com_status_pos_coleta_usa_label_tasy(): void
+    {
+        // Código 22 (Aguardando Laudo) com dt_coleta = estado consistente → usa label Tasy.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '22',
+            'status_laudo' => 'Aguardando Laudo',
+            'dt_coleta' => '2026-06-24 08:00:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando Laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_em_analise_usa_label_tasy(): void
+    {
+        // Código 30 do domínio 1226 = "Laudo sem liberação" no Tasy.
+        // Label de valor_dominio é mais preciso que nossa interpretação genérica.
         $motivo = PendingEventPresenter::motivoPendente([
             'tipo' => 'exame',
             'status_laudo' => 'Digitação do resultado',
@@ -198,7 +236,7 @@ class PendingEventPresentationTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Aguardando laudo', $motivo);
+        $this->assertSame('Digitação do resultado', $motivo);
     }
 
     #[Test]
@@ -220,6 +258,70 @@ class PendingEventPresentationTest extends TestCase
                 'exame_coletado_em_prescricao_mais_nova' => true,
             ])
         );
+    }
+
+    #[Test]
+    public function motivo_exame_nao_e_afetado_por_scola_data_liberado(): void
+    {
+        // scola_status e scola_data_liberado são exibidos como label separado na view (Scola:),
+        // não devem contaminar motivo_pendente que é exclusivamente Tasy.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'scola_status' => 'Laudo liberado (aguardando integração TASY)',
+            'scola_data_liberado' => '2026-06-24 08:00:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando coleta', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_nao_e_afetado_por_scola_colheita(): void
+    {
+        // Mesmo com coleta registrada no Scola, motivo_pendente reflete estado Tasy.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'scola_status' => 'Coletado (aguardando resultado)',
+            'scola_data_colheita' => '2026-06-24 08:00:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando coleta', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_com_dt_coleta_tasy_retorna_aguardando_laudo(): void
+    {
+        // dt_coleta no Tasy (prescr_procedimento) → estado pós-coleta conforme Tasy.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'foi_executado_sem_baixa' => true,
+            'dt_coleta' => '2026-06-24 07:00:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_scola_e_foi_executado_sem_baixa_ambos_retornam_status_tasy(): void
+    {
+        // com e sem foi_executado_sem_baixa, se não há dt_coleta Tasy → ambos retornam Aguardando coleta.
+        $semBaixa = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'foi_executado_sem_baixa' => true,
+            'scola_status' => 'Laudo liberado (aguardando integração TASY)',
+            'scola_data_liberado' => '2026-06-24 08:00:00',
+        ]);
+
+        $semFlag = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'scola_status' => 'Laudo liberado (aguardando integração TASY)',
+            'scola_data_liberado' => '2026-06-24 08:00:00',
+        ]);
+
+        $this->assertSame($semBaixa, $semFlag);
+        $this->assertSame('Aguardando coleta', $semBaixa);
     }
 
     // ── motivoPendente — Procedimentos ───────────────────────────────────────
@@ -477,6 +579,113 @@ class PendingEventPresentationTest extends TestCase
         $this->assertSame('Alta Efetivada', $data['groups'][0]['label']);
         $this->assertTrue((bool) $data['events'][1]['is_near']);
         $this->assertFalse((bool) $data['events'][0]['is_near']);
+    }
+
+    // ── motivoPendente — Tipos de alta ───────────────────────────────────────────
+
+    #[Test]
+    public function motivo_alta_medica_retorna_vazio(): void
+    {
+        // alta_medica não tem motivo clínico — grupo e descrição já informam o contexto.
+        // Sem este guard, fromPendingEvent() classifica como PROCEDURE → "Urgente — aguardando execução".
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'alta_medica',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('', $motivo);
+    }
+
+    #[Test]
+    public function motivo_alta_e_previsao_alta_retornam_vazio(): void
+    {
+        $this->assertSame('', PendingEventHelper::motivoPendente(['tipo' => 'alta']));
+        $this->assertSame('', PendingEventHelper::motivoPendente(['tipo' => 'previsao_alta']));
+    }
+
+    // ── Correção de roteamento: hemoterapia/quimio com _fonte=agenda ─────────────
+
+    #[Test]
+    public function motivo_hemoterapia_com_fonte_agenda_nao_usa_motivo_agenda(): void
+    {
+        // Bug corrigido: _fonte='agenda' não deve desviar hemoterapia para motivoAgenda.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'hemoterapia',
+            'ie_tipo_hemoterap' => '1',
+            '_fonte' => 'agenda',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando transfusão de Concentrado de Hemácias', $motivo);
+        $this->assertStringNotContainsString('Agendado', $motivo);
+    }
+
+    #[Test]
+    public function motivo_quimioterapia_com_fonte_agenda_nao_usa_motivo_agenda(): void
+    {
+        // Bug corrigido: _fonte='agenda' não deve desviar quimioterapia para motivoAgenda.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'quimioterapia',
+            'ciclo' => '2',
+            '_fonte' => 'agenda',
+        ]);
+
+        $this->assertStringContainsString('quimioterapia', mb_strtolower($motivo));
+        $this->assertStringNotContainsString('Agendado', $motivo);
+    }
+
+    #[Test]
+    public function motivo_quimioterapia_com_status_label_usa_separador_correto(): void
+    {
+        // Quando status_laudo está preenchido e ie_status_agenda não tem match,
+        // deve usar ' — ' como separador (não ': ').
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'quimioterapia',
+            'status_laudo' => 'Prescrito',
+        ]);
+
+        $this->assertSame('Sessão de quimioterapia — prescrito', $motivo);
+    }
+
+    #[Test]
+    public function motivo_procedimento_prioriza_label_tasy(): void
+    {
+        // Quando status_laudo (ds_status_execucao_label de valor_dominio) está disponível,
+        // deve ser usado diretamente em vez de nossa interpretação do código.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'procedimento',
+            'ie_status_execucao' => '15',
+            'status_laudo' => 'Em exame',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Em exame', $motivo);
+    }
+
+    #[Test]
+    public function motivo_procedimento_codigos_19_20_unificados(): void
+    {
+        // Códigos 19 e 20 do domínio 1226 são semanticamente equivalentes para procedimentos.
+        $motivo19 = PendingEventHelper::motivoPendente(['tipo' => 'procedimento', 'ie_status_execucao' => '19']);
+        $motivo20 = PendingEventHelper::motivoPendente(['tipo' => 'procedimento', 'ie_status_execucao' => '20']);
+
+        $this->assertSame($motivo19, $motivo20);
+        $this->assertSame('Executado — aguardando baixa', $motivo19);
+    }
+
+    #[Test]
+    public function motivo_exame_usa_label_tasy_no_fallback_tasy(): void
+    {
+        // Quando status_laudo (valor_dominio) está disponível para exame sem Scola,
+        // deve ser priorizado sobre nossa interpretação do código.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '22',
+            'status_laudo' => 'Aguardando Laudo',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando Laudo', $motivo);
     }
 
     #[Test]

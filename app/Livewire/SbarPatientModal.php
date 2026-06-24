@@ -44,6 +44,9 @@ class SbarPatientModal extends Component
     /** @var array|null Prescriptions data (medications, nutrition, orders, interventions, procedures, etc.) */
     public $prescriptions = null;
 
+    /** @var array|null Therapeutic plan data from PatientTherapeuticPlanRepository */
+    public $therapeuticPlan = null;
+
     public bool $planLoaded = false;
 
     public bool $planError = false;

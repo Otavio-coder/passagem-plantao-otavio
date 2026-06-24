@@ -418,10 +418,7 @@ class PendingEventsReportController extends Controller
             'Urgente — aguardando coleta' => 'badge-urgente',
             'Aguardando coleta' => 'badge-aguard-coleta',
             'Coletado — aguardando resultado' => 'badge-coletado',
-            'Resultado disponível' => 'badge-resultado',
-            'Laudo disponível' => 'badge-laudo',
-            'Laudo liberado (SCOLA)' => 'badge-laudo-scola',
-            'Nova coleta necessária' => 'badge-nova-coleta',
+            'Aguardando laudo' => 'badge-laudo',
             'Em execução', 'Em preparo' => 'badge-execucao',
             'Antimicrobiano pendente' => 'badge-antimicrobiano',
             default => 'badge-outros',
@@ -585,40 +582,19 @@ class PendingEventsReportController extends Controller
             return 'Aguardando resposta';
         }
 
-        // Scola-enriched: usa campos estruturados em vez de parsear $motivo
-        if (isset($event['scola_status']) && $event['scola_status'] !== '') {
-            if (! empty($event['scola_data_liberado']) && empty($event['scola_data_exportado'])) {
-                return 'Laudo liberado (SCOLA)';
-            }
-            if (! empty($event['scola_data_liberado'])) {
-                return 'Laudo disponível';
-            }
-            if (! empty($event['scola_rejected'])) {
-                return 'Amostra rejeitada pelo lab';
-            }
-            if (! empty($event['scola_nova_coleta'])) {
-                return 'Nova coleta necessária';
-            }
-            if (! empty($event['scola_data_colheita'])) {
-                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
-                    ? 'Resultado disponível'
-                    : 'Coletado — aguardando resultado';
-            }
-
-            return (bool) ($event['urgente'] ?? false)
-                ? 'Urgente — aguardando coleta'
-                : 'Aguardando coleta';
-        }
-
-        // Usa ie_status_execucao (domínio 1226) para exames e procedimentos
+        // Usa ie_status_execucao (domínio 1226) para exames e procedimentos.
+        // Scola é informação complementar — exibida como coluna separada no relatório, não define a categoria.
         if (in_array($tipo, ['exame', 'proc_exame', 'procedimento'], true)) {
             $code = trim((string) ($event['ie_status_execucao'] ?? ''));
             $isProcedimento = $tipo === 'procedimento';
+            $preCollectionCodes = ['10', '11', '13'];
 
             if (! $isProcedimento && ! empty($event['dt_coleta'])) {
-                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
-                    ? 'Resultado disponível'
-                    : 'Aguardando laudo';
+                if (! in_array($code, $preCollectionCodes, true)) {
+                    return 'Aguardando laudo';
+                }
+
+                return 'Aguardando laudo';
             }
             if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
                 return 'Aguardando laudo';

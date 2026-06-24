@@ -430,6 +430,7 @@ class PatientPendingEventsService
                     AND pp_n.nr_sequencia  = ppac.nr_sequencia_prescricao
                     AND pp_n.nr_seq_proc_interno IS NOT NULL
                 WHERE ppac.nr_atendimento IN ({$p})
+                  AND ppac.dt_executado >= SYSDATE - 60
             ", $chunk);
 
             foreach ($ppRows as $pp) {
@@ -672,7 +673,8 @@ class PatientPendingEventsService
                       AND mf.ie_antimicrobiano = 'S'
                       AND cm.dt_liberacao      IS NOT NULL
                       AND cm.dt_suspensao      IS NULL
-                      AND TRUNC(pmh.dt_horario) = TRUNC(SYSDATE)
+                      AND pmh.dt_horario >= TRUNC(SYSDATE)
+                      AND pmh.dt_horario <  TRUNC(SYSDATE) + 1
                 ),
                 grouped AS (
                     SELECT
@@ -849,11 +851,6 @@ class PatientPendingEventsService
                         NVL(proced.cd_setor_exclusivo, ap.cd_setor_atendimento)
                     ) AS cd_setor_execucao,
                     NVL(sa_exec.ds_prescricao, sa_exec.ds_setor_atendimento) AS ds_setor_execucao,
-                    NVL(pi.cd_tipo_cirurgia,
-                        (SELECT MAX(p.cd_tipo_procedimento) FROM tasy.procedimento p
-                         WHERE p.cd_procedimento = ap.cd_procedimento
-                           AND p.ie_origem_proced = ap.ie_origem_proced)
-                    ) AS cd_tipo_cirurgia,
                     COALESCE(pi.ds_proc_exame, proced.ds_procedimento, ap.ds_cirurgia) AS descricao_proc,
                     pi.nr_seq_exame_lab,
                     COALESCE(pf_med.nm_pessoa_fisica, pf_user.nm_pessoa_fisica, ap.nm_usuario) AS nm_prescritor
@@ -866,15 +863,10 @@ class PatientPendingEventsService
                 LEFT JOIN tasy.valor_dominio vd_ag_car  ON vd_ag_car.cd_dominio  = 1016 AND vd_ag_car.vl_dominio  = ap.ie_carater_cirurgia
                 LEFT JOIN tasy.proc_interno pi ON pi.nr_sequencia = ap.nr_seq_proc_interno
                 LEFT JOIN (
-                    SELECT nr_seq_proc_interno, cd_setor_atendimento
-                    FROM (
-                        SELECT nr_seq_proc_interno, cd_setor_atendimento,
-                               ROW_NUMBER() OVER (
-                                   PARTITION BY nr_seq_proc_interno
-                                   ORDER BY nr_prioridade
-                               ) AS rn
-                        FROM tasy.proc_interno_setor
-                    ) WHERE rn = 1
+                    SELECT nr_seq_proc_interno,
+                           MIN(cd_setor_atendimento) KEEP (DENSE_RANK FIRST ORDER BY nr_prioridade) AS cd_setor_atendimento
+                    FROM tasy.proc_interno_setor
+                    GROUP BY nr_seq_proc_interno
                 ) pis ON pis.nr_seq_proc_interno = ap.nr_seq_proc_interno
                 LEFT JOIN (SELECT cd_procedimento, MIN(ds_procedimento) AS ds_procedimento, MIN(cd_setor_exclusivo) AS cd_setor_exclusivo FROM tasy.procedimento GROUP BY cd_procedimento) proced
                     ON proced.cd_procedimento = ap.cd_procedimento AND ap.nr_seq_proc_interno IS NULL

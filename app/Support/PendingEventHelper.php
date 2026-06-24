@@ -9,6 +9,41 @@ class PendingEventHelper
 {
     private const DISCHARGE_TYPES = ['alta', 'alta_medica', 'previsao_alta'];
 
+    /**
+     * Domain 1226 (ie_status_execucao) — short display labels.
+     * Oracle labels are verbose; map to ≤20-char concise equivalents.
+     */
+    private const EXEC_STATUS_SHORT = [
+        'Chegada setor' => 'No setor',
+        'Avaliação Médico' => 'Aval. médica',
+        'Em Complemento' => 'Em complemento',
+        'Exame concluído' => 'Concluído',
+        'Aguardando Laudo' => 'Aguard. laudo',
+        'Laudo em digitação' => 'Em digitação',
+        'Laudo sem liberação' => 'Sem liberação',
+        'Entregue sem laudo' => 'Sem laudo',
+        'Aguarda 2ª aprovação' => 'Aguard. 2ª aprov.',
+        'Aguarda 3ª aprovação' => 'Aguard. 3ª aprov.',
+        'Laudo aguardando conferência' => 'Aguard. conferência',
+        'Laudo aguardando correção' => 'Aguard. correção',
+        'Aguardando aprovação para execução' => 'Aguard. aprovação',
+        'Procedimentos executados' => 'Executado',
+        'Laudo liberado' => 'Liberado',
+        'Aguardando aprovação' => 'Aguard. aprovação',
+    ];
+
+    /**
+     * Domain 1620 (ie_alteracao antibiotic/hemo) — normalized short labels.
+     * Keyed by ie_alteracao numeric code (as string).
+     */
+    private const ALTERACAO_STATUS = [
+        '10' => 'Reaprazado',
+        '38' => 'Recusado',
+        '4' => 'Revertido',
+        '15' => 'Aprazado',
+        '3' => 'Administrado',
+    ];
+
     private const ALWAYS_NEAR_TYPES = ['antibiotico', 'alta', 'alta_medica', 'aviso'];
 
     private const FRONT_NEAR_TYPES = ['procedimento', 'exame', 'proc_exame'];
@@ -41,6 +76,26 @@ class PendingEventHelper
      * @var array<int, string>
      */
     private static array $userDisplayCache = [];
+
+    /** Normalize a domain 1226 (ie_status_execucao) Oracle label to a short display string. */
+    public static function shortExecStatusLabel(?string $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        return self::EXEC_STATUS_SHORT[$raw] ?? $raw;
+    }
+
+    /** Normalize a domain 1620 ie_alteracao code to a short display label. */
+    public static function alteracaoStatusLabel(?string $code): string
+    {
+        if ($code === null || $code === '') {
+            return 'Pendente';
+        }
+
+        return self::ALTERACAO_STATUS[$code] ?? 'Pendente';
+    }
 
     /**
      * @return array{events: array<int, array<string, mixed>>, groups: array<int, array<string, mixed>>, first_event: array<string, mixed>|null}
@@ -364,11 +419,12 @@ class PendingEventHelper
         $status = trim((string) ($event['status_laudo'] ?? ''));
         $statusCode = strtoupper(trim((string) ($event['status_agenda_codigo'] ?? '')));
 
-        if ($statusCode !== '') {
-            return 'Status agenda: '.$statusCode.($status !== '' ? ' - '.$status : '');
+        // Prefer human-readable label; code is a fallback when label is absent.
+        if ($status !== '') {
+            return $status;
         }
 
-        return $status !== '' ? 'Status: '.$status : '';
+        return $statusCode !== '' ? 'Status '.$statusCode : '';
     }
 
     /**
@@ -379,47 +435,11 @@ class PendingEventHelper
      */
     public static function motivoPendente(array $event): string
     {
-        // Executado no sistema mas sem baixa administrativa.
-        // Para exames de laboratório, SCOLA é a fonte de verdade: dt_coleta e dt_resultado
-        // de prescr_procedimento são datas programadas/administrativas e não garantem execução real.
-        if ($event['foi_executado_sem_baixa'] ?? false) {
-            if (isset($event['scola_status']) && $event['scola_status'] !== '') {
-                if (! empty($event['scola_data_liberado']) && empty($event['scola_data_exportado'])) {
-                    return 'Laudo liberado no Scola — aguardando integração com TASY';
-                }
-                if (! empty($event['scola_data_liberado'])) {
-                    return 'Laudo disponível — baixa não realizada';
-                }
-                if (! empty($event['scola_rejected'])) {
-                    return 'Amostra rejeitada pelo laboratório';
-                }
-                if (! empty($event['scola_nova_coleta'])) {
-                    return 'Nova coleta necessária';
-                }
-                if ($event['scola_colheita_sem_tasy'] ?? false) {
-                    return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
-                }
-                if (! empty($event['scola_data_colheita'])) {
-                    return trim((string) ($event['scola_resultado'] ?? '')) !== ''
-                        ? 'Resultado disponível — baixa não realizada'
-                        : 'Coletado — aguardando resultado';
-                }
-
-                $code = trim((string) ($event['ie_status_execucao'] ?? ''));
-                $urgente = (bool) ($event['urgente'] ?? false);
-                if (in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
-                    return 'Aguardando laudo';
-                }
-                if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
-                    return 'Em execução — aguardando resultado';
-                }
-
-                return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
-            } elseif (! empty($event['dt_coleta'])) {
-                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
-                    ? 'Resultado disponível — baixa não realizada'
-                    : 'Coletado — aguardando resultado';
-            }
+        // Tipos de alta/previsão não têm motivo clínico — descrição e grupo já informam o contexto.
+        // Sem este guard, fromPendingEvent() os classifica como PROCEDURE e retorna "Urgente — aguardando execução".
+        $rawTipo = (string) ($event['tipo'] ?? '');
+        if (in_array($rawTipo, self::DISCHARGE_TYPES, true)) {
+            return '';
         }
 
         $tipo = PendingEventTypeClassifier::fromPendingEvent($event);
@@ -429,7 +449,9 @@ class PendingEventHelper
         $statusExec = trim((string) ($event['status_laudo'] ?? ''));
         $status = $statusLaudo !== '' ? $statusLaudo : $statusExec;
 
-        if (($event['_fonte'] ?? '') === 'agenda' && ! in_array($tipo, [PendingEventTypeClassifier::SURGERY], true)) {
+        // Apenas exames e procedimentos de agenda_paciente usam motivoAgenda.
+        // Hemoterapia e quimioterapia têm _fonte='agenda' mas handlers próprios.
+        if (($event['_fonte'] ?? '') === 'agenda' && in_array($tipo, [PendingEventTypeClassifier::EXAM, PendingEventTypeClassifier::PROCEDURE], true)) {
             return self::motivoAgenda($event);
         }
 
@@ -503,55 +525,39 @@ class PendingEventHelper
         $statusCode = strtoupper(trim((string) ($event['ie_status_agenda'] ?? '')));
         $descricao = trim((string) ($event['descricao'] ?? ''));
 
+        // 'F' e 'FI' são filtrados no SQL de agenda_paciente (NOT IN lista) — nunca chegam aqui.
         return match ($statusCode) {
-            'F' => 'Falta justificada — '.(mb_strlen($descricao) > 0 ? mb_strtolower($descricao) : 'sessão não realizada'),
-            'FI' => 'Falta injustificada — sessão não realizada',
             'AG' => 'Aguardando atendimento',
             'AT' => 'Em atendimento',
             'EM' => 'Em preparo',
             'RE' => 'Em recuperação',
-            default => $statusLabel !== '' ? "Agendado: {$statusLabel}" : 'Agendado — aguardando realização',
+            default => $statusLabel !== '' ? $statusLabel : 'Agendado — aguardando realização',
         };
     }
 
     private static function motivoExame(string $status, bool $urgente, array $event): string
     {
-        // Scola é fonte primária — ie_status_execucao do Tasy pode mostrar "Em exame" (dom. 1226 cód. 15)
-        // mesmo quando o LIMS está apenas no passo "Mapa de Trabalho impresso", antes de qualquer coleta.
-        if (isset($event['scola_status']) && $event['scola_status'] !== '') {
-            if (! empty($event['scola_data_liberado'])) {
-                return 'Laudo disponível — baixa não realizada';
-            }
-            if (! empty($event['scola_rejected'])) {
-                return 'Amostra rejeitada pelo laboratório';
-            }
-            if (! empty($event['scola_nova_coleta'])) {
-                return 'Nova coleta necessária';
-            }
-            if ($event['scola_colheita_sem_tasy'] ?? false) {
-                return 'Coletado no SCOLA — coleta não registrada no Tasy, aguardando resultado';
-            }
-            if (! empty($event['scola_data_colheita'])) {
-                return trim((string) ($event['scola_resultado'] ?? '')) !== ''
-                    ? 'Resultado disponível — baixa não realizada'
-                    : 'Coletado — aguardando resultado';
-            }
-
-            return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
-        }
-
-        // Sem integração SCOLA: usa domínio 1226 do TASY como fallback.
+        // Usa exclusivamente domínio 1226 (ie_status_execucao) do Tasy.
+        // Scola é enriquecimento externo — exibido como label separado na view, não muda este campo.
         // 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento, 19=Exame concluído,
         // 20=Executado, 22=Aguardando Laudo, 25=Laudo ditado, 26=Laudo em digitação,
         // 28=Pré laudo, 29=Liberado por interfaceamento, 30=Laudo sem liberação, 35=Aguarda 2ª aprovação
         $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
+        // Códigos pré-coleta com dt_coleta set = inconsistência no Tasy (coleta registrada mas status não atualizado).
+        // Nesse caso o label do domínio 1226 não reflete a realidade — usar fallback.
+        $preCollectionCodes = ['10', '11', '13'];
+
         if (! empty($event['dt_coleta']) || in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
+            if ($status !== '' && ! in_array($code, $preCollectionCodes, true)) {
+                return $status;
+            }
+
             return 'Aguardando laudo';
         }
 
         if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
-            return 'Em execução — aguardando resultado';
+            return $status !== '' ? $status : 'Em execução — aguardando resultado';
         }
 
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
@@ -564,22 +570,25 @@ class PendingEventHelper
     {
         $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
-        // Mapeia códigos do domínio 1226 para mensagens orientadas à ação
-        $motivo = match ($code) {
+        // Preferir label descritivo de valor_dominio (domínio 1226) quando disponível.
+        $tasyLabel = trim((string) ($event['status_laudo'] ?? ''));
+        if ($tasyLabel !== '') {
+            return $tasyLabel;
+        }
+
+        // Fallback: interpretações orientadas à ação quando label Tasy ausente.
+        return match ($code) {
             '11' => 'Paciente chegou ao setor — aguardando execução',
             '13' => 'Previsto — aguardando execução',
             '14' => 'Em preparo — execução não registrada',
             '15' => 'Em exame',
             '17' => 'Em avaliação médica',
             '18' => 'Em complemento',
-            '19' => 'Concluído — aguardando baixa',
-            '20' => 'Executado — aguardando baixa',
+            '19', '20' => 'Executado — aguardando baixa',
             '22' => 'Aguardando laudo',
             'ASA' => 'Aguardando aprovação para execução',
             default => $urgente ? 'Urgente — aguardando execução' : 'Aguardando execução',
         };
-
-        return ($urgente && $code === '') ? 'Urgente — aguardando execução' : $motivo;
     }
 
     private static function motivoCirurgia(array $event): string
@@ -636,7 +645,7 @@ class PendingEventHelper
             'FI' => ' — falta injustificada',
             'AT' => ' — em atendimento',
             'EM' => ' — em preparo',
-            default => $statusLabel !== '' ? ': '.lcfirst($statusLabel) : ' agendada',
+            default => $statusLabel !== '' ? ' — '.lcfirst($statusLabel) : ' agendada',
         };
 
         $base = 'Sessão de quimioterapia'.$statusSuffix;
@@ -657,7 +666,8 @@ class PendingEventHelper
         $acao = match (trim((string) ($event['status_laudo'] ?? ''))) {
             'Reaprazado' => 'reaprazada',
             'Recusado' => 'recusada',
-            'Desfeito' => 'desfeita',
+            'Revertido' => 'revertida',
+            'Aprazado' => 'aprazada',
             default => 'não administrada',
         };
 

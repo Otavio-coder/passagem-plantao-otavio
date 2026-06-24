@@ -295,7 +295,7 @@ class SbarPatientModal extends Component
         }
 
         try {
-            $this->prescriptions = $this->tasyService->getPatientPrescriptions($nr);
+            $this->therapeuticPlan = $this->tasyService->getTherapeuticPlan($nr);
             $this->planLoaded = true;
             $this->planError = false;
             $this->loadMedicationSchedule();
@@ -304,7 +304,7 @@ class SbarPatientModal extends Component
                 'attendance' => $nr,
                 'error' => $e->getMessage(),
             ]);
-            $this->prescriptions = null;
+            $this->therapeuticPlan = null;
             $this->planLoaded = false;
             $this->planError = true;
         }
@@ -482,7 +482,7 @@ class SbarPatientModal extends Component
         $this->showAlertsModal = false;
         $this->loadingPatient = false;
 
-        $this->prescriptions = null;
+        $this->therapeuticPlan = null;
         $this->planLoaded = false;
         $this->planError = false;
         $this->scheduleDate = now()->format('Y-m-d');
@@ -556,7 +556,7 @@ class SbarPatientModal extends Component
 
         $this->patientModel->clearPatientCache($this->currentPatient['nr_atendimento']);
 
-        $this->prescriptions = null;
+        $this->therapeuticPlan = null;
         $this->planLoaded = false;
         $this->planError = false;
         $this->medicationSchedule = [];
@@ -673,7 +673,7 @@ class SbarPatientModal extends Component
      */
     public function getPlanDisplayDataProperty(): array
     {
-        $plan = $this->prescriptions ?? [];
+        $plan = $this->therapeuticPlan ?? [];
 
         // Quando o patientDetails contém pending_events do payload SBAR, usa-os como fonte
         // para as abas de Exames e Procedimentos — dados mais ricos e já filtrados por pendência.
@@ -711,7 +711,7 @@ class SbarPatientModal extends Component
             'tab-hemo' => $plan['hemotherapy']['count'] ?? 0,
             'tab-chemo' => $plan['chemotherapy']['count'] ?? 0,
             'tab-nut' => $plan['nutrition']['count'] ?? 0,
-            'tab-rec' => $plan['orders']['count'] ?? 0,
+            'tab-rec' => $plan['recommendations']['count'] ?? 0,
             'tab-int' => $plan['interventions']['count'] ?? 0,
             'tab-gas' => $plan['gasotherapy']['count'] ?? 0,
             'tab-dial' => $plan['dialysis']['count'] ?? 0,
@@ -744,7 +744,7 @@ class SbarPatientModal extends Component
             'time_columns' => $timeColumns,
             'current_hour' => now()->format('H').':00',
             'procedures' => $procedureItems,
-            'orders' => $plan['orders']['items'] ?? [],
+            'recommendations' => $plan['recommendations']['items'] ?? [],
             'interventions' => $plan['interventions']['items'] ?? [],
             'hemotherapy' => $plan['hemotherapy']['items'] ?? [],
             'surgery' => $plan['surgery']['items'] ?? [],
@@ -817,7 +817,7 @@ class SbarPatientModal extends Component
                     'scheduled_raw' => $event['dt_evento'] ?? null,
                     'prescriber' => $event['nm_prescritor_display'] ?? $event['nm_prescritor'] ?? null,
                     'resultado_laudo' => null,
-                    'status' => $event['ie_status_execucao'] ?? null,
+                    'status' => $event['status_laudo'] ?? $event['ie_status_execucao'] ?? null,
                     'foi_executado_sem_baixa' => (bool) ($event['foi_executado_sem_baixa'] ?? false),
                     'proc_realizado_em_nova_prescricao' => (bool) ($event['proc_realizado_em_nova_prescricao'] ?? false),
                     'motivo_pendente' => $event['motivo_pendente'] ?? null,

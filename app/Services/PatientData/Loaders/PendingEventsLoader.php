@@ -18,7 +18,7 @@ class PendingEventsLoader implements SectorLoader
 
         foreach ($raw as $nr => $data) {
             $result[$nr] = [
-                'pending_events' => $data['events'] ?? [],
+                'pending_events' => $data['pending_events'] ?? [],
                 'discharge_info' => $data['discharge'] ?? null,
             ];
         }

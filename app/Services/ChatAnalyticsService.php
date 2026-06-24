@@ -10,14 +10,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Grava e lê agregados analíticos de mensagens de chat.
  *
- * Fluxo de escrita:
- *  1. CleanupOldChatData chama record() antes de mover mensagens para o blob de archive.
- *  2. BackfillChatAnalytics popula dados históricos já em chat_messages e, opcionalmente,
- *     descomprime blobs de chat_messages_archive para cobrir dados ainda mais antigos.
- *
- * Fluxo de leitura:
- *  - Panorama::heatmap() mescla getHourCounts() + query live de chat_messages.
- *  - HandoverSessionService mescla getCharBuckets() + getContentTags() com queries live.
+ * Fluxo de escrita: CleanupOldChatData chama record() antes de mover mensagens para o blob de archive.
+ * Fluxo de leitura: MetricsController e HandoverSessionService mesclam dados de chat_analytics_daily com queries live.
  *
  * Sem sector_id no archive blob → linhas do archive ficam com sector_id = NULL.
  * Queries com sectorFilter ignoram linhas NULL automaticamente via ->when($sectorId, ...).
@@ -130,64 +124,6 @@ class ChatAnalyticsService
             $groups[$groupKey]['char_buckets'][$len < 60 ? 'curtas' : ($len <= 200 ? 'adequadas' : 'longas')]++;
             $groups[$groupKey]['hour_counts'][$hourKey] = ($groups[$groupKey]['hour_counts'][$hourKey] ?? 0) + 1;
             $groups[$groupKey]['content_tags'][self::classifyContent($m->content ?? '')]++;
-        }
-
-        foreach ($groups as $data) {
-            $this->upsertRow($data);
-        }
-    }
-
-    /**
-     * Registra analytics a partir de mensagens de um blob de archive.
-     * Usado pelo BackfillChatAnalytics com --include-archive.
-     * sector_id = NULL pois o archive não preserva sector_id por mensagem.
-     *
-     * @param  array<int, array<string, mixed>>  $messages  mensagens decodificadas do blob ({ts, u, m, t})
-     */
-    public function recordFromArchive(array $messages, ?string $sectorName = null): void
-    {
-        if (empty($messages)) {
-            return;
-        }
-
-        $groups = [];
-
-        foreach ($messages as $m) {
-            $ts = (int) ($m['ts'] ?? 0);
-            if ($ts === 0) {
-                continue;
-            }
-
-            $shift = ShiftService::shiftFromMinutes(
-                (int) date('H', $ts) * 60 + (int) date('i', $ts)
-            );
-            $shiftDate = ShiftService::shiftDateFromTimestamp($ts);
-            $hour = (string) date('H', $ts);
-            $content = $m['m'] ?? '';
-            $len = mb_strlen($content);
-
-            $groupKey = $shiftDate.'||'.(string) $sectorName.'|'.$shift;
-
-            if (! isset($groups[$groupKey])) {
-                $groups[$groupKey] = [
-                    'date' => $shiftDate,
-                    'sector_id' => null,
-                    'sector_name' => $sectorName,
-                    'user_id' => null,
-                    'shift' => $shift,
-                    'message_count' => 0,
-                    'total_chars' => 0,
-                    'char_buckets' => ['curtas' => 0, 'adequadas' => 0, 'longas' => 0],
-                    'content_tags' => ['pendência' => 0, 'risco' => 0, 'conduta/procedimento' => 0, 'alta/evolução' => 0, 'condição clínica' => 0],
-                    'hour_counts' => [],
-                ];
-            }
-
-            $groups[$groupKey]['message_count']++;
-            $groups[$groupKey]['total_chars'] += $len;
-            $groups[$groupKey]['char_buckets'][$len < 60 ? 'curtas' : ($len <= 200 ? 'adequadas' : 'longas')]++;
-            $groups[$groupKey]['hour_counts'][$hour] = ($groups[$groupKey]['hour_counts'][$hour] ?? 0) + 1;
-            $groups[$groupKey]['content_tags'][self::classifyContent($content)]++;
         }
 
         foreach ($groups as $data) {

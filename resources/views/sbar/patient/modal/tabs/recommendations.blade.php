@@ -1,7 +1,7 @@
 @props([
     'planLoaded'         => false,
     'planError'          => false,
-    'prescriptions'      => null,
+    'therapeuticPlan'    => null,
     'scheduleDate'       => '',
     'medicationSchedule' => [],
     'planDisplayData'    => [],
@@ -11,10 +11,10 @@
 
 <div class="p-3 sm:p-4 lg:p-6 h-full overflow-y-auto">
 
-    @if($planLoaded && $prescriptions)
+    @if($planLoaded && $therapeuticPlan)
 
         @include('sbar.patient.modal.tabs.recommendations.plan', [
-            'plan'               => $prescriptions,
+            'plan'               => $therapeuticPlan,
             'scheduleDate'       => $scheduleDate,
             'medicationSchedule' => $medicationSchedule,
             'planDisplayData'    => $planDisplayData,

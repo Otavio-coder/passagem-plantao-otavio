@@ -103,7 +103,7 @@
                                 <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
                                 Executado sem baixa
                             </span>
-                            <span x-show="p.proc_realizado_em_nova_prescricao"
+                            <span x-show="p.proc_realizado_em_nova_prescricao || p.exame_coletado_em_prescricao_mais_nova"
                                   class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 ring-1 ring-sky-200">
                                 <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>
                                 Realizado em solicitação mais recente

@@ -26,7 +26,7 @@ class PatientPrescriptionsController extends Controller
             'attendance_numbers.*' => 'required|integer|min:1',
         ]);
 
-        $warmed = $this->tasyService->batchWarmPatientPrescriptions(
+        $warmed = $this->tasyService->batchWarmTherapeuticPlan(
             $validated['attendance_numbers']
         );
 

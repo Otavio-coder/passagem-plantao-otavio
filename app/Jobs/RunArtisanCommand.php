@@ -11,7 +11,7 @@ class RunArtisanCommand implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 600; // 10 min — cobre analysis:run com muitos plantonistas
+    public int $timeout = 600;
 
     public int $tries = 1;
 

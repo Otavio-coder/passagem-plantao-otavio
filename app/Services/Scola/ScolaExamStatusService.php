@@ -32,7 +32,7 @@ class ScolaExamStatusService
             $statusMap = $this->buildStatusMap($pedidos, $movEx);
 
             foreach ($results as &$attendance) {
-                foreach ($attendance['events'] as &$event) {
+                foreach ($attendance['pending_events'] as &$event) {
                     $nr = (string) ($event['nr_prescricao'] ?? '');
                     $seq = (string) ($event['nr_sequencia_pp'] ?? '');
 
@@ -201,7 +201,7 @@ class ScolaExamStatusService
         $hemocPrescricoes = [];
 
         foreach ($results as $attendance) {
-            foreach ($attendance['events'] as $event) {
+            foreach ($attendance['pending_events'] as $event) {
                 if (! str_contains(strtoupper((string) ($event['descricao'] ?? '')), 'HEMOCULTURA')) {
                     continue;
                 }
@@ -224,7 +224,7 @@ class ScolaExamStatusService
             : $this->getHemocResults($hemocIds);
 
         foreach ($results as &$attendance) {
-            foreach ($attendance['events'] as &$event) {
+            foreach ($attendance['pending_events'] as &$event) {
                 if (! str_contains(strtoupper((string) ($event['descricao'] ?? '')), 'HEMOCULTURA')) {
                     continue;
                 }
@@ -328,7 +328,7 @@ class ScolaExamStatusService
         $ids = [];
 
         foreach ($results as $attendance) {
-            foreach ($attendance['events'] as $event) {
+            foreach ($attendance['pending_events'] as $event) {
                 if (! in_array($event['tipo'] ?? '', ['exame', 'proc_exame'], true)) {
                     continue;
                 }

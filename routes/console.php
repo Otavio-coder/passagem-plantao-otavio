@@ -13,12 +13,6 @@ Schedule::command('cache:rebuild-archive-stats')
     ->withoutOverlapping()
     ->runInBackground();
 
-// Análise de escrita IA: equipe + plantonistas sem análise (sábados 02:00)
-Schedule::command('analysis:run --period=30 --delay=4')
-    ->weeklyOn(6, '02:00')
-    ->withoutOverlapping()
-    ->runInBackground();
-
 Schedule::command('handover:prune-log --days=180')
     ->weekly()
     ->withoutOverlapping()

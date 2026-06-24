@@ -36,8 +36,8 @@ class TasyService
      */
     private const SBAR_CACHE_VERSION = 4;
 
-    /** Versão da chave de cache de prescrições — incremente ao mudar estrutura de getPatientPrescriptions(). */
-    private const PRESCRIPTIONS_CACHE_VERSION = 5;
+    /** Versão da chave de cache do plano terapêutico — incremente ao mudar estrutura de getTherapeuticPlan(). */
+    private const THERAPEUTIC_PLAN_CACHE_VERSION = 5;
 
     private TasyFormatter $formatter;
 
@@ -92,17 +92,17 @@ class TasyService
     }
 
     /**
-     * Fetches all prescriptions for a patient (medications, procedures, nutrition, etc.).
+     * Fetches the full therapeutic plan for a patient (medications, procedures, nutrition, etc.).
      *
-     * Cache key: patient_prescriptions_v{version}_{nr} — 10 min TTL
+     * Cache key: patient_therapeutic_plan_v{version}_{nr} — 10 min TTL
      */
-    public function getPatientPrescriptions(int $attendanceNumber): array
+    public function getTherapeuticPlan(int $attendanceNumber): array
     {
         if (! $attendanceNumber) {
             return [];
         }
 
-        $cacheKey = $this->prescriptionsCacheKey($attendanceNumber);
+        $cacheKey = $this->therapeuticPlanCacheKey($attendanceNumber);
 
         return Cache::remember($cacheKey, self::CACHE_TTL_PATIENT, function () use ($attendanceNumber) {
             return $this->prescriptions()->getPrescriptions($attendanceNumber);
@@ -129,11 +129,11 @@ class TasyService
     }
 
     /**
-     * Pre-warms the prescriptions cache for a batch of patients.
+     * Pre-warms the therapeutic plan cache for a batch of patients.
      * Called by the SBAR page after the sector loads so modal opens are instant.
      * Returns the number of patients whose cache was populated (skips already cached).
      */
-    public function batchWarmPatientPrescriptions(array $attendanceNumbers): int
+    public function batchWarmTherapeuticPlan(array $attendanceNumbers): int
     {
         $warmed = 0;
 
@@ -143,7 +143,7 @@ class TasyService
                 continue;
             }
 
-            $cacheKey = $this->prescriptionsCacheKey($nr);
+            $cacheKey = $this->therapeuticPlanCacheKey($nr);
             if (Cache::has($cacheKey)) {
                 continue;
             }
@@ -203,7 +203,7 @@ class TasyService
     {
         $keys = [
             $this->sbarPatientDetailsCacheKey($attendanceNumber),
-            $this->prescriptionsCacheKey($attendanceNumber),
+            $this->therapeuticPlanCacheKey($attendanceNumber),
             "patient_alerts_{$attendanceNumber}",
             "patient_cid_history_{$attendanceNumber}",
         ];
@@ -241,9 +241,9 @@ class TasyService
         return 'sbar_patient_details_v'.self::SBAR_CACHE_VERSION."_{$attendanceNumber}";
     }
 
-    private function prescriptionsCacheKey(int $attendanceNumber): string
+    private function therapeuticPlanCacheKey(int $attendanceNumber): string
     {
-        return 'patient_prescriptions_v'.self::PRESCRIPTIONS_CACHE_VERSION."_{$attendanceNumber}";
+        return 'patient_therapeutic_plan_v'.self::THERAPEUTIC_PLAN_CACHE_VERSION."_{$attendanceNumber}";
     }
 
     // ==================== MÉTODOS PRIVADOS - DATA FETCHING ====================

@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Repositories\EMR\PatientPrescriptionsRepository;
+use App\Services\Tasy\PrescriptionFormatter;
 use PHPUnit\Framework\Attributes\Test;
 use stdClass;
 use Tests\TestCase;
@@ -12,7 +12,7 @@ class PatientPrescriptionsRepositoryTest extends TestCase
     #[Test]
     public function formats_nutrition_item_with_enriched_plan_fields(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PrescriptionFormatter;
 
         $row = (object) [
             'name' => 'Dieta Enteral',
@@ -67,7 +67,7 @@ class PatientPrescriptionsRepositoryTest extends TestCase
     #[Test]
     public function returns_nutrition_items_without_shift_grouping(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PrescriptionFormatter;
 
         $rowA = new stdClass;
         $rowA->name = 'Dieta A';
@@ -92,7 +92,7 @@ class PatientPrescriptionsRepositoryTest extends TestCase
     #[Test]
     public function format_surgery_includes_surgery_type_code(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PrescriptionFormatter;
 
         $row = new stdClass;
         $row->id = 10;
@@ -119,7 +119,7 @@ class PatientPrescriptionsRepositoryTest extends TestCase
     #[Test]
     public function format_procedure_maps_status_flags_correctly(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PrescriptionFormatter;
         $method = new \ReflectionMethod($repository, 'formatProcedure');
 
         $base = (object) [

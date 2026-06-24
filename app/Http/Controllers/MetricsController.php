@@ -675,7 +675,7 @@ class MetricsController extends Controller
         ];
     }
 
-    // ── Static data builders (from former ChatArchiveController) ─────────────
+    // ── Static data builders ──────────────────────────────────────────────────
 
     private function buildSeriesData(): array
     {

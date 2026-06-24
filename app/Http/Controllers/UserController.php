@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\System\User as AppUser;
-use App\Services\Logger;
 use App\Services\UsesRepositories;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -180,7 +179,7 @@ class UserController extends Controller
 
         auth()->login($userAccess);
 
-        Logger::info('Sistema acessado com outro usuário', json_encode($detailsLog));
+        Log::channel('audit')->info('user.access_as', array_merge(['category' => 'user_management'], $detailsLog));
 
         return redirect()->route('home');
     }

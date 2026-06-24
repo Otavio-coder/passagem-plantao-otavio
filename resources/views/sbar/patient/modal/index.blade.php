@@ -223,7 +223,7 @@
                             <x-sbar::recommendations
                                 :planLoaded="$planLoaded"
                                 :planError="$planError"
-                                :prescriptions="$prescriptions"
+                                :therapeutic-plan="$therapeuticPlan"
                                 :scheduleDate="$scheduleDate"
                                 :medicationSchedule="$medicationSchedule"
                                 :planDisplayData="$planDisplayData"
@@ -319,7 +319,7 @@
 
 @script
 <script>
-window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, ords, ints, hemo, surgs, nuts, chemos, gas, dial) {
+window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, recs, ints, hemo, surgs, nuts, chemos, gas, dial) {
     // Generic paginated-list helper used by every tab
     function listState(items, defaultExtra = 'all') {
         return {
@@ -355,7 +355,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
             if (b.scheduled_raw) return 1;
             return 0;
         });
-    ords  = ords.map(o => ({ ...o, _extra: o.type || '' }));
+    recs  = recs.map(o => ({ ...o, _extra: o.type || '' }));
     ints  = ints.map(i => ({ ...i, _extra: (i.labels || []).includes('Urgent') ? 'urgent' : 'normal' }));
     hemo  = hemo.map(h => ({ ...h, _extra: h.is_urgent ? 'urgent' : 'normal' }));
     surgs = surgs.map(s => ({ ...s, _extra: s.is_urgent ? 'urgent' : 'normal' }));
@@ -392,7 +392,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         examPage: 1,
         examPerPage: 5,
         nut: listState(nuts),
-        ord:  listState(ords),
+        rec:  listState(recs),
         int:  listState(ints),
         hemo: listState(hemo),
         surg: listState(surgs),
@@ -400,7 +400,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
         gas:  listState(gas),
         dial: listState(dial),
         nutTypes: [...new Set(nuts.map(n => String(n.type || 'Diet')).filter(Boolean))].sort(),
-        ordTypes: [...new Set(ords.map(o => o._extra).filter(Boolean))].sort(),
+        recTypes: [...new Set(recs.map(o => o._extra).filter(Boolean))].sort(),
         procTypes: [...new Set(procs
             .filter(p => {
                 const explicit = String((p && p.event_type) || '').toLowerCase().trim();
@@ -649,19 +649,6 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
             if (s === 'scheduled')    return 'bg-amber-50 border border-amber-300';
             return 'bg-gray-50';
         },
-        statusPt(s) {
-            return {
-                active:'Ativo', administered:'Administrado', conferido:'Conferido',
-                coletado:'Coletado', refused:'Recusado', undone:'Desfeito',
-                rescheduled:'Reaprazado', scheduled:'Pendente', suspended:'Suspenso',
-            }[s] || s;
-        },
-        statusBadge(s) {
-            if (s === 'active')       return 'text-emerald-700 bg-emerald-50 ring-emerald-200';
-            if (s === 'administered') return 'text-sky-700 bg-sky-50 ring-sky-200';
-            if (s === 'suspended')    return 'text-gray-500 bg-gray-100 ring-gray-200';
-            return 'text-gray-500 bg-gray-100 ring-gray-200';
-        },
         pageNums(total, current) {
             if (total <= 7) return Array.from({ length: total }, (_, i) => i+1);
             const pages = [1];
@@ -671,15 +658,7 @@ window.therapeuticPlan = function(meds, schedule, timeCols, currentHour, procs, 
             pages.push(total);
             return pages;
         },
-        procStatusPt(s) {
-            if (!s) return 'Pendente';
-            return {
-                Done:'Realizado', Completed:'Concluído', Analyzing:'Em análise', Collected:'Coletado', Scheduled:'Agendado', Waiting:'Pendente'
-            }[s] || s;
-        },
-        examStatusPt(s) {
-            return this.procStatusPt(s);
-        },
+        procStatusPt(s) { return s || 'Pendente'; },
         procBadge(s) {
             if ([
                 'Atendido', 'Cirurgia realizada', 'Executada', 'Realizado', 'Concluído', 'Done', 'Completed'

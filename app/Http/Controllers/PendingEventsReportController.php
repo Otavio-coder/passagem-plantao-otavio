@@ -477,8 +477,8 @@ class PendingEventsReportController extends Controller
                     'data_solicitacao_sort' => $this->parseDateToTs($event['dt_solicitacao'] ?? null) ?? 0,
                     'data_coleta' => $this->shortDate($event['dt_coleta'] ?? null),
                     'data_coleta_sort' => $this->parseDateToTs($event['dt_coleta'] ?? null) ?? 0,
-                    'data_resultado' => $this->shortDate($event['dt_resultado'] ?? null),
-                    'data_resultado_sort' => $this->parseDateToTs($event['dt_resultado'] ?? null) ?? 0,
+                    'data_resultado' => $this->shortDate($event['scola_data_liberado'] ?? ($event['scola_data_resultado'] ?? ($event['dt_resultado'] ?? null))),
+                    'data_resultado_sort' => $this->parseDateToTs($event['scola_data_liberado'] ?? ($event['scola_data_resultado'] ?? ($event['dt_resultado'] ?? null))) ?? 0,
                     'tempo_pendente' => $this->resolvePendingDuration(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
@@ -689,11 +689,15 @@ class PendingEventsReportController extends Controller
             return null;
         }
         try {
-            // PatientPendingEventsService pre-formats dates as d/m/Y H:i — use createFromFormat
+            // PatientPendingEventsService: d/m/Y H:i (4-digit year)
             if (preg_match('/^\d{2}\/\d{2}\/\d{4}/', $date)) {
                 $fmt = str_contains($date, ':') ? 'd/m/Y H:i' : 'd/m/Y';
 
                 return Carbon::createFromFormat($fmt, $date)->format('d/m H:i');
+            }
+            // ScolaExamStatusService: d/m/y H:i (2-digit year)
+            if (preg_match('/^\d{2}\/\d{2}\/\d{2}[\s]/', $date)) {
+                return Carbon::createFromFormat('d/m/y H:i', $date)->format('d/m H:i');
             }
 
             return Carbon::parse($date)->format('d/m H:i');
@@ -712,6 +716,9 @@ class PendingEventsReportController extends Controller
                 $fmt = str_contains($date, ':') ? 'd/m/Y H:i' : 'd/m/Y';
 
                 return Carbon::createFromFormat($fmt, $date)->timestamp;
+            }
+            if (preg_match('/^\d{2}\/\d{2}\/\d{2}[\s]/', $date)) {
+                return Carbon::createFromFormat('d/m/y H:i', $date)->timestamp;
             }
 
             return Carbon::parse($date)->timestamp;

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
  * de plantão: exames, procedimentos, hemoterapia, antimicrobianos, quimioterapia, cirurgias
  * agendadas e status de alta.
  *
- * Estrutura de retorno: [nr_atendimento => ['events' => [...], 'discharge' => array|null]]
+ * Estrutura de retorno: [nr_atendimento => ['pending_events' => [...], 'discharge' => array|null]]
  *
  * Estratégia de queries:
  * - Uma query principal coleta todos os atendimentos ativos do setor com dados de alta.
@@ -52,9 +52,9 @@ class PatientPendingEventsService
     public function getPatientChecklistForAttendance(int $sectorId, int $attendanceNumber): array
     {
         $sectorEvents = $this->getPendingEventsForSector($sectorId);
-        $patientEvents = $sectorEvents[$attendanceNumber] ?? ['events' => [], 'discharge' => null];
+        $patientEvents = $sectorEvents[$attendanceNumber] ?? ['pending_events' => [], 'discharge' => null];
 
-        $events = is_array($patientEvents['events'] ?? null) ? $patientEvents['events'] : [];
+        $events = is_array($patientEvents['pending_events'] ?? null) ? $patientEvents['pending_events'] : [];
         $discharge = is_array($patientEvents['discharge'] ?? null) ? $patientEvents['discharge'] : null;
 
         $multidisciplinaryRequests = $this->multidisciplinary()->getDetailedMultidisciplinaryRequests($attendanceNumber);
@@ -177,7 +177,7 @@ class PatientPendingEventsService
 
             $discharge = $this->buildDischarge($row, $events);
             $allNrs[] = $nr;
-            $results[$nr] = ['events' => $events, 'discharge' => $discharge];
+            $results[$nr] = ['pending_events' => $events, 'discharge' => $discharge];
         }
 
         foreach (array_chunk($allNrs, self::CHUNK_SIZE) as $chunk) {
@@ -197,15 +197,15 @@ class PatientPendingEventsService
         // portanto quando ambas existem para o mesmo nr_seq_proc_interno, a prescrição é removida.
         foreach ($results as &$data) {
             $agendaProcs = [];
-            foreach ($data['events'] as $event) {
+            foreach ($data['pending_events'] as $event) {
                 if (($event['_fonte'] ?? null) === 'agenda' && ! empty($event['nr_seq_proc_interno'])) {
                     $agendaProcs[$event['nr_seq_proc_interno']] = true;
                 }
             }
 
             if (! empty($agendaProcs)) {
-                $data['events'] = array_values(array_filter(
-                    $data['events'],
+                $data['pending_events'] = array_values(array_filter(
+                    $data['pending_events'],
                     fn ($e) => ($e['_fonte'] ?? null) !== 'prescricao'
                         || empty($e['nr_seq_proc_interno'])
                         || ! isset($agendaProcs[$e['nr_seq_proc_interno']])
@@ -221,7 +221,7 @@ class PatientPendingEventsService
         // de "agora" — tanto no futuro quanto no passado — usando distância absoluta em segundos.
         // Isso faz com que um exame com 10 min de atraso apareça antes de um agendado para 3h.
         foreach ($results as &$data) {
-            usort($data['events'], function ($a, $b) use ($now) {
+            usort($data['pending_events'], function ($a, $b) use ($now) {
                 $urgA = $a['urgente'] ?? false;
                 $urgB = $b['urgente'] ?? false;
                 if ($urgA !== $urgB) {
@@ -253,8 +253,8 @@ class PatientPendingEventsService
         //   - scola_data_exportado: resultado exportado para Tasy — resultado disponível
         // Nota: "laudo integrado no tasy" (dt_resultado + dt_coleta set) filtrado no SQL da query.
         foreach ($results as &$data) {
-            $data['events'] = array_values(array_filter(
-                $data['events'],
+            $data['pending_events'] = array_values(array_filter(
+                $data['pending_events'],
                 fn ($event) => empty($event['scola_rejected'])
                     && empty($event['scola_nova_coleta'])
                     && empty($event['scola_data_exportado'])
@@ -263,7 +263,7 @@ class PatientPendingEventsService
         unset($data);
 
         foreach ($results as &$data) {
-            foreach ($data['events'] as &$event) {
+            foreach ($data['pending_events'] as &$event) {
                 $event['motivo_pendente'] = PendingEventHelper::motivoPendente($event);
             }
             unset($event);
@@ -516,7 +516,7 @@ class PatientPendingEventsService
                 }
             }
 
-            $results[$row->nr_atendimento]['events'][] = [
+            $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => $tipo,
                 'icone' => match ($tipo) {
                     PendingEventTypeClassifier::HEMOTHERAPY => 'hemoterapia.svg',
@@ -601,7 +601,7 @@ class PatientPendingEventsService
 
             $tipo = $tipoMap[(string) ($row->ie_tipo_hemoterap ?? '')] ?? 'Hemocomponente';
 
-            $results[$row->nr_atendimento]['events'][] = [
+            $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => 'hemoterapia',
                 'icone' => 'hemoterapia.svg',
                 'descricao' => PendingEventHelper::hemotherapyDescription([
@@ -736,7 +736,7 @@ class PatientPendingEventsService
                 }
             }
 
-            $results[$row->nr_atendimento]['events'][] = [
+            $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => 'antibiotico',
                 'icone' => 'antimicrobiano.svg',
                 'descricao' => substr($row->descricao ?? 'Antimicrobiano', 0, 60),
@@ -800,7 +800,7 @@ class PatientPendingEventsService
                 ! empty($row->nm_medico_resp) ? $row->nm_medico_resp : null,
             ]);
 
-            $results[$row->nr_atendimento]['events'][] = [
+            $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => 'quimioterapia',
                 'icone' => 'quimioterapia.svg',
                 'descricao' => ! empty($row->ds_protocolo_medic)
@@ -908,7 +908,7 @@ class PatientPendingEventsService
             $isSurgery = $tipo === 'cirurgia';
             $isUrgent = $isSurgery && in_array($row->ie_carater_cirurgia ?? '', ['U', 'M'], true);
 
-            $results[$row->nr_atendimento]['events'][] = [
+            $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => $tipo,
                 'icone' => $isSurgery ? 'general-surgery.svg' : 'outpatient-department.svg',
                 'descricao' => substr($row->descricao_proc ?? $row->ds_cirurgia ?? 'Procedimento', 0, 80),

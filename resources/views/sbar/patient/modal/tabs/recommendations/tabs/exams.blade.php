@@ -110,6 +110,19 @@
                             </div>
                         </template>
 
+                        {{-- Badges de situação especial --}}
+                        <div class="flex flex-wrap gap-1 mt-1.5">
+                            <span x-show="exam.foi_executado_sem_baixa"
+                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size:9px;"></i>
+                                Executado sem baixa
+                            </span>
+                            <span x-show="exam.exame_coletado_em_prescricao_mais_nova"
+                                  class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 ring-1 ring-sky-200">
+                                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:9px;"></i>
+                                Coletado em solicitação mais recente
+                            </span>
+                        </div>
                     </div>
 
                     {{-- Badge de status --}}

@@ -329,6 +329,13 @@
                 </button>
             @endif
 
+            {{-- Critérios --}}
+            <button type="button" id="btn-criterios"
+                class="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-sm text-gray-500 hover:text-[#004D9D] bg-white border border-gray-200 hover:border-[#004D9D]/30 rounded-lg transition whitespace-nowrap">
+                <x-heroicon-o-information-circle class="w-4 h-4" />
+                Critérios
+            </button>
+
             {{-- Atualizar --}}
             @if(!empty($selectedSectors))
             <form method="POST" action="{{ route('pending.report.refresh') }}" id="form-refresh" class="ml-auto">
@@ -781,8 +788,161 @@ $(document).ready(function () {
         if (exportBtn) { exportBtn.href = base; }
     })();
     @endif
+
+    // Critérios modal
+    (function () {
+        var btn   = document.getElementById('btn-criterios');
+        var modal = document.getElementById('modal-criterios');
+        var close = document.getElementById('modal-criterios-close');
+        var overlay = document.getElementById('modal-criterios-overlay');
+        if (!btn || !modal) return;
+        function openModal()  { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+        function closeModal() { modal.style.display = 'none';  document.body.style.overflow = ''; }
+        btn.addEventListener('click', openModal);
+        if (close)   close.addEventListener('click', closeModal);
+        if (overlay) overlay.addEventListener('click', closeModal);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    })();
 });
 </script>
+
 @endif
 @endpush
+
+{{-- Modal de Critérios (always in DOM — button is always visible) --}}
+<div id="modal-criterios" style="display:none"
+     class="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-8">
+    <div id="modal-criterios-overlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col z-10 mt-4">
+
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-information-circle class="w-5 h-5 text-[#004D9D]" />
+                <h2 class="text-base font-semibold text-gray-800">Critérios de Pendências</h2>
+            </div>
+            <button id="modal-criterios-close"
+                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
+                <x-heroicon-o-x-mark class="w-5 h-5" />
+            </button>
+        </div>
+
+        {{-- Body scrollável --}}
+        <div class="overflow-y-auto px-6 py-5 space-y-5 text-sm text-gray-700">
+
+            <p class="text-xs text-gray-500 leading-relaxed">
+                O sistema busca pendências a partir dos módulos do Tasy em tempo real (cache de 10 min por setor).
+                Cada tipo segue regras específicas descritas abaixo. Para alterar um critério, edite o método correspondente
+                em <code class="bg-gray-100 px-1 rounded text-[11px]">PatientPendingEventsService</code>.
+            </p>
+
+            {{-- Exames --}}
+            <div class="border border-blue-100 rounded-xl p-4 bg-blue-50/40">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Exame / Procedimento CPOE</span>
+                    <span class="text-[10px] text-gray-400 font-mono">PRESCR_PROCEDIMENTO</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Prescrição liberada pelo médico (<code class="bg-white px-1 rounded">DT_LIBERACAO IS NOT NULL</code>)</li>
+                    <li>Sem baixa administrativa (<code class="bg-white px-1 rounded">DT_BAIXA IS NULL</code>)</li>
+                    <li>Sem cancelamento e não suspenso</li>
+                    <li>Status não inclui: <span class="font-medium">Cancelado, Realizado, Bloqueado, Barrado por Escassez</span> (domínio 1226, códigos <code class="bg-white px-1 rounded">40, R, C, BE</code>)</li>
+                    <li>Nenhum resultado integrado em <code class="bg-white px-1 rounded">RESULT_LABORATORIO</code></li>
+                    <li>Sem laudo agregado em <code class="bg-white px-1 rounded">PROCEDIMENTO_PACIENTE</code></li>
+                    <li>Data de coleta ou resultado ausente no Tasy (item sem resultado completo registrado)</li>
+                </ul>
+                <p class="mt-2 text-[11px] text-blue-700 bg-blue-100/60 px-2 py-1 rounded-lg">
+                    <span class="font-semibold">Atenção:</span> coleta registrada no Scola mas não integrada ao Tasy pode manter o item como pendente aqui — verificar coluna <span class="font-semibold">SCOLA</span> na tabela.
+                </p>
+            </div>
+
+            {{-- Hemoterapia --}}
+            <div class="border border-red-100 rounded-xl p-4 bg-red-50/30">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Hemoterapia</span>
+                    <span class="text-[10px] text-gray-400 font-mono">CPOE_HEMOTERAPIA</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Hemocomponente solicitado via CPOE, <span class="font-medium">programado para as próximas 48 h</span> (incluindo hoje)</li>
+                    <li>Solicitação não suspensa (<code class="bg-white px-1 rounded">DT_SUSPENSAO IS NULL</code>)</li>
+                </ul>
+            </div>
+
+            {{-- Antimicrobiano --}}
+            <div class="border border-yellow-100 rounded-xl p-4 bg-yellow-50/30">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Antimicrobiano</span>
+                    <span class="text-[10px] text-gray-400 font-mono">CPOE_MATERIAL</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Material com flag <span class="font-medium">IE_ANTIMICROBIANO = 'S'</span> na tabela de materiais</li>
+                    <li>Prescrição liberada e não suspensa</li>
+                    <li>Horário de administração <span class="font-medium">agendado para hoje</span> (<code class="bg-white px-1 rounded">TRUNC(DT_HORARIO) = TRUNC(SYSDATE)</code>)</li>
+                    <li>Alteração não cancelada nem descontinuada (domínio, códigos <code class="bg-white px-1 rounded">5, 12</code>)</li>
+                </ul>
+            </div>
+
+            {{-- Quimioterapia --}}
+            <div class="border border-purple-100 rounded-xl p-4 bg-purple-50/30">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Quimioterapia</span>
+                    <span class="text-[10px] text-gray-400 font-mono">AGENDA_QUIMIOTERAPIA_PEP_V</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Sessão agendada nos <span class="font-medium">próximos 30 dias</span> (<code class="bg-white px-1 rounded">DT_AGENDA BETWEEN SYSDATE AND SYSDATE + 30</code>)</li>
+                    <li>Vinculada ao paciente pelo CD_PESSOA_FISICA (não ao atendimento)</li>
+                </ul>
+            </div>
+
+            {{-- Cirurgia --}}
+            <div class="border border-violet-100 rounded-xl p-4 bg-violet-50/30">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Cirurgia Agendada</span>
+                    <span class="text-[10px] text-gray-400 font-mono">AGENDA_PACIENTE</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Procedimento com carater cirúrgico (<code class="bg-white px-1 rounded">IE_CARATER_CIRURGIA IS NOT NULL</code>)</li>
+                    <li>Agendado nos <span class="font-medium">próximos 30 dias</span></li>
+                    <li>Status de agenda ativo (domínio 83 — não cancelado/realizado)</li>
+                </ul>
+            </div>
+
+            {{-- Consultoria --}}
+            <div class="border border-teal-100 rounded-xl p-4 bg-teal-50/30">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Consultoria Multidisciplinar</span>
+                    <span class="text-[10px] text-gray-400 font-mono">PatientMultidisciplinaryRepository</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Solicitação de interconsulta com status diferente de: <span class="font-medium">Respondido, Liberado, Cancelado</span></li>
+                    <li>Sem data de resposta registrada (<code class="bg-white px-1 rounded">DT_RESPOSTA IS NULL</code>)</li>
+                </ul>
+            </div>
+
+            {{-- Cache --}}
+            <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                <div class="flex items-center gap-2 mb-2">
+                    <x-heroicon-o-clock class="w-4 h-4 text-gray-400" />
+                    <span class="text-xs font-semibold text-gray-600">Cache e Atualização</span>
+                </div>
+                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
+                    <li>Cache por setor: <span class="font-semibold">10 minutos</span> (chave <code class="bg-white px-1 rounded">sector_pending_fast_{id}</code>)</li>
+                    <li>Botão <span class="font-semibold">Atualizar</span> invalida o cache de todos os setores selecionados e recarrega os dados do Tasy</li>
+                    <li>Enriquecimento Scola ocorre dentro do mesmo ciclo de cache — atualizar também busca status atualizado do Scola</li>
+                </ul>
+            </div>
+
+        </div>
+
+        {{-- Footer --}}
+        <div class="px-6 py-3 border-t border-gray-100 flex justify-end">
+            <button id="modal-criterios-close-footer"
+                    class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                    onclick="document.getElementById('modal-criterios').style.display='none';document.body.style.overflow='';">
+                Fechar
+            </button>
+        </div>
+    </div>
+</div>
+
 @endsection

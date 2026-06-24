@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Repositories\EMR\PatientPrescriptionsRepository;
+use App\Services\Tasy\PrescriptionFormatter;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -11,9 +12,9 @@ class PrescriptionActivePlanFilterTest extends TestCase
     #[Test]
     public function therapeutic_orders_query_applies_recent_release_guard_in_main_and_dedup_filters(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PatientPrescriptionsRepository(new PrescriptionFormatter);
 
-        $method = new \ReflectionMethod($repository, 'ordersQuery');
+        $method = new \ReflectionMethod($repository, 'recommendationsQuery');
         $method->setAccessible(true);
 
         $sql = (string) $method->invoke($repository);
@@ -32,7 +33,7 @@ class PrescriptionActivePlanFilterTest extends TestCase
     #[Test]
     public function therapeutic_gasotherapy_and_dialysis_queries_limit_null_end_date_to_recent_releases(): void
     {
-        $repository = new PatientPrescriptionsRepository;
+        $repository = new PatientPrescriptionsRepository(new PrescriptionFormatter);
 
         $gasotherapyMethod = new \ReflectionMethod($repository, 'gasotherapyQuery');
         $gasotherapyMethod->setAccessible(true);

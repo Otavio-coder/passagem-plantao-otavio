@@ -1,12 +1,12 @@
 <div x-show="activeRecomendacaoTab === 'tab-rec'" style="display:none;" class="pt-3">
     <p class="text-[10px] font-bold text-slate-700 mb-2">Recomendações</p>
 
-    <div x-show="ord.items.length === 0" class="bg-white rounded-lg border border-slate-200 py-8 text-center">
+    <div x-show="rec.items.length === 0" class="bg-white rounded-lg border border-slate-200 py-8 text-center">
         <p class="text-xs text-slate-500">Sem informações de recomendações.</p>
     </div>
 
-    <div x-show="ord.items.length > 0" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-        <template x-for="o in ord.items" :key="String(o.id ?? o.text ?? 'ord') + '-' + String(o.dt_start ?? '')">
+    <div x-show="rec.items.length > 0" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <template x-for="o in rec.items" :key="String(o.id ?? o.text ?? 'rec') + '-' + String(o.dt_start ?? '')">
             <div class="bg-white rounded-md border border-slate-200 px-2 py-1.5 min-h-auto xl:min-h-[80px] flex flex-col">
                 <div class="flex items-start gap-1.5 min-w-0 mb-1">
                     <x-ui.patient-icon name="notes" class="w-3.5 h-3.5 object-contain flex-shrink-0 opacity-75 mt-0.5 text-gray-600" />

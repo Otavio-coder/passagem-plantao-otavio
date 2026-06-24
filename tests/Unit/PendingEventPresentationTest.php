@@ -707,4 +707,75 @@ class PendingEventPresentationTest extends TestCase
         $this->assertNotNull($data['first_event']);
         $this->assertSame('quimioterapia', $data['first_event']['tipo']);
     }
+
+    #[Test]
+    public function motivo_exame_codigo_19_retorna_label_tasy_nao_em_andamento(): void
+    {
+        // Código 19 = "Exame concluído" → pós-coleta, deve retornar label Tasy.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '19',
+            'status_laudo' => 'Exame concluído',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Exame concluído', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_codigos_pos_coleta_ausentes_anteriormente_retornam_label_tasy(): void
+    {
+        // Códigos 33, 36, 37, 38, 43, 44, 50, 90 antes caíam em "Aguardando coleta" por engano.
+        $casos = [
+            ['code' => '33', 'label' => 'Entregue sem laudo'],
+            ['code' => '36', 'label' => 'Aguarda 3ª aprovação'],
+            ['code' => '37', 'label' => 'Laudo aguardando conferência'],
+            ['code' => '38', 'label' => 'Laudo aguardando correção'],
+            ['code' => '43', 'label' => 'Em conferência'],
+            ['code' => '44', 'label' => 'Conferência finalizada'],
+            ['code' => '50', 'label' => 'Central laudos'],
+            ['code' => '90', 'label' => 'Em revisão'],
+        ];
+
+        foreach ($casos as $caso) {
+            $motivo = PendingEventHelper::motivoPendente([
+                'tipo' => 'exame',
+                'ie_status_execucao' => $caso['code'],
+                'status_laudo' => $caso['label'],
+                'urgente' => false,
+            ]);
+            $this->assertSame($caso['label'], $motivo, "Código {$caso['code']} deveria retornar label Tasy");
+        }
+    }
+
+    #[Test]
+    public function motivo_exame_codigos_pos_coleta_sem_label_retornam_aguardando_laudo(): void
+    {
+        // Sem label Tasy, todos os códigos pós-coleta caem em "Aguardando laudo".
+        foreach (['19', '33', '43', '90'] as $code) {
+            $motivo = PendingEventHelper::motivoPendente([
+                'tipo' => 'exame',
+                'ie_status_execucao' => $code,
+                'status_laudo' => '',
+                'urgente' => false,
+            ]);
+            $this->assertSame('Aguardando laudo', $motivo, "Código $code sem label deveria retornar 'Aguardando laudo'");
+        }
+    }
+
+    #[Test]
+    public function motivo_exame_fallback_em_andamento_quando_sem_label_para_codigos_em_execucao(): void
+    {
+        // Fallback para códigos em andamento (14/15/17/18) sem label Tasy = "Em andamento"
+        // (não mais "Em execução — aguardando resultado").
+        foreach (['14', '15', '17', '18'] as $code) {
+            $motivo = PendingEventHelper::motivoPendente([
+                'tipo' => 'exame',
+                'ie_status_execucao' => $code,
+                'status_laudo' => '',
+                'urgente' => false,
+            ]);
+            $this->assertSame('Em andamento', $motivo, "Código $code sem label deveria retornar 'Em andamento'");
+        }
+    }
 }

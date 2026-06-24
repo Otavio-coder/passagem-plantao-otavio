@@ -80,7 +80,7 @@
                                 <span>{{ $patient['first_pending_event']['motivo_pendente'] }}</span>
                             </div>
                         @endif
-                        @if(!empty($patient['first_pending_event']['scola_status']))
+                        @if(!empty($patient['first_pending_event']['scola_status']) && empty($patient['first_pending_event']['scola_integration_issue']))
                             <div class="flex items-center gap-1 mt-0.5 text-[9px] text-teal-600 leading-tight">
                                 <x-healthicons-o-lab-search class="w-2.5 h-2.5 flex-shrink-0 opacity-70" />
                                 <span>Scola: {{ $patient['first_pending_event']['scola_status'] }}</span>
@@ -307,7 +307,7 @@
                                                     <span x-text="ev.motivo_pendente"></span>
                                                 </div>
                                             </template>
-                                            <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.scola_status">
+                                            <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.scola_status && !ev.scola_integration_issue">
                                                 <div class="flex items-center gap-1 text-[10px] text-gray-600">
                                                     <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0" />
                                                     <span class="font-medium text-gray-500">SCOLA:</span>

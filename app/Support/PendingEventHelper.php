@@ -539,16 +539,25 @@ class PendingEventHelper
     {
         // Usa exclusivamente domínio 1226 (ie_status_execucao) do Tasy.
         // Scola é enriquecimento externo — exibido como label separado na view, não muda este campo.
-        // 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento, 19=Exame concluído,
-        // 20=Executado, 22=Aguardando Laudo, 25=Laudo ditado, 26=Laudo em digitação,
-        // 28=Pré laudo, 29=Liberado por interfaceamento, 30=Laudo sem liberação, 35=Aguarda 2ª aprovação
+        //
+        // Domínio 1226 completo:
+        //   Pré-coleta  : 10=Prescrito, 11=Chegada setor, 13=Previsto, ASA=Aguardando aprovação
+        //   Em andamento: 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento
+        //   Pós-coleta  : 19=Exame concluído, 20=Executado, 22=Aguardando Laudo, 25=Laudo ditado,
+        //                 26=Laudo em digitação, 28=Pré laudo, 30=Laudo sem liberação,
+        //                 33=Entregue sem laudo, 35=Aguarda 2ª aprovação, 36=Aguarda 3ª aprovação,
+        //                 37=Laudo aguardando conferência, 38=Laudo aguardando correção,
+        //                 43=Em conferência, 44=Conferência finalizada, 45=Envelopado,
+        //                 50=Central laudos, 90=Em revisão
         $code = trim((string) ($event['ie_status_execucao'] ?? ''));
 
-        // Códigos pré-coleta com dt_coleta set = inconsistência no Tasy (coleta registrada mas status não atualizado).
-        // Nesse caso o label do domínio 1226 não reflete a realidade — usar fallback.
+        // Pré-coleta com dt_coleta set = inconsistência Tasy (coleta registrada, status não atualizado).
         $preCollectionCodes = ['10', '11', '13'];
 
-        if (! empty($event['dt_coleta']) || in_array($code, ['20', '22', '25', '26', '28', '29', '30', '35', '45'], true)) {
+        // Pós-coleta: exame realizado, laudo em qualquer fase de produção/revisão.
+        $postCollectionCodes = ['19', '20', '22', '25', '26', '28', '30', '33', '35', '36', '37', '38', '43', '44', '45', '50', '90'];
+
+        if (! empty($event['dt_coleta']) || in_array($code, $postCollectionCodes, true)) {
             if ($status !== '' && ! in_array($code, $preCollectionCodes, true)) {
                 return $status;
             }
@@ -556,8 +565,8 @@ class PendingEventHelper
             return 'Aguardando laudo';
         }
 
-        if (in_array($code, ['14', '15', '17', '18', '19'], true)) {
-            return $status !== '' ? $status : 'Em execução — aguardando resultado';
+        if (in_array($code, ['14', '15', '17', '18'], true)) {
+            return $status !== '' ? $status : 'Em andamento';
         }
 
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';

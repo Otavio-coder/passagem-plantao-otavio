@@ -98,7 +98,7 @@ class PatientDataLoader
         $tLoaders = round((hrtime(true) - $t1) / 1e6);
 
         $tTotal = round((hrtime(true) - $t0) / 1e6);
-        Log::warning('[PatientDataLoader] sector='.$this->sectorId.' patients='.count($attendanceNumbers).' demo='.$tDemo.'ms loaders='.$tLoaders.'ms total='.$tTotal.'ms keys='.implode(',', $otherKeys));
+        Log::debug('[PatientDataLoader] sector='.$this->sectorId.' patients='.count($attendanceNumbers).' demo='.$tDemo.'ms loaders='.$tLoaders.'ms total='.$tTotal.'ms keys='.implode(',', $otherKeys));
 
         $applyScaleStyling = in_array('scales', $this->requested, true);
         $formatter = $applyScaleStyling ? new TasyFormatter : null;
@@ -186,7 +186,7 @@ class PatientDataLoader
         foreach ($keys as $key) {
             $t = hrtime(true);
             $results[] = $this->loaders[$key]->load($this->sectorId, $attendanceNumbers);
-            Log::warning('[PatientDataLoader] key='.$key.' ms='.round((hrtime(true) - $t) / 1e6));
+            Log::debug('[PatientDataLoader] key='.$key.' ms='.round((hrtime(true) - $t) / 1e6));
         }
 
         return $results;

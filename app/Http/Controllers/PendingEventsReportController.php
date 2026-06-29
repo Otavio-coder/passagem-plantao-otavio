@@ -222,19 +222,21 @@ class PendingEventsReportController extends Controller
         foreach ($selectedSectors as $sectorId) {
             try {
                 $patients = $this->loadSectorPatients($sectorId, $user, $onlyAssignedBeds);
+                $sectorLabel = (! empty($patients)
+                    ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null)
+                    : null) ?? (string) $sectorId;
+                $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
+                $rows = $rows->merge($this->buildRows(collect($patients)));
             } catch (\Throwable $e) {
-                Log::error('PendingEventsReportController: failed to load sector', [
+                Log::error('PendingEventsReportController: failed to process sector', [
                     'sector_id' => $sectorId,
                     'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                 ]);
 
                 continue;
             }
-            $sectorLabel = (! empty($patients)
-                ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null)
-                : null) ?? (string) $sectorId;
-            $patients = array_map(fn (array $p) => array_merge($p, ['_setor_label' => $sectorLabel]), $patients);
-            $rows = $rows->merge($this->buildRows(collect($patients)));
         }
 
         $rows = $rows->sortByDesc('sort_ts')->values();

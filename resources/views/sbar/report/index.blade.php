@@ -150,6 +150,12 @@
                             </div>
                             @endif
 
+                            {{-- Phase 2 trigger: Alpine fires loadPatientsEnrichment() after Phase 1 cards render.
+                                 window.__sbarPhase2 flag prevents the commit hook from showing the loading overlay. --}}
+                            @if(!$isLoading && ($isLoadingEnrichment ?? false))
+                                <div x-data x-init="window.__sbarPhase2 = true; $wire.loadPatientsEnrichment()" class="hidden" aria-hidden="true"></div>
+                            @endif
+
                             {{-- Initial cold load — wire:init not yet fired, no cards in DOM --}}
                             @if($isLoading)
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
@@ -314,6 +320,16 @@ window.sbarFilters = function () {
 
             Livewire.hook('commit', ({ component, succeed, fail }) => {
                 if (component.name !== 'sbar-report') return;
+                if (window.__sbarPhase2) {
+                    succeed(() => {
+                        this.$nextTick(() => {
+                            try { this.buildCards(); this.applyFilters(); } catch(e) { console.error('[SBAR]', e); }
+                            window.__sbarPhase2 = false;
+                        });
+                    });
+                    fail(() => { window.__sbarPhase2 = false; });
+                    return;
+                }
                 this.isInitialLoading = true;
                 succeed(() => {
                     this.$nextTick(() => {

@@ -297,11 +297,11 @@
                         var selected = Array.from(checks()).filter(function(c) { return c.checked; }).map(function(c) { return c.value; });
                         if (selected.length === 0 || selected.length === checks().length) {
                             label.textContent = 'Todas as classificações';
-                            if (window._dtTable) window._dtTable.column(15).search('', true, false).draw();
+                            if (window._dtTable) window._dtTable.column(17).search('', true, false).draw();
                         } else {
                             label.textContent = selected.length === 1 ? selected[0] : selected.length + ' classificações';
                             var regex = '^(' + selected.map(function(v) { return $.fn.dataTable.util.escapeRegex(v); }).join('|') + ')$';
-                            if (window._dtTable) window._dtTable.column(15).search(regex, true, false).draw();
+                            if (window._dtTable) window._dtTable.column(17).search(regex, true, false).draw();
                         }
                     }
                     if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
@@ -322,19 +322,18 @@
                     Só vencidos
                 </label>
 
+                <label class="inline-flex items-center gap-2 cursor-pointer min-h-[40px] px-3 bg-white border border-gray-200 rounded-lg whitespace-nowrap select-none text-sm text-gray-600 hover:bg-gray-50 transition" title="HGT/Glicemia (código 5927) e Fisioterapia (1341) — ocultos pois o Tasy não atualiza o status automaticamente">
+                    <input type="checkbox" id="chk-show-ocultos" class="w-4 h-4 rounded border-gray-300 text-indigo-500 focus:ring-indigo-400 cursor-pointer flex-shrink-0">
+                    Mostrar ocultos
+                    <span id="ocultos-badge" class="hidden text-[10px] font-semibold bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 leading-none"></span>
+                </label>
+
                 {{-- Limpar filtros --}}
                 <button type="button" id="btn-clear-filters"
                     class="text-sm text-gray-400 hover:text-gray-600 px-3 min-h-[40px] hover:bg-gray-100 rounded-lg transition whitespace-nowrap">
                     Limpar filtros
                 </button>
             @endif
-
-            {{-- Critérios --}}
-            <button type="button" id="btn-criterios"
-                class="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-sm text-gray-500 hover:text-[#004D9D] bg-white border border-gray-200 hover:border-[#004D9D]/30 rounded-lg transition whitespace-nowrap">
-                <x-heroicon-o-information-circle class="w-4 h-4" />
-                Critérios
-            </button>
 
             {{-- Atualizar --}}
             @if(!empty($selectedSectors))
@@ -395,11 +394,13 @@
             {{--
                 Colunas DataTables (índices, data: object keys):
                  0  paciente         1  ugb             2  atendimento
-                 3  tipo_label       4  motivo_categoria 5  item
-                 6  data_solicitacao 7  data_coleta      8  data_resultado
-                 9  tempo_pendente  10  setor_origem    11  prev_alta
-                12  tipo_evento (hidden) 13 is_overdue (hidden)
-                14  motivo_categoria (hidden) 15 classificacao (hidden)
+                 3  tipo_label       4  status_execucao  5  motivo_categoria (Critério)
+                 6  scola_status     7  item             8  data_solicitacao
+                 9  data_coleta     10  data_resultado  11  tempo_pendente
+                12  setor_origem    13  prev_alta
+                14  tipo_evento (hidden) 15 is_overdue (hidden)
+                16  motivo_categoria (hidden — filtro status) 17 classificacao (hidden)
+                18  is_oculto (hidden — filtro padrão oculta HGT/Fisioterapia)
             --}}
             <div id="kpi-bar"></div>
 
@@ -411,7 +412,9 @@
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Leito</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Atend.</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Tipo</th>
-                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Status</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Critério</th>
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">SCOLA</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600">Pendência</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Dt. Prescrição</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Coletado</th>
@@ -419,6 +422,7 @@
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Em aberto</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Unidade</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Prev. Alta</th>
+                            <th></th>
                             <th></th>
                             <th></th>
                             <th></th>
@@ -471,33 +475,19 @@ $(document).ready(function () {
         return '{{ route('pending.report.data') }}?' + params.toString();
     })();
 
-    function renderStatus(r) {
-        var html = '';
-        if (r.motivo_categoria) {
-            html += '<span class="badge-status ' + esc(r.badge_cls) + ' mb-1">' + esc(r.motivo_categoria) + '</span>';
-        }
-        if (r.motivo_pendente) {
-            html += '<div class="flex items-start gap-1 text-[10px] mt-1">'
-                + '<i class="fas fa-notes-medical flex-shrink-0 mt-0.5 text-gray-400" style="font-size:10px;width:12px"></i>'
-                + '<span class="text-gray-500 font-medium mr-0.5">Tasy:</span>'
-                + '<span class="text-gray-600">' + esc(r.motivo_pendente) + '</span></div>';
-        }
-        if (r.is_exam && r.scola_status) {
-            html += '<div class="flex items-start gap-1 text-[10px] mt-0.5">'
-                + '<i class="fas fa-flask flex-shrink-0 mt-0.5 text-gray-400" style="font-size:10px;width:12px"></i>'
-                + '<span class="text-gray-500 font-medium mr-0.5">SCOLA:</span>'
-                + '<span class="text-gray-600">' + esc(r.scola_status) + '</span></div>';
-        }
-        if (r.scola_resultado) {
-            html += '<div class="flex items-start gap-1 text-[10px] mt-0.5">'
-                + '<i class="fas fa-flask flex-shrink-0 mt-0.5 text-emerald-500" style="font-size:10px;width:12px"></i>'
-                + '<span class="text-emerald-700 font-semibold">' + esc(r.scola_resultado) + '</span></div>';
-        }
-        return html || '<span class="text-gray-300">—</span>';
+    function statusBadgeCls(s) {
+        if (!s) { return 'badge-outros'; }
+        var l = s.toLowerCase();
+        if (l.includes('laudo') || l.includes('conferência') || l.includes('revisão') || l.includes('digitação') || l === 'executado' || l === 'exame concluído' || l === 'envelopado') { return 'badge-laudo'; }
+        if (l.startsWith('em ') || l.includes('preparo') || l.includes('andamento') || l.includes('avaliação') || l.includes('complemento')) { return 'badge-execucao'; }
+        if (l === 'prescrito' || l === 'previsto' || l === 'chegada setor' || l.includes('coleta') || l.includes('aprovação')) { return 'badge-aguard-coleta'; }
+        if (l.includes('urgente')) { return 'badge-urgente'; }
+        return 'badge-outros';
     }
 
     var tableReady = false;
     var tipoLabelMap = {};
+    var serverTotal = 0; // total real do servidor (inclui ocultos)
 
     var table = $('#pendencias-table').DataTable({
         ajax: { url: dtDataUrl, dataSrc: 'data', cache: true },
@@ -530,28 +520,56 @@ $(document).ready(function () {
                     return html;
                 },
             },
-            // 4 Status
+            // 4 Status — label raw Tasy (domínio 1226 ou 83 conforme tipo)
             {
-                data: 'motivo_categoria',
-                render: function (d, t, r) {
+                data: 'status_execucao',
+                orderable: false,
+                render: function (d, t) {
                     if (t !== 'display') { return d || ''; }
-                    return renderStatus(r);
+                    if (!d) { return '<span class="text-gray-300">—</span>'; }
+                    return '<span class="badge-status ' + statusBadgeCls(d) + '">' + esc(d) + '</span>';
                 },
             },
-            // 5 Pendência
+            // 5 Critério — condição de banco que originou a pendência
+            {
+                data: 'criterio_pendencia',
+                orderable: false,
+                render: function (d, t) {
+                    if (t !== 'display') { return d || ''; }
+                    if (!d) { return '<span class="text-gray-300">—</span>'; }
+                    return '<span class="text-[11px] text-gray-600 leading-snug" style="max-width:180px;display:inline-block;white-space:normal">' + esc(d) + '</span>';
+                },
+            },
+            // 6 SCOLA
+            {
+                data: 'scola_status',
+                orderable: true,
+                render: function (d, t, r) {
+                    if (t !== 'display') { return d || ''; }
+                    if (!d) { return '<span class="text-gray-300">—</span>'; }
+                    var cls = r.scola_integration_issue
+                        ? 'text-amber-700'
+                        : 'text-emerald-700';
+                    var html = '<span class="text-[11px] font-medium ' + cls + '">' + esc(d) + '</span>';
+                    if (r.scola_resultado) {
+                        html += '<div class="text-[10px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap">' + esc(r.scola_resultado) + '</div>';
+                    }
+                    return html;
+                },
+            },
+            // 7 Pendência
             {
                 data: 'item',
                 className: 'wrap-cell',
                 render: function (d, t, r) {
                     if (t !== 'display') { return d || ''; }
                     var html = '<div class="text-gray-700 font-medium leading-snug" style="min-width:180px;max-width:220px" title="' + esc(d) + '">' + esc(d) + '</div>';
-                    if (r.nr_prescricao) { html += '<div class="text-[10px] text-gray-400 font-mono mt-0.5">#' + esc(r.nr_prescricao) + '</div>'; }
+                    if (r.nr_prescricao) { html += '<div class="text-[10px] text-gray-400 font-mono mt-0.5">Prescrição: ' + esc(r.nr_prescricao) + '</div>'; }
                     if (r.nm_prescritor) { html += '<div class="text-[10px] text-gray-400 mt-0.5 truncate" title="' + esc(r.nm_prescritor) + '">' + esc(r.nm_prescritor) + '</div>'; }
-                    if (r.status_execucao) { html += '<span class="inline-block mt-0.5 px-1.5 py-px rounded border text-[10px] font-medium leading-tight bg-gray-50 text-gray-600 border-gray-200">' + esc(r.status_execucao) + '</span>'; }
                     return html;
                 },
             },
-            // 6 Dt. Prescrição
+            // 8 Dt. Prescrição
             {
                 data: 'data_solicitacao',
                 render: function (d, t, r) {
@@ -559,7 +577,7 @@ $(document).ready(function () {
                     return '<span class="text-[11px] text-gray-500 whitespace-nowrap font-mono">' + esc(d || '-') + '</span>';
                 },
             },
-            // 7 Coletado
+            // 9 Coletado
             {
                 data: 'data_coleta',
                 render: function (d, t, r) {
@@ -567,7 +585,7 @@ $(document).ready(function () {
                     return '<span class="text-[11px] text-gray-500 whitespace-nowrap font-mono">' + esc(d || '-') + '</span>';
                 },
             },
-            // 8 Resultado
+            // 10 Resultado
             {
                 data: 'data_resultado',
                 render: function (d, t, r) {
@@ -576,7 +594,7 @@ $(document).ready(function () {
                     return '<span class="text-[11px] text-emerald-700 font-semibold whitespace-nowrap font-mono">' + esc(d) + '</span>';
                 },
             },
-            // 9 Em aberto
+            // 11 Em aberto
             {
                 data: 'tempo_pendente',
                 render: function (d, t, r) {
@@ -585,7 +603,7 @@ $(document).ready(function () {
                     return '<span class="text-[11px] whitespace-nowrap font-semibold font-mono ' + cls + '">' + esc(d || '-') + '</span>';
                 },
             },
-            // 10 Unidade
+            // 12 Unidade
             {
                 data: 'setor_origem',
                 visible: multiSector,
@@ -594,7 +612,7 @@ $(document).ready(function () {
                     return '<div class="truncate text-xs text-gray-700 font-medium" style="max-width:130px" title="' + esc(d) + '">' + esc(d || '-') + '</div>';
                 },
             },
-            // 11 Prev. Alta
+            // 13 Prev. Alta
             {
                 data: 'prev_alta',
                 render: function (d, t) {
@@ -603,9 +621,9 @@ $(document).ready(function () {
                     return '<span class="text-xs font-semibold text-purple-700">' + esc(d) + '</span>';
                 },
             },
-            // 12 tipo_evento (hidden — filtro tipo)
+            // 14 tipo_evento (hidden — filtro tipo)
             { data: 'tipo_evento', visible: false, searchable: true, orderable: false },
-            // 13 is_overdue (hidden — filtro vencido)
+            // 15 is_overdue (hidden — filtro vencido)
             {
                 data: 'is_overdue',
                 visible: false,
@@ -613,10 +631,18 @@ $(document).ready(function () {
                 orderable: false,
                 render: function (d) { return d ? '1' : '0'; },
             },
-            // 14 motivo_categoria (hidden — filtro status)
+            // 16 motivo_categoria (hidden — filtro status / KPI)
             { data: 'motivo_categoria', visible: false, searchable: true, orderable: false },
-            // 15 classificacao (hidden — filtro classificação)
+            // 17 classificacao (hidden — filtro classificação)
             { data: 'classificacao', visible: false, searchable: true, orderable: false },
+            // 18 is_oculto (hidden — oculta HGT/Fisioterapia por padrão)
+            {
+                data: 'is_oculto',
+                visible: false,
+                searchable: true,
+                orderable: false,
+                render: function (d) { return d ? '1' : '0'; },
+            },
         ],
         language: {
             url: '', decimal: ',', thousands: '.',
@@ -632,14 +658,24 @@ $(document).ready(function () {
         initComplete: function (settings, json) {
             if (json && json.meta) {
                 populateFilterDropdowns(json.meta.tipo_labels, json.meta.categorias, json.meta.classificacoes);
-                var total = json.meta.total || 0;
-                if (total > 0) {
+                serverTotal = json.meta.total || 0;
+                if (serverTotal > 0) {
                     var cnt = document.getElementById('total-rows-count');
                     var wrap = document.getElementById('total-count-wrapper');
-                    if (cnt) { cnt.textContent = total; }
+                    if (cnt) { cnt.textContent = serverTotal; }
                     if (wrap) { wrap.classList.remove('hidden'); }
                 }
             }
+            // Conta ocultos e atualiza badge antes de aplicar o filtro
+            var ocultoCount = 0;
+            table.rows().every(function () { if (this.data().is_oculto) { ocultoCount++; } });
+            var badge = document.getElementById('ocultos-badge');
+            if (badge && ocultoCount > 0) {
+                badge.textContent = ocultoCount;
+                badge.classList.remove('hidden');
+            }
+            // Oculta HGT/Fisioterapia por padrão e redesenha
+            table.column(18).search('^0$', true, false).draw();
             tableReady = true;
             rebuildCascadeFilters();
             rebuildKpis();
@@ -709,41 +745,80 @@ $(document).ready(function () {
     }
 
     function rebuildCascadeFilters() {
-        rebuildSelect('#filter-tipo', 12, 'Todos os tipos', tipoLabelMap);
-        rebuildSelect('#filter-status', 14, 'Todos os status', null);
+        rebuildSelect('#filter-tipo', 14, 'Todos os tipos', tipoLabelMap);
+        rebuildSelect('#filter-status', 4, 'Todos os status', null);
     }
 
     var activeKpiFilter = '';
 
     function rebuildKpis() {
-        var rows = table.rows({ filter: 'applied' });
-        var total = rows.count();
+        var allRows = table.rows(); // todos, sem filtro — inclui ocultos
+        var filteredRows = table.rows({ filter: 'applied' }); // visíveis após filtros ativos
+        var totalAll = allRows.count();
         var overdue = 0;
-        var catMap = {};
-        rows.every(function () {
+        // statusMap: agrupado por status_execucao Tasy (exames e afins)
+        // tipoMap:   agrupado por tipo_evento → {label, count} para tipos sem status próprio
+        var statusMap = {};
+        var tipoMap = {};
+        filteredRows.every(function () {
             var d = this.data();
-            var cat = d.motivo_categoria || '';
-            if (cat) { catMap[cat] = (catMap[cat] || 0) + 1; }
+            if (d.status_execucao) {
+                statusMap[d.status_execucao] = (statusMap[d.status_execucao] || 0) + 1;
+            } else if (d.tipo_evento) {
+                var lbl = d.tipo_label || d.tipo_evento;
+                if (!tipoMap[d.tipo_evento]) { tipoMap[d.tipo_evento] = { label: lbl, count: 0 }; }
+                tipoMap[d.tipo_evento].count++;
+            }
             if (d.is_overdue) { overdue++; }
         });
 
-        var html = '<div class="kpi-card kpi-total" data-kpi=""><span class="kpi-count">' + total + '</span><span class="kpi-label">Pendências</span></div>';
+        var html = '<div class="kpi-card kpi-total" data-kpi-reset="1"><span class="kpi-count">' + totalAll + '</span><span class="kpi-label">Pendências</span></div>';
         if (overdue > 0) {
             var overdueActive = $('#chk-overdue').prop('checked') ? ' active' : '';
             html += '<div class="kpi-card kpi-overdue' + overdueActive + '" data-kpi-overdue="1"><span class="kpi-count">' + overdue + '</span><span class="kpi-label">SLA Violado</span></div>';
         }
-        Object.entries(catMap).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (pair) {
-            var cat = pair[0];
-            var count = pair[1];
-            var isActive = (activeKpiFilter === cat) ? ' active' : '';
-            html += '<div class="kpi-card' + isActive + '" data-kpi="' + esc(cat) + '"><span class="kpi-count">' + count + '</span><span class="kpi-label">' + esc(cat) + '</span></div>';
+        // Cards de status Tasy (exames)
+        Object.entries(statusMap).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (pair) {
+            var cat = pair[0]; var count = pair[1];
+            var isActive = (activeKpiFilter === 'status:' + cat) ? ' active' : '';
+            html += '<div class="kpi-card' + isActive + '" data-kpi-status="' + esc(cat) + '"><span class="kpi-count">' + count + '</span><span class="kpi-label">' + esc(cat) + '</span></div>';
+        });
+        // Cards de tipo (antimicrobiano, consultoria, hemoterapia, etc.)
+        Object.entries(tipoMap).sort(function (a, b) { return b[1].count - a[1].count; }).forEach(function (pair) {
+            var key = pair[0]; var info = pair[1];
+            var isActive = (activeKpiFilter === 'tipo:' + key) ? ' active' : '';
+            html += '<div class="kpi-card' + isActive + '" data-kpi-tipo="' + esc(key) + '"><span class="kpi-count">' + info.count + '</span><span class="kpi-label">' + esc(info.label) + '</span></div>';
         });
         $('#kpi-bar').html(html);
 
-        $('#kpi-bar .kpi-card[data-kpi]').on('click', function () {
-            var val = $(this).data('kpi');
-            activeKpiFilter = (activeKpiFilter === val) ? '' : val;
-            $('#filter-status').val(activeKpiFilter).trigger('change');
+        $('#kpi-bar .kpi-card[data-kpi-reset]').on('click', function () {
+            activeKpiFilter = '';
+            table.column(4).search('', true, false);
+            table.column(14).search('', true, false).draw();
+            $('#filter-status').val('');
+            $('#filter-tipo').val('');
+        });
+        $('#kpi-bar .kpi-card[data-kpi-status]').on('click', function () {
+            var val = $(this).data('kpi-status');
+            var key = 'status:' + val;
+            activeKpiFilter = (activeKpiFilter === key) ? '' : key;
+            var searchVal = (activeKpiFilter === key) ? val : '';
+            // limpa filtro de tipo antes de aplicar status
+            table.column(14).search('', true, false);
+            $('#filter-tipo').val('');
+            table.column(4).search(searchVal ? '^' + $.fn.dataTable.util.escapeRegex(searchVal) + '$' : '', true, false).draw();
+            $('#filter-status').val(searchVal);
+        });
+        $('#kpi-bar .kpi-card[data-kpi-tipo]').on('click', function () {
+            var val = $(this).data('kpi-tipo');
+            var key = 'tipo:' + val;
+            activeKpiFilter = (activeKpiFilter === key) ? '' : key;
+            var searchVal = (activeKpiFilter === key) ? val : '';
+            // limpa filtro de status antes de aplicar tipo
+            table.column(4).search('', true, false);
+            $('#filter-status').val('');
+            table.column(14).search(searchVal ? '^' + $.fn.dataTable.util.escapeRegex(searchVal) + '$' : '', true, false).draw();
+            $('#filter-tipo').val(searchVal);
         });
         $('#kpi-bar .kpi-card[data-kpi-overdue]').on('click', function () {
             var chk = $('#chk-overdue');
@@ -758,24 +833,32 @@ $(document).ready(function () {
         }
     });
 
-    $('#filter-status').on('change', function () { activeKpiFilter = $(this).val(); });
-
     $('#filter-tipo').on('change', function () {
-        table.column(12).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
-    });
-    $('#filter-status').on('change', function () {
+        if (!this.value) { activeKpiFilter = ''; }
         table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
     });
+    $('#filter-status').on('change', function () {
+        if (!this.value) { activeKpiFilter = ''; }
+        table.column(4).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
+    });
     $('#chk-overdue').on('change', function () {
-        table.column(13).search(this.checked ? '^1$' : '', true, false).draw();
+        table.column(15).search(this.checked ? '^1$' : '', true, false).draw();
+    });
+    $('#chk-show-ocultos').on('change', function () {
+        table.column(18).search(this.checked ? '' : '^0$', true, false).draw();
+        var badge = document.getElementById('ocultos-badge');
+        if (badge) { badge.style.opacity = this.checked ? '0.4' : '1'; }
     });
     $('#btn-clear-filters').on('click', function () {
+        activeKpiFilter = '';
         $('#filter-tipo, #filter-status').val('');
         $('#chk-overdue').prop('checked', false);
+        $('#chk-show-ocultos').prop('checked', false);
         document.querySelectorAll('.classif-check').forEach(function (c) { c.checked = false; });
         var lbl = document.getElementById('classif-btn-label');
         if (lbl) { lbl.textContent = 'Todas as classificações'; }
-        table.columns([12, 13, 14, 15]).search('').draw();
+        table.columns([14, 15, 16, 17]).search('').draw();
+        table.column(18).search('^0$', true, false).draw();
         table.search('').draw();
     });
 
@@ -789,160 +872,10 @@ $(document).ready(function () {
     })();
     @endif
 
-    // Critérios modal
-    (function () {
-        var btn   = document.getElementById('btn-criterios');
-        var modal = document.getElementById('modal-criterios');
-        var close = document.getElementById('modal-criterios-close');
-        var overlay = document.getElementById('modal-criterios-overlay');
-        if (!btn || !modal) return;
-        function openModal()  { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
-        function closeModal() { modal.style.display = 'none';  document.body.style.overflow = ''; }
-        btn.addEventListener('click', openModal);
-        if (close)   close.addEventListener('click', closeModal);
-        if (overlay) overlay.addEventListener('click', closeModal);
-        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
-    })();
 });
 </script>
 
 @endif
 @endpush
-
-{{-- Modal de Critérios (always in DOM — button is always visible) --}}
-<div id="modal-criterios" style="display:none"
-     class="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-8">
-    <div id="modal-criterios-overlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col z-10 mt-4">
-
-        {{-- Header --}}
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <div class="flex items-center gap-2">
-                <x-heroicon-o-information-circle class="w-5 h-5 text-[#004D9D]" />
-                <h2 class="text-base font-semibold text-gray-800">Critérios de Pendências</h2>
-            </div>
-            <button id="modal-criterios-close"
-                    class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
-                <x-heroicon-o-x-mark class="w-5 h-5" />
-            </button>
-        </div>
-
-        {{-- Body scrollável --}}
-        <div class="overflow-y-auto px-6 py-5 space-y-5 text-sm text-gray-700">
-
-            <p class="text-xs text-gray-500 leading-relaxed">
-                O sistema busca pendências a partir dos módulos do Tasy em tempo real (cache de 10 min por setor).
-                Cada tipo segue regras específicas descritas abaixo. Para alterar um critério, edite o método correspondente
-                em <code class="bg-gray-100 px-1 rounded text-[11px]">PatientPendingEventsService</code>.
-            </p>
-
-            {{-- Exames --}}
-            <div class="border border-blue-100 rounded-xl p-4 bg-blue-50/40">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Exame / Procedimento CPOE</span>
-                    <span class="text-[10px] text-gray-400 font-mono">PRESCR_PROCEDIMENTO</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Prescrição liberada pelo médico (<code class="bg-white px-1 rounded">DT_LIBERACAO IS NOT NULL</code>)</li>
-                    <li>Sem baixa administrativa (<code class="bg-white px-1 rounded">DT_BAIXA IS NULL</code>)</li>
-                    <li>Sem cancelamento e não suspenso</li>
-                    <li>Status não inclui: <span class="font-medium">Cancelado, Realizado, Bloqueado, Barrado por Escassez</span> (domínio 1226, códigos <code class="bg-white px-1 rounded">40, R, C, BE</code>)</li>
-                    <li>Nenhum resultado integrado em <code class="bg-white px-1 rounded">RESULT_LABORATORIO</code></li>
-                    <li>Sem laudo agregado em <code class="bg-white px-1 rounded">PROCEDIMENTO_PACIENTE</code></li>
-                    <li>Data de coleta ou resultado ausente no Tasy (item sem resultado completo registrado)</li>
-                </ul>
-                <p class="mt-2 text-[11px] text-blue-700 bg-blue-100/60 px-2 py-1 rounded-lg">
-                    <span class="font-semibold">Atenção:</span> coleta registrada no Scola mas não integrada ao Tasy pode manter o item como pendente aqui — verificar coluna <span class="font-semibold">SCOLA</span> na tabela.
-                </p>
-            </div>
-
-            {{-- Hemoterapia --}}
-            <div class="border border-red-100 rounded-xl p-4 bg-red-50/30">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Hemoterapia</span>
-                    <span class="text-[10px] text-gray-400 font-mono">CPOE_HEMOTERAPIA</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Hemocomponente solicitado via CPOE, <span class="font-medium">programado para as próximas 48 h</span> (incluindo hoje)</li>
-                    <li>Solicitação não suspensa (<code class="bg-white px-1 rounded">DT_SUSPENSAO IS NULL</code>)</li>
-                </ul>
-            </div>
-
-            {{-- Antimicrobiano --}}
-            <div class="border border-yellow-100 rounded-xl p-4 bg-yellow-50/30">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Antimicrobiano</span>
-                    <span class="text-[10px] text-gray-400 font-mono">CPOE_MATERIAL</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Material com flag <span class="font-medium">IE_ANTIMICROBIANO = 'S'</span> na tabela de materiais</li>
-                    <li>Prescrição liberada e não suspensa</li>
-                    <li>Horário de administração <span class="font-medium">agendado para hoje</span> (<code class="bg-white px-1 rounded">TRUNC(DT_HORARIO) = TRUNC(SYSDATE)</code>)</li>
-                    <li>Alteração não cancelada nem descontinuada (domínio, códigos <code class="bg-white px-1 rounded">5, 12</code>)</li>
-                </ul>
-            </div>
-
-            {{-- Quimioterapia --}}
-            <div class="border border-purple-100 rounded-xl p-4 bg-purple-50/30">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Quimioterapia</span>
-                    <span class="text-[10px] text-gray-400 font-mono">AGENDA_QUIMIOTERAPIA_PEP_V</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Sessão agendada nos <span class="font-medium">próximos 30 dias</span> (<code class="bg-white px-1 rounded">DT_AGENDA BETWEEN SYSDATE AND SYSDATE + 30</code>)</li>
-                    <li>Vinculada ao paciente pelo CD_PESSOA_FISICA (não ao atendimento)</li>
-                </ul>
-            </div>
-
-            {{-- Cirurgia --}}
-            <div class="border border-violet-100 rounded-xl p-4 bg-violet-50/30">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Cirurgia Agendada</span>
-                    <span class="text-[10px] text-gray-400 font-mono">AGENDA_PACIENTE</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Procedimento com carater cirúrgico (<code class="bg-white px-1 rounded">IE_CARATER_CIRURGIA IS NOT NULL</code>)</li>
-                    <li>Agendado nos <span class="font-medium">próximos 30 dias</span></li>
-                    <li>Status de agenda ativo (domínio 83 — não cancelado/realizado)</li>
-                </ul>
-            </div>
-
-            {{-- Consultoria --}}
-            <div class="border border-teal-100 rounded-xl p-4 bg-teal-50/30">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Consultoria Multidisciplinar</span>
-                    <span class="text-[10px] text-gray-400 font-mono">PatientMultidisciplinaryRepository</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Solicitação de interconsulta com status diferente de: <span class="font-medium">Respondido, Liberado, Cancelado</span></li>
-                    <li>Sem data de resposta registrada (<code class="bg-white px-1 rounded">DT_RESPOSTA IS NULL</code>)</li>
-                </ul>
-            </div>
-
-            {{-- Cache --}}
-            <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                <div class="flex items-center gap-2 mb-2">
-                    <x-heroicon-o-clock class="w-4 h-4 text-gray-400" />
-                    <span class="text-xs font-semibold text-gray-600">Cache e Atualização</span>
-                </div>
-                <ul class="space-y-1 text-xs text-gray-600 list-disc list-inside">
-                    <li>Cache por setor: <span class="font-semibold">10 minutos</span> (chave <code class="bg-white px-1 rounded">sector_pending_fast_{id}</code>)</li>
-                    <li>Botão <span class="font-semibold">Atualizar</span> invalida o cache de todos os setores selecionados e recarrega os dados do Tasy</li>
-                    <li>Enriquecimento Scola ocorre dentro do mesmo ciclo de cache — atualizar também busca status atualizado do Scola</li>
-                </ul>
-            </div>
-
-        </div>
-
-        {{-- Footer --}}
-        <div class="px-6 py-3 border-t border-gray-100 flex justify-end">
-            <button id="modal-criterios-close-footer"
-                    class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-                    onclick="document.getElementById('modal-criterios').style.display='none';document.body.style.overflow='';">
-                Fechar
-            </button>
-        </div>
-    </div>
-</div>
 
 @endsection

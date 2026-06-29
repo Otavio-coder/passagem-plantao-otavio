@@ -130,31 +130,41 @@ class PatientPendingEventsService
     {
         $start = microtime(true);
 
-        $rows = DB::connection('tasy')->select("
-            SELECT
-                ua.nr_atendimento,
-                ap.cd_pessoa_fisica,
-                pf.dt_obito,
-                ap.dt_alta,
-                ap.dt_alta_medico,
-                ma2.ds_motivo_alta,
-                apa.dt_previsto_alta AS apa_dt_previsto_alta,
-                NVL(pf_apa.nm_pessoa_fisica, apa.nm_usuario) AS apa_nm_usuario
-            FROM tasy.unidade_atendimento ua
-            INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
-            INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
-            LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
-            LEFT JOIN (
-                SELECT nr_atendimento, dt_previsto_alta, nm_usuario,
-                    ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
-                FROM tasy.atend_previsao_alta
-            ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
-            LEFT JOIN tasy.usuario u_apa ON u_apa.nm_usuario = apa.nm_usuario
-            LEFT JOIN tasy.pessoa_fisica pf_apa ON pf_apa.cd_pessoa_fisica = u_apa.cd_pessoa_fisica
-            WHERE ua.cd_setor_atendimento = :sector_id
-                AND ua.ie_situacao = 'A'
-                AND ap.dt_alta IS NULL
-        ", ['sector_id' => $sectorId]);
+        try {
+            $rows = DB::connection('tasy')->select("
+                SELECT
+                    ua.nr_atendimento,
+                    ap.cd_pessoa_fisica,
+                    pf.dt_obito,
+                    ap.dt_alta,
+                    ap.dt_alta_medico,
+                    ma2.ds_motivo_alta,
+                    apa.dt_previsto_alta AS apa_dt_previsto_alta,
+                    NVL(pf_apa.nm_pessoa_fisica, apa.nm_usuario) AS apa_nm_usuario
+                FROM tasy.unidade_atendimento ua
+                INNER JOIN tasy.atendimento_paciente ap ON ua.nr_atendimento = ap.nr_atendimento
+                INNER JOIN tasy.pessoa_fisica pf ON ap.cd_pessoa_fisica = pf.cd_pessoa_fisica
+                LEFT JOIN tasy.motivo_alta ma2 ON ap.cd_motivo_alta_medica = ma2.cd_motivo_alta
+                LEFT JOIN (
+                    SELECT nr_atendimento, dt_previsto_alta, nm_usuario,
+                        ROW_NUMBER() OVER (PARTITION BY nr_atendimento ORDER BY dt_registro DESC) AS rn
+                    FROM tasy.atend_previsao_alta
+                    WHERE dt_registro >= SYSDATE - 10
+                ) apa ON apa.nr_atendimento = ua.nr_atendimento AND apa.rn = 1
+                LEFT JOIN tasy.usuario u_apa ON u_apa.nm_usuario = apa.nm_usuario
+                LEFT JOIN tasy.pessoa_fisica pf_apa ON pf_apa.cd_pessoa_fisica = u_apa.cd_pessoa_fisica
+                WHERE ua.cd_setor_atendimento = :sector_id
+                    AND ua.ie_situacao = 'A'
+                    AND ap.dt_alta IS NULL
+            ", ['sector_id' => $sectorId]);
+        } catch (\Throwable $e) {
+            Log::error('PatientPendingEventsService: failed base query', [
+                'sector_id' => $sectorId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
 
         $results = [];
         $allNrs = [];
@@ -319,6 +329,7 @@ class PatientPendingEventsService
                         pm.dt_liberacao_medico                      AS dt_liberacao_medico,
                         NVL(pf.nm_pessoa_fisica, pm.nm_usuario)     AS nm_prescritor,
                         pp.ie_status_execucao,
+                        pp.ie_urgencia,
                         NVL(el.nm_exame, NVL(pi.ds_proc_exame, proced.ds_procedimento)) AS descricao,
                         dv.ds_valor_dominio                         AS ds_subtipo,
                         COALESCE(gel.ds_grupo_exame_lab, pic.ds_classificacao, cih.ds_tipo_cirurgia) AS ds_grupo_lab,
@@ -395,6 +406,7 @@ class PatientPendingEventsService
                         AND rl.nr_prescricao IS NULL
                         AND (pp.dt_resultado IS NULL OR pp.dt_coleta IS NULL)
                         AND pla.nr_prescricao IS NULL
+                        AND (pp.dt_prev_execucao IS NULL OR pp.dt_prev_execucao <= SYSDATE + 1)
                 )
                 SELECT
                     b.*,
@@ -547,8 +559,9 @@ class PatientPendingEventsService
                 'exame_coletado_em_prescricao_mais_nova' => $exameColetadoNova,
                 'proc_realizado_em_nova_prescricao' => $procRealizadoNova,
                 'prescricao_mais_nova_pendente_info' => $prescricaoMaisNova,
-                'urgente' => false,
+                'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
                 'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
+                'is_oculto' => in_array((int) ($row->nr_seq_proc_interno ?? 0), [5927, 5970, 1341]),
                 '_fonte' => 'prescricao',
             ];
         }
@@ -572,7 +585,9 @@ class PatientPendingEventsService
                     ch.ie_via_aplicacao,
                     va.ds_via_aplicacao AS via_aplicacao,
                     ch.ie_urgencia,
-                    sa.ds_setor_atendimento AS setor_execucao
+                    sa.ds_setor_atendimento AS setor_execucao,
+                    ch.dt_liberacao,
+                    ch.dt_liberacao_enf
                 FROM tasy.cpoe_hemoterapia ch
                 LEFT JOIN tasy.via_aplicacao va
                     ON va.ie_via_aplicacao = ch.ie_via_aplicacao
@@ -580,7 +595,7 @@ class PatientPendingEventsService
                 LEFT JOIN tasy.setor_atendimento sa
                     ON sa.cd_setor_atendimento = ch.cd_setor_atendimento
                 WHERE ch.nr_atendimento IN ({$p})
-                  AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 2
+                  AND ch.dt_programada BETWEEN SYSDATE AND SYSDATE + 1
                   AND ch.dt_suspensao IS NULL
             ", $chunk);
         } catch (\Throwable $e) {
@@ -602,6 +617,12 @@ class PatientPendingEventsService
 
             $tipo = $tipoMap[(string) ($row->ie_tipo_hemoterap ?? '')] ?? 'Hemocomponente';
 
+            $hemoStatus = match (true) {
+                ! empty($row->dt_liberacao_enf) => 'Liberada',
+                ! empty($row->dt_liberacao) => 'Autorizada',
+                default => 'Prescrita',
+            };
+
             $results[$row->nr_atendimento]['pending_events'][] = [
                 'tipo' => 'hemoterapia',
                 'icone' => 'hemoterapia.svg',
@@ -618,6 +639,7 @@ class PatientPendingEventsService
                 ]),
                 'ie_tipo_hemoterap' => $row->ie_tipo_hemoterap ?? null,
                 'tipo_label' => $tipo,
+                'status_laudo' => $hemoStatus,
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => date('d/m/Y H:i', strtotime($row->dt_evento)),
                 'setor_execucao' => $row->setor_execucao ?? null,
@@ -780,7 +802,7 @@ class PatientPendingEventsService
                     ON vd.cd_dominio = 83
                    AND vd.vl_dominio = aq.ie_status_agenda
                 WHERE ap.nr_atendimento IN ({$p})
-                    AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 30
+                    AND aq.dt_agenda BETWEEN SYSDATE AND SYSDATE + 1
                 ORDER BY ap.nr_atendimento, aq.dt_agenda
             ", $chunk);
         } catch (\Throwable $e) {
@@ -814,6 +836,7 @@ class PatientPendingEventsService
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'ie_status_agenda' => $row->ie_status_agenda ?? null,
+                'ds_status_agenda_label' => trim((string) ($row->ds_status_agenda_label ?? '')),
                 'urgente' => false,
                 '_fonte' => 'agenda',
             ];
@@ -876,7 +899,7 @@ class PatientPendingEventsService
                 )
                 WHERE atp.nr_atendimento IN ({$p})
                     AND ap.dt_agenda >= TRUNC(SYSDATE)
-                    AND ap.dt_agenda <= SYSDATE + 30
+                    AND ap.dt_agenda <= SYSDATE + 1
                     AND ap.ie_status_agenda NOT IN ('C', 'S', 'CR', 'E', 'AD', 'F', 'FI')
                     AND ap.dt_executada IS NULL
                     AND (
@@ -910,6 +933,7 @@ class PatientPendingEventsService
                 'dt_evento' => $row->dt_evento,
                 'dt_evento_formatted' => $row->dt_evento ? date('d/m/Y H:i', strtotime($row->dt_evento)) : null,
                 'ie_status_agenda' => $row->ie_status_agenda ?? null,
+                'ds_status_agenda_label' => trim((string) ($row->ds_status_agenda_label ?? '')),
                 'setor_execucao' => $row->ds_setor_execucao ?? null,
                 'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
                 'nm_prescritor' => $row->nm_prescritor ?? null,

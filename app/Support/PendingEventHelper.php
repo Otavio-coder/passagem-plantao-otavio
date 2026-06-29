@@ -580,7 +580,12 @@ class PendingEventHelper
             return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
         }
 
-        // Código desconhecido / vazio → fallback genérico.
+        // Código desconhecido mas presente → usa label Tasy (garantia que veio do domínio 1226).
+        // Código vazio → status_laudo pode ser fallback interno ("Pendente"), usa fallback genérico.
+        if ($code !== '' && $status !== '') {
+            return $urgente ? 'Urgente — '.lcfirst($status) : $status;
+        }
+
         return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
     }
 

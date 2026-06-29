@@ -44,6 +44,9 @@ class SbarReport extends Component
     /** Verdadeiro durante o carregamento inicial até o wire:init disparar loadPatients(). */
     public bool $isLoading = true;
 
+    /** Verdadeiro entre Phase1 (demographics+scales) e Phase2 (clinical+pending+multi+surgery). */
+    public bool $isLoadingEnrichment = false;
+
     // Onboarding de setores
     public bool $showSectorOnboarding = false;
 
@@ -183,6 +186,36 @@ class SbarReport extends Component
     }
 
     /**
+     * Phase 1 data: demographics + scales only. Fast (~300ms cold).
+     * Used during $isLoadingEnrichment before full clinical data arrives.
+     */
+    #[Computed(persist: true)]
+    public function patientsLight(): array
+    {
+        if (! $this->selectedSector) {
+            return [];
+        }
+
+        try {
+            $patients = PatientDataLoader::forSector($this->selectedSector)
+                ->include('scales')
+                ->get();
+
+            $filtered = $this->applyBedFilter($patients);
+
+            return $this->preparePatientsForView($filtered);
+        } catch (\Exception $e) {
+            Log::error('Error loading light patients', [
+                'exception' => $e,
+                'selected_sector' => $this->selectedSector,
+                'user_id' => Auth::id(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
      * All available sectors for the onboarding modal. Not persisted — only
      * computed when the modal is open.
      */
@@ -249,7 +282,9 @@ class SbarReport extends Component
 
         $expiredList = [];
 
-        foreach ($this->patients as $patient) {
+        $patientsList = $this->isLoadingEnrichment ? $this->patientsLight : $this->patients;
+
+        foreach ($patientsList as $patient) {
             if (! ($patient['has_patient'] ?? false)) {
                 continue;
             }
@@ -389,6 +424,16 @@ class SbarReport extends Component
     public function loadPatients(): void
     {
         $this->isLoading = false;
+        $this->isLoadingEnrichment = true;
+    }
+
+    /**
+     * Phase 2: triggers full patient load (clinical, pending events, multidisciplinary, surgery).
+     * Called by Alpine after Phase 1 renders in the browser.
+     */
+    public function loadPatientsEnrichment(): void
+    {
+        $this->isLoadingEnrichment = false;
         $this->dispatch('expired-scales-data-loaded', patients: $this->expiredScalesPatients);
     }
 
@@ -399,6 +444,7 @@ class SbarReport extends Component
 
         unset($this->sectors);
         unset($this->patients);
+        unset($this->patientsLight);
 
         $sectors = $this->sectors;
 
@@ -431,6 +477,7 @@ class SbarReport extends Component
 
         $this->selectedSector = $sectorId;
         unset($this->patients);
+        unset($this->patientsLight);
         $this->lastRefresh = now()->format('H:i:s');
         $this->auditSectorView('sector_change');
     }
@@ -444,6 +491,7 @@ class SbarReport extends Component
             }
 
             unset($this->patients);
+            unset($this->patientsLight);
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in refreshData', [
@@ -463,6 +511,7 @@ class SbarReport extends Component
             }
 
             unset($this->patients);
+            unset($this->patientsLight);
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in forceRefreshData', [
@@ -477,6 +526,7 @@ class SbarReport extends Component
     public function updateSectorPatients()
     {
         unset($this->patients);
+        unset($this->patientsLight);
         $this->lastRefresh = now()->format('H:i:s');
     }
 
@@ -571,6 +621,7 @@ class SbarReport extends Component
             unset($this->hospitals);
             unset($this->sectors);
             unset($this->patients);
+            unset($this->patientsLight);
 
             // Re-inicializa com as novas preferências
             $this->mount();
@@ -591,6 +642,7 @@ class SbarReport extends Component
         unset($this->hospitals);
         unset($this->sectors);
         unset($this->patients);
+        unset($this->patientsLight);
 
         $this->mount();
     }
@@ -605,6 +657,7 @@ class SbarReport extends Component
         // Invalidar o computed força recompute: usa sector_patients_* (quente, ~5ms)
         // e re-executa injectHandoverStatus (MySQL, ~100ms) sem tocar no Oracle.
         unset($this->patients);
+        unset($this->patientsLight);
     }
 
     public function onNursePreferencesUpdated(): void
@@ -613,6 +666,7 @@ class SbarReport extends Component
             $this->clearUserHandoverCache($this->selectedSector);
         }
         unset($this->patients);
+        unset($this->patientsLight);
         $this->lastRefresh = now()->format('H:i:s');
     }
 
@@ -634,8 +688,9 @@ class SbarReport extends Component
         return view('sbar.report.index', [
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
-            'patients' => $this->isLoading ? [] : $this->patients,
+            'patients' => $this->isLoading ? [] : ($this->isLoadingEnrichment ? $this->patientsLight : $this->patients),
             'isLoading' => $this->isLoading,
+            'isLoadingEnrichment' => $this->isLoadingEnrichment,
             'errorMessage' => $this->errorMessage,
             'selectedHospital' => $this->selectedHospital,
             'selectedSector' => $this->selectedSector,

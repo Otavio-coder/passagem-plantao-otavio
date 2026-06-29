@@ -25,15 +25,9 @@ class PendingEventsReportController extends Controller
 
     public function index(Request $request): View
     {
-        $user = Auth::user();
+        $selection = $this->resolveSelection($request);
 
-        $allSectors = UserSectorPreference::query()
-            ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
-            ->where('user_id', $user->id)
-            ->distinct()
-            ->get();
-
-        if ($allSectors->isEmpty()) {
+        if ($selection === null) {
             return view('pending.index', [
                 'hospitals' => collect(),
                 'sectors' => collect(),
@@ -45,59 +39,16 @@ class PendingEventsReportController extends Controller
             ]);
         }
 
+        ['allSectors' => $allSectors, 'selectedHospitals' => $selectedHospitals, 'selectedSectors' => $selectedSectors] = $selection;
+
         $hospitals = $allSectors
-            ->map(fn ($p) => [
-                'hospital_id' => (int) $p->hospital_code,
-                'hospital_name' => $p->hospital_name,
-            ])
-            ->unique('hospital_id')
-            ->sortBy('hospital_name')
-            ->values();
-
-        $allHospitalIds = $hospitals->pluck('hospital_id');
-
-        // Aceita hospital_ids[] (multi) ou hospital_id (legado single)
-        $rawHospitalIds = $request->input('hospital_ids', []);
-        if (empty($rawHospitalIds) && $request->has('hospital_id')) {
-            $rawHospitalIds = [$request->integer('hospital_id')];
-        }
-        $selectedHospitals = collect($rawHospitalIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $allHospitalIds->contains($id))
-            ->unique()->values()->all();
-        if (empty($selectedHospitals)) {
-            $selectedHospitals = [$allHospitalIds->first()];
-        }
+            ->map(fn ($p) => ['hospital_id' => (int) $p->hospital_code, 'hospital_name' => $p->hospital_name])
+            ->unique('hospital_id')->sortBy('hospital_name')->values();
 
         $sectors = $allSectors
             ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
-            ->map(fn ($p) => [
-                'sector_code' => (int) $p->sector_code,
-                'sector_name' => $p->sector_name,
-                'hospital_id' => (int) $p->hospital_code,
-            ])
-            ->unique('sector_code')
-            ->sortBy('sector_name')
-            ->values();
-
-        $allowedSectorCodes = $sectors->pluck('sector_code')->map(fn ($c) => (int) $c);
-
-        // Aceita sector_ids[] (multi) ou sector_id (legado single)
-        $rawIds = $request->input('sector_ids', []);
-        if (empty($rawIds) && $request->has('sector_id')) {
-            $rawIds = [$request->integer('sector_id')];
-        }
-
-        $selectedSectors = collect($rawIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $allowedSectorCodes->contains($id))
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($selectedSectors) && $allowedSectorCodes->isNotEmpty()) {
-            $selectedSectors = [$allowedSectorCodes->first()];
-        }
+            ->map(fn ($p) => ['sector_code' => (int) $p->sector_code, 'sector_name' => $p->sector_name, 'hospital_id' => (int) $p->hospital_code])
+            ->unique('sector_code')->sortBy('sector_name')->values();
 
         $sectorName = count($selectedSectors) === 1
             ? ($sectors->firstWhere('sector_code', $selectedSectors[0])['sector_name'] ?? null)
@@ -105,8 +56,7 @@ class PendingEventsReportController extends Controller
 
         $sectorsForFilter = $sectors
             ->map(fn ($s) => ['code' => (int) $s['sector_code'], 'name' => (string) $s['sector_name']])
-            ->values()
-            ->all();
+            ->values()->all();
 
         return view('pending.index', [
             'hospitals' => $hospitals,
@@ -123,46 +73,10 @@ class PendingEventsReportController extends Controller
     {
         $user = Auth::user();
 
-        $allSectors = UserSectorPreference::query()
-            ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
-            ->where('user_id', $user->id)
-            ->distinct()
-            ->get();
-
-        $allHospitalIds = $allSectors->map(fn ($p) => (int) $p->hospital_code)->unique()->values();
-
-        $rawHospitalIds = $request->input('hospital_ids', []);
-        if (empty($rawHospitalIds) && $request->has('hospital_id')) {
-            $rawHospitalIds = [$request->integer('hospital_id')];
-        }
-        $selectedHospitals = collect($rawHospitalIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $allHospitalIds->contains($id))
-            ->unique()->values()->all();
-        if (empty($selectedHospitals)) {
-            $selectedHospitals = [$allHospitalIds->first()];
-        }
-
-        $allowedSectors = $allSectors
-            ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
-            ->map(fn ($p) => (int) $p->sector_code)
-            ->unique()->values();
-
-        $rawIds = $request->input('sector_ids', []);
-        if (empty($rawIds) && $request->has('sector_id')) {
-            $rawIds = [$request->integer('sector_id')];
-        }
-
-        $selectedSectors = collect($rawIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $allowedSectors->contains($id))
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($selectedSectors) && $allowedSectors->isNotEmpty()) {
-            $selectedSectors = [$allowedSectors->first()];
-        }
+        $selection = $this->resolveSelection($request);
+        $allSectors = $selection['allSectors'] ?? collect();
+        $selectedHospitals = $selection['selectedHospitals'] ?? [];
+        $selectedSectors = $selection['selectedSectors'] ?? [];
 
         $rows = collect();
 
@@ -218,8 +132,8 @@ class PendingEventsReportController extends Controller
 
         $columns = [
             'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Prev. Alta', 'Tipo', 'Classificação',
+            'Status', 'Critério', 'SCOLA', 'Resultado Bacteriológico',
             'Pendência', 'Nr. Prescrição', 'Prescritor',
-            'Status (Tasy)', 'Status (SCOLA)', 'Resultado Bacteriológico',
             'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)',
             'Em Aberto', 'Vencido',
         ];
@@ -232,12 +146,13 @@ class PendingEventsReportController extends Controller
             $row['prev_alta'] ?? '',
             $row['tipo_label'] ?? '',
             $row['classificacao'] ?? '',
+            $row['status_execucao'] ?? '',
+            $row['criterio_pendencia'] ?? '',
+            $row['scola_status'] ?? '',
+            $row['scola_resultado'] ?? '',
             $row['item'] ?? '',
             $row['nr_prescricao'] ?? '',
             $row['nm_prescritor'] ?? '',
-            $row['motivo_pendente'] ?? '',
-            $row['scola_status'] ?? '',
-            $row['scola_resultado'] ?? '',
             $row['data_solicitacao'] ?? '',
             $row['data_coleta'] ?? '',
             $row['data_resultado'] ?? '',
@@ -305,7 +220,16 @@ class PendingEventsReportController extends Controller
         $onlyAssignedBeds = (bool) $user->only_assigned_beds;
 
         foreach ($selectedSectors as $sectorId) {
-            $patients = $this->loadSectorPatients($sectorId, $user, $onlyAssignedBeds);
+            try {
+                $patients = $this->loadSectorPatients($sectorId, $user, $onlyAssignedBeds);
+            } catch (\Throwable $e) {
+                Log::error('PendingEventsReportController: failed to load sector', [
+                    'sector_id' => $sectorId,
+                    'error' => $e->getMessage(),
+                ]);
+
+                continue;
+            }
             $sectorLabel = (! empty($patients)
                 ? ($patients[0]['ds_prescricao'] ?? $patients[0]['ds_setor_atendimento'] ?? null)
                 : null) ?? (string) $sectorId;
@@ -330,10 +254,12 @@ class PendingEventsReportController extends Controller
                 'is_exam' => in_array($row['tipo_evento'] ?? '', ['exame', 'proc_exame'], true),
                 'scola_status' => $row['scola_status'] ?? '',
                 'scola_resultado' => $row['scola_resultado'] ?? '',
+                'scola_integration_issue' => (bool) ($row['scola_integration_issue'] ?? false),
                 'item' => $row['item'] ?? '',
                 'nr_prescricao' => $row['nr_prescricao'] ?? '',
                 'nm_prescritor' => $row['nm_prescritor'] ?? '',
                 'status_execucao' => $row['status_execucao'] ?? '',
+                'criterio_pendencia' => $row['criterio_pendencia'] ?? '',
                 'data_solicitacao' => $row['data_solicitacao'] ?? '',
                 'data_solicitacao_sort' => $row['data_solicitacao_sort'] ?? 0,
                 'data_coleta' => $row['data_coleta'] ?? '',
@@ -346,6 +272,7 @@ class PendingEventsReportController extends Controller
                 'prev_alta' => $row['prev_alta'] ?? '',
                 'tipo_evento' => $row['tipo_evento'] ?? '',
                 'is_overdue' => (bool) ($row['is_overdue'] ?? false),
+                'is_oculto' => (bool) ($row['is_oculto'] ?? false),
             ];
         })->values()->all();
 
@@ -358,6 +285,62 @@ class PendingEventsReportController extends Controller
                 'classificacoes' => $rows->pluck('classificacao')->filter()->unique()->sort()->values()->all(),
             ],
         ]);
+    }
+
+    /**
+     * Resolves hospital and sector selection from request for the authenticated user.
+     * Returns null when the user has no configured sectors.
+     *
+     * @return array{allSectors: Collection, selectedHospitals: int[], selectedSectors: int[]}|null
+     */
+    private function resolveSelection(Request $request): ?array
+    {
+        $user = Auth::user();
+
+        $allSectors = UserSectorPreference::query()
+            ->select(['hospital_code', 'hospital_name', 'sector_code', 'sector_name'])
+            ->where('user_id', $user->id)
+            ->distinct()
+            ->get();
+
+        if ($allSectors->isEmpty()) {
+            return null;
+        }
+
+        $allHospitalIds = $allSectors->map(fn ($p) => (int) $p->hospital_code)->unique()->values();
+
+        // Aceita hospital_ids[] (multi) ou hospital_id (legado single)
+        $rawHospitalIds = $request->input('hospital_ids', []);
+        if (empty($rawHospitalIds) && $request->has('hospital_id')) {
+            $rawHospitalIds = [$request->integer('hospital_id')];
+        }
+        $selectedHospitals = collect($rawHospitalIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allHospitalIds->contains($id))
+            ->unique()->values()->all();
+        if (empty($selectedHospitals)) {
+            $selectedHospitals = [$allHospitalIds->first()];
+        }
+
+        $allowedSectorCodes = $allSectors
+            ->filter(fn ($p) => in_array((int) $p->hospital_code, $selectedHospitals, true))
+            ->map(fn ($p) => (int) $p->sector_code)
+            ->unique()->values();
+
+        // Aceita sector_ids[] (multi) ou sector_id (legado single)
+        $rawIds = $request->input('sector_ids', []);
+        if (empty($rawIds) && $request->has('sector_id')) {
+            $rawIds = [$request->integer('sector_id')];
+        }
+        $selectedSectors = collect($rawIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $allowedSectorCodes->contains($id))
+            ->unique()->values()->all();
+        if (empty($selectedSectors) && $allowedSectorCodes->isNotEmpty()) {
+            $selectedSectors = [$allowedSectorCodes->first()];
+        }
+
+        return compact('allSectors', 'selectedHospitals', 'selectedSectors');
     }
 
     private function resolveAuthorizedSectorIds(Request $request, $user): array
@@ -414,14 +397,30 @@ class PendingEventsReportController extends Controller
 
     private function buildBadgeCls(string $motCat): string
     {
-        return match ($motCat) {
-            'Urgente — aguardando coleta', 'Urgente — aguardando execução' => 'badge-urgente',
-            'Aguardando coleta' => 'badge-aguard-coleta',
-            'Aguardando laudo' => 'badge-laudo',
-            'Em andamento' => 'badge-execucao',
-            'Antimicrobiano pendente' => 'badge-antimicrobiano',
-            default => 'badge-outros',
-        };
+        if (str_starts_with($motCat, 'Urgente')) {
+            return 'badge-urgente';
+        }
+        if ($motCat === 'Antimicrobiano pendente') {
+            return 'badge-antimicrobiano';
+        }
+        if (str_contains($motCat, 'laudo') || str_contains($motCat, 'Laudo')
+            || str_contains($motCat, 'conferência') || str_contains($motCat, 'revisão')
+            || str_contains($motCat, 'digitação') || str_contains($motCat, 'Envelopado')
+            || $motCat === 'Executado' || $motCat === 'Exame concluído') {
+            return 'badge-laudo';
+        }
+        if (str_starts_with($motCat, 'Em ') || str_contains($motCat, 'preparo')
+            || str_contains($motCat, 'andamento') || str_contains($motCat, 'recuperação')
+            || str_contains($motCat, 'avaliação') || str_contains($motCat, 'complemento')) {
+            return 'badge-execucao';
+        }
+        if (str_contains($motCat, 'coleta') || $motCat === 'Prescrito'
+            || $motCat === 'Previsto' || $motCat === 'Chegada setor'
+            || str_contains($motCat, 'aprovação')) {
+            return 'badge-aguard-coleta';
+        }
+
+        return 'badge-outros';
     }
 
     private function buildRows(Collection $patients): Collection
@@ -463,7 +462,7 @@ class PendingEventsReportController extends Controller
                 $normalizedType = PendingEventTypeClassifier::fromPendingEvent($event);
 
                 $isOverdue = $sortTs > 0 && $sortTs < time();
-                $motivo = $this->computeMotivoPendente($normalizedType, $event);
+                $motivo = PendingEventHelper::motivoPendente($event);
                 $rows->push(array_merge($base, [
                     'tipo_evento' => $normalizedType,
                     'tipo_label' => PendingEventTypeClassifier::label($normalizedType),
@@ -480,9 +479,10 @@ class PendingEventsReportController extends Controller
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
                     ),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
-                    'status_execucao' => trim((string) ($event['status_laudo'] ?? '')),
+                    'status_execucao' => trim((string) ($event['status_laudo'] ?? $event['ds_status_agenda_label'] ?? '')),
                     'motivo_pendente' => $motivo,
                     'motivo_categoria' => $this->categorizarMotivo($motivo, $normalizedType, $event),
+                    'criterio_pendencia' => $this->buildCriterioPendencia($normalizedType, $event, $isOverdue),
                     'nr_prescricao' => $event['nr_prescricao'] ?? null,
                     'nm_prescritor' => trim((string) ($event['nm_prescritor'] ?? '')),
                     'scola_status' => $event['scola_status'] ?? null,
@@ -490,6 +490,7 @@ class PendingEventsReportController extends Controller
                     'scola_integration_issue' => $event['scola_integration_issue'] ?? false,
                     'sort_ts' => $sortTs,
                     'is_overdue' => $isOverdue,
+                    'is_oculto' => (bool) ($event['is_oculto'] ?? false),
                 ]));
             }
 
@@ -511,15 +512,24 @@ class PendingEventsReportController extends Controller
                     'item' => 'Consultoria - '.($req['ds_equipe_destino'] ?? 'Equipe não informada'),
                     'classificacao' => null,
                     'data_solicitacao' => ! empty($req['dt_registro']) ? Carbon::parse($req['dt_registro'])->format('d/m/Y H:i') : '-',
-                    'data_prev_execucao' => '-',
+                    'data_coleta' => null,
+                    'data_coleta_sort' => 0,
+                    'data_resultado' => null,
+                    'data_resultado_sort' => 0,
                     'tempo_pendente' => $this->formatPendingDuration($req['dt_registro'] ?? null),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
-                    'status' => $status,
+                    'status_execucao' => '',
                     'motivo_pendente' => 'Aguardando resposta',
-                    'laudo' => ! empty($req['ds_parecer']) ? $this->truncate((string) $req['ds_parecer'], 120) : '-',
-                    'nm_responsavel_resposta_display' => $this->userDisplayNameResolver->fromName(
-                        $req['nm_responsavel_resposta'] ?? null
-                    ),
+                    'motivo_categoria' => 'Aguardando resposta',
+                    'criterio_pendencia' => 'Resposta da equipe não registrada',
+                    'badge_cls' => 'badge-outros',
+                    'nr_prescricao' => null,
+                    'nm_prescritor' => '',
+                    'scola_status' => null,
+                    'scola_resultado' => null,
+                    'scola_integration_issue' => false,
+                    'is_exam' => false,
+                    'is_overdue' => false,
                     'sort_ts' => $sortTs,
                 ]));
             }
@@ -566,11 +576,6 @@ class PendingEventsReportController extends Controller
         return 'Pendência';
     }
 
-    private function computeMotivoPendente(string $normalizedType, array $event): string
-    {
-        return PendingEventHelper::motivoPendente($event);
-    }
-
     /** @param array<string, mixed> $event */
     private function categorizarMotivo(string $motivo, string $tipo, array $event): string
     {
@@ -581,73 +586,88 @@ class PendingEventsReportController extends Controller
             return 'Aguardando resposta';
         }
 
-        // Usa ie_status_execucao (domínio 1226) para exames e procedimentos.
-        // Grupos espelham os de motivoExame/motivoProcedimento em PendingEventHelper.
-        if (in_array($tipo, ['exame', 'proc_exame', 'procedimento'], true)) {
-            $code = trim((string) ($event['ie_status_execucao'] ?? ''));
-            $isProcedimento = $tipo === 'procedimento';
-            $preCollectionCodes = ['10', '11', '13'];
-            $postCollectionCodes = ['19', '20', '22', '25', '26', '28', '30', '33', '35', '36', '37', '38', '43', '44', '45', '50', '90'];
+        // Procedimentos de prescrição: usa dados reais do Tasy sem listas de códigos hardcoded.
+        // Fontes: foi_executado_sem_baixa (procedimento_paciente), dt_coleta, status_laudo
+        // (domínio 1226), dt_evento (dt_prev_execucao da prescr_procedimento).
+        if ($tipo === 'procedimento') {
+            $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+            $urgente = (bool) ($event['urgente'] ?? false);
 
-            // dt_coleta set = pós-coleta independente do código
+            // procedimento_paciente registra execução, mas baixa administrativa não foi feita
+            if (! empty($event['foi_executado_sem_baixa'])) {
+                return 'Executado — baixa pendente';
+            }
+
+            // dt_coleta preenchido: executado (usa label Tasy se disponível)
             if (! empty($event['dt_coleta'])) {
-                return 'Aguardando laudo';
+                return $statusLabel !== '' ? $statusLabel : 'Executado — baixa pendente';
             }
 
-            if (in_array($code, $postCollectionCodes, true)) {
-                return 'Aguardando laudo';
+            // Label Tasy real e informativo (≠ "Prescrito" que é só o estado padrão de prescrição):
+            // pode ser "Chegada setor", "Em preparo", "Em exame", "Aguardando aprovação", etc.
+            if ($statusLabel !== '' && $statusLabel !== 'Prescrito') {
+                return $urgente ? 'Urgente — '.lcfirst($statusLabel) : $statusLabel;
             }
 
-            // Pré-coleta
-            if (in_array($code, $preCollectionCodes, true)) {
-                return (bool) ($event['urgente'] ?? false) ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
+            // "Prescrito" ou sem label: verifica dt_prev_execucao para distinguir atrasado vs pendente
+            $dtEvento = $event['dt_evento'] ?? null;
+            if ($dtEvento && strtotime($dtEvento) < time()) {
+                return $urgente ? 'Urgente — em atraso' : 'Em atraso';
             }
 
-            // Em andamento: 14=Preparo, 15=Em exame, 17=Avaliação Médico, 18=Em Complemento
-            if (in_array($code, ['14', '15', '17', '18'], true)) {
-                return $isProcedimento ? 'Em andamento' : 'Em andamento';
-            }
+            return $urgente ? 'Urgente — aguardando execução' : 'Aguardando execução';
+        }
 
-            // agenda_paciente sem código reconhecido
+        // Exames e proc_exame: usa label real do domínio 1226 (status_laudo = ds_status_execucao_label).
+        // Para eventos de agenda (proc_exame via agenda_paciente), usa label do domínio 83.
+        if (in_array($tipo, ['exame', 'proc_exame'], true)) {
+            $urgente = (bool) ($event['urgente'] ?? false);
+
             if (($event['_fonte'] ?? '') === 'agenda') {
-                return 'Aguardando coleta';
+                $agendaLabel = trim((string) ($event['ds_status_agenda_label'] ?? ''));
+
+                return $agendaLabel !== '' ? $agendaLabel : 'Aguardando coleta';
             }
 
-            return (bool) ($event['urgente'] ?? false)
-                ? 'Urgente — aguardando execução'
-                : 'Aguardando execução';
+            // dt_coleta set: pós-coleta — usa label Tasy como categoria
+            if (! empty($event['dt_coleta'])) {
+                $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+
+                return $statusLabel !== '' ? $statusLabel : 'Aguardando laudo';
+            }
+
+            // Pré-coleta / em andamento: usa label Tasy diretamente
+            $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+            if ($statusLabel !== '') {
+                return $urgente ? 'Urgente — '.lcfirst($statusLabel) : $statusLabel;
+            }
+
+            return $urgente ? 'Urgente — aguardando coleta' : 'Aguardando coleta';
         }
 
-        // Demais tipos: mapeamento por $motivo (strings produzidas por funções determinísticas)
-        if (str_starts_with($motivo, 'Concluído') || str_starts_with($motivo, 'Executado — aguardando baixa')) {
-            return 'Executado — baixa pendente';
+        // Cirurgia: label do domínio 83 (ie_status_agenda)
+        if ($tipo === 'cirurgia') {
+            $agendaLabel = trim((string) ($event['ds_status_agenda_label'] ?? ''));
+            $urgente = (bool) ($event['urgente'] ?? false);
+            if ($agendaLabel !== '') {
+                return $urgente ? 'Urgente — '.lcfirst($agendaLabel) : $agendaLabel;
+            }
+
+            return $urgente ? 'Urgente — aguardando cirurgia' : 'Aguardando cirurgia';
         }
-        if (str_starts_with($motivo, 'Aguardando cirurgia') || str_starts_with($motivo, 'Cirurgia')) {
-            return 'Aguardando cirurgia';
+
+        // Quimioterapia: label do domínio 83
+        if ($tipo === 'quimioterapia') {
+            $agendaLabel = trim((string) ($event['ds_status_agenda_label'] ?? ''));
+
+            return $agendaLabel !== '' ? $agendaLabel : 'Quimioterapia agendada';
         }
-        if (str_starts_with($motivo, 'Aguardando transfusão') || str_starts_with($motivo, 'Urgente — aguardando transfusão')) {
-            return 'Aguardando transfusão';
-        }
-        if (str_starts_with($motivo, 'Sessão de quimioterapia')) {
-            return 'Quimioterapia agendada';
-        }
-        if (str_starts_with($motivo, 'Aguardando atendimento') || str_starts_with($motivo, 'Em atendimento') || str_starts_with($motivo, 'Em recuperação')) {
-            return 'Em atendimento';
-        }
-        if (str_starts_with($motivo, 'Aguardando aprovação')) {
-            return 'Aguardando aprovação';
-        }
-        if (str_starts_with($motivo, 'Paciente chegou') || str_starts_with($motivo, 'Previsto — aguardando')) {
-            return 'Aguardando execução';
-        }
-        if (str_starts_with($motivo, 'Aguardando execução') || str_starts_with($motivo, 'Agendado')) {
-            return 'Aguardando execução';
-        }
-        if (str_starts_with($motivo, 'Em execução') || str_starts_with($motivo, 'Em avaliação') || str_starts_with($motivo, 'Em complemento')) {
-            return 'Em execução';
-        }
-        if (str_starts_with($motivo, 'Urgente')) {
-            return 'Urgente — aguardando coleta';
+
+        // Hemoterapia: distingue urgente vs normal
+        if ($tipo === 'hemoterapia') {
+            return (bool) ($event['urgente'] ?? false)
+                ? 'Urgente — aguardando transfusão'
+                : 'Aguardando transfusão';
         }
 
         return 'Outros';
@@ -730,6 +750,96 @@ class PendingEventsReportController extends Controller
         } catch (\Throwable) {
             return '-';
         }
+    }
+
+    private function buildCriterioPendencia(string $tipo, array $event, bool $isOverdue): string
+    {
+        return match ($tipo) {
+            'antibiotico' => 'Administração não confirmada no horário',
+            'consultoria' => 'Resposta da equipe não registrada',
+            'hemoterapia' => ($event['urgente'] ?? false)
+                ? 'Hemocomponente urgente — transfusão não confirmada'
+                : 'Transfusão não confirmada',
+            'quimioterapia' => 'Sessão de quimioterapia agendada em aberto',
+            'cirurgia' => 'Cirurgia agendada — sem confirmação de realização',
+            'procedimento' => $this->criterioProcedimento($event),
+            'exame' => $this->criterioExame($event),
+            default => 'Pendente de resolução',
+        };
+    }
+
+    private function criterioProcedimento(array $event): string
+    {
+        if (! empty($event['foi_executado_sem_baixa']) || ! empty($event['dt_coleta'])) {
+            return 'Data de baixa não preenchida no Tasy';
+        }
+
+        $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+
+        if ($statusLabel !== '' && $statusLabel !== 'Prescrito') {
+            return 'Status "'.$statusLabel.'" — sem baixa registrada';
+        }
+
+        // Só marca expirado quando há data prevista explícita (dt_prev_execucao) que passou.
+        // Fallback para dt_solicitacao causaria falso-positivo: toda prescrição sem data
+        // planejada seria exibida como "expirada" pelo simples fato de ter sido criada no passado.
+        $dtEvento = $event['dt_evento'] ?? null;
+        $plannedTs = $dtEvento ? $this->parseDateToTs($dtEvento) : null;
+        if ($plannedTs !== null && $plannedTs < time()) {
+            return 'Prazo de execução expirado — sem registro de realização';
+        }
+
+        return 'Execução não registrada no Tasy';
+    }
+
+    private function criterioExame(array $event): string
+    {
+        if (($event['_fonte'] ?? '') === 'agenda') {
+            $agendaLabel = trim((string) ($event['ds_status_agenda_label'] ?? ''));
+
+            return 'Exame agendado'.($agendaLabel !== '' ? ' — '.lcfirst($agendaLabel) : '');
+        }
+
+        if (! empty($event['exame_coletado_em_prescricao_mais_nova'])) {
+            return 'Coletado em prescrição mais recente — item original pendente';
+        }
+
+        if (! empty($event['prescricao_mais_nova_pendente_info'])) {
+            return 'Prescrição mais recente aguardando coleta';
+        }
+
+        if (! empty($event['foi_executado_sem_baixa'])) {
+            return 'Data de baixa não preenchida no Tasy';
+        }
+
+        if (! empty($event['is_oculto'])) {
+            return 'Exame de beira-leito — status não atualizado automaticamente no Tasy';
+        }
+
+        if (! empty($event['dt_coleta'])) {
+            $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+
+            return $statusLabel !== ''
+                ? 'Coleta registrada — '.lcfirst($statusLabel)
+                : 'Coleta registrada — laudo não disponível no Tasy';
+        }
+
+        // Pré-coleta: calcula dias de atraso quando a data prevista já passou
+        $dtEvento = $event['dt_evento'] ?? null;
+        $ts = $dtEvento ? @strtotime($dtEvento) : 0;
+        $diasAtraso = ($ts && $ts < time()) ? (int) round((time() - $ts) / 86400) : 0;
+
+        $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
+
+        if ($diasAtraso >= 1) {
+            $sufixo = $statusLabel !== '' ? ' (status: '.$statusLabel.')' : '';
+
+            return 'Coleta não registrada — previsto há '.$diasAtraso.' dia'.($diasAtraso !== 1 ? 's' : '').$sufixo;
+        }
+
+        return $statusLabel !== ''
+            ? 'Coleta não registrada — status: '.$statusLabel
+            : 'Coleta não registrada';
     }
 
     private function resolvePendingDuration(?string $tempoOriginal, ?string $referenceDate): string

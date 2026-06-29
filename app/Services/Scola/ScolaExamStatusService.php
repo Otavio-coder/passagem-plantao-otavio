@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\Log;
 
 class ScolaExamStatusService
 {
+    /** @var array<string, string[]> Request-scoped memo: nr_prescricao => [codigo_pedido, ...] */
+    private array $pedidosMemo = [];
+
+    /** @var array<string, object[]> Request-scoped memo: codigo_pedido => [mov_ex rows, ...] */
+    private array $movExMemo = [];
+
     /** @param  array<int|string, mixed>  $results */
     public function enrichEvents(array &$results): void
     {
@@ -126,59 +132,8 @@ class ScolaExamStatusService
             $movEx = $this->fetchMovEx($allCodigoPedidos);
 
             $results = [];
-
             foreach ($pedidos as $nrPrescricao => $codigoPedidos) {
-                $organismos = [];
-                $hasNegativo = false;
-                $hasPositivo = false;
-                $hasResult = false;
-
-                foreach ($codigoPedidos as $codigoPedido) {
-                    if (in_array($codigoPedido, $resExPresence, true)) {
-                        $hasResult = true;
-                    }
-
-                    foreach ($resExSummary[$codigoPedido] ?? [] as $row) {
-                        $campo = strtoupper(trim((string) ($row->campo ?? '')));
-                        $valor = trim((string) ($row->valor_resultado ?? ''));
-
-                        if ($valor === '' || $valor === '-') {
-                            continue;
-                        }
-
-                        $isResultoField = $campo === 'BACTER'
-                            || $campo === 'RESULTADO'
-                            || str_starts_with($campo, 'ONEG');
-
-                        if (preg_match('/^GERME\d*$/', $campo)) {
-                            $hasPositivo = true;
-                            $organismos[] = $valor;
-                        } elseif ($isResultoField) {
-                            if (str_contains(strtolower($valor), 'aus') && str_contains(strtolower($valor), 'crescimento')) {
-                                $hasNegativo = true;
-                            } else {
-                                $organismos[] = $valor;
-                                $hasPositivo = true;
-                            }
-                        } elseif ($campo === 'RESAUT' && $valor === '+') {
-                            $hasPositivo = true;
-                        }
-                    }
-                }
-
-                $organismos = array_values(array_unique(array_filter($organismos)));
-
-                if ($hasPositivo) {
-                    $results[$nrPrescricao] = 'Positivo'.(! empty($organismos) ? ' — '.implode(', ', $organismos) : '');
-                } elseif ($hasNegativo) {
-                    $results[$nrPrescricao] = 'Negativo';
-                } elseif ($hasResult) {
-                    // res_ex tem dados mas sem campos de resultado definitivo (GERME/BACTER/RESAUT).
-                    // Usa movex como fallback para determinar o estágio mais avançado do processo.
-                    $results[$nrPrescricao] = $this->movexFallbackStatus($codigoPedidos, $movEx);
-                } else {
-                    $results[$nrPrescricao] = null;
-                }
+                $results[$nrPrescricao] = $this->resolveHemocResult($codigoPedidos, $resExSummary, $resExPresence, $movEx);
             }
 
             return $results;
@@ -264,62 +219,78 @@ class ScolaExamStatusService
         $resExPresence = $this->fetchResExPresence($allCodigoPedidos);
 
         $results = [];
-
         foreach ($hemocPedidos as $nrPrescricao => $codigoPedidos) {
-            $organismos = [];
-            $hasNegativo = false;
-            $hasPositivo = false;
-            $hasResult = false;
-
-            foreach ($codigoPedidos as $codigoPedido) {
-                if (in_array($codigoPedido, $resExPresence, true)) {
-                    $hasResult = true;
-                }
-
-                foreach ($resExSummary[$codigoPedido] ?? [] as $row) {
-                    $campo = strtoupper(trim((string) ($row->campo ?? '')));
-                    $valor = trim((string) ($row->valor_resultado ?? ''));
-
-                    if ($valor === '' || $valor === '-') {
-                        continue;
-                    }
-
-                    $isResultoField = $campo === 'BACTER'
-                        || $campo === 'RESULTADO'
-                        || str_starts_with($campo, 'ONEG');
-
-                    if (preg_match('/^GERME\d*$/', $campo)) {
-                        $hasPositivo = true;
-                        if (! preg_match('/^\d+([Ee]\d+)?$/', $valor)) {
-                            $organismos[] = $valor;
-                        }
-                    } elseif ($isResultoField) {
-                        if (str_contains(strtolower($valor), 'aus') && str_contains(strtolower($valor), 'crescimento')) {
-                            $hasNegativo = true;
-                        } else {
-                            $organismos[] = $valor;
-                            $hasPositivo = true;
-                        }
-                    } elseif ($campo === 'RESAUT' && $valor === '+') {
-                        $hasPositivo = true;
-                    }
-                }
-            }
-
-            $organismos = array_values(array_unique(array_filter($organismos)));
-
-            if ($hasPositivo) {
-                $results[$nrPrescricao] = 'Positivo'.(! empty($organismos) ? ' — '.implode(', ', $organismos) : '');
-            } elseif ($hasNegativo) {
-                $results[$nrPrescricao] = 'Negativo';
-            } elseif ($hasResult) {
-                $results[$nrPrescricao] = $this->movexFallbackStatus($codigoPedidos, $movEx);
-            } else {
-                $results[$nrPrescricao] = null;
-            }
+            $results[$nrPrescricao] = $this->resolveHemocResult($codigoPedidos, $resExSummary, $resExPresence, $movEx);
         }
 
         return $results;
+    }
+
+    /**
+     * Reads GERME/BACTER/RESAUT fields from res_ex and determines the bacteriology result
+     * for one prescription's set of pedidos. Shared by getHemocResults and buildHemocResultsFromData.
+     *
+     * @param  string[]  $codigoPedidos
+     * @param  array<string, object[]>  $resExSummary
+     * @param  string[]  $resExPresence
+     * @param  array<string, object[]>  $movEx
+     */
+    private function resolveHemocResult(array $codigoPedidos, array $resExSummary, array $resExPresence, array $movEx): ?string
+    {
+        $organismos = [];
+        $hasNegativo = false;
+        $hasPositivo = false;
+        $hasResult = false;
+
+        foreach ($codigoPedidos as $codigoPedido) {
+            if (in_array($codigoPedido, $resExPresence, true)) {
+                $hasResult = true;
+            }
+
+            foreach ($resExSummary[$codigoPedido] ?? [] as $row) {
+                $campo = strtoupper(trim((string) ($row->campo ?? '')));
+                $valor = trim((string) ($row->valor_resultado ?? ''));
+
+                if ($valor === '' || $valor === '-') {
+                    continue;
+                }
+
+                $isResultoField = $campo === 'BACTER'
+                    || $campo === 'RESULTADO'
+                    || str_starts_with($campo, 'ONEG');
+
+                if (preg_match('/^GERME\d*$/', $campo)) {
+                    $hasPositivo = true;
+                    // Filter pure numeric values (colony counts, not organism names)
+                    if (! preg_match('/^\d+([Ee]\d+)?$/', $valor)) {
+                        $organismos[] = $valor;
+                    }
+                } elseif ($isResultoField) {
+                    if (str_contains(strtolower($valor), 'aus') && str_contains(strtolower($valor), 'crescimento')) {
+                        $hasNegativo = true;
+                    } else {
+                        $organismos[] = $valor;
+                        $hasPositivo = true;
+                    }
+                } elseif ($campo === 'RESAUT' && $valor === '+') {
+                    $hasPositivo = true;
+                }
+            }
+        }
+
+        $organismos = array_values(array_unique(array_filter($organismos)));
+
+        if ($hasPositivo) {
+            return 'Positivo'.(! empty($organismos) ? ' — '.implode(', ', $organismos) : '');
+        }
+        if ($hasNegativo) {
+            return 'Negativo';
+        }
+        if ($hasResult) {
+            return $this->movexFallbackStatus($codigoPedidos, $movEx);
+        }
+
+        return null;
     }
 
     /** @param  array<int|string, mixed>  $results */
@@ -348,28 +319,42 @@ class ScolaExamStatusService
      *
      * @return array<string, string[]> nr_prescricao => [codigo_pedido, ...]
      */
-    private function fetchPedidos(array $prescricaoIds): array
+    /**
+     * @param  string[]  $items
+     * @return array{0: string[], 1: array<string, mixed>}
+     */
+    private function buildQueryPlaceholders(array $items, string $prefix = 'cp'): array
     {
-        $bindings = [];
         $placeholders = [];
-
-        foreach ($prescricaoIds as $i => $id) {
-            $key = "p{$i}";
+        $bindings = [];
+        foreach ($items as $i => $id) {
+            $key = "{$prefix}{$i}";
             $placeholders[] = ":{$key}";
             $bindings[$key] = $id;
         }
 
-        $rows = DB::connection('scola')->select(
-            'SELECT id_prescricao_integracao, codigo_pedido FROM scola.pedido WHERE id_prescricao_integracao IN ('.implode(',', $placeholders).')',
-            $bindings
-        );
+        return [$placeholders, $bindings];
+    }
 
-        $result = [];
-        foreach ($rows as $row) {
-            $result[(string) $row->id_prescricao_integracao][] = (string) $row->codigo_pedido;
+    private function fetchPedidos(array $prescricaoIds): array
+    {
+        $missing = array_values(array_filter($prescricaoIds, fn ($id) => ! array_key_exists($id, $this->pedidosMemo)));
+
+        if (! empty($missing)) {
+            [$placeholders, $bindings] = $this->buildQueryPlaceholders($missing, 'p');
+            $rows = DB::connection('scola')->select(
+                'SELECT id_prescricao_integracao, codigo_pedido FROM scola.pedido WHERE id_prescricao_integracao IN ('.implode(',', $placeholders).')',
+                $bindings
+            );
+            foreach ($missing as $id) {
+                $this->pedidosMemo[$id] = [];
+            }
+            foreach ($rows as $row) {
+                $this->pedidosMemo[(string) $row->id_prescricao_integracao][] = (string) $row->codigo_pedido;
+            }
         }
 
-        return $result;
+        return array_intersect_key($this->pedidosMemo, array_flip($prescricaoIds));
     }
 
     /**
@@ -378,26 +363,23 @@ class ScolaExamStatusService
      */
     private function fetchMovEx(array $codigoPedidos): array
     {
-        $bindings = [];
-        $placeholders = [];
+        $missing = array_values(array_filter($codigoPedidos, fn ($id) => ! array_key_exists($id, $this->movExMemo)));
 
-        foreach ($codigoPedidos as $i => $id) {
-            $key = "cp{$i}";
-            $placeholders[] = ":{$key}";
-            $bindings[$key] = $id;
+        if (! empty($missing)) {
+            [$placeholders, $bindings] = $this->buildQueryPlaceholders($missing);
+            $rows = DB::connection('scola')->select(
+                'SELECT codigo_pedido, id_seq_prescricao_integracao, data_colheita, data_resultado, data_liberado, data_exportacao_resultado, status_exame_integracao FROM scola.mov_ex WHERE codigo_pedido IN ('.implode(',', $placeholders).')',
+                $bindings
+            );
+            foreach ($missing as $id) {
+                $this->movExMemo[$id] = [];
+            }
+            foreach ($rows as $row) {
+                $this->movExMemo[(string) $row->codigo_pedido][] = $row;
+            }
         }
 
-        $rows = DB::connection('scola')->select(
-            'SELECT codigo_pedido, id_seq_prescricao_integracao, data_colheita, data_resultado, data_liberado, data_exportacao_resultado, status_exame_integracao FROM scola.mov_ex WHERE codigo_pedido IN ('.implode(',', $placeholders).')',
-            $bindings
-        );
-
-        $result = [];
-        foreach ($rows as $row) {
-            $result[(string) $row->codigo_pedido][] = $row;
-        }
-
-        return $result;
+        return array_intersect_key($this->movExMemo, array_flip($codigoPedidos));
     }
 
     /**
@@ -564,14 +546,7 @@ class ScolaExamStatusService
             return [];
         }
 
-        $bindings = [];
-        $placeholders = [];
-
-        foreach ($codigoPedidos as $i => $id) {
-            $key = "cp{$i}";
-            $placeholders[] = ":{$key}";
-            $bindings[$key] = $id;
-        }
+        [$placeholders, $bindings] = $this->buildQueryPlaceholders($codigoPedidos);
 
         $rows = DB::connection('scola')->select(
             'SELECT codigo_pedido, TRIM(ordem_campo_exame) AS campo, valor_resultado
@@ -613,14 +588,7 @@ class ScolaExamStatusService
             return [];
         }
 
-        $bindings = [];
-        $placeholders = [];
-
-        foreach ($codigoPedidos as $i => $id) {
-            $key = "cp{$i}";
-            $placeholders[] = ":{$key}";
-            $bindings[$key] = $id;
-        }
+        [$placeholders, $bindings] = $this->buildQueryPlaceholders($codigoPedidos);
 
         $rows = DB::connection('scola')->select(
             'SELECT DISTINCT codigo_pedido FROM scola.res_ex

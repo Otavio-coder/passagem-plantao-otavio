@@ -8,87 +8,124 @@ use Tests\TestCase;
 
 class PendingEventHelperTest extends TestCase
 {
+    // ── Exames: pré-coleta ────────────────────────────────────────────────────
+
     #[Test]
-    public function motivo_exame_sem_scola_com_dt_coleta_retorna_coletado(): void
+    public function motivo_exame_codigo_prescrito_retorna_label_tasy(): void
     {
-        // Sem SCOLA disponível, dt_coleta do TASY é o melhor indicador
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
+            'ie_status_execucao' => '10',
+            'status_laudo' => 'Prescrito',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Prescrito', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_codigo_prescrito_urgente_adiciona_prefixo(): void
+    {
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '10',
+            'status_laudo' => 'Prescrito',
+            'urgente' => true,
+        ]);
+
+        $this->assertSame('Urgente — prescrito', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_asa_retorna_label_tasy(): void
+    {
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => 'ASA',
+            'status_laudo' => 'Aguardando aprovação para execução',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando aprovação para execução', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_sem_codigo_sem_coleta_retorna_aguardando_coleta(): void
+    {
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando coleta', $motivo);
+    }
+
+    // ── Exames: em andamento ──────────────────────────────────────────────────
+
+    #[Test]
+    public function motivo_exame_em_andamento_usa_label_tasy(): void
+    {
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
+            'ie_status_execucao' => '15',
+            'status_laudo' => 'Em exame',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Em exame', $motivo);
+    }
+
+    // ── Exames: pós-coleta ────────────────────────────────────────────────────
+
+    #[Test]
+    public function motivo_exame_dt_coleta_sem_label_retorna_aguardando_laudo(): void
+    {
+        // dt_coleta preenchido sem label de domínio → estado padrão pós-coleta
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
             'dt_coleta' => '06/04/2026 10:00',
             'urgente' => false,
         ]);
 
-        $this->assertSame('Coletado — aguardando resultado', $motivo);
+        $this->assertSame('Aguardando laudo', $motivo);
     }
 
     #[Test]
-    public function motivo_exame_dt_resultado_preenchido_nao_implica_resultado_real(): void
+    public function motivo_exame_dt_coleta_com_label_tasy_retorna_label(): void
     {
-        // dt_resultado de prescr_procedimento é data administrativa — não indica resultado real.
-        // Sem SCOLA confirmando, mesmo com dt_resultado preenchido, retorna apenas "Coletado".
+        // dt_coleta + label de domínio 1226 → usa label Tasy diretamente
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
+            'ie_status_execucao' => '22',
+            'status_laudo' => 'Aguardando Laudo',
+            'dt_coleta' => '06/04/2026 10:00',
+            'urgente' => false,
+        ]);
+
+        $this->assertSame('Aguardando Laudo', $motivo);
+    }
+
+    #[Test]
+    public function motivo_exame_dt_resultado_sem_confirmacao_scola_retorna_aguardando_laudo(): void
+    {
+        // dt_resultado de prescr_procedimento é administrativo — não indica resultado real.
+        // Sem label de domínio, retorna fallback pós-coleta.
+        $motivo = PendingEventHelper::motivoPendente([
+            'tipo' => 'exame',
             'dt_coleta' => '06/04/2026 10:00',
             'dt_resultado' => '06/04/2026 14:00',
             'urgente' => false,
         ]);
 
-        $this->assertSame('Coletado — aguardando resultado', $motivo);
+        $this->assertSame('Aguardando laudo', $motivo);
     }
 
     #[Test]
-    public function motivo_exame_scola_laudo_liberado_sobrepoe_tasy(): void
+    public function motivo_exame_codigo_20_sem_coleta_usa_label_pos_coleta(): void
     {
-        // SCOLA com laudo liberado é fonte de verdade — não importa o que dt_coleta/dt_resultado dizem
+        // Código 20 (Executado) sem dt_coleta → é pós-coleta pelo código
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
-            'scola_status' => 'Laudo liberado (baixa não integrada)',
-            'scola_data_liberado' => '06/04/2026 10:00',
-            'scola_data_exportado' => '06/04/2026 10:05',
-            'urgente' => false,
-        ]);
-
-        $this->assertSame('Laudo disponível — baixa não realizada', $motivo);
-    }
-
-    #[Test]
-    public function motivo_exame_scola_solicitado_contradiz_dt_coleta_usa_dominio(): void
-    {
-        // SCOLA "Solicitado" contradiz dt_coleta do TASY → SCOLA vence, cai no domínio
-        $motivo = PendingEventHelper::motivoPendente([
-            'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
-            'dt_coleta' => '06/04/2026 10:00',
-            'scola_status' => 'Solicitado (aguardando coleta)',
-            'urgente' => false,
-        ]);
-
-        $this->assertSame('Aguardando coleta', $motivo);
-    }
-
-    #[Test]
-    public function motivo_exame_executado_sem_coleta_usa_status_de_dominio_tasy(): void
-    {
-        $motivo = PendingEventHelper::motivoPendente([
-            'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
-            'dt_coleta' => null,
-            'urgente' => false,
-        ]);
-
-        $this->assertSame('Aguardando coleta', $motivo);
-    }
-
-    #[Test]
-    public function motivo_exame_executado_sem_coleta_com_status_codigo_20_usa_dominio(): void
-    {
-        $motivo = PendingEventHelper::motivoPendente([
-            'tipo' => 'exame',
-            'foi_executado_sem_baixa' => true,
-            'dt_coleta' => null,
             'ie_status_execucao' => '20',
             'urgente' => false,
         ]);
@@ -97,20 +134,24 @@ class PendingEventHelperTest extends TestCase
     }
 
     #[Test]
-    public function motivo_exame_sem_scola_sem_foi_executado_retorna_motivo_tasy(): void
+    public function motivo_exame_dt_coleta_com_codigo_pre_coleta_inconsistencia_forca_laudo(): void
     {
+        // Inconsistência Tasy: dt_coleta set mas código ainda em pré-coleta → força "Aguardando laudo"
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
-            'foi_executado_sem_baixa' => false,
             'ie_status_execucao' => '10',
+            'status_laudo' => 'Prescrito',
+            'dt_coleta' => '06/04/2026 10:00',
             'urgente' => false,
         ]);
 
-        $this->assertSame('Aguardando coleta', $motivo);
+        $this->assertSame('Aguardando laudo', $motivo);
     }
 
+    // ── Exames: prescrição mais nova ──────────────────────────────────────────
+
     #[Test]
-    public function motivo_exame_coletado_em_prescricao_mais_nova_exibe_status_real_desta_prescricao(): void
+    public function motivo_exame_coletado_em_prescricao_mais_nova_retorna_aguardando_coleta(): void
     {
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
@@ -122,24 +163,9 @@ class PendingEventHelperTest extends TestCase
     }
 
     #[Test]
-    public function motivo_exame_coletado_em_nova_com_laudo_liberado_no_scola(): void
+    public function motivo_exame_coletado_em_prescricao_mais_nova_com_scola_colheita_nao_altera_motivo(): void
     {
-        // Mostra o status real desta prescrição (via SCOLA), sem referência à solicitação mais nova.
-        $motivo = PendingEventHelper::motivoPendente([
-            'tipo' => 'exame',
-            'exame_coletado_em_prescricao_mais_nova' => true,
-            'scola_status' => 'Laudo liberado (baixa não integrada)',
-            'scola_data_liberado' => '06/04/2026 10:00',
-            'scola_data_exportado' => '06/04/2026 10:05',
-            'urgente' => false,
-        ]);
-
-        $this->assertSame('Laudo disponível — baixa não realizada', $motivo);
-    }
-
-    #[Test]
-    public function motivo_exame_coletado_em_nova_com_coleta_no_scola(): void
-    {
+        // Scola é exibido em coluna separada — não influencia motivo_pendente
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',
             'exame_coletado_em_prescricao_mais_nova' => true,
@@ -148,11 +174,11 @@ class PendingEventHelperTest extends TestCase
             'urgente' => false,
         ]);
 
-        $this->assertSame('Coletado — aguardando resultado', $motivo);
+        $this->assertSame('Aguardando coleta', $motivo);
     }
 
     #[Test]
-    public function motivo_prescricao_mais_nova_pendente_exibe_status_real_desta_prescricao(): void
+    public function motivo_prescricao_mais_nova_pendente_retorna_aguardando_coleta(): void
     {
         $motivo = PendingEventHelper::motivoPendente([
             'tipo' => 'exame',

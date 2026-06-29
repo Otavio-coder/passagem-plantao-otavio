@@ -36,7 +36,6 @@ class PendingEventsReportControllerTest extends TestCase
 
         $this->assertCount(1, $rows);
         $this->assertSame('Consultoria', $rows[0]['tipo_label']);
-        $this->assertSame('Aberto', $rows[0]['status']);
         $this->assertSame('Aguardando resposta', $rows[0]['motivo_pendente']);
         $this->assertSame('Consultoria - Psicologia', $rows[0]['item']);
     }

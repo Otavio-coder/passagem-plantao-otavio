@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Repositories\EMR\PatientPrescriptionsRepository;
+use App\Services\Tasy\PrescriptionFormatter;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -15,7 +16,7 @@ class MedicationIntervalDescriptorTest extends TestCase
     #[Test]
     public function medications_query_includes_interval_descriptor(): void
     {
-        $repo = new PatientPrescriptionsRepository;
+        $repo = app(PatientPrescriptionsRepository::class);
         $method = new \ReflectionMethod($repo, 'medicationsQuery');
         $method->setAccessible(true);
         $query = $method->invoke($repo);
@@ -48,8 +49,8 @@ class MedicationIntervalDescriptorTest extends TestCase
     #[Test]
     public function format_medication_maps_frequency_from_secondary_info(): void
     {
-        $repo = new PatientPrescriptionsRepository;
-        $method = new \ReflectionMethod($repo, 'formatMedication');
+        $formatter = app(PrescriptionFormatter::class);
+        $method = new \ReflectionMethod($formatter, 'formatMedication');
         $method->setAccessible(true);
 
         $row = (object) [
@@ -84,7 +85,7 @@ class MedicationIntervalDescriptorTest extends TestCase
             'nr_prescricao' => 999,
         ];
 
-        $formatted = $method->invoke($repo, $row);
+        $formatted = $method->invoke($formatter, $row);
 
         $this->assertSame('8/8h - 8 em 8 horas', $formatted['frequency']);
         $this->assertSame(3, $formatted['total_doses']);
@@ -98,8 +99,8 @@ class MedicationIntervalDescriptorTest extends TestCase
     #[Test]
     public function format_medication_falls_back_to_code_when_descriptor_missing(): void
     {
-        $repo = new PatientPrescriptionsRepository;
-        $method = new \ReflectionMethod($repo, 'formatMedication');
+        $formatter = app(PrescriptionFormatter::class);
+        $method = new \ReflectionMethod($formatter, 'formatMedication');
         $method->setAccessible(true);
 
         $row = (object) [
@@ -134,7 +135,7 @@ class MedicationIntervalDescriptorTest extends TestCase
             'nr_prescricao' => 888,
         ];
 
-        $formatted = $method->invoke($repo, $row);
+        $formatted = $method->invoke($formatter, $row);
 
         $this->assertSame('SN', $formatted['frequency']);
         $this->assertTrue($formatted['is_antibiotic']);

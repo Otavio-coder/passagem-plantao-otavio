@@ -26,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(TasyService::class);
         $this->app->singleton(UserDisplayNameResolver::class);
+        $this->app->singleton(ScolaExamStatusService::class);
 
         $this->app->bind(PatientScalesRepository::class, PatientScalesRepository::class);
         $this->app->bind(PatientClinicalRepository::class, PatientClinicalRepository::class);

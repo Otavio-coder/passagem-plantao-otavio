@@ -1,8 +1,10 @@
 <?php
 
-use App\Jobs\WarmSectorCacheJob;
+use App\Services\PatientData\PatientDataLoader;
+use App\Services\PendingEvents\PatientPendingEventsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 // Recalcula contagem de mensagens arquivadas por plantonista (domingos 03:00)
@@ -29,36 +31,67 @@ Schedule::command('chat:cleanup --days=30')
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();
 
-// Limpa caches de dados de setor SBAR a cada hora para forçar re-carregamento
-// (demografia, escalas, pendências, multidisciplinar, etc.)
-Schedule::call(function () {
-    $keys = DB::table('nurse_handover_beds')
-        ->distinct()
-        ->pluck('sector_id');
+/**
+ * Retorna todos os sector IDs ativos: union de nurse_handover_beds + user_sector_preferences.
+ * Garante cobertura de setores que não possuem leitos cadastrados no handover.
+ *
+ * @return int[]
+ */
+$activeSectorIds = function (): array {
+    $fromBeds = DB::table('nurse_handover_beds')->distinct()->pluck('sector_id')->map(fn ($v) => (int) $v);
+    $fromPrefs = DB::table('user_sector_preferences')->distinct()->pluck('sector_code')->map(fn ($v) => (int) $v);
 
-    $prefixes = ['sector_demographics_', 'sector_scales_', 'sector_clinical_',
-        'sector_multi_', 'sector_surgery_', 'sector_pending_fast_'];
+    return $fromBeds->merge($fromPrefs)->filter()->unique()->values()->all();
+};
 
-    foreach ($keys as $sectorId) {
-        foreach ($prefixes as $prefix) {
+// Limpa e re-aquece caches de dados de setor a cada hora.
+// Aquecimento de pending events é síncrono (sem queue) para garantir que o cache fique
+// quente imediatamente após a limpeza — sem depender de queue workers.
+Schedule::call(function () use ($activeSectorIds) {
+    $sectorIds = $activeSectorIds();
+    $pendingService = app(PatientPendingEventsService::class);
+
+    $staticPrefixes = ['sector_demographics_', 'sector_scales_', 'sector_clinical_',
+        'sector_multi_', 'sector_surgery_'];
+
+    foreach ($sectorIds as $sectorId) {
+        // Limpa dados estáticos (demografia, escalas, clínico, multidisciplinar, cirurgia)
+        foreach ($staticPrefixes as $prefix) {
             Cache::forget($prefix.$sectorId);
+        }
+
+        // Re-aquece pending events agora (síncrono) para o próximo usuário encontrar cache quente
+        Cache::forget("sector_pending_fast_{$sectorId}");
+        try {
+            $pendingService->getPendingEventsForSector($sectorId);
+        } catch (Throwable $e) {
+            Log::warning('[schedule:sbar-cache-clear] Falha ao aquecer pending events', [
+                'sector_id' => $sectorId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 })->hourly()->name('sbar-cache-clear')->withoutOverlapping();
 
-// Pre-aquece caches de todos os setores 15 minutos antes de cada troca de turno
+// Pre-aquece TODOS os dados de setor 15 min antes de cada troca de turno
 // (06:45 → manhã 07h, 12:45 → tarde 13h, 18:45 → noite 19h).
-// Nurses arriving exactly at shift change find warm caches instead of 10-15s Oracle loads.
-$warmAllSectors = function () {
-    $sectorIds = DB::table('user_sector_preferences')
-        ->distinct()
-        ->pluck('sector_code')
-        ->map(fn ($v) => (int) $v)
-        ->filter()
-        ->unique();
+// Síncrono — sem queue — para garantir execução mesmo sem workers.
+$warmAllSectors = function () use ($activeSectorIds) {
+    $sectorIds = $activeSectorIds();
+    $pendingService = app(PatientPendingEventsService::class);
 
     foreach ($sectorIds as $sectorId) {
-        WarmSectorCacheJob::dispatch($sectorId, forceStatic: true);
+        try {
+            PatientDataLoader::forSector($sectorId)
+                ->include('demographics', 'scales', 'clinical', 'multidisciplinary', 'surgery')
+                ->get();
+            $pendingService->getPendingEventsForSector($sectorId);
+        } catch (Throwable $e) {
+            Log::warning('[schedule:sbar-pre-warm] Falha ao aquecer setor', [
+                'sector_id' => $sectorId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 };
 

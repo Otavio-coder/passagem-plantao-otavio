@@ -206,6 +206,22 @@ class PendingEventsReportController extends Controller
 
     public function jsonData(Request $request): JsonResponse
     {
+        try {
+            return $this->buildJsonDataResponse($request);
+        } catch (\Throwable $e) {
+            Log::error('PendingEventsReportController: jsonData fatal', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['data' => [], 'meta' => ['total' => 0, 'error' => $e->getMessage()]], 200);
+        }
+    }
+
+    private function buildJsonDataResponse(Request $request): JsonResponse
+    {
         $user = Auth::user();
         $selectedSectors = $this->resolveAuthorizedSectorIds($request, $user);
 

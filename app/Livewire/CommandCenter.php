@@ -308,9 +308,10 @@ class CommandCenter extends Component
         return [
             ['label' => 'Limpar logs antigos', 'schedule' => 'Semanal', 'command' => 'handover:prune-log --days=180'],
             ['label' => 'Limpar jobs falhos', 'schedule' => 'Semanal', 'command' => 'queue:prune-failed --hours=168'],
-            ['label' => 'Limpar cache SBAR', 'schedule' => 'A cada hora', 'command' => 'Cache de setores (sector_*)'],
-            ['label' => 'Pré-aquecer cache SBAR', 'schedule' => '06:45, 12:45, 18:45', 'command' => 'WarmSectorCacheJob (todos os setores)'],
+            ['label' => 'Limpar cache SBAR', 'schedule' => 'A cada hora', 'command' => 'Cache de setores (sector_*) + pending events — síncrono'],
+            ['label' => 'Pré-aquecer cache SBAR', 'schedule' => '06:45, 12:45, 18:45', 'command' => 'PatientDataLoader todos os setores — síncrono no scheduler'],
             ['label' => 'Arquivar mensagens', 'schedule' => 'Diário 03:00', 'command' => 'chat:cleanup --days=30'],
+            ['label' => 'Reconstruir stats de arquivo', 'schedule' => 'Domingos 03:00', 'command' => 'cache:rebuild-archive-stats'],
         ];
     }
 }

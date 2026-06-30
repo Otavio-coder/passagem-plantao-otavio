@@ -3,6 +3,7 @@
 namespace App\Repositories\EMR;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Repositório de dados clínicos do paciente no EMR Tasy (Oracle).
@@ -37,6 +38,7 @@ class PatientClinicalRepository
         $chunks = array_chunk($attendanceNumbers, self::CLINICAL_CHUNK_SIZE);
         $allResults = [];
 
+        $t0 = hrtime(true);
         foreach ($chunks as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
@@ -238,9 +240,15 @@ class PatientClinicalRepository
                 $allResults[$result->nr_atendimento] = $result;
             }
         }
+        Log::info('[Clinical] query=main_clinical ms='.intval((hrtime(true) - $t0) / 1e6));
 
+        $t1 = hrtime(true);
         $diagnostics = $this->getBatchDiagnostics($attendanceNumbers);
+        Log::info('[Clinical] query=diagnostics ms='.intval((hrtime(true) - $t1) / 1e6));
+
+        $t2 = hrtime(true);
         $antimicrobials = $this->getBatchAntimicrobials($attendanceNumbers);
+        Log::info('[Clinical] query=antimicrobials ms='.intval((hrtime(true) - $t2) / 1e6));
 
         $finalResults = [];
         foreach ($attendanceNumbers as $nr) {
@@ -298,10 +306,6 @@ class PatientClinicalRepository
         foreach (array_chunk($attendanceNumbers, self::ANTIMICROBIAL_CHUNK_SIZE) as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
-            // antimicrobial_mats: materializa o catálogo de antimicrobianos uma única vez via JOIN,
-            // evitando a scalar subquery original que executava SELECT por linha.
-            // ranked_prescr: ROW_NUMBER por (atendimento, material) substitui a correlated subquery
-            // de MAX(dt_prescricao) que disparava N queries para cada combinação atendimento × material.
             $rows = DB::connection($this->connection)->select("
                 WITH antimicrobial_mats AS (
                     SELECT m.cd_material,

@@ -342,10 +342,12 @@ class ScolaExamStatusService
 
         if (! empty($missing)) {
             [$placeholders, $bindings] = $this->buildQueryPlaceholders($missing, 'p');
+            $_t = hrtime(true);
             $rows = DB::connection('scola')->select(
                 'SELECT id_prescricao_integracao, codigo_pedido FROM scola.pedido WHERE id_prescricao_integracao IN ('.implode(',', $placeholders).')',
                 $bindings
             );
+            Log::info('[Scola] query=pedido ids='.count($missing).' rows='.count($rows).' ms='.round((hrtime(true) - $_t) / 1e6));
             foreach ($missing as $id) {
                 $this->pedidosMemo[$id] = [];
             }
@@ -367,10 +369,12 @@ class ScolaExamStatusService
 
         if (! empty($missing)) {
             [$placeholders, $bindings] = $this->buildQueryPlaceholders($missing);
+            $_t = hrtime(true);
             $rows = DB::connection('scola')->select(
                 'SELECT codigo_pedido, id_seq_prescricao_integracao, data_colheita, data_resultado, data_liberado, data_exportacao_resultado, status_exame_integracao FROM scola.mov_ex WHERE codigo_pedido IN ('.implode(',', $placeholders).')',
                 $bindings
             );
+            Log::info('[Scola] query=mov_ex ids='.count($missing).' rows='.count($rows).' ms='.round((hrtime(true) - $_t) / 1e6));
             foreach ($missing as $id) {
                 $this->movExMemo[$id] = [];
             }

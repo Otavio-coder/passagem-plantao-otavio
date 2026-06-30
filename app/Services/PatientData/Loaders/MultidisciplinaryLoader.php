@@ -30,7 +30,6 @@ class MultidisciplinaryLoader implements SectorLoader
     {
         try {
             $teams = $this->repository->getMultidisciplinaryTeams($attendanceNumbers);
-            $requests = $this->repository->getMultidisciplinaryRequestsBatch($attendanceNumbers);
         } catch (\Throwable $e) {
             Log::error('MultidisciplinaryLoader: failed', ['error' => $e->getMessage()]);
 
@@ -42,7 +41,6 @@ class MultidisciplinaryLoader implements SectorLoader
         foreach ($attendanceNumbers as $nr) {
             $result[$nr] = [
                 'multidisciplinary' => $teams[$nr] ?? $this->defaultTeams(),
-                'multidisciplinary_requests' => $requests[$nr] ?? [],
             ];
         }
 

@@ -143,23 +143,18 @@
                             <div x-show="isInitialLoading" x-cloak
                                  class="absolute inset-0 z-30 rounded-b-xl bg-white/70 backdrop-blur-[1px]">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 p-1">
-                                    @for($i = 0; $i < 8; $i++)
+                                    @for($i = 0; $i < 20; $i++)
                                         @include('sbar.report.partials.skeleton-card')
                                     @endfor
                                 </div>
                             </div>
                             @endif
 
-                            {{-- Phase 2 trigger: Alpine fires loadPatientsEnrichment() after Phase 1 cards render.
-                                 window.__sbarPhase2 flag prevents the commit hook from showing the loading overlay. --}}
-                            @if(!$isLoading && ($isLoadingEnrichment ?? false))
-                                <div x-data x-init="window.__sbarPhase2 = true; $wire.loadPatientsEnrichment()" class="hidden" aria-hidden="true"></div>
-                            @endif
 
                             {{-- Initial cold load — wire:init not yet fired, no cards in DOM --}}
                             @if($isLoading)
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-                                    @for($i = 0; $i < 8; $i++)
+                                    @for($i = 0; $i < 20; $i++)
                                         @include('sbar.report.partials.skeleton-card')
                                     @endfor
                                 </div>

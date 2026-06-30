@@ -9,6 +9,9 @@ class PendingEventsGroupedByPrescriptionTest extends TestCase
 {
     public function test_modal_groups_pending_items_by_prescription_and_orders_by_sequence(): void
     {
+        // Arquitetura atual: pending_groups são carregados sob demanda via Livewire action
+        // quando o modal "Ver todas" é aberto — NÃO são embarcados como JSON no HTML inicial.
+        // O card exibe apenas o first_pending_event e o botão "Ver todas" quando all_count > 0.
         $patient = [
             'first_pending_event' => [
                 'descricao' => 'Pendência principal',
@@ -25,104 +28,31 @@ class PendingEventsGroupedByPrescriptionTest extends TestCase
             'pending_modal_meta' => [
                 'all_count' => 5,
             ],
-            'pending_events' => [
-                ['nr_prescricao' => 9001],
-                ['nr_prescricao' => 9001],
-                ['nr_prescricao' => 9002],
-                ['_fonte' => 'agenda'],
-                ['_fonte' => 'agenda'],
-            ],
-            'pending_groups' => [
-                [
-                    'type' => 'procedimento',
-                    'label' => 'Procedimentos',
-                    'style' => [
-                        'border_header' => 'border-indigo-200',
-                        'bg_header' => 'bg-indigo-50/60',
-                        'text_header' => 'text-indigo-700',
-                        'border_card' => 'border-indigo-200',
-                        'bg_card' => 'bg-indigo-50/40',
-                    ],
-                    'events' => [
-                        [
-                            'descricao' => 'Item 1',
-                            'nr_prescricao' => 9001,
-                            'nr_sequencia_pp' => 1,
-                            'dt_solicitacao' => '05/05/2026 09:00',
-                            'tempo_pendente' => '2h',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                        [
-                            'descricao' => 'Item 2',
-                            'nr_prescricao' => 9001,
-                            'nr_sequencia_pp' => 2,
-                            'dt_solicitacao' => '05/05/2026 09:10',
-                            'tempo_pendente' => '1h',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                        [
-                            'descricao' => 'Outro item',
-                            'nr_prescricao' => 9002,
-                            'nr_sequencia_pp' => 1,
-                            'dt_solicitacao' => '05/05/2026 10:00',
-                            'tempo_pendente' => '30m',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                        [
-                            'descricao' => 'Item Agenda 1',
-                            'dt_evento' => '2026-05-05 14:00:00',
-                            '_fonte' => 'agenda',
-                            'tempo_pendente' => '2h',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                        [
-                            'descricao' => 'Item Agenda 2',
-                            'dt_evento' => '2026-05-05 14:00:00',
-                            '_fonte' => 'agenda',
-                            'tempo_pendente' => '1h',
-                            'icone' => 'alert-circle.svg',
-                        ],
-                    ],
-                ],
-            ],
+            'pending_events' => [],
+            'nr_atendimento' => 12345,
+            'nm_pessoa_fisica' => 'Paciente Teste',
             'sector_exec_fallback' => 'Setor não informado',
         ];
 
         $html = Blade::render(
-            '<x-patient-card.pending-events :patient="$patient" :sector-id="$sectorId" />',
-            [
-                'patient' => $patient,
-                'sectorId' => 0,
-            ],
+            '<x-patient-card.pending-events :patient="$patient" />',
+            ['patient' => $patient],
         );
 
-        // Js::from() faz double-encode: JSON → json_encode(string) → JSON.parse('...').
-        // Geramos a string de busca com o mesmo processo para garantir o match exato.
-        $jsFlags = JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_THROW_ON_ERROR;
+        // Card exibe o first_pending_event
+        $this->assertStringContainsString('Pendência principal', $html);
 
-        /** @param mixed $data */
-        $jsSearch = static function ($data) use ($jsFlags): string {
-            $firstJson = json_encode($data, $jsFlags);
+        // Botão "Ver todas" aparece quando all_count > 0
+        $this->assertStringContainsString('Ver todas', $html);
 
-            return (string) substr((string) substr(json_encode($firstJson, $jsFlags), 1, -1), 1, -1);
-        };
+        // openPendingModal() é a função Alpine que carrega grupos sob demanda
+        $this->assertStringContainsString('openPendingModal', $html);
 
-        // O grupo renderiza as prescrições como allItems no estado Alpine.
-        // Blade usa Js::from() + JSON_HEX_QUOT → aspas viram " no HTML.
-        $this->assertStringContainsString('Procedimentos', $html);
-        $this->assertStringContainsString('\\u0022nr_prescricao\\u0022:9001', $html);
-        $this->assertStringContainsString('\\u0022nr_prescricao\\u0022:9002', $html);
+        // Grupos NÃO são embarcados como JSON no HTML inicial (carregamento lazy via Livewire action).
+        // O antigo @js(array_values($group['events'])) gerava JSON_HEX_QUOT-encoded data — não existe mais.
+        $this->assertStringNotContainsString('"nr_prescricao":', $html);
 
-        $positionItem1 = strpos($html, 'Item 1');
-        $positionItem2 = strpos($html, 'Item 2');
-        $positionOutro = strpos($html, 'Outro item');
-        $positionAgenda = strpos($html, 'Item Agenda');
-
-        $this->assertNotFalse($positionItem1);
-        $this->assertNotFalse($positionItem2);
-        $this->assertNotFalse($positionOutro);
-        $this->assertNotFalse($positionAgenda);
-        $this->assertLessThan($positionItem2, $positionItem1);
-        $this->assertLessThan($positionOutro, $positionItem2);
+        // Chamada Livewire para carregar grupos está no x-data do container (correto)
+        $this->assertStringContainsString('getPatientPendingGroups', $html);
     }
 }

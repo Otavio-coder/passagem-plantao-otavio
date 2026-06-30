@@ -5,7 +5,9 @@ namespace App\Livewire;
 use App\Models\EMR\Core\Sector;
 use App\Models\NurseHandoverBed;
 use App\Models\System\UserSectorPreference;
+use App\Repositories\EMR\PatientMultidisciplinaryRepository;
 use App\Services\PatientData\PatientDataLoader;
+use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\ShiftService;
 use App\Services\Tasy\TasyService;
 use App\Services\UserDisplayNameResolver;
@@ -43,9 +45,6 @@ class SbarReport extends Component
 
     /** Verdadeiro durante o carregamento inicial até o wire:init disparar loadPatients(). */
     public bool $isLoading = true;
-
-    /** Verdadeiro entre Phase1 (demographics+scales) e Phase2 (clinical+pending+multi+surgery). */
-    public bool $isLoadingEnrichment = false;
 
     // Onboarding de setores
     public bool $showSectorOnboarding = false;
@@ -128,7 +127,7 @@ class SbarReport extends Component
 
         try {
             $user = Auth::user();
-            $handoverCacheKey = "sector_handover_{$this->selectedSector}_".Auth::id().'_'.ShiftService::getCurrentShift();
+            $handoverCacheKey = 'sector_handover_'.$this->selectedSector.'_'.Auth::id().'_'.ShiftService::getCurrentShift();
 
             if ($user->only_assigned_beds) {
                 $bedCodes = NurseHandoverBed::where('user_id', $user->id)
@@ -137,9 +136,6 @@ class SbarReport extends Component
                     ->toArray();
 
                 if (! empty($bedCodes)) {
-                    // Per-user cache: on hit skips all Oracle/loader calls (~5ms Redis).
-                    // On miss: runs full sector loaders (uses warm sector caches when available),
-                    // filters to assigned beds, stores only the N beds this nurse needs.
                     $patients = Cache::remember(
                         "sector_patients_{$this->selectedSector}_{$user->id}",
                         900,
@@ -180,36 +176,6 @@ class SbarReport extends Component
                 'user_id' => Auth::id(),
             ]);
             $this->errorMessage = 'Erro ao carregar pacientes: '.$e->getMessage();
-
-            return [];
-        }
-    }
-
-    /**
-     * Phase 1 data: demographics + scales only. Fast (~300ms cold).
-     * Used during $isLoadingEnrichment before full clinical data arrives.
-     */
-    #[Computed(persist: true)]
-    public function patientsLight(): array
-    {
-        if (! $this->selectedSector) {
-            return [];
-        }
-
-        try {
-            $patients = PatientDataLoader::forSector($this->selectedSector)
-                ->include('scales')
-                ->get();
-
-            $filtered = $this->applyBedFilter($patients);
-
-            return $this->preparePatientsForView($filtered);
-        } catch (\Exception $e) {
-            Log::error('Error loading light patients', [
-                'exception' => $e,
-                'selected_sector' => $this->selectedSector,
-                'user_id' => Auth::id(),
-            ]);
 
             return [];
         }
@@ -282,7 +248,7 @@ class SbarReport extends Component
 
         $expiredList = [];
 
-        $patientsList = $this->isLoadingEnrichment ? $this->patientsLight : $this->patients;
+        $patientsList = $this->patients;
 
         foreach ($patientsList as $patient) {
             if (! ($patient['has_patient'] ?? false)) {
@@ -419,22 +385,47 @@ class SbarReport extends Component
 
     /**
      * Called by wire:init after the initial HTML is rendered in the browser.
-     * Triggers patient loading without blocking the first page render.
+     * Loads all card-visible data in a single batch and dispatches expired-scales event.
      */
     public function loadPatients(): void
     {
         $this->isLoading = false;
-        $this->isLoadingEnrichment = true;
+        $this->dispatch('expired-scales-data-loaded', patients: $this->expiredScalesPatients);
     }
 
     /**
-     * Phase 2: triggers full patient load (clinical, pending events, multidisciplinary, surgery).
-     * Called by Alpine after Phase 1 renders in the browser.
+     * Returns pending groups for a single patient on demand (modal "Ver todas").
+     * Reads from sector cache (~5ms warm); no Oracle query if cache is hot.
+     *
+     * @return array<int, array<string, mixed>>
      */
-    public function loadPatientsEnrichment(): void
+    public function getPatientPendingGroups(int $attendanceNumber): array
     {
-        $this->isLoadingEnrichment = false;
-        $this->dispatch('expired-scales-data-loaded', patients: $this->expiredScalesPatients);
+        if (! $this->selectedSector) {
+            return [];
+        }
+
+        $sectorData = app(PatientPendingEventsService::class)
+            ->getPendingEventsForSector($this->selectedSector);
+
+        $events = $sectorData[$attendanceNumber]['pending_events'] ?? [];
+        $structured = PendingEventHelper::buildPendingModalData($events);
+
+        return $structured['groups'];
+    }
+
+    /**
+     * Returns formatted multidisciplinary requests for a single patient on demand.
+     * Called by Alpine when the user clicks the multidisciplinary section.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPatientMultiRequests(int $attendanceNumber): array
+    {
+        $repository = app(PatientMultidisciplinaryRepository::class);
+        $requests = $repository->getDetailedMultidisciplinaryRequests($attendanceNumber);
+
+        return self::buildMultidisciplinaryRequests($requests);
     }
 
     public function changeHospital($hospitalId)
@@ -444,7 +435,6 @@ class SbarReport extends Component
 
         unset($this->sectors);
         unset($this->patients);
-        unset($this->patientsLight);
 
         $sectors = $this->sectors;
 
@@ -476,8 +466,9 @@ class SbarReport extends Component
         }
 
         $this->selectedSector = $sectorId;
+
         unset($this->patients);
-        unset($this->patientsLight);
+
         $this->lastRefresh = now()->format('H:i:s');
         $this->auditSectorView('sector_change');
     }
@@ -491,7 +482,7 @@ class SbarReport extends Component
             }
 
             unset($this->patients);
-            unset($this->patientsLight);
+
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in refreshData', [
@@ -511,7 +502,7 @@ class SbarReport extends Component
             }
 
             unset($this->patients);
-            unset($this->patientsLight);
+
             $this->lastRefresh = now()->format('H:i:s');
         } catch (\Exception $e) {
             Log::error('Error in forceRefreshData', [
@@ -525,8 +516,9 @@ class SbarReport extends Component
 
     public function updateSectorPatients()
     {
+
         unset($this->patients);
-        unset($this->patientsLight);
+
         $this->lastRefresh = now()->format('H:i:s');
     }
 
@@ -621,7 +613,6 @@ class SbarReport extends Component
             unset($this->hospitals);
             unset($this->sectors);
             unset($this->patients);
-            unset($this->patientsLight);
 
             // Re-inicializa com as novas preferências
             $this->mount();
@@ -642,7 +633,6 @@ class SbarReport extends Component
         unset($this->hospitals);
         unset($this->sectors);
         unset($this->patients);
-        unset($this->patientsLight);
 
         $this->mount();
     }
@@ -657,7 +647,7 @@ class SbarReport extends Component
         // Invalidar o computed força recompute: usa sector_patients_* (quente, ~5ms)
         // e re-executa injectHandoverStatus (MySQL, ~100ms) sem tocar no Oracle.
         unset($this->patients);
-        unset($this->patientsLight);
+
     }
 
     public function onNursePreferencesUpdated(): void
@@ -666,7 +656,7 @@ class SbarReport extends Component
             $this->clearUserHandoverCache($this->selectedSector);
         }
         unset($this->patients);
-        unset($this->patientsLight);
+
         $this->lastRefresh = now()->format('H:i:s');
     }
 
@@ -688,9 +678,8 @@ class SbarReport extends Component
         return view('sbar.report.index', [
             'hospitals' => $this->hospitals,
             'sectors' => $this->sectors,
-            'patients' => $this->isLoading ? [] : ($this->isLoadingEnrichment ? $this->patientsLight : $this->patients),
+            'patients' => $this->isLoading ? [] : $this->patients,
             'isLoading' => $this->isLoading,
-            'isLoadingEnrichment' => $this->isLoadingEnrichment,
             'errorMessage' => $this->errorMessage,
             'selectedHospital' => $this->selectedHospital,
             'selectedSector' => $this->selectedSector,
@@ -930,13 +919,7 @@ class SbarReport extends Component
                 $dischargeInfo = null;
             }
 
-            $multidisciplinaryRequests = $patient['multidisciplinary_requests'] ?? [];
-            if (! is_array($multidisciplinaryRequests)) {
-                $multidisciplinaryRequests = [];
-            }
-
             $patient['pending_events'] = $structured['events'];
-            $patient['pending_groups'] = $structured['groups'];
             $patient['first_pending_event'] = $structured['first_event'];
             $patient['allergy_items'] = self::buildAllergyItems($patient);
             $patient['isolation_items'] = self::buildIsolationItems($patient['motivos_isolamento'] ?? null);
@@ -946,7 +929,6 @@ class SbarReport extends Component
             $patient['procedimentos_cirurgicos'] = self::buildSurgeryItems($surgeries);
             $patient['discharge_display'] = self::buildDischargeDisplay($dischargeInfo);
             $patient['ews_display'] = self::buildEwsDisplay($patient);
-            $patient['multidisciplinary_requests'] = self::buildMultidisciplinaryRequests($multidisciplinaryRequests);
             $patient['pending_modal_meta'] = self::buildPendingModalMeta($structured['events']);
             $patient['pending_type_filter'] = collect($structured['events'])
                 ->pluck('tipo')

@@ -1,6 +1,34 @@
 @props(['patient'])
+{{--
+    Safelist: mantém classes dinâmicas de grupos de pendências no CSS do Tailwind.
+    Geradas por PendingEventHelper::groupStyle() — não remover.
+--}}
+@once
+<div class="hidden" aria-hidden="true">
+    <div class="border-gray-300 bg-[#E8E8E8] text-gray-700 bg-[#E8E8E8]/80 border-gray-200"></div>
+    <div class="border-[#7712C7]/30 bg-[#7712C7]/10 text-[#7712C7] border-[#7712C7]/20 bg-[#7712C7]/5"></div>
+    <div class="border-[#0A4700]/30 bg-[#0A4700]/10 text-[#0A4700] border-[#0A4700]/20 bg-[#0A4700]/5"></div>
+    <div class="border-[#BDAD02]/50 bg-[#BDAD02]/10 text-[#5C5300] border-[#BDAD02]/30 bg-[#BDAD02]/5"></div>
+    <div class="border-blue-200 bg-blue-50/60 text-blue-700 bg-blue-50/40 border-indigo-200 bg-indigo-50/60 text-indigo-700 bg-indigo-50/40"></div>
+</div>
+@endonce
 <div class="flex-1 min-h-0 px-2 sm:px-2.5 lg:px-3 overflow-hidden flex flex-col"
-     x-data="{ showPendingModal: false, cardSlide: 0 }">
+     x-data="{
+         showPendingModal: false,
+         cardSlide: 0,
+         pendingGroups: null,
+         pendingLoading: false,
+         sectorExecFallback: '{{ e($patient['sector_exec_fallback'] ?? 'Setor não informado') }}',
+         async openPendingModal() {
+             this.showPendingModal = true;
+             document.body.style.overflow = 'hidden';
+             if (this.pendingGroups === null) {
+                 this.pendingLoading = true;
+                 this.pendingGroups = await $wire.getPatientPendingGroups({{ (int) ($patient['nr_atendimento'] ?? 0) }});
+                 this.pendingLoading = false;
+             }
+         }
+     }">
 
     @if(!empty($patient['first_pending_event']) || !empty($patient['latest_evaluation']['content'] ?? null))
         <div class="rounded-lg p-1.5 border {{ !empty($patient['first_pending_event']) ? '' : 'bg-blue-50/60 border-blue-200' }}"
@@ -16,9 +44,9 @@
                     @endif
                 </span>
                 <div class="flex items-center gap-1.5">
-                    @if(!empty($patient['pending_events'] ?? []))
+                    @if(($patient['pending_modal_meta']['all_count'] ?? 0) > 0)
                         <button
-                            @click="showPendingModal = true; document.body.style.overflow = 'hidden'"
+                            @click="openPendingModal()"
                             class="inline-flex items-center rounded-md border border-[#004D9D]/25 bg-[#004D9D]/10 px-2 py-0.5
                                    text-[10px] font-medium text-[#004D9D] hover:bg-[#004D9D]/20 transition-colors cursor-pointer"
                             title="Ver todas as pendências"
@@ -181,174 +209,175 @@
 
 
             <div class="flex-1 overflow-y-auto min-h-0 p-3 space-y-3">
-                <div x-show="{{ (($patient['pending_modal_meta']['all_count'] ?? 0) === 0) ? 'true' : 'false' }}"
-                     class="rounded-xl border border-gray-200 bg-gray-50/60 p-6 text-center">
-                    <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
-                    <p class="text-xs text-gray-500 font-medium mt-2">Nenhuma pendência para este filtro.</p>
-                    <p class="text-[10px] text-gray-400 mt-1">Troque o período para visualizar outros itens.</p>
+
+                {{-- Loading state --}}
+                <div x-show="pendingLoading" class="flex flex-col items-center justify-center py-10 gap-3">
+                    <div class="h-5 w-5 rounded-full bg-gray-200 animate-pulse"></div>
+                    <div class="h-2 w-36 bg-gray-200 rounded animate-pulse"></div>
+                    <div class="h-2 w-28 bg-gray-100 rounded animate-pulse"></div>
                 </div>
 
-                @foreach(($patient['pending_groups'] ?? []) as $group)
-                    <div x-data="{
-                            allItems: @js(array_values($group['events'] ?? [])),
-                            page: 1,
-                            perPage: 8,
-                            calcPerPage() {
-                                const modal = document.querySelector('[data-pending-modal-panel]');
-                                const modalHeight = modal ? modal.clientHeight : window.innerHeight;
-                                const reservedSpace = 430;
-                                const itemHeight = 96;
-                                const computed = Math.floor((modalHeight - reservedSpace) / itemHeight);
-                                this.perPage = Math.max(3, Math.min(10, computed || 8));
-                                if (this.page > this.pages) this.page = this.pages;
-                            },
-                            get items() {
-                                return this.allItems;
-                            },
-                            get paged() {
-                                return this.items.slice((this.page-1)*this.perPage, this.page*this.perPage);
-                            },
-                            get pages() {
-                                return Math.max(1, Math.ceil(this.items.length / this.perPage));
-                            }
-                         }"
-                         x-init="calcPerPage()"
-                         @resize.window="calcPerPage()"
-                         x-show="items.length > 0"
-                         class="rounded-xl border {{ $group['style']['border_header'] ?? 'border-gray-200' }} overflow-hidden">
+                {{-- Empty state (always in DOM but hidden — contains Blade icon components) --}}
+                <div x-show="!pendingLoading && pendingGroups !== null && pendingGroups.length === 0"
+                     class="rounded-xl border border-gray-200 bg-gray-50/60 p-6 text-center">
+                    <x-iconoir-walking class="text-gray-400 h-5 w-5 mx-auto" />
+                    <p class="text-xs text-gray-500 font-medium mt-2">Nenhuma pendência registrada.</p>
+                    <p class="text-[10px] text-gray-400 mt-1">Nenhum evento pendente para este paciente.</p>
+                </div>
 
-                        <div class="flex items-center justify-between px-3 py-2 {{ $group['style']['bg_header'] ?? 'bg-white/30' }} border-b {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
-                            <span class="text-xs font-bold {{ $group['style']['text_header'] ?? 'text-[#062047]' }}">
-                                {{ $group['label'] ?? 'Pendências' }}
-                            </span>
-                        </div>
+                {{-- Groups — loaded on demand when modal opens --}}
+                <template x-if="!pendingLoading && pendingGroups !== null && pendingGroups.length > 0">
+                    <div class="space-y-3">
+                        <template x-for="(group, gi) in pendingGroups" :key="gi">
+                            <div x-data="{
+                                    allItems: group.events,
+                                    page: 1,
+                                    perPage: 8,
+                                    calcPerPage() {
+                                        const modal = document.querySelector('[data-pending-modal-panel]');
+                                        const modalHeight = modal ? modal.clientHeight : window.innerHeight;
+                                        const reservedSpace = 430;
+                                        const itemHeight = 96;
+                                        const computed = Math.floor((modalHeight - reservedSpace) / itemHeight);
+                                        this.perPage = Math.max(3, Math.min(10, computed || 8));
+                                        if (this.page > this.pages) this.page = this.pages;
+                                    },
+                                    get items() { return this.allItems; },
+                                    get paged() { return this.items.slice((this.page-1)*this.perPage, this.page*this.perPage); },
+                                    get pages() { return Math.max(1, Math.ceil(this.items.length / this.perPage)); }
+                                 }"
+                                 x-init="calcPerPage()"
+                                 @resize.window="calcPerPage()"
+                                 x-show="allItems.length > 0"
+                                 :class="['rounded-xl border overflow-hidden', group.style.border_header]">
 
-                        <div class="divide-y divide-gray-100/80">
-                            <template x-for="(ev, idx) in paged" :key="idx">
-                                <div class="px-3 py-2.5 hover:brightness-95 transition-all {{ $group['style']['bg_card'] ?? 'bg-gray-50/50' }}"
-                                     :class="{ 'bg-[#7712C7]/10': ev.urgente }">
-                                    <div class="flex items-start gap-2">
-                                        <img
-                                            :src="'/images/icons/patient-card/' + (ev.icone || 'alert-circle.svg')"
-                                            class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80"
-                                            alt=""
-                                        >
-                                        <div class="flex-1 min-w-0">
-                                            <div class="text-xs font-semibold leading-snug"
-                                                 :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#062047]'"
-                                                 x-text="ev.descricao || 'Sem descrição'"></div>
-                                            <div x-show="ev.ds_subtipo || ev.nm_prescritor"
-                                                 class="text-[10px] text-gray-500 mt-0.5 flex flex-wrap gap-x-2">
-                                                <span x-show="ev.ds_subtipo" x-text="ev.ds_subtipo"></span>
-                                                <span x-show="ev.nm_prescritor_display || ev.nm_prescritor" x-text="'· ' + (ev.nm_prescritor_display || ev.nm_prescritor)" class="text-gray-400"></span>
+                                <div :class="['flex items-center justify-between px-3 py-2 border-b', group.style.bg_header, group.style.border_header]">
+                                    <span :class="['text-xs font-bold', group.style.text_header]" x-text="group.label || 'Pendências'"></span>
+                                </div>
+
+                                <div class="divide-y divide-gray-100/80">
+                                    <template x-for="(ev, idx) in paged" :key="idx">
+                                        <div class="px-3 py-2.5 hover:brightness-95 transition-all"
+                                             :class="[group.style.bg_card, ev.urgente ? 'bg-[#7712C7]/10' : '']">
+                                            <div class="flex items-start gap-2">
+                                                <img
+                                                    :src="'/images/icons/patient-card/' + (ev.icone || 'alert-circle.svg')"
+                                                    class="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80"
+                                                    alt=""
+                                                >
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="text-xs font-semibold leading-snug"
+                                                         :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#062047]'"
+                                                         x-text="ev.descricao || 'Sem descrição'"></div>
+                                                    <div x-show="ev.ds_subtipo || ev.nm_prescritor"
+                                                         class="text-[10px] text-gray-500 mt-0.5 flex flex-wrap gap-x-2">
+                                                        <span x-show="ev.ds_subtipo" x-text="ev.ds_subtipo"></span>
+                                                        <span x-show="ev.nm_prescritor_display || ev.nm_prescritor" x-text="'· ' + (ev.nm_prescritor_display || ev.nm_prescritor)" class="text-gray-400"></span>
+                                                    </div>
+                                                </div>
+                                                <span x-show="ev.status_laudo"
+                                                      x-text="ev.status_laudo"
+                                                      class="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap"
+                                                      :class="ev.urgente ? 'bg-[#7712C7] text-white' : 'bg-[#004D9D]/10 text-[#004D9D]'"></span>
                                             </div>
-                                        </div>
-                                        <span x-show="ev.status_laudo"
-                                              x-text="ev.status_laudo"
-                                              class="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap"
-                                              :class="ev.urgente ? 'bg-[#7712C7] text-white' : 'bg-[#004D9D]/10 text-[#004D9D]'"></span>
-                                    </div>
-                                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-gray-500">
-                                        <template x-if="ev.dt_evento_formatted">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Prev. exec.: </span>
-                                                <span x-text="ev.dt_evento_formatted"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="ev.dt_solicitacao">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Prescrição: </span>
-                                                <span x-text="ev.dt_solicitacao"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="ev.dt_autorizacao">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Lib. prescrição: </span>
-                                                <span x-text="ev.dt_autorizacao"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.dt_liberacao_medico">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Lib. médica: </span>
-                                                <span x-text="ev.dt_liberacao_medico"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="ev.nr_prescricao">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Nr. prescrição: </span>
-                                                <span x-text="ev.nr_prescricao"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="ev.dt_coleta">
-                                            <span>
-                                                <span class="font-medium text-gray-600">Coleta: </span>
-                                                <span x-text="ev.dt_coleta"></span>
-                                            </span>
-                                        </template>
-                                        <span x-show="ev.tempo_pendente"
-                                              x-text="ev.tempo_pendente"
-                                              class="font-semibold"
-                                              :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#0071B9]'"></span>
-                                        <span x-show="['cirurgia','hemoterapia','quimioterapia'].includes(ev.tipo) && (ev.setor_execucao || true)"
-                                              class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
-                                            <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
-                                            <span x-text="ev.setor_execucao || '{{ $patient['sector_exec_fallback'] ?? 'Setor não informado' }}'"></span>
-                                        </span>
-                                        <span x-show="ev.ds_complemento && ev.tipo !== 'antibiotico'"
-                                              x-text="ev.ds_complemento"
-                                              class="text-gray-500 italic"></span>
-                                    </div>
-                                    <template x-if="(ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor))">
-                                        <div class="mt-1 space-y-0.5">
-                                            <template x-if="ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo) && ev.motivo_pendente !== ev.status_laudo">
-                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
-                                                    <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
-                                                    <span x-text="ev.motivo_pendente"></span>
-                                                </div>
-                                            </template>
-                                            <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.scola_status && !ev.scola_integration_issue">
-                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
-                                                    <x-healthicons-o-lab-search class="w-3 h-3 flex-shrink-0" />
-                                                    <span class="font-medium text-gray-500">SCOLA:</span>
-                                                    <span x-text="ev.scola_status"></span>
-                                                </div>
-                                            </template>
-                                            <template x-if="ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor)">
-                                                <div class="flex items-center gap-1 text-[10px] text-gray-600">
-                                                    <x-healthicons-o-health-worker-form class="w-3 h-3 flex-shrink-0" />
-                                                    <span class="font-medium text-gray-500">Registrado por:</span>
-                                                    <span x-text="ev.nm_prescritor_display || ev.nm_prescritor"></span>
+                                            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[10px] text-gray-500">
+                                                <template x-if="ev.dt_evento_formatted">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Prev. exec.: </span>
+                                                        <span x-text="ev.dt_evento_formatted"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="ev.dt_solicitacao">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Prescrição: </span>
+                                                        <span x-text="ev.dt_solicitacao"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="ev.dt_autorizacao">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Lib. prescrição: </span>
+                                                        <span x-text="ev.dt_autorizacao"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.dt_liberacao_medico">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Lib. médica: </span>
+                                                        <span x-text="ev.dt_liberacao_medico"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="ev.nr_prescricao">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Nr. prescrição: </span>
+                                                        <span x-text="ev.nr_prescricao"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="ev.dt_coleta">
+                                                    <span>
+                                                        <span class="font-medium text-gray-600">Coleta: </span>
+                                                        <span x-text="ev.dt_coleta"></span>
+                                                    </span>
+                                                </template>
+                                                <span x-show="ev.tempo_pendente"
+                                                      x-text="ev.tempo_pendente"
+                                                      class="font-semibold"
+                                                      :class="ev.urgente ? 'text-[#7712C7]' : 'text-[#0071B9]'"></span>
+                                                <span x-show="['cirurgia','hemoterapia','quimioterapia'].includes(ev.tipo)"
+                                                      class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
+                                                    <i class="fa-solid fa-hospital text-indigo-500" style="font-size:9px;"></i>
+                                                    <span x-text="ev.setor_execucao || sectorExecFallback"></span>
+                                                </span>
+                                                <span x-show="ev.ds_complemento && ev.tipo !== 'antibiotico'"
+                                                      x-text="ev.ds_complemento"
+                                                      class="text-gray-500 italic"></span>
+                                            </div>
+                                            <template x-if="(ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo)) || ev.scola_status || (ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor))">
+                                                <div class="mt-1 space-y-0.5">
+                                                    <template x-if="ev.motivo_pendente && !['alta','alta_medica'].includes(ev.tipo) && ev.motivo_pendente !== ev.status_laudo">
+                                                        <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                            <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                            <span x-text="ev.motivo_pendente"></span>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="['exame','proc_exame'].includes(ev.tipo) && ev.scola_status && !ev.scola_integration_issue">
+                                                        <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                            <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                                            <span class="font-medium text-gray-500">SCOLA:</span>
+                                                            <span x-text="ev.scola_status"></span>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="ev.tipo === 'alta_medica' && (ev.nm_prescritor_display || ev.nm_prescritor)">
+                                                        <div class="flex items-center gap-1 text-[10px] text-gray-600">
+                                                            <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                                            <span class="font-medium text-gray-500">Registrado por:</span>
+                                                            <span x-text="ev.nm_prescritor_display || ev.nm_prescritor"></span>
+                                                        </div>
+                                                    </template>
                                                 </div>
                                             </template>
                                         </div>
                                     </template>
                                 </div>
-                            </template>
 
-                            <div x-show="items.length === 0"
-                                 class="px-3 py-4 text-center">
-                                <p class="text-[11px] text-gray-400">Nenhuma pendência neste grupo.</p>
+                                <div x-show="pages > 1"
+                                     :class="['flex items-center justify-end px-3 py-2 border-t', group.style.border_header, group.style.bg_header]">
+                                    <div class="flex items-center gap-1">
+                                        <button @click="if(page > 1) page--"
+                                                :disabled="page === 1"
+                                                :class="['w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all', group.style.border_header]">
+                                            <svg :class="['w-3 h-3', group.style.text_header]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+                                        </button>
+                                        <span :class="['text-[11px] tabular-nums font-medium px-1', group.style.text_header]" x-text="page + '/' + pages"></span>
+                                        <button @click="if(page < pages) page++"
+                                                :disabled="page >= pages"
+                                                :class="['w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all', group.style.border_header]">
+                                            <svg :class="['w-3 h-3', group.style.text_header]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <div x-show="pages > 1"
-                             class="flex items-center justify-end px-3 py-2 border-t {{ $group['style']['border_header'] ?? 'border-gray-200' }} {{ $group['style']['bg_header'] ?? 'bg-white/30' }}">
-                            <div class="flex items-center gap-1">
-                                <button @click="if(page > 1) page--"
-                                        :disabled="page === 1"
-                                        class="w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
-                                    <svg class="w-3 h-3 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
-                                </button>
-                                <span class="text-[11px] tabular-nums font-medium px-1 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" x-text="page + '/' + pages"></span>
-                                <button @click="if(page < pages) page++"
-                                        :disabled="page >= pages"
-                                        class="w-6 h-6 flex items-center justify-center rounded border disabled:opacity-30 hover:bg-black/10 transition-all {{ $group['style']['border_header'] ?? 'border-gray-200' }}">
-                                    <svg class="w-3 h-3 {{ $group['style']['text_header'] ?? 'text-[#062047]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
-                                </button>
-                            </div>
-                        </div>
+                        </template>
                     </div>
-                @endforeach
+                </template>
             </div>
         </div>
     </div>

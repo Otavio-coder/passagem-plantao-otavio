@@ -1,13 +1,14 @@
 {{-- Indicador de conexão — JS em resources/js/connection-status.js --}}
 {{--
-    Mobile: posicionado no canto inferior direito (evita zona de swipe esquerda).
-    Desktop: canto inferior esquerdo.
+    Mobile: canto direito (evita zona de swipe esquerda), elevado acima da barra
+    de input do chat (modal full-screen) para não cobrir o botão de enviar.
+    Tablet: esquerda, também elevado. Desktop (lg): canto inferior esquerdo.
     Pill auto-compacta (só dot) após 4s em status "good".
 --}}
 <div
     x-data="connectionStatus"
     data-heartbeat-url="{{ route('session.heartbeat') }}"
-    class="fixed bottom-3 right-3 sm:bottom-3 sm:left-3 sm:right-auto z-[99999] flex flex-col items-end sm:items-start gap-1.5"
+    class="fixed bottom-20 right-3 sm:left-3 sm:right-auto lg:bottom-3 z-[99999] flex flex-col items-end sm:items-start gap-1.5"
     role="status"
     aria-live="assertive"
     @click.outside="expanded = false"

@@ -5,26 +5,26 @@
 <link rel="stylesheet" href="https://unpkg.com/cal-heatmap/dist/cal-heatmap.css">
 <style>
     [x-cloak] { display: none !important; }
-    #archive-table_wrapper .dt-search input, #access-trail-table_wrapper .dt-search input,
-    #access-trail-table_wrapper .dataTables_filter input {
+    #archive-table_wrapper .dt-search input, #access-trail-table_wrapper .dt-search input, #nurse-stats-table_wrapper .dt-search input,
+    #nurse-stats-table_wrapper .dataTables_filter input {
         border: 1px solid #D1D5DB; border-radius: 0.375rem;
         padding: 0.25rem 0.625rem; font-size: 0.875rem; outline: none; margin-left: 4px;
     }
-    #archive-table_wrapper .dt-search input:focus, #access-trail-table_wrapper .dt-search input:focus,
+    #archive-table_wrapper .dt-search input:focus, #access-trail-table_wrapper .dt-search input:focus, #nurse-stats-table_wrapper .dt-search input:focus,
     #archive-table_wrapper .dataTables_filter input:focus {
         border-color: #0071B9; box-shadow: 0 0 0 2px rgba(0,113,185,.15);
     }
-    #archive-table_wrapper .dt-length select, #access-trail-table_wrapper .dt-length select, .dataTables_length select {
+    #archive-table_wrapper .dt-length select, #access-trail-table_wrapper .dt-length select, #nurse-stats-table_wrapper .dt-length select, .dataTables_length select {
         border: 1px solid #D1D5DB; border-radius: 0.375rem;
         padding: 0.25rem 1.5rem 0.25rem 0.5rem; font-size: 0.875rem; margin-right: 0.5rem;
     }
-    #archive-table_wrapper .dt-paging button, #access-trail-table_wrapper .dt-paging button {
+    #archive-table_wrapper .dt-paging button, #access-trail-table_wrapper .dt-paging button, #nurse-stats-table_wrapper .dt-paging button {
         border: 1px solid #E5E7EB; border-radius: 0.375rem;
         padding: 0.25rem 0.625rem; font-size: 0.75rem; color: #4B5563; margin: 0 1px;
     }
-    #archive-table_wrapper .dt-paging button.current, #access-trail-table_wrapper .dt-paging button.current { background-color: #0071B9 !important; color: white !important; border-color: #0071B9 !important; }
-    #archive-table_wrapper .dt-paging button:hover:not(.current), #access-trail-table_wrapper .dt-paging button:hover:not(.current) { background-color: #F3F4F6; }
-    #archive-table th, #access-trail-table th { white-space: nowrap; }
+    #archive-table_wrapper .dt-paging button.current, #access-trail-table_wrapper .dt-paging button.current, #nurse-stats-table_wrapper .dt-paging button.current { background-color: #0071B9 !important; color: white !important; border-color: #0071B9 !important; }
+    #archive-table_wrapper .dt-paging button:hover:not(.current), #access-trail-table_wrapper .dt-paging button:hover:not(.current), #nurse-stats-table_wrapper .dt-paging button:hover:not(.current) { background-color: #F3F4F6; }
+    #archive-table th, #access-trail-table th, #nurse-stats-table th { white-space: nowrap; }
     main { background-color: transparent !important; }
 </style>
 @endpush
@@ -848,108 +848,59 @@
                 <span class="text-xs text-gray-400">frequência, extensão e horário das anotações por enfermeiro no período</span>
             </div>
 
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-                 x-data="{
-                    nurses: @js($nurseStats->values()->all()),
-                    sortBy: 'sessions',
-                    sortDir: 'desc',
-                    page: 0,
-                    perPage: 15,
-                    search: '',
-                    get sorted() {
-                        let arr = [...this.nurses].filter(n => !this.search || n.name.toLowerCase().includes(this.search.toLowerCase()));
-                        arr.sort((a,b) => {
-                            const av = a[this.sortBy] ?? -Infinity, bv = b[this.sortBy] ?? -Infinity;
-                            return this.sortDir === 'desc' ? bv-av : av-bv;
-                        });
-                        return arr;
-                    },
-                    get paged() { return this.sorted.slice(this.page*this.perPage,(this.page+1)*this.perPage); },
-                    get totalPages() { return Math.ceil(this.sorted.length/this.perPage)||1; },
-                    setSort(col) { this.sortBy===col ? this.sortDir=(this.sortDir==='desc'?'asc':'desc') : (this.sortBy=col,this.sortDir='desc'); this.page=0; },
-                    shiftColor(k) { return k==='M'?'#D97706':k==='T'?'#EA580C':'#4F46E5'; },
-                 }">
-
-                <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-semibold text-gray-700 flex-shrink-0">Plantonistas</p>
-                    <div class="relative flex-1 min-w-[160px] max-w-xs">
-                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                        <input type="text" x-model="search" @input="page=0" placeholder="Buscar nome..."
-                               class="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#004D9D]/30">
-                    </div>
-                    <div class="flex items-center gap-1 ml-auto">
-                        <span class="text-xs text-gray-400">Ordenar:</span>
-                        @foreach(['sessions'=>'Sessões','total_messages'=>'Anotações','avg_beds'=>'Leitos/sess','avg_chars'=>'Chars/nota'] as $col=>$lbl)
-                        <button type="button" @click="setSort('{{ $col }}')"
-                                :class="sortBy==='{{ $col }}' ? 'bg-[#004D9D] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
-                                class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                            {{ $lbl }}
-                            <i class="fas text-[10px]" :class="sortBy==='{{ $col }}' ? (sortDir==='desc'?'fa-arrow-down':'fa-arrow-up') : 'fa-arrow-down opacity-0'"></i>
-                        </button>
-                        @endforeach
-                    </div>
-                </div>
-
-                <div class="hidden md:grid grid-cols-11 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-semibold text-gray-400 border-b border-gray-100">
-                    <div class="col-span-1 text-right">#</div>
-                    <div class="col-span-3">Nome · Setor</div>
-                    <div class="col-span-2 text-center">Sessões</div>
-                    <div class="col-span-1 text-center">Anot.</div>
-                    <div class="col-span-2 text-center">Leitos/sess</div>
-                    <div class="col-span-1 text-center">Chars</div>
-                    <div class="col-span-1 text-center">Turno</div>
-                </div>
-
-                <div class="divide-y divide-gray-50">
-                    <template x-for="(nurse, idx) in paged" :key="nurse.user_id">
-                        <div class="grid grid-cols-11 gap-2 px-4 py-2.5 items-center">
-                            <div class="col-span-1 text-right">
-                                <span class="text-xs font-bold tabular-nums"
-                                      :class="page*perPage+idx===0?'text-amber-400':page*perPage+idx===1?'text-gray-400':page*perPage+idx===2?'text-amber-700':'text-gray-200'"
-                                      x-text="page*perPage+idx+1"></span>
-                            </div>
-                            <div class="col-span-3 min-w-0">
-                                <p class="text-xs font-semibold text-gray-800 truncate" x-text="nurse.name"></p>
-                                <p class="text-[10px] text-gray-400 truncate" x-text="nurse.sectors || '—'"></p>
-                            </div>
-                            <div class="col-span-2 text-center">
-                                <p class="text-sm font-bold text-[#004D9D] tabular-nums" x-text="nurse.sessions"></p>
-                                <p class="text-[9px] text-gray-400 hidden md:block" x-text="nurse.sessions_per_week ? nurse.sessions_per_week+'/sem' : ''"></p>
-                            </div>
-                            <div class="col-span-1 text-center hidden md:block">
-                                <p class="text-xs font-semibold text-gray-700 tabular-nums" x-text="nurse.total_messages"></p>
-                                <p class="text-[9px] text-gray-400" x-text="nurse.avg_messages+'⌀'"></p>
-                            </div>
-                            <div class="col-span-2 text-center hidden md:block">
-                                <p class="text-xs font-semibold text-gray-700 tabular-nums"
-                                   :title="nurse.avg_beds == null && nurse.all_archive ? 'Sessões históricas — rastreamento de leitos não disponível' : ''"
-                                   x-text="nurse.avg_beds || '—'"></p>
-                                <p class="text-[9px] text-gray-400">leitos</p>
-                            </div>
-                            <div class="col-span-1 text-center hidden md:block">
-                                <p class="text-xs font-semibold tabular-nums"
-                                   :class="nurse.size_label==='notas curtas'?'text-amber-600':nurse.size_label==='notas longas'?'text-orange-600':'text-emerald-700'"
-                                   x-text="nurse.avg_chars > 0 ? nurse.avg_chars+'ch' : '—'"></p>
-                            </div>
-                            <div class="col-span-1 hidden md:flex justify-center items-center">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                      :style="`color:${shiftColor(nurse.dominant_shift)}; background:${shiftColor(nurse.dominant_shift)}20`"
-                                      x-text="nurse.dominant_shift || '—'"></span>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <div class="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between" x-show="totalPages > 1">
-                    <button @click="page=Math.max(0,page-1)" :disabled="page===0"
-                            class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
-                        <i class="fas fa-chevron-left text-[8px] mr-1"></i>Anterior
-                    </button>
-                    <span class="text-[10px] text-gray-400" x-text="(page+1)+' / '+totalPages+' · '+sorted.length+' plantonistas'"></span>
-                    <button @click="page=Math.min(totalPages-1,page+1)" :disabled="page>=totalPages-1"
-                            class="text-[10px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-colors">
-                        Próxima<i class="fas fa-chevron-right text-[8px] ml-1"></i>
-                    </button>
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto p-2">
+                    <table id="nurse-stats-table" class="min-w-full text-sm" style="width:100%">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-3 py-2.5 text-right text-xs font-medium text-gray-500" style="width:40px">#</th>
+                                <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Nome · Setor</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-500">Sessões</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-500">Anot.</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-500">Leitos/sess</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-500">Chars/nota</th>
+                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-500">Turno</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($nurseStats as $i => $nurse)
+                            @php
+                                $rankClass = $i === 0 ? 'text-amber-400' : ($i === 1 ? 'text-gray-400' : ($i === 2 ? 'text-amber-700' : 'text-gray-200'));
+                                $charsClass = ($nurse['size_label'] ?? null) === 'notas curtas' ? 'text-amber-600' : (($nurse['size_label'] ?? null) === 'notas longas' ? 'text-orange-600' : 'text-emerald-700');
+                                $shiftHex = match ($nurse['dominant_shift'] ?? null) { 'M' => '#D97706', 'T' => '#EA580C', default => '#4F46E5' };
+                            @endphp
+                            <tr>
+                                <td class="px-3 py-2 text-right" data-order="{{ $i }}">
+                                    <span class="text-xs font-bold tabular-nums {{ $rankClass }}">{{ $i + 1 }}</span>
+                                </td>
+                                <td class="px-3 py-2 min-w-0">
+                                    <p class="text-xs font-semibold text-gray-800 truncate" style="max-width:220px">{{ $nurse['name'] }}</p>
+                                    <p class="text-[10px] text-gray-400 truncate" style="max-width:220px">{{ $nurse['sectors'] ?: '—' }}</p>
+                                </td>
+                                <td class="px-3 py-2 text-center" data-order="{{ $nurse['sessions'] }}">
+                                    <p class="text-sm font-bold text-[#004D9D] tabular-nums">{{ $nurse['sessions'] }}</p>
+                                    @if($nurse['sessions_per_week'])
+                                        <p class="text-[9px] text-gray-400">{{ $nurse['sessions_per_week'] }}/sem</p>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 text-center" data-order="{{ $nurse['total_messages'] }}">
+                                    <p class="text-xs font-semibold text-gray-700 tabular-nums">{{ $nurse['total_messages'] }}</p>
+                                    <p class="text-[9px] text-gray-400">{{ $nurse['avg_messages'] }}⌀</p>
+                                </td>
+                                <td class="px-3 py-2 text-center" data-order="{{ $nurse['avg_beds'] ?? -1 }}"
+                                    @if($nurse['avg_beds'] === null && $nurse['all_archive']) title="Sessões históricas — rastreamento de leitos não disponível" @endif>
+                                    <p class="text-xs font-semibold text-gray-700 tabular-nums">{{ $nurse['avg_beds'] ?: '—' }}</p>
+                                </td>
+                                <td class="px-3 py-2 text-center" data-order="{{ $nurse['avg_chars'] }}">
+                                    <p class="text-xs font-semibold tabular-nums {{ $charsClass }}">{{ $nurse['avg_chars'] > 0 ? $nurse['avg_chars'].'ch' : '—' }}</p>
+                                </td>
+                                <td class="px-3 py-2 text-center">
+                                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="color:{{ $shiftHex }}; background:{{ $shiftHex }}20">{{ $nurse['dominant_shift'] ?: '—' }}</span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1308,6 +1259,14 @@ document.addEventListener('DOMContentLoaded', function () {
         lengthMenu: [10, 25, 50, 100],
         order: [[4, 'desc']],
         columnDefs: [{ targets: 4, orderable: true }],
+    });
+
+    new DataTable('#nurse-stats-table', {
+        language: { url: '//cdn.datatables.net/plug-ins/2.2.2/i18n/pt-BR.json', search: 'Buscar:', emptyTable: 'Nenhuma sessão no período.' },
+        pageLength: 15,
+        lengthMenu: [15, 25, 50, 100],
+        order: [[2, 'desc']],
+        columnDefs: [{ targets: 6, orderable: false }],
     });
 
     new DataTable('#archive-table', {

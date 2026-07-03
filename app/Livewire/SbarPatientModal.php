@@ -138,6 +138,10 @@ class SbarPatientModal extends Component
                 'cd_unidade_basica' => $navEntry['cd_unidade_basica'] ?? null,
                 'ds_setor_atendimento' => $navEntry['ds_setor_atendimento'] ?? null,
                 'ds_prescricao' => $navEntry['ds_prescricao'] ?? null,
+                'cd_pessoa_fisica' => $navEntry['cd_pessoa_fisica'] ?? null,
+                'nm_pessoa_fisica' => $navEntry['nm_pessoa_fisica'] ?? null,
+                'nm_social' => $navEntry['nm_social'] ?? null,
+                'internment_days' => $navEntry['internment_days'] ?? null,
             ];
             $this->currentHospitalName = $hospital;
 
@@ -154,8 +158,6 @@ class SbarPatientModal extends Component
                 $navEntry['ds_setor_atendimento'] ?? null,
             );
 
-            $this->loadPatientData($attendanceNumber);
-
         } catch (\Exception $e) {
             Log::error('PatientModal: Error in openModal', [
                 'error' => $e->getMessage(),
@@ -164,6 +166,22 @@ class SbarPatientModal extends Component
             $this->loadingPatient = false;
             $this->showModal = false;
         }
+    }
+
+    /**
+     * Carga diferida: chamada pelo Alpine (x-init) depois que o modal já pintou
+     * com o chat interativo. Busca details + plano terapêutico + cronograma em um
+     * único roundtrip Livewire, sem bloquear a abertura do modal.
+     */
+    public function loadDeferredPatientData(): void
+    {
+        $nr = (int) ($this->currentPatient['nr_atendimento'] ?? 0);
+
+        if (! $nr || ! $this->loadingPatient || $this->patientDetails !== null) {
+            return;
+        }
+
+        $this->loadPatientData($nr);
     }
 
     /**
@@ -187,6 +205,10 @@ class SbarPatientModal extends Component
                     'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
                     'ds_setor_atendimento' => $patient['ds_setor_atendimento'] ?? null,
                     'ds_prescricao' => $patient['ds_prescricao'] ?? null,
+                    'cd_pessoa_fisica' => $patient['cd_pessoa_fisica'] ?? null,
+                    'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
+                    'nm_social' => $patient['nm_social'] ?? null,
+                    'internment_days' => $patient['internment_days'] ?? null,
                 ];
             })
             ->filter(fn (array $patient) => $patient['nr_atendimento'] > 0)

@@ -185,6 +185,7 @@
                                             'cd_unidade_basica'   => $item['cd_unidade_basica'] ?? null,
                                             'ds_setor_atendimento'=> $item['ds_setor_atendimento'] ?? null,
                                             'ds_prescricao'       => $item['ds_prescricao'] ?? null,
+                                            'internment_days'     => $item['internment_days'] ?? null,
                                         ])
                                         ->values()
                                         ->all();
@@ -247,6 +248,13 @@
                                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
                                         credentials: 'same-origin',
                                         body: JSON.stringify({ attendance_numbers: @json(collect($patients)->pluck('nr_atendimento')->filter()->values()->all()) }),
+                                    }).catch(() => {});
+
+                                    fetch('/patient-care/details/warm', {
+                                        method:  'POST',
+                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+                                        credentials: 'same-origin',
+                                        body: JSON.stringify({ attendance_numbers: @json(collect($patients)->pluck('nr_atendimento')->filter()->slice(0, 30)->values()->all()) }),
                                     }).catch(() => {});
 
                                     @if(!empty(collect($sectors)->pluck('cd_setor_atendimento')->filter(fn($id) => $id != $selectedSector)->values()->all()))

@@ -116,7 +116,7 @@
                         </div>
                         <div class="flex items-center gap-1.5 mt-1 min-w-0">
                             <x-ui.user-avatar
-                                :photo="$currentUser['photo'] ?? null"
+                                :photo="$this->userPhotos[$currentUser['id'] ?? 0] ?? null"
                                 :name="$currentUser['name'] ?? 'U'"
                                 class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 border border-white/40"
                             />
@@ -282,7 +282,7 @@
                             <div class="flex items-start justify-between">
                                 <div class="flex items-start flex-1 min-w-0">
                                     <div class="flex-shrink-0 mr-2">
-                                        <x-ui.user-avatar :photo="$this->messageStats['pinned_first']['photo'] ?? null" :name="$this->messageStats['pinned_first']['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6" />
+                                        <x-ui.user-avatar :photo="$this->userPhotos[$this->messageStats['pinned_first']['user_id'] ?? 0] ?? null" :name="$this->messageStats['pinned_first']['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6" />
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center space-x-2 mb-1">
@@ -330,7 +330,7 @@
                                 <div class="flex items-start space-x-1.5 sm:space-x-2 {{ ($item['is_own'] ?? false) ? 'flex-row-reverse space-x-reverse' : '' }} max-w-[90%] sm:max-w-[85%]">
 
                                     {{-- Avatar --}}
-                                    <x-ui.user-avatar :photo="$item['photo'] ?? null" :name="$item['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6 mt-0.5" />
+                                    <x-ui.user-avatar :photo="$this->userPhotos[$item['user_id'] ?? 0] ?? null" :name="$item['author'] ?? 'U'" class="w-5 h-5 sm:w-6 sm:h-6 mt-0.5" />
 
                                     <div class="flex-1 min-w-0">
                                         {{-- Bubble --}}
@@ -448,7 +448,7 @@
                                                     <div class="flex items-center gap-0.5">
                                                         @foreach(array_slice($item['reactions'] ?? [], 0, 4) as $reaction)
                                                             <x-ui.user-avatar
-                                                                :photo="$reaction['photo'] ?? null"
+                                                                :photo="$this->userPhotos[$reaction['user_id'] ?? 0] ?? null"
                                                                 :name="$reaction['name'] ?? '?'"
                                                                 class="w-5 h-5 border border-green-400"
                                                                 :title="$reaction['name'] ?? ''"

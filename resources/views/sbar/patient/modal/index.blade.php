@@ -46,9 +46,9 @@
                        shadow-2xl modal-patient-container"
                 wire:key="modal-{{ $currentPatient['nr_atendimento'] ?? 'empty' }}"
                 x-data="{
-                    activeTab: 'tab-s',
+                    activeTab: 'tab-a',
                     activeRecomendacaoTab: 'tab-med',
-                    currentTabIndex: 0,
+                    currentTabIndex: 2,
                     tabs: ['tab-s', 'tab-b', 'tab-a', 'tab-r'],
                     isSwipeEnabled: window.innerWidth < 1024,
                     swipeStartX: null,
@@ -122,9 +122,10 @@
                     swipeStartY = null;
                 "
             >
-                {{-- Loading Overlay --}}
+                {{-- Loading Overlay — apenas refresh explícito; abertura e navegação
+                     pintam imediato com chat interativo e carregam o resto em background --}}
                 <div wire:loading.flex
-                     wire:target="goToPreviousPatient,goToNextPatient,goToPatientByAttendance,openModal,refreshPatientData"
+                     wire:target="refreshPatientData"
                      class="absolute inset-0 z-50 flex-col items-center justify-center bg-white/95 backdrop-blur-sm">
                     <div class="flex flex-col items-center gap-4">
                         <div class="relative">
@@ -134,6 +135,14 @@
                         <span class="text-[#004D9D] font-medium text-sm">Carregando dados do paciente...</span>
                     </div>
                 </div>
+
+                {{-- Gatilho da carga diferida: dispara após o primeiro paint do modal.
+                     wire:key por atendimento re-executa o x-init a cada troca de paciente. --}}
+                @if($showModal && $loadingPatient)
+                    <div wire:key="deferred-load-{{ $currentPatient['nr_atendimento'] ?? 0 }}"
+                         x-init="$wire.loadDeferredPatientData()"
+                         class="hidden" aria-hidden="true"></div>
+                @endif
 
                 {{-- Header - ALTURA FIXA --}}
                 <div class="flex-shrink-0">

@@ -7,11 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 class Person extends Model
 {
     protected $connection = 'tasy';
+
     // TASY schema-qualified table name
     protected $table = 'TASY.PESSOA_FISICA';
+
     protected $primaryKey = 'cd_pessoa_fisica';
+
+    /**
+     * CD_PESSOA_FISICA é VARCHAR2 no Oracle. Com keyType int o Eloquent usa
+     * whereIntegerInRaw (literal numérico) no eager load, forçando TO_NUMBER
+     * implícito na coluna e full scan de PESSOA_FISICA (~2,2s por lookup).
+     */
+    protected $keyType = 'string';
+
     public $incrementing = false;
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     protected $casts = [
@@ -28,7 +40,7 @@ class Person extends Model
     /** Social name (NM_SOCIAL) – set for transgender patients, otherwise null. */
     public function getSocialNameAttribute(): ?string
     {
-        return !empty($this->nm_social) ? trim($this->nm_social) : null;
+        return ! empty($this->nm_social) ? trim($this->nm_social) : null;
     }
 
     public function getBirthDateAttribute()

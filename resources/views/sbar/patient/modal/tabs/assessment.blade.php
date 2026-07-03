@@ -14,13 +14,13 @@
             <p class="text-gray-700 text-sm sm:text-base">Leito Vago</p>
             <p class="text-gray-500 text-xs">Este leito não possui paciente internado no momento.</p>
         </div>
-    @elseif($patientDetails)
-        <!-- Use the dedicated chat component -->
+    @elseif(!empty($currentPatient['nr_atendimento']))
+        {{-- Chat renderiza direto dos dados de navegação — não espera patientDetails (carga diferida) --}}
         <div class="flex-1 min-h-0">
             @livewire('sbar-chat-component', [
                 'patientId' => $currentPatient['nr_atendimento'] ?? '',
                 'cdPessoaFisica' => $currentPatient['cd_pessoa_fisica'] ?? null,
-                'bedUnit' => $patientDetails->bed_name ?? $patientDetails->cd_unidade_basica ?? null,
+                'bedUnit' => $patientDetails->bed_name ?? $patientDetails->cd_unidade_basica ?? $currentPatient['cd_unidade_basica'] ?? null,
                 'internmentDays' => $currentPatient['internment_days'] ?? null,
                 'sectorId' => $currentPatient['cd_setor_atendimento'] ?? null,
                 'sectorName' => $currentPatient['ds_prescricao'] ?? $currentPatient['ds_setor_atendimento'] ?? null,

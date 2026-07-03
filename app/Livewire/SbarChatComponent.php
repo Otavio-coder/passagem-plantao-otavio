@@ -56,8 +56,6 @@ class SbarChatComponent extends Component
 
     private $userCache = [];
 
-    private $photoCache = [];
-
     protected $listeners = [
         'initChat' => 'initialize',
         'refreshChat' => 'refreshCurrentMessages',
@@ -78,7 +76,6 @@ class SbarChatComponent extends Component
             'name' => $user->name,
             'display_name' => $this->buildUserDisplayName($user),
             'role' => $this->buildUserRole($user),
-            'photo' => $this->getUserPhotoBase64($user),
         ];
 
         $this->shiftHeaderHeartbeat = now()->format('Y-m-d H:i:s');
@@ -412,17 +409,14 @@ class SbarChatComponent extends Component
                 return;
             }
 
-            // Pré-carrega usuários (incluindo photo para evitar N+1 na renderização)
+            // Pré-carrega usuários para nomes de autor (fotos ficam no computed userPhotos)
             $userIds = $allMessages->pluck('user_id')->unique()->filter();
             $users = collect();
             if ($userIds->isNotEmpty()) {
                 $users = User::whereIn('id', $userIds)
-                    ->select(['id', 'name', 'username', 'role', 'role_synced_at', 'photo'])
+                    ->select(['id', 'name', 'username', 'role', 'role_synced_at'])
                     ->get()
                     ->keyBy('id');
-                foreach ($users as $user) {
-                    $this->photoCache[$user->id] = $this->getUserPhotoBase64($user);
-                }
             }
 
             // Monta array plano com separadores por turno/data lógica
@@ -502,8 +496,8 @@ class SbarChatComponent extends Component
         $userId = $msg['user_id'] ?? null;
         $user = null;
 
-        // Usa valores pré-carregados do payload de broadcast quando disponíveis, evitando queries extras no DB
-        $photo = $msg['_photo'] ?? null;
+        // Autor pré-carregado do payload de broadcast quando disponível, evitando query extra no DB.
+        // Foto não entra na mensagem: blade resolve via userPhotos (computed, fora do snapshot).
         $author = $msg['_author'] ?? null;
 
         if ($users && $userId) {
@@ -514,17 +508,9 @@ class SbarChatComponent extends Component
 
         if ($user) {
             $author = $this->buildUserDisplayName($user);
-            $photo = $photo ?? ($this->photoCache[$userId] ?? $this->getUserPhotoBase64($user));
-        } else {
-            $author = $author ?? 'Usuário';
         }
 
         $author = $author ?? 'Usuário';
-        $photo = $photo ?? '';
-
-        if ($userId == $this->currentUser['id'] && empty($photo)) {
-            $photo = $this->currentUser['photo'] ?? '';
-        }
 
         $rawDate = $msg['created_at'] ?? null;
         $time = '';
@@ -557,7 +543,6 @@ class SbarChatComponent extends Component
             'content_text' => $content,
             'user_id' => $userId,
             'author' => $author,
-            'photo' => $photo,
             'time' => $time,
             'dt_criacao_raw' => $dtRaw,
             'is_temporary' => $isTemporary,
@@ -577,14 +562,12 @@ class SbarChatComponent extends Component
         return collect($rawReactions)->map(function ($reaction) {
             $userId = is_array($reaction) ? ($reaction['user_id'] ?? null) : ($reaction->user_id ?? null);
             $name = is_array($reaction) ? ($reaction['name'] ?? 'Usuário') : ($reaction->name ?? 'Usuário');
-            $photo = is_array($reaction) ? ($reaction['photo'] ?? '') : ($reaction->photo ?? '');
 
             if ($userId) {
                 $user = $this->getUserFromCache($userId);
 
                 if ($user) {
                     $name = $this->buildUserDisplayName($user);
-                    $photo = $photo ?: $this->getUserPhotoBase64($user);
                 }
             }
 
@@ -592,7 +575,6 @@ class SbarChatComponent extends Component
                 'user_id' => $userId,
                 'name' => $name,
                 'initial' => strtoupper(substr($name ?: 'U', 0, 1)),
-                'photo' => $photo,
             ];
         })->values()->toArray();
     }
@@ -644,7 +626,6 @@ class SbarChatComponent extends Component
             'is_pinned' => $data['is_pinned'] ?? false,
             'reactions' => [],
             '_author' => $data['author'] ?? null,
-            '_photo' => $data['photo'] ?? null,
         ]);
         $message['type'] = 'message';
         $this->messages[] = $message;
@@ -715,52 +696,6 @@ class SbarChatComponent extends Component
         return $text;
     }
 
-    private function getUserPhotoBase64($user)
-    {
-        if (! $user) {
-            return '';
-        }
-
-        $userId = $user->id ?? null;
-        if (! $userId) {
-            return '';
-        }
-
-        if (isset($this->photoCache[$userId])) {
-            return $this->photoCache[$userId];
-        }
-
-        try {
-            $photo = '';
-
-            // Usa o atributo photo já carregado quando disponível (evita query extra no DB)
-            $rawPhoto = isset($user->photo) ? $user->photo : null;
-
-            if (! $rawPhoto && method_exists($user, 'getUserPhoto')) {
-                $rawPhoto = $user->getUserPhoto();
-            }
-
-            if (! $rawPhoto) {
-                $rawPhoto = DB::table('users')->where('id', $userId)->value('photo');
-            }
-
-            if ($rawPhoto) {
-                if (! str_starts_with((string) $rawPhoto, 'data:')) {
-                    $photo = $rawPhoto;
-                } elseif (preg_match('/^data:image\/(\w+);base64,(.+)$/', $rawPhoto, $matches)) {
-                    $photo = $matches[2];
-                }
-            }
-
-            $this->photoCache[$userId] = $photo;
-
-            return $photo;
-
-        } catch (\Exception $e) {
-            return '';
-        }
-    }
-
     private function getUserFromCache($userId)
     {
         if (! $userId) {
@@ -810,6 +745,47 @@ class SbarChatComponent extends Component
             'total_messages' => $realMessages->count(),
             'pinned_count' => $realMessages->where('is_pinned', true)->count(),
         ];
+    }
+
+    /**
+     * Fotos (base64) por user_id de todos os autores/reações visíveis + usuário atual.
+     * Computed em vez de campo nas mensagens: fotos não entram no wire:snapshot,
+     * que ia a megabytes com 300 mensagens × foto embutida.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function userPhotos(): array
+    {
+        $userIds = collect($this->messages)
+            ->filter(fn ($m) => ($m['type'] ?? '') === 'message')
+            ->flatMap(fn ($m) => array_merge(
+                [$m['user_id'] ?? null],
+                array_column($m['reactions'] ?? [], 'user_id')
+            ))
+            ->push($this->currentUser['id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($userIds->isEmpty()) {
+            return [];
+        }
+
+        return DB::table('users')
+            ->whereIn('id', $userIds)
+            ->pluck('photo', 'id')
+            ->map(function ($rawPhoto) {
+                if (! $rawPhoto) {
+                    return '';
+                }
+                if (! str_starts_with((string) $rawPhoto, 'data:')) {
+                    return $rawPhoto;
+                }
+
+                return preg_match('/^data:image\/\w+;base64,(.+)$/', $rawPhoto, $matches) ? $matches[1] : '';
+            })
+            ->all();
     }
 
     #[Computed]

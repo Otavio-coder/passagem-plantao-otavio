@@ -297,11 +297,11 @@
                         var selected = Array.from(checks()).filter(function(c) { return c.checked; }).map(function(c) { return c.value; });
                         if (selected.length === 0 || selected.length === checks().length) {
                             label.textContent = 'Todas as classificações';
-                            if (window._dtTable) window._dtTable.column(17).search('', true, false).draw();
+                            if (window._dtTable) window._dtTable.column(18).search('', true, false).draw();
                         } else {
                             label.textContent = selected.length === 1 ? selected[0] : selected.length + ' classificações';
                             var regex = '^(' + selected.map(function(v) { return $.fn.dataTable.util.escapeRegex(v); }).join('|') + ')$';
-                            if (window._dtTable) window._dtTable.column(17).search(regex, true, false).draw();
+                            if (window._dtTable) window._dtTable.column(18).search(regex, true, false).draw();
                         }
                     }
                     if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
@@ -419,6 +419,7 @@
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Dt. Prescrição</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Coletado</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Resultado</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Exec. (Conta)</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Em aberto</th>
                             <th class="px-3 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Unidade</th>
                             <th class="px-2 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">Prev. Alta</th>
@@ -594,7 +595,18 @@ $(document).ready(function () {
                     return '<span class="text-[11px] text-emerald-700 font-semibold whitespace-nowrap font-mono">' + esc(d) + '</span>';
                 },
             },
-            // 11 Em aberto
+            // 11 Execução na conta do paciente (procedimento_paciente) — informativo
+            {
+                data: 'data_execucao_conta',
+                render: function (d, t, r) {
+                    if (t === 'sort') { return r.data_execucao_conta_sort || 0; }
+                    if (!d) { return '<span class="text-[11px] text-gray-300 whitespace-nowrap font-mono">-</span>'; }
+                    var html = '<span class="text-[11px] text-indigo-700 font-semibold whitespace-nowrap font-mono">' + esc(d) + '</span>';
+                    if (r.nr_conta) { html += '<div class="text-[10px] text-gray-400 font-mono mt-0.5 whitespace-nowrap">Conta ' + esc(r.nr_conta) + '</div>'; }
+                    return html;
+                },
+            },
+            // 12 Em aberto
             {
                 data: 'tempo_pendente',
                 render: function (d, t, r) {
@@ -603,7 +615,7 @@ $(document).ready(function () {
                     return '<span class="text-[11px] whitespace-nowrap font-semibold font-mono ' + cls + '">' + esc(d || '-') + '</span>';
                 },
             },
-            // 12 Unidade
+            // 13 Unidade
             {
                 data: 'setor_origem',
                 visible: multiSector,
@@ -612,7 +624,7 @@ $(document).ready(function () {
                     return '<div class="truncate text-xs text-gray-700 font-medium" style="max-width:130px" title="' + esc(d) + '">' + esc(d || '-') + '</div>';
                 },
             },
-            // 13 Prev. Alta
+            // 14 Prev. Alta
             {
                 data: 'prev_alta',
                 render: function (d, t) {
@@ -621,9 +633,9 @@ $(document).ready(function () {
                     return '<span class="text-xs font-semibold text-purple-700">' + esc(d) + '</span>';
                 },
             },
-            // 14 tipo_evento (hidden — filtro tipo)
+            // 15 tipo_evento (hidden — filtro tipo)
             { data: 'tipo_evento', visible: false, searchable: true, orderable: false },
-            // 15 is_overdue (hidden — filtro vencido)
+            // 16 is_overdue (hidden — filtro vencido)
             {
                 data: 'is_overdue',
                 visible: false,
@@ -631,11 +643,11 @@ $(document).ready(function () {
                 orderable: false,
                 render: function (d) { return d ? '1' : '0'; },
             },
-            // 16 motivo_categoria (hidden — filtro status / KPI)
+            // 17 motivo_categoria (hidden — filtro status / KPI)
             { data: 'motivo_categoria', visible: false, searchable: true, orderable: false },
-            // 17 classificacao (hidden — filtro classificação)
+            // 18 classificacao (hidden — filtro classificação)
             { data: 'classificacao', visible: false, searchable: true, orderable: false },
-            // 18 is_oculto (hidden — oculta HGT/Fisioterapia por padrão)
+            // 19 is_oculto (hidden — oculta HGT/Fisioterapia por padrão)
             {
                 data: 'is_oculto',
                 visible: false,
@@ -675,7 +687,7 @@ $(document).ready(function () {
                 badge.classList.remove('hidden');
             }
             // Oculta HGT/Fisioterapia por padrão e redesenha
-            table.column(18).search('^0$', true, false).draw();
+            table.column(19).search('^0$', true, false).draw();
             tableReady = true;
             rebuildCascadeFilters();
             rebuildKpis();
@@ -794,7 +806,7 @@ $(document).ready(function () {
         $('#kpi-bar .kpi-card[data-kpi-reset]').on('click', function () {
             activeKpiFilter = '';
             table.column(4).search('', true, false);
-            table.column(14).search('', true, false).draw();
+            table.column(15).search('', true, false).draw();
             $('#filter-status').val('');
             $('#filter-tipo').val('');
         });
@@ -804,7 +816,7 @@ $(document).ready(function () {
             activeKpiFilter = (activeKpiFilter === key) ? '' : key;
             var searchVal = (activeKpiFilter === key) ? val : '';
             // limpa filtro de tipo antes de aplicar status
-            table.column(14).search('', true, false);
+            table.column(15).search('', true, false);
             $('#filter-tipo').val('');
             table.column(4).search(searchVal ? '^' + $.fn.dataTable.util.escapeRegex(searchVal) + '$' : '', true, false).draw();
             $('#filter-status').val(searchVal);
@@ -817,7 +829,7 @@ $(document).ready(function () {
             // limpa filtro de status antes de aplicar tipo
             table.column(4).search('', true, false);
             $('#filter-status').val('');
-            table.column(14).search(searchVal ? '^' + $.fn.dataTable.util.escapeRegex(searchVal) + '$' : '', true, false).draw();
+            table.column(15).search(searchVal ? '^' + $.fn.dataTable.util.escapeRegex(searchVal) + '$' : '', true, false).draw();
             $('#filter-tipo').val(searchVal);
         });
         $('#kpi-bar .kpi-card[data-kpi-overdue]').on('click', function () {
@@ -835,17 +847,17 @@ $(document).ready(function () {
 
     $('#filter-tipo').on('change', function () {
         if (!this.value) { activeKpiFilter = ''; }
-        table.column(14).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
+        table.column(15).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
     });
     $('#filter-status').on('change', function () {
         if (!this.value) { activeKpiFilter = ''; }
         table.column(4).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(this.value) + '$' : '', true, false).draw();
     });
     $('#chk-overdue').on('change', function () {
-        table.column(15).search(this.checked ? '^1$' : '', true, false).draw();
+        table.column(16).search(this.checked ? '^1$' : '', true, false).draw();
     });
     $('#chk-show-ocultos').on('change', function () {
-        table.column(18).search(this.checked ? '' : '^0$', true, false).draw();
+        table.column(19).search(this.checked ? '' : '^0$', true, false).draw();
         var badge = document.getElementById('ocultos-badge');
         if (badge) { badge.style.opacity = this.checked ? '0.4' : '1'; }
     });
@@ -857,8 +869,8 @@ $(document).ready(function () {
         document.querySelectorAll('.classif-check').forEach(function (c) { c.checked = false; });
         var lbl = document.getElementById('classif-btn-label');
         if (lbl) { lbl.textContent = 'Todas as classificações'; }
-        table.columns([14, 15, 16, 17]).search('').draw();
-        table.column(18).search('^0$', true, false).draw();
+        table.columns([15, 16, 17, 18]).search('').draw();
+        table.column(19).search('^0$', true, false).draw();
         table.search('').draw();
     });
 

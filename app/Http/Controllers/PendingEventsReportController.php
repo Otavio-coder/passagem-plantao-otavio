@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\HandoverActivityLog;
 use App\Models\NurseHandoverBed;
 use App\Models\System\UserSectorPreference;
 use App\Services\PatientData\PatientDataLoader;
+use App\Services\PendingEvents\PatientPendingEventsService;
 use App\Services\UserDisplayNameResolver;
 use App\Support\PendingEventHelper;
 use App\Support\PendingEventTypeClassifier;
@@ -16,15 +18,21 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class PendingEventsReportController extends Controller
 {
-    public function __construct(private readonly UserDisplayNameResolver $userDisplayNameResolver) {}
+    public function __construct(
+        private readonly UserDisplayNameResolver $userDisplayNameResolver,
+        private readonly PatientPendingEventsService $pendingEventsService,
+    ) {}
 
     public function index(Request $request): View
     {
+        HandoverActivityLog::record(HandoverActivityLog::EVENT_REPORT_OPEN, Auth::id());
+
         $selection = $this->resolveSelection($request);
 
         if ($selection === null) {
@@ -134,7 +142,7 @@ class PendingEventsReportController extends Controller
             'Paciente', 'Leito', 'Atendimento', 'Unidade', 'Prev. Alta', 'Tipo', 'Classificação',
             'Status', 'Critério', 'SCOLA', 'Resultado Bacteriológico',
             'Pendência', 'Nr. Prescrição', 'Prescritor',
-            'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)',
+            'Data Prescrição', 'Data Coleta', 'Resultado (Tasy)', 'Execução (Conta)', 'Nr. Conta',
             'Em Aberto', 'Vencido',
         ];
 
@@ -156,6 +164,8 @@ class PendingEventsReportController extends Controller
             $row['data_solicitacao'] ?? '',
             $row['data_coleta'] ?? '',
             $row['data_resultado'] ?? '',
+            $row['data_execucao_conta'] ?? '',
+            $row['nr_conta'] ?? '',
             $row['tempo_pendente'] ?? '',
             ($row['is_overdue'] ?? false) ? 'Sim' : 'Não',
         ])->all();
@@ -284,6 +294,9 @@ class PendingEventsReportController extends Controller
                 'data_coleta_sort' => $row['data_coleta_sort'] ?? 0,
                 'data_resultado' => $row['data_resultado'] ?? '',
                 'data_resultado_sort' => $row['data_resultado_sort'] ?? 0,
+                'data_execucao_conta' => $row['data_execucao_conta'] ?? '',
+                'data_execucao_conta_sort' => $row['data_execucao_conta_sort'] ?? 0,
+                'nr_conta' => $row['nr_conta'] ?? '',
                 'tempo_pendente' => $row['tempo_pendente'] ?? '-',
                 'tempo_pendente_sort' => $row['tempo_pendente_sort'] ?? 0,
                 'setor_origem' => $row['setor_origem'] ?? '-',
@@ -389,7 +402,7 @@ class PendingEventsReportController extends Controller
             : null;
 
         if ($userCached !== null) {
-            return $userCached;
+            return $this->overlayRawPendingEvents($userCached, $sectorId);
         }
 
         $patients = PatientDataLoader::forSector($sectorId)
@@ -410,7 +423,29 @@ class PendingEventsReportController extends Controller
             }
         }
 
-        return $patients;
+        return $this->overlayRawPendingEvents($patients, $sectorId);
+    }
+
+    /**
+     * O PendingEventsLoader remove eventos is_oculto (HGT/curativos/fisioterapia) para os
+     * cards SBAR. O relatório precisa deles — o toggle "Mostrar ocultos" filtra no cliente.
+     * Reaplica os eventos brutos do service (mesmo cache sector_pending_fast, sem Oracle extra).
+     *
+     * @param  array<int, array<string, mixed>>  $patients
+     * @return array<int, array<string, mixed>>
+     */
+    private function overlayRawPendingEvents(array $patients, int $sectorId): array
+    {
+        $raw = $this->pendingEventsService->getPendingEventsForSector($sectorId);
+
+        return array_map(function (array $patient) use ($raw): array {
+            $nr = (int) ($patient['nr_atendimento'] ?? 0);
+            if (isset($raw[$nr]['pending_events'])) {
+                $patient['pending_events'] = $raw[$nr]['pending_events'];
+            }
+
+            return $patient;
+        }, $patients);
     }
 
     private function buildBadgeCls(string $motCat): string
@@ -492,6 +527,9 @@ class PendingEventsReportController extends Controller
                     'data_coleta_sort' => $this->parseDateToTs($event['dt_coleta'] ?? null) ?? 0,
                     'data_resultado' => $this->shortDate($event['scola_data_liberado'] ?? ($event['scola_data_resultado'] ?? ($event['dt_resultado'] ?? null))),
                     'data_resultado_sort' => $this->parseDateToTs($event['scola_data_liberado'] ?? ($event['scola_data_resultado'] ?? ($event['dt_resultado'] ?? null))) ?? 0,
+                    'data_execucao_conta' => $this->shortDate($event['dt_execucao_conta'] ?? null),
+                    'data_execucao_conta_sort' => $this->parseDateToTs($event['dt_execucao_conta'] ?? null) ?? 0,
+                    'nr_conta' => $event['nr_conta'] ?? null,
                     'tempo_pendente' => $this->resolvePendingDuration(
                         $event['tempo_pendente'] ?? null,
                         $event['dt_solicitacao'] ?? ($event['dt_evento'] ?? null)
@@ -534,6 +572,9 @@ class PendingEventsReportController extends Controller
                     'data_coleta_sort' => 0,
                     'data_resultado' => null,
                     'data_resultado_sort' => 0,
+                    'data_execucao_conta' => null,
+                    'data_execucao_conta_sort' => 0,
+                    'nr_conta' => null,
                     'tempo_pendente' => $this->formatPendingDuration($req['dt_registro'] ?? null),
                     'tempo_pendente_sort' => $sortTs > 0 ? (time() - $sortTs) : 0,
                     'status_execucao' => '',
@@ -605,16 +646,11 @@ class PendingEventsReportController extends Controller
         }
 
         // Procedimentos de prescrição: usa dados reais do Tasy sem listas de códigos hardcoded.
-        // Fontes: foi_executado_sem_baixa (procedimento_paciente), dt_coleta, status_laudo
-        // (domínio 1226), dt_evento (dt_prev_execucao da prescr_procedimento).
+        // Fontes: dt_coleta, status_laudo (domínio 1226), dt_evento (dt_prev_execucao).
+        // Execução na conta (procedimento_paciente) é coluna informativa, não muda a categoria.
         if ($tipo === 'procedimento') {
             $statusLabel = trim((string) ($event['status_laudo'] ?? ''));
             $urgente = (bool) ($event['urgente'] ?? false);
-
-            // procedimento_paciente registra execução, mas baixa administrativa não foi feita
-            if (! empty($event['foi_executado_sem_baixa'])) {
-                return 'Executado — baixa pendente';
-            }
 
             // dt_coleta preenchido: executado (usa label Tasy se disponível)
             if (! empty($event['dt_coleta'])) {
@@ -788,7 +824,7 @@ class PendingEventsReportController extends Controller
 
     private function criterioProcedimento(array $event): string
     {
-        if (! empty($event['foi_executado_sem_baixa']) || ! empty($event['dt_coleta'])) {
+        if (! empty($event['dt_coleta'])) {
             return 'Data de baixa não preenchida no Tasy';
         }
 
@@ -824,10 +860,6 @@ class PendingEventsReportController extends Controller
 
         if (! empty($event['prescricao_mais_nova_pendente_info'])) {
             return 'Prescrição mais recente aguardando coleta';
-        }
-
-        if (! empty($event['foi_executado_sem_baixa'])) {
-            return 'Data de baixa não preenchida no Tasy';
         }
 
         if (! empty($event['is_oculto'])) {

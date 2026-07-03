@@ -18,7 +18,12 @@ class PendingEventsLoader implements SectorLoader
 
         foreach ($raw as $nr => $data) {
             $result[$nr] = [
-                'pending_events' => $data['pending_events'] ?? [],
+                // is_oculto (HGT/curativos/fisioterapia — origem 4): só o relatório de
+                // pendências exibe, via "Mostrar ocultos"; cards SBAR não.
+                'pending_events' => array_values(array_filter(
+                    $data['pending_events'] ?? [],
+                    fn (array $event): bool => empty($event['is_oculto'])
+                )),
                 'discharge_info' => $data['discharge'] ?? null,
             ];
         }

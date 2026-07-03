@@ -55,6 +55,7 @@ class PatientPendingEventsService
         $patientEvents = $sectorEvents[$attendanceNumber] ?? ['pending_events' => [], 'discharge' => null];
 
         $events = is_array($patientEvents['pending_events'] ?? null) ? $patientEvents['pending_events'] : [];
+        $events = array_values(array_filter($events, fn (array $event): bool => empty($event['is_oculto'])));
         $discharge = is_array($patientEvents['discharge'] ?? null) ? $patientEvents['discharge'] : null;
 
         $multidisciplinaryRequests = $this->multidisciplinary()->getDetailedMultidisciplinaryRequests($attendanceNumber);
@@ -302,7 +303,6 @@ class PatientPendingEventsService
                     $event['_fonte'],
                     $event['nr_seq_proc_interno'],
                     $event['nr_sequencia_pp'],
-                    $event['dt_resultado'],
                     $event['ds_status_agenda_label'],
                     $event['carater_cirurgia'],
                     $event['tipo_label'],
@@ -381,6 +381,7 @@ class PatientPendingEventsService
                     pm.nm_usuario                               AS nm_usuario_pm,
                     NVL(pf.nm_pessoa_fisica, pm.nm_usuario)     AS nm_prescritor,
                     pp.ie_status_execucao,
+                    pp.ie_origem_proced,
                     pp.ie_urgencia
                 FROM tasy.prescr_medica pm
                 JOIN tasy.prescr_procedimento pp
@@ -395,7 +396,6 @@ class PatientPendingEventsService
                     AND pp.ie_status_atend < 35
                     AND pm.dt_liberacao    IS NOT NULL
                     AND pm.dt_suspensao    IS NULL
-                    AND (pp.ie_origem_proced <> 4 OR pp.nr_seq_exame IS NOT NULL)
                     AND (pp.dt_resultado IS NULL OR pp.dt_coleta IS NULL)
                     AND (pp.dt_prev_execucao IS NULL OR pp.dt_prev_execucao <= SYSDATE + 1)
                 ORDER BY pp.nr_sequencia
@@ -575,6 +575,8 @@ class PatientPendingEventsService
                        ppac.nr_sequencia_prescricao,
                        ppac.nr_seq_exame,
                        ppac.nr_atendimento,
+                       ppac.dt_procedimento,
+                       ppac.nr_interno_conta,
                        pp_n.nr_seq_proc_interno
                 FROM tasy.procedimento_paciente ppac
                 LEFT JOIN tasy.prescr_procedimento pp_n
@@ -582,12 +584,17 @@ class PatientPendingEventsService
                     AND pp_n.nr_sequencia  = ppac.nr_sequencia_prescricao
                     AND pp_n.nr_seq_proc_interno IS NOT NULL
                 WHERE ppac.nr_atendimento IN ({$p})
-                  AND ppac.dt_procedimento >= SYSDATE - 7
             ", $chunk);
             Log::info('[PendingEvents] query=prescription_q2_proc_paciente rows='.count($ppRows).' ms='.round((hrtime(true) - $_tQ2) / 1e6));
 
             foreach ($ppRows as $pp) {
-                $ppByPrescricaoSeq[$pp->nr_prescricao][$pp->nr_sequencia_prescricao] = true;
+                $prev = $ppByPrescricaoSeq[$pp->nr_prescricao][$pp->nr_sequencia_prescricao] ?? null;
+                if ($prev === null || strtotime((string) $pp->dt_procedimento) > strtotime((string) $prev['dt'])) {
+                    $ppByPrescricaoSeq[$pp->nr_prescricao][$pp->nr_sequencia_prescricao] = [
+                        'dt' => $pp->dt_procedimento,
+                        'conta' => $pp->nr_interno_conta,
+                    ];
+                }
 
                 if (! empty($pp->nr_seq_exame)) {
                     $cur = $ppMaxByExame[$pp->nr_atendimento][$pp->nr_seq_exame] ?? 0;
@@ -622,8 +629,8 @@ class PatientPendingEventsService
                 : null;
             $tipo = PendingEventTypeClassifier::fromPrescriptionRow($isExam, $row->ds_grupo_lab ?? null);
 
-            $foiExecutado = isset($ppByPrescricaoSeq[$row->nr_prescricao][$row->nr_sequencia_pp]);
-            $temResultado = $isExam && ! empty($row->dt_resultado) && ! empty($row->dt_coleta);
+            $execucaoConta = $ppByPrescricaoSeq[$row->nr_prescricao][$row->nr_sequencia_pp] ?? null;
+
             $exameColetadoNova = $isExam
                 && ! empty($row->nr_seq_exame)
                 && ($ppMaxByExame[$row->nr_atendimento][$row->nr_seq_exame] ?? 0) > (int) $row->nr_prescricao;
@@ -658,19 +665,25 @@ class PatientPendingEventsService
                 'dt_autorizacao' => $row->dt_autorizacao ? date('d/m/Y H:i', strtotime($row->dt_autorizacao)) : null,
                 'dt_liberacao_medico' => $row->dt_liberacao_medico ? date('d/m/Y H:i', strtotime($row->dt_liberacao_medico)) : null,
                 'dt_coleta' => $row->dt_coleta ? date('d/m/Y H:i', strtotime($row->dt_coleta)) : null,
+                // dt_resultado sem dt_coleta é previsão (Tasy pré-preenche data esperada) — não exibe
                 'dt_resultado' => ($row->dt_resultado && $row->dt_coleta) ? date('d/m/Y H:i', strtotime($row->dt_resultado)) : null,
                 'ie_amostra' => $isExam ? ($row->ie_amostra ?? null) : null,
                 'setor_execucao' => $row->setor_execucao ?? null,
                 'tempo_pendente' => $tempo,
                 'status_laudo' => $statusLabel,
                 'ie_status_execucao' => $row->ie_status_execucao ?? null,
-                'foi_executado_sem_baixa' => $foiExecutado || $temResultado,
+                // Evidência da conta do paciente (procedimento_paciente) — informativa no relatório;
+                // o flag booleano segue alimentando badge do modal SBAR (Presenter/checklist)
+                'dt_execucao_conta' => $execucaoConta ? date('d/m/Y H:i', strtotime((string) $execucaoConta['dt'])) : null,
+                'nr_conta' => $execucaoConta['conta'] ?? null,
+                'foi_executado_sem_baixa' => $execucaoConta !== null || ($isExam && ! empty($row->dt_resultado) && ! empty($row->dt_coleta)),
                 'exame_coletado_em_prescricao_mais_nova' => $exameColetadoNova,
                 'proc_realizado_em_nova_prescricao' => $procRealizadoNova,
                 'prescricao_mais_nova_pendente_info' => $prescricaoMaisNova,
                 'urgente' => ($row->ie_urgencia ?? 'N') === 'S',
                 'nr_seq_proc_interno' => $row->nr_seq_proc_interno ?? null,
-                'is_oculto' => in_array((int) ($row->nr_seq_proc_interno ?? 0), [5927, 5970, 1341]),
+                'is_oculto' => in_array((int) ($row->nr_seq_proc_interno ?? 0), [5927, 5970, 1341])
+                    || ((int) ($row->ie_origem_proced ?? 0) === 4 && ! $isExam),
                 '_fonte' => 'prescricao',
             ];
         }

@@ -293,7 +293,7 @@ class MetricsController extends Controller
             ->leftJoin('users as u', 'u.id', '=', 'l.user_id')
             ->whereIn('l.event', array_keys(HandoverActivityLog::EVENT_LABELS))
             ->orderByDesc('l.occurred_at')
-            ->limit(60)
+            ->limit(300)
             ->get(['u.name as user_name', 'u.role as user_role', 'l.nr_atendimento', 'l.sector_name', 'l.event', 'l.occurred_at']);
     }
 

@@ -5,26 +5,26 @@
 <link rel="stylesheet" href="https://unpkg.com/cal-heatmap/dist/cal-heatmap.css">
 <style>
     [x-cloak] { display: none !important; }
-    #archive-table_wrapper .dt-search input,
-    #archive-table_wrapper .dataTables_filter input {
+    #archive-table_wrapper .dt-search input, #access-trail-table_wrapper .dt-search input,
+    #access-trail-table_wrapper .dataTables_filter input {
         border: 1px solid #D1D5DB; border-radius: 0.375rem;
         padding: 0.25rem 0.625rem; font-size: 0.875rem; outline: none; margin-left: 4px;
     }
-    #archive-table_wrapper .dt-search input:focus,
+    #archive-table_wrapper .dt-search input:focus, #access-trail-table_wrapper .dt-search input:focus,
     #archive-table_wrapper .dataTables_filter input:focus {
         border-color: #0071B9; box-shadow: 0 0 0 2px rgba(0,113,185,.15);
     }
-    #archive-table_wrapper .dt-length select, .dataTables_length select {
+    #archive-table_wrapper .dt-length select, #access-trail-table_wrapper .dt-length select, .dataTables_length select {
         border: 1px solid #D1D5DB; border-radius: 0.375rem;
         padding: 0.25rem 1.5rem 0.25rem 0.5rem; font-size: 0.875rem; margin-right: 0.5rem;
     }
-    #archive-table_wrapper .dt-paging button {
+    #archive-table_wrapper .dt-paging button, #access-trail-table_wrapper .dt-paging button {
         border: 1px solid #E5E7EB; border-radius: 0.375rem;
         padding: 0.25rem 0.625rem; font-size: 0.75rem; color: #4B5563; margin: 0 1px;
     }
-    #archive-table_wrapper .dt-paging button.current { background-color: #0071B9 !important; color: white !important; border-color: #0071B9 !important; }
-    #archive-table_wrapper .dt-paging button:hover:not(.current) { background-color: #F3F4F6; }
-    #archive-table th { white-space: nowrap; }
+    #archive-table_wrapper .dt-paging button.current, #access-trail-table_wrapper .dt-paging button.current { background-color: #0071B9 !important; color: white !important; border-color: #0071B9 !important; }
+    #archive-table_wrapper .dt-paging button:hover:not(.current), #access-trail-table_wrapper .dt-paging button:hover:not(.current) { background-color: #F3F4F6; }
+    #archive-table th, #access-trail-table th { white-space: nowrap; }
     main { background-color: transparent !important; }
 </style>
 @endpush
@@ -1050,8 +1050,8 @@
             <span class="text-[10px] text-gray-400">últimos acessos ao relatório de pendências, análises e pacientes</span>
         </div>
         <div class="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
+            <div class="overflow-x-auto p-2">
+                <table id="access-trail-table" class="min-w-full text-sm" style="width:100%">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Usuário</th>
@@ -1062,7 +1062,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
-                        @forelse ($accessLog as $access)
+                        @foreach ($accessLog as $access)
                             @php
                                 $accessBadge = match ($access->event) {
                                     \App\Models\HandoverActivityLog::EVENT_REPORT_OPEN => 'bg-sky-50 text-sky-700 border-sky-200',
@@ -1084,13 +1084,9 @@
                                 </td>
                                 <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $access->nr_atendimento ?? '—' }}</td>
                                 <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $access->sector_name ?? '—' }}</td>
-                                <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ \Carbon\Carbon::parse($access->occurred_at)->format('d/m/Y H:i') }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-gray-500" data-order="{{ \Carbon\Carbon::parse($access->occurred_at)->timestamp }}">{{ \Carbon\Carbon::parse($access->occurred_at)->format('d/m/Y H:i') }}</td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-3 py-6 text-center text-xs text-gray-400">Nenhum acesso registrado ainda.</td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
             </div>
@@ -1306,6 +1302,14 @@ document.addEventListener('click', function (e) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
+    new DataTable('#access-trail-table', {
+        language: { url: '//cdn.datatables.net/plug-ins/2.2.2/i18n/pt-BR.json', search: 'Buscar:', emptyTable: 'Nenhum acesso registrado ainda.' },
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        order: [[4, 'desc']],
+        columnDefs: [{ targets: 4, orderable: true }],
+    });
+
     new DataTable('#archive-table', {
         ajax: { url: '{{ route("metrics.client-data") }}', type: 'GET' },
         processing: true,

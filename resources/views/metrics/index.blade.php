@@ -1042,6 +1042,62 @@
     </div>
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
+    {{-- SECTION: Trilha de Acessos --}}
+    <div>
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-1 h-5 rounded-full bg-gray-400"></div>
+            <h2 class="text-sm font-semibold text-gray-700">Trilha de Acessos</h2>
+            <span class="text-[10px] text-gray-400">últimos acessos ao relatório de pendências, análises e pacientes</span>
+        </div>
+        <div class="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Usuário</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Ação</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Atendimento</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Setor</th>
+                            <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-500">Quando</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        @forelse ($accessLog as $access)
+                            @php
+                                $accessBadge = match ($access->event) {
+                                    \App\Models\HandoverActivityLog::EVENT_REPORT_OPEN => 'bg-sky-50 text-sky-700 border-sky-200',
+                                    \App\Models\HandoverActivityLog::EVENT_ANALYSIS_OPEN => 'bg-violet-50 text-violet-700 border-violet-200',
+                                    default => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                };
+                            @endphp
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-3 py-2 whitespace-nowrap">
+                                    <span class="font-medium text-gray-700">{{ $access->user_name ?? '—' }}</span>
+                                    @if ($access->user_role)
+                                        <span class="block text-[10px] text-gray-400">{{ $access->user_role }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border {{ $accessBadge }}">
+                                        {{ \App\Models\HandoverActivityLog::EVENT_LABELS[$access->event] ?? $access->event }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $access->nr_atendimento ?? '—' }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-gray-600">{{ $access->sector_name ?? '—' }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ \Carbon\Carbon::parse($access->occurred_at)->format('d/m/Y H:i') }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="px-3 py-6 text-center text-xs text-gray-400">Nenhum acesso registrado ainda.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- SECTION: Histórico de Atendimentos --}}
     <div>
         <div class="flex items-center gap-2 mb-3">

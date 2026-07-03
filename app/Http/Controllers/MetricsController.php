@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FeedbackSubmission;
+use App\Models\HandoverActivityLog;
 use App\Services\ChatAnalyticsService;
 use App\Services\HandoverSessionService;
 use App\Services\ShiftService;
@@ -42,6 +43,7 @@ class MetricsController extends Controller
         return view('metrics.index', array_merge($staticCached, $panoramaData, [
             'period' => $period,
             'sectorFilter' => $sectorFilter,
+            'accessLog' => $this->buildAccessLog(),
         ]));
     }
 
@@ -172,6 +174,8 @@ class MetricsController extends Controller
 
     public function show(Request $request, string $nr)
     {
+        HandoverActivityLog::record(HandoverActivityLog::EVENT_ANALYSIS_OPEN, (int) auth()->id(), (int) $nr);
+
         $archive = DB::table('chat_messages_archive')->where('nr_atendimento', $nr)->first();
 
         if (! $archive) {
@@ -279,6 +283,18 @@ class MetricsController extends Controller
                 'last_date' => $this->formatDate($archive->last_message_at ?? null),
             ],
         ]);
+    }
+
+    // ── Access audit trail (always fresh) ────────────────────────────────────
+
+    private function buildAccessLog(): Collection
+    {
+        return DB::table('handover_activity_log as l')
+            ->leftJoin('users as u', 'u.id', '=', 'l.user_id')
+            ->whereIn('l.event', array_keys(HandoverActivityLog::EVENT_LABELS))
+            ->orderByDesc('l.occurred_at')
+            ->limit(60)
+            ->get(['u.name as user_name', 'u.role as user_role', 'l.nr_atendimento', 'l.sector_name', 'l.event', 'l.occurred_at']);
     }
 
     // ── Static data (cached 1h, period/sector-independent) ───────────────────

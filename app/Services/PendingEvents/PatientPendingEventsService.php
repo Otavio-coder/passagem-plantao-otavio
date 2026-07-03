@@ -473,14 +473,16 @@ class PatientPendingEventsService
         $cihTipoCirurgiaMap = $this->loadCihTipoCirurgiaMap();
 
         // ── Anti-join result_laboratorio via nr_atendimento (1 query, evita ORA-01795) ──
-        // USE_HASH força hash join em vez de NL, estabilizando o plano com Oracle buffer frio.
+        // LEADING(pm) USE_NL(rl): dirige por prescr_medica (índice nr_atendimento) e entra em
+        // result_laboratorio por índice de nr_prescricao. USE_HASH aqui full-scaneia
+        // result_laboratorio inteira (~220s por chunk em buffer frio).
         $rlCollectedKeys = [];
         try {
             $_tRl = hrtime(true);
             $rlRows = DB::connection('tasy')->select("
-                SELECT /*+ USE_HASH(rl pm) */ DISTINCT rl.nr_prescricao, rl.nr_seq_prescricao
-                FROM tasy.result_laboratorio rl
-                JOIN tasy.prescr_medica pm ON pm.nr_prescricao = rl.nr_prescricao
+                SELECT /*+ LEADING(pm) USE_NL(rl) */ DISTINCT rl.nr_prescricao, rl.nr_seq_prescricao
+                FROM tasy.prescr_medica pm
+                JOIN tasy.result_laboratorio rl ON rl.nr_prescricao = pm.nr_prescricao
                 WHERE pm.nr_atendimento IN ({$p})
                   AND (rl.dt_coleta IS NOT NULL OR rl.ds_resultado IS NOT NULL)
             ", $chunk);

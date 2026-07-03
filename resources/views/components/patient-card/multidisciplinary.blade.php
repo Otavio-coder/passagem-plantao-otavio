@@ -126,10 +126,12 @@
                                 <div :class="['border rounded-lg p-4', request.card_class ?? 'bg-amber-50 border-amber-200']">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2 flex-1 min-w-0">
-                                            <img x-show="request.team_icon"
-                                                 :src="'/images/icons/patient-card/' + request.team_icon"
-                                                 class="w-5 h-5 flex-shrink-0"
-                                                 alt="" />
+                                            {{-- x-if (não x-show): evita bind de :src com team_icon null → GET /images/icons/patient-card/null 404 --}}
+                                            <template x-if="request.team_icon">
+                                                <img :src="'/images/icons/patient-card/' + request.team_icon"
+                                                     class="w-5 h-5 flex-shrink-0"
+                                                     alt="" />
+                                            </template>
                                             <span class="text-sm font-semibold text-gray-800" x-text="request.ds_equipe_destino ?? 'Equipe não identificada'"></span>
                                         </div>
                                         <span :class="['text-xs px-2.5 py-1 rounded-full flex-shrink-0 ml-2', request.status_badge_class ?? 'bg-amber-500 text-white']"

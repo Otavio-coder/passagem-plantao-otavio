@@ -42,6 +42,16 @@
                             <span class="hidden lg:inline xl:hidden">Plantão</span>
                         </a>
 
+                        @can('ver huddle')
+                            <a href="{{ route('huddle.report') }}"
+                               title="Huddle - Gestão de Altas"
+                               class="nav-link {{ request()->routeIs('huddle.*') ? 'border-blue-200' : 'border-transparent' }}">
+                                <i class="fa fa-people-group"></i>
+                                <span class="hidden xl:inline">Huddle</span>
+                                <span class="hidden lg:inline xl:hidden">Huddle</span>
+                            </a>
+                        @endcan
+
                         <a href="{{ route('user.preferences.index') }}"
                            title="Meus Setores"
                            class="nav-link {{ request()->routeIs('user.preferences.*') ? 'border-blue-200' : 'border-transparent' }}">
@@ -224,6 +234,16 @@
                 </div>
                 <i class="fas fa-chevron-right text-sm text-gray-400"></i>
             </a>
+
+            @can('ver huddle')
+                <a href="{{ route('huddle.report') }}" class="flex justify-between items-center text-sm text-gray-700">
+                    <div class="px-2 pt-2 pb-3 flex flex-col">
+                        <span class="font-semibold">Huddle</span>
+                        <span class="text-xs text-gray-400">Gestão de Altas</span>
+                    </div>
+                    <i class="fas fa-chevron-right text-sm text-gray-400"></i>
+                </a>
+            @endcan
 
             <a href="{{ route('user.preferences.index') }}" class="flex justify-between items-center text-sm text-gray-700">
                 <div class="px-2 pt-2 pb-3 flex flex-col">

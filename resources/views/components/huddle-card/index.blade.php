@@ -15,7 +15,8 @@
     $redCount = (int) ($patient['huddle_red_count'] ?? 0);
     $greenCount = (int) ($patient['huddle_green_count'] ?? 0);
     $edd = $patient['huddle_expected_discharge'] ?? null;
-    $isRound = ($patient['huddle_status'] ?? null) === 'round';
+    // Round automático: sem previsão de alta nas próximas 72h (vindo do Tasy)
+    $isRound = ! ($patient['huddle_discharge_within_72h'] ?? false);
 
     $signals = $patient['huddle_checklist'] ?? [];   // item_code => 'red'|'green'
     $pend = $patient['huddle_pending'] ?? [];         // exames/procedimentos/terapias/multidisciplinar
@@ -58,7 +59,7 @@
                             {{ $patient['nm_pessoa_fisica'] ?? 'Paciente' }}
                         </p>
                         <p class="text-xs text-gray-600 mt-0.5">
-                            @if(isset($patient['age'])) {{ $patient['age'] }} anos @endif
+                            {{ $patient['age_label'] ?? '—' }}
                             @if(isset($patient['internment_days']) && $patient['internment_days'] >= 0)
                                 <span class="mx-1">•</span> {{ $patient['internment_days'] }} dia(s) internado
                             @endif

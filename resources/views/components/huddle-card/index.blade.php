@@ -1,6 +1,7 @@
 @props([
     'patient',
     'currentHospitalName' => '',
+    'sectorId' => 0,
 ])
 
 @php
@@ -101,6 +102,7 @@
                         @click.prevent="$dispatch('openModal', {
                             attendanceNumber: {{ (int) ($patient['nr_atendimento'] ?? 0) }},
                             hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
+                            sectorId: {{ (int) $sectorId }},
                             sbarPatient: {{ \Illuminate\Support\Js::from($patient) }},
                             patients: window.__huddleModalPatients ?? []
                         })"

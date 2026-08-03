@@ -97,6 +97,7 @@
                                         <x-huddle-card
                                             :patient="$patient"
                                             :current-hospital-name="$currentHospitalName"
+                                            :sector-id="$selectedSector"
                                         />
                                     </div>
                                 @endforeach

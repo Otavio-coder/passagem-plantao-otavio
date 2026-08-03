@@ -27,7 +27,7 @@ class HuddleBoardService
         $date ??= Carbon::today()->toDateString();
 
         $patients = PatientDataLoader::forSector($sectorId)
-            ->include('demographics', 'pending_events', 'multidisciplinary', 'surgery', 'clinical')
+            ->include('demographics', 'scales', 'pending_events', 'multidisciplinary', 'surgery', 'clinical')
             ->get();
 
         $attendanceNumbers = collect($patients)

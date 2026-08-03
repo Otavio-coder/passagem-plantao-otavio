@@ -102,7 +102,60 @@ class HuddleBoardService
         $patient['huddle_pending'] = $this->pendingCounts($patient);
         $patient['huddle_prescricao_alta'] = ($patient['discharge_info']['tipo'] ?? null) === 'alta_medica';
 
+        // Idade legível (meses para menores de 1 ano) e o gate das 72h, automático
+        // a partir da previsão de alta do Tasy (sem pergunta manual).
+        $patient['age_label'] = $this->ageLabel($patient);
+        $patient['huddle_discharge_within_72h'] = $this->dischargeWithin72h($patient);
+
         return $patient;
+    }
+
+    /**
+     * Idade legível: "X meses" para menores de 1 ano, senão "X anos".
+     */
+    private function ageLabel(array $patient): string
+    {
+        $birth = $patient['birth_date'] ?? null;
+
+        if (! empty($birth)) {
+            try {
+                $bd = Carbon::parse($birth);
+                $years = $bd->age;
+
+                if ($years < 1) {
+                    $months = $bd->diffInMonths(Carbon::now());
+
+                    return $months <= 0 ? 'recém-nascido' : $months.' '.($months === 1 ? 'mês' : 'meses');
+                }
+
+                return $years.' anos';
+            } catch (\Throwable $e) {
+                // cai no fallback abaixo
+            }
+        }
+
+        $age = $patient['age'] ?? null;
+
+        return $age !== null ? $age.' anos' : '—';
+    }
+
+    /**
+     * Gate 72h automático: verdadeiro quando há previsão de alta no Tasy até 3 dias
+     * a partir de hoje. Substitui a pergunta manual de triagem.
+     */
+    private function dischargeWithin72h(array $patient): bool
+    {
+        $raw = $patient['discharge_info']['dt_previsto_alta'] ?? null;
+
+        if (empty($raw)) {
+            return false;
+        }
+
+        try {
+            return Carbon::parse($raw)->startOfDay()->lte(Carbon::today()->addDays(3));
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**

@@ -14,9 +14,21 @@
     ];
     $redCount = (int) ($patient['huddle_red_count'] ?? 0);
     $greenCount = (int) ($patient['huddle_green_count'] ?? 0);
-    $reasons = $patient['huddle_reasons'] ?? [];
     $edd = $patient['huddle_expected_discharge'] ?? null;
-    $isRed = ($patient['huddle_color'] ?? 'red') === 'red';
+    $isRound = ($patient['huddle_status'] ?? null) === 'round';
+
+    $signals = $patient['huddle_checklist'] ?? [];   // item_code => 'red'|'green'
+    $pend = $patient['huddle_pending'] ?? [];         // exames/procedimentos/terapias/multidisciplinar
+
+    // Categorias obrigatórias no card: rótulo, item do checklist (sinal) e contagem do Tasy.
+    $categories = [
+        ['label' => 'Exames',        'item' => 'exames_laudo',  'count' => $pend['exames'] ?? null],
+        ['label' => 'Procedimentos', 'item' => 'procedimentos', 'count' => $pend['procedimentos'] ?? null],
+        ['label' => 'Multidisc.',    'item' => 'consultorias',  'count' => $pend['multidisciplinar'] ?? null],
+        ['label' => 'Terapias',      'item' => 'terapias',      'count' => $pend['terapias'] ?? null],
+        ['label' => 'Transporte',    'item' => 'transporte',    'count' => null],
+        ['label' => 'Presc. alta',   'item' => null,            'count' => null, 'done' => $patient['huddle_prescricao_alta'] ?? false],
+    ];
 @endphp
 
 <div class="relative w-full">
@@ -79,18 +91,27 @@
                         <span class="text-gray-400">na internação</span>
                     </div>
 
-                    {{-- Motivos do dia vermelho --}}
-                    @if($isRed && ! empty($reasons))
-                        <div class="flex flex-wrap gap-1">
-                            @foreach($reasons as $reason)
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium {{ $reason['accent'] }}"
-                                      title="{{ $reason['category'] }}">
-                                    {{ $reason['label'] }}
-                                </span>
+                    {{-- Pendências (obrigatórias): categoria + status Red/Green + contagem do Tasy --}}
+                    @if($isRound)
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500 text-white w-max">
+                            Discutir em Round
+                        </span>
+                    @else
+                        <div class="grid grid-cols-2 gap-1">
+                            @foreach($categories as $cat)
+                                @php
+                                    $sig = $cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null);
+                                    $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
+                                @endphp
+                                <div class="flex items-center gap-1 bg-white/60 rounded px-1.5 py-0.5 text-[10px]">
+                                    <span class="w-2 h-2 rounded-full {{ $dot }} shrink-0"></span>
+                                    <span class="text-gray-700 truncate">{{ $cat['label'] }}</span>
+                                    @if(! is_null($cat['count']) && $cat['count'] > 0)
+                                        <span class="ml-auto font-bold text-gray-800">{{ $cat['count'] }}</span>
+                                    @endif
+                                </div>
                             @endforeach
                         </div>
-                    @elseif($isRed)
-                        <p class="text-[11px] text-gray-500 italic">Sem motivos registrados para o dia.</p>
                     @endif
                 </div>
 

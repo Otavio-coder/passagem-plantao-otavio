@@ -26,6 +26,7 @@ class HuddlePatientDay extends Model
         'sector_id',
         'huddle_date',
         'color',
+        'status',
         'expected_discharge_date',
         'clinical_criteria',
         'senior_reviewed_at',
@@ -46,6 +47,31 @@ class HuddlePatientDay extends Model
     public function redReasons(): HasMany
     {
         return $this->hasMany(HuddleRedReason::class);
+    }
+
+    public function checklistAnswers(): HasMany
+    {
+        return $this->hasMany(HuddleChecklistAnswer::class);
+    }
+
+    /**
+     * Cor do dia derivada do checklist: Red se qualquer item respondido estiver Red;
+     * Green somente quando há respostas e nenhuma é Red. Sem respostas, mantém Red
+     * (regra Red2Green: o dia começa vermelho).
+     */
+    public function deriveColorFromChecklist(): DayColor
+    {
+        $answers = $this->relationLoaded('checklistAnswers')
+            ? $this->checklistAnswers
+            : $this->checklistAnswers()->get();
+
+        if ($answers->isEmpty()) {
+            return DayColor::Red;
+        }
+
+        $anyRed = $answers->contains(fn ($answer) => $answer->signal === DayColor::Red);
+
+        return $anyRed ? DayColor::Red : DayColor::Green;
     }
 
     public function createdBy(): BelongsTo

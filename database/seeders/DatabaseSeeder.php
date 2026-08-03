@@ -67,6 +67,9 @@ class DatabaseSeeder extends Seeder
                 // sistema
                 'ver logs',
                 'configurar sistema',
+                // huddle de gestão de altas
+                'ver huddle',
+                'conduzir huddle',
             ];
 
             // Garante que todas as permissões da lista existem
@@ -98,14 +101,20 @@ class DatabaseSeeder extends Seeder
                 'acessar como',
                 'ver relatorio pendencias',
                 'ver historico chat',
+                // supervisão de enfermagem visualiza e conduz o Huddle
+                'ver huddle',
+                'conduzir huddle',
             ]);
 
             // Enfermeiro → SBAR/chat + relatório de pendências; sem histórico de avaliações nem admin
             // A feature de passagem de plantão é controlada pelo flag is_nurse no usuário,
             // não por uma permissão Spatie — qualquer usuário com is_nurse=true e este perfil
             // terá acesso ao botão "Iniciar Passagem".
+            // O Huddle de Gestão de Altas é conduzido pela enfermagem.
             $roleNurse->syncPermissions([
                 'ver relatorio pendencias',
+                'ver huddle',
+                'conduzir huddle',
             ]);
 
             // Usuário → sem permissões administrativas (SBAR/chat aberto a todos autenticados)

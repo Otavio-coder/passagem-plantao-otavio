@@ -3,6 +3,7 @@
 namespace App\Services\Huddle;
 
 use App\Enums\Huddle\DayColor;
+use App\Enums\Huddle\HuddleChecklistItem;
 use App\Models\Huddle\HuddlePatientDay;
 use App\Services\PatientData\PatientDataLoader;
 use Carbon\Carbon;
@@ -58,7 +59,7 @@ class HuddleBoardService
         }
 
         return HuddlePatientDay::query()
-            ->with('redReasons')
+            ->with(['redReasons', 'checklistAnswers'])
             ->forSector($sectorId)
             ->forDate($date)
             ->whereIn('nr_atendimento', $attendanceNumbers)
@@ -93,8 +94,65 @@ class HuddleBoardService
         $patient['huddle_red_count'] = $counts['red'];
         $patient['huddle_green_count'] = $counts['green'];
         $patient['huddle_reasons'] = $this->formatReasons($record);
+        $patient['huddle_status'] = $record?->status;
+
+        // Sinais do checklist (item_code => 'red'|'green') e contagens reais do Tasy,
+        // para o card mostrar categoria + status + quantidade.
+        $patient['huddle_checklist'] = $this->checklistSignals($record);
+        $patient['huddle_pending'] = $this->pendingCounts($patient);
+        $patient['huddle_prescricao_alta'] = ($patient['discharge_info']['tipo'] ?? null) === 'alta_medica';
 
         return $patient;
+    }
+
+    /**
+     * Sinal (Red/Green) de cada item do checklist respondido, indexado pelo código do item.
+     *
+     * @return array<string, string>
+     */
+    private function checklistSignals(?HuddlePatientDay $record): array
+    {
+        if ($record === null) {
+            return [];
+        }
+
+        $signals = [];
+
+        foreach ($record->checklistAnswers as $answer) {
+            $code = $answer->item_code instanceof HuddleChecklistItem
+                ? $answer->item_code->value
+                : (string) $answer->item_code;
+
+            $signals[$code] = $answer->signal?->value;
+        }
+
+        return $signals;
+    }
+
+    /**
+     * Contagem real de pendências do Tasy por categoria (a partir de pending_events
+     * e do mapa multidisciplinar já carregados no paciente).
+     *
+     * @return array{exames: int, procedimentos: int, terapias: int, multidisciplinar: int}
+     */
+    private function pendingCounts(array $patient): array
+    {
+        $events = collect($patient['pending_events'] ?? []);
+
+        $countOf = fn (array $tipos): int => $events
+            ->filter(fn ($e) => in_array($e['tipo'] ?? '', $tipos, true))
+            ->count();
+
+        $multidisciplinar = collect($patient['multidisciplinary'] ?? [])
+            ->filter(fn ($open) => $open === true)
+            ->count();
+
+        return [
+            'exames' => $countOf(['exame']),
+            'procedimentos' => $countOf(['procedimento', 'cirurgia']),
+            'terapias' => $countOf(['hemoterapia', 'quimioterapia', 'antibiotico']),
+            'multidisciplinar' => $multidisciplinar,
+        ];
     }
 
     /**

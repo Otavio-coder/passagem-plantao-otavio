@@ -46,6 +46,67 @@ class HuddleDischargeLoader
     }
 
     /**
+     * Status da orientação de alta por nr_atendimento (ORIENTACAO_ALTA_ENF).
+     *
+     * Confirmado com dados reais:
+     *  - 'feita'    → registro ativo com DT_LIBERACAO preenchida
+     *  - 'pendente' → registro ativo sem liberação (em andamento)
+     *  - null       → sem registro de orientação
+     *
+     * @param  int[]  $attendanceNumbers
+     * @return array<int, string|null>
+     */
+    public function orientacaoForSector(int $sectorId, array $attendanceNumbers): array
+    {
+        if (empty($attendanceNumbers)) {
+            return [];
+        }
+
+        return Cache::remember(
+            "huddle_orientacao_{$sectorId}",
+            self::CACHE_TTL,
+            fn () => $this->queryOrientacao($attendanceNumbers)
+        );
+    }
+
+    /**
+     * @param  int[]  $attendanceNumbers
+     * @return array<int, string|null>
+     */
+    private function queryOrientacao(array $attendanceNumbers): array
+    {
+        $result = [];
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($attendanceNumbers), '?'));
+
+            $rows = DB::connection('tasy')->select(
+                "SELECT nr_atendimento, dt_liberacao
+                 FROM tasy.orientacao_alta_enf
+                 WHERE ie_situacao = 'A' AND dt_inativacao IS NULL
+                   AND nr_atendimento IN ({$placeholders})",
+                $attendanceNumbers
+            );
+
+            foreach ($rows as $row) {
+                $nr = (int) $row->nr_atendimento;
+                $status = ! empty($row->dt_liberacao) ? 'feita' : 'pendente';
+
+                // 'feita' prevalece se houver mais de um registro
+                if (($result[$nr] ?? null) !== 'feita') {
+                    $result[$nr] = $status;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[HuddleDischargeLoader] falha ao consultar orientação de alta', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  int[]  $attendanceNumbers
      * @return array<int, string|null>
      */

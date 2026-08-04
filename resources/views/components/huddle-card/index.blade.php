@@ -21,9 +21,11 @@
     $signals = $patient['huddle_checklist'] ?? [];   // item_code => 'red'|'green'
     $pend = $patient['huddle_pending'] ?? [];         // exames/procedimentos/terapias/multidisciplinar
 
-    // Transporte vindo do Tasy (organizado=green / pendente=red / null=sem info)
+    // Transporte e orientação vindos do Tasy (green/red/null)
     $transporteTasy = $patient['huddle_transporte'] ?? null;
     $transporteSig = $transporteTasy === 'organizado' ? 'green' : ($transporteTasy === 'pendente' ? 'red' : null);
+    $orientacaoTasy = $patient['huddle_orientacao'] ?? null;
+    $orientacaoSig = $orientacaoTasy === 'feita' ? 'green' : ($orientacaoTasy === 'pendente' ? 'red' : null);
 
     // Categorias obrigatórias no card: rótulo, item do checklist (sinal) e contagem do Tasy.
     $categories = [
@@ -31,6 +33,7 @@
         ['label' => 'Procedimentos', 'item' => 'procedimentos', 'count' => $pend['procedimentos'] ?? null],
         ['label' => 'Multidisc.',    'item' => 'consultorias',  'count' => $pend['multidisciplinar'] ?? null],
         ['label' => 'Terapias',      'item' => 'terapias',      'count' => $pend['terapias'] ?? null],
+        ['label' => 'Orientação',    'item' => 'orientacao_alta', 'count' => null, 'force' => $orientacaoSig],
         ['label' => 'Transporte',    'item' => 'transporte',    'count' => null, 'force' => $transporteSig],
         ['label' => 'Presc. alta',   'item' => null,            'count' => null, 'done' => $patient['huddle_prescricao_alta'] ?? false],
     ];

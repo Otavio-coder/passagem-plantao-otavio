@@ -39,10 +39,12 @@ class HuddleBoardService
 
         $dayRecords = $this->dayRecords($sectorId, $date, $attendanceNumbers);
         $colorCounts = HuddlePatientDay::colorCountsFor($attendanceNumbers);
-        $transporte = app(HuddleDischargeLoader::class)->transporteForSector($sectorId, $attendanceNumbers);
+        $dischargeLoader = app(HuddleDischargeLoader::class);
+        $transporte = $dischargeLoader->transporteForSector($sectorId, $attendanceNumbers);
+        $orientacao = $dischargeLoader->orientacaoForSector($sectorId, $attendanceNumbers);
 
         return array_map(
-            fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte),
+            fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte, $orientacao),
             $patients
         );
     }
@@ -73,9 +75,10 @@ class HuddleBoardService
      * @param  array<int, HuddlePatientDay>  $dayRecords
      * @param  array<int, array{red: int, green: int}>  $colorCounts
      * @param  array<int, string|null>  $transporte
+     * @param  array<int, string|null>  $orientacao
      * @return array<string, mixed>
      */
-    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = []): array
+    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = [], array $orientacao = []): array
     {
         if (empty($patient['has_patient']) || empty($patient['nr_atendimento'])) {
             return $patient;
@@ -109,6 +112,7 @@ class HuddleBoardService
         $patient['age_label'] = $this->ageLabel($patient);
         $patient['huddle_discharge_within_72h'] = $this->dischargeWithin72h($patient);
         $patient['huddle_transporte'] = $transporte[(int) $patient['nr_atendimento']] ?? null;
+        $patient['huddle_orientacao'] = $orientacao[(int) $patient['nr_atendimento']] ?? null;
 
         return $patient;
     }

@@ -2,7 +2,7 @@
     x-data="{ showModal: @entangle('showModal') }"
     x-show="showModal"
     x-cloak
-    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-2 sm:p-4"
+    class="fixed inset-0 z-[100] overflow-y-auto bg-black/50"
     @keydown.escape.window="$wire.closeModal()"
     style="display: none;"
 >
@@ -13,8 +13,10 @@
         $within72h = $p['huddle_discharge_within_72h'] ?? false;
     @endphp
 
+    {{-- Wrapper rolável: centraliza quando cabe; permite rolar até o topo quando é alto --}}
+    <div class="flex min-h-full items-start sm:items-center justify-center p-2 sm:p-4">
     {{-- Coluna com altura limitada: cabeçalho e rodapé fixos, meio rolável --}}
-    <div class="relative w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden bg-white rounded-2xl shadow-2xl font-montserrat"
+    <div class="relative w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden bg-white rounded-2xl shadow-2xl font-montserrat"
          @click.outside="$wire.closeModal()">
 
         {{-- ── Cabeçalho fixo: navegação + identificação ───────────────────── --}}
@@ -151,5 +153,6 @@
         <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end">
             <button wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
         </div>
+    </div>
     </div>
 </div>

@@ -31,15 +31,18 @@ class HuddleDischargeLoader
      */
     public function transporteForSector(int $sectorId, array $attendanceNumbers): array
     {
-        if (empty($attendanceNumbers)) {
-            return [];
-        }
+        // DESABILITADO: FORMULARIO_TRANSPORTE está vazia neste hospital — o transporte
+        // de alta não é registrado no Tasy (processo manual). Evita consultar tabela
+        // sem uso. O item "Transporte" segue como preenchimento manual no checklist.
+        // Quando a tabela real de transporte for identificada, é só reativar o cache
+        // abaixo apontando para o novo método de query.
+        return [];
 
-        return Cache::remember(
-            "huddle_transporte_{$sectorId}",
-            self::CACHE_TTL,
-            fn () => $this->queryTransporte($attendanceNumbers)
-        );
+        // return Cache::remember(
+        //     "huddle_transporte_{$sectorId}",
+        //     self::CACHE_TTL,
+        //     fn () => $this->queryTransporte($attendanceNumbers)
+        // );
     }
 
     /**

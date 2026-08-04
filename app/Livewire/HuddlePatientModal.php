@@ -48,7 +48,13 @@ class HuddlePatientModal extends Component
         $this->hospitalName = $hospital;
         $this->sectorId = $sectorId;
 
-        $this->modalPatients = collect($patients)
+        // Lista de navegação: carrega do serviço (robusto) quando há setor; senão usa
+        // a lista recebida no evento como fallback.
+        $sectorPatients = $sectorId > 0
+            ? app(\App\Services\Huddle\HuddleBoardService::class)->forSector($sectorId)
+            : $patients;
+
+        $this->modalPatients = collect($sectorPatients)
             ->filter(fn ($p) => ! empty($p['has_patient']) && ! empty($p['nr_atendimento']))
             ->values()
             ->map(fn ($p) => array_merge($p, [

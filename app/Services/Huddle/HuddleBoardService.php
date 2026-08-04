@@ -110,10 +110,13 @@ class HuddleBoardService
         $patient['huddle_pending'] = $this->pendingCounts($patient);
         $patient['huddle_prescricao_alta'] = ($patient['discharge_info']['tipo'] ?? null) === 'alta_medica';
 
-        // Idade legível (meses para menores de 1 ano) e o gate das 72h, automático
-        // a partir da previsão de alta do Tasy (sem pergunta manual).
+        // Idade legível (meses para menores de 1 ano) e as janelas de alta (72h/24h),
+        // automáticas a partir da previsão de alta do Tasy (sem pergunta manual).
         $patient['age_label'] = $this->ageLabel($patient);
-        $patient['huddle_discharge_within_72h'] = $this->dischargeWithin72h($patient);
+        $days = $this->daysUntilDischarge($patient);
+        $patient['huddle_days_until_discharge'] = $days;
+        $patient['huddle_discharge_within_72h'] = $days !== null && $days >= 0 && $days <= 3;
+        $patient['huddle_discharge_within_24h'] = $days !== null && $days >= 0 && $days <= 1;
         $patient['huddle_transporte'] = $transporte[(int) $patient['nr_atendimento']] ?? null;
         $patient['huddle_orientacao'] = $orientacao[(int) $patient['nr_atendimento']] ?? null;
 
@@ -153,22 +156,31 @@ class HuddleBoardService
      * Gate 72h automático: verdadeiro quando há previsão de alta no Tasy até 3 dias
      * a partir de hoje. Substitui a pergunta manual de triagem.
      */
-    private function dischargeWithin72h(array $patient): bool
+    /**
+     * Dias entre hoje e a previsão de alta do Tasy.
+     *
+     * Retorna: 0 = alta hoje · 1 = amanhã · negativo = previsão já vencida ·
+     * null = sem previsão registrada. As janelas de 72h/24h são derivadas deste valor
+     * (ver mergeHuddleState), o que exclui previsões passadas do gate.
+     *
+     * Usa a data já formatada (d/m/Y) — determinística, evita a ambiguidade do
+     * formato brasileiro que o Carbon::parse poderia interpretar errado.
+     */
+    private function daysUntilDischarge(array $patient): ?int
     {
-        // Usa a data já formatada (d/m/Y) — determinística, evita ambiguidade de
-        // formato brasileiro que o Carbon::parse poderia interpretar errado.
         $formatted = $patient['discharge_info']['dt_previsto_alta_formatted'] ?? null;
 
         if (empty($formatted)) {
-            return false;
+            return null;
         }
 
         try {
             $date = Carbon::createFromFormat('d/m/Y', $formatted)->startOfDay();
 
-            return $date->lte(Carbon::today()->addDays(3));
+            // Sinalizado: negativo quando a previsão está no passado.
+            return (int) Carbon::today()->diffInDays($date, false);
         } catch (\Throwable $e) {
-            return false;
+            return null;
         }
     }
 

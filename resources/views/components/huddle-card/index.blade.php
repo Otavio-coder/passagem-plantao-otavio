@@ -77,13 +77,18 @@
                 {{-- Corpo: previsão de alta + contadores + motivos --}}
                 <div class="flex-1 overflow-y-auto px-3 pb-2 custom-scrollbar space-y-2">
 
-                    {{-- Previsão de alta (EDD) --}}
+                    {{-- Previsão de alta (EDD) + selo de alta em 24h --}}
                     <div class="flex items-center gap-2 text-xs bg-white/60 rounded-lg px-2.5 py-1.5">
                         <i class="fas fa-calendar-day text-gray-500"></i>
                         <span class="text-gray-600">Previsão de alta:</span>
                         <span class="font-semibold {{ $edd ? 'text-gray-900' : 'text-amber-600' }}">
                             {{ $edd ?? 'não definida' }}
                         </span>
+                        @if($patient['huddle_discharge_within_24h'] ?? false)
+                            <span class="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold uppercase animate-pulse">
+                                Alta ≤24h
+                            </span>
+                        @endif
                     </div>
 
                     {{-- Contadores da internação --}}

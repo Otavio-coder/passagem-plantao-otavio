@@ -21,13 +21,17 @@
     $signals = $patient['huddle_checklist'] ?? [];   // item_code => 'red'|'green'
     $pend = $patient['huddle_pending'] ?? [];         // exames/procedimentos/terapias/multidisciplinar
 
+    // Transporte vindo do Tasy (organizado=green / pendente=red / null=sem info)
+    $transporteTasy = $patient['huddle_transporte'] ?? null;
+    $transporteSig = $transporteTasy === 'organizado' ? 'green' : ($transporteTasy === 'pendente' ? 'red' : null);
+
     // Categorias obrigatórias no card: rótulo, item do checklist (sinal) e contagem do Tasy.
     $categories = [
         ['label' => 'Exames',        'item' => 'exames_laudo',  'count' => $pend['exames'] ?? null],
         ['label' => 'Procedimentos', 'item' => 'procedimentos', 'count' => $pend['procedimentos'] ?? null],
         ['label' => 'Multidisc.',    'item' => 'consultorias',  'count' => $pend['multidisciplinar'] ?? null],
         ['label' => 'Terapias',      'item' => 'terapias',      'count' => $pend['terapias'] ?? null],
-        ['label' => 'Transporte',    'item' => 'transporte',    'count' => null],
+        ['label' => 'Transporte',    'item' => 'transporte',    'count' => null, 'force' => $transporteSig],
         ['label' => 'Presc. alta',   'item' => null,            'count' => null, 'done' => $patient['huddle_prescricao_alta'] ?? false],
     ];
 @endphp
@@ -101,7 +105,8 @@
                         <div class="grid grid-cols-2 gap-1">
                             @foreach($categories as $cat)
                                 @php
-                                    $sig = $cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null);
+                                    // Prioridade: status forçado do Tasy (ex.: transporte) > sinal do checklist > "feito"
+                                    $sig = $cat['force'] ?? ($cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null));
                                     $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
                                 @endphp
                                 <div class="flex items-center gap-1 bg-white/60 rounded px-1.5 py-0.5 text-[10px]">

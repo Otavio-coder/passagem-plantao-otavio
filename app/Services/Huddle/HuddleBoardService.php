@@ -94,7 +94,10 @@ class HuddleBoardService
         $patient['huddle_color'] = $color->value;
         $patient['huddle_color_label'] = $color->shortLabel();
         $patient['huddle_styling'] = $color->cardStyling();
-        $patient['huddle_expected_discharge'] = $record?->expected_discharge_date?->format('d/m/Y');
+        // Previsão de alta exibida no card: a editada no Huddle tem prioridade; senão,
+        // usa a previsão que já vem do Tasy (autofill).
+        $patient['huddle_expected_discharge'] = $record?->expected_discharge_date?->format('d/m/Y')
+            ?? ($patient['discharge_info']['dt_previsto_alta_formatted'] ?? null);
         $patient['huddle_clinical_criteria'] = $record?->clinical_criteria;
         $patient['huddle_red_count'] = $counts['red'];
         $patient['huddle_green_count'] = $counts['green'];
@@ -152,14 +155,18 @@ class HuddleBoardService
      */
     private function dischargeWithin72h(array $patient): bool
     {
-        $raw = $patient['discharge_info']['dt_previsto_alta'] ?? null;
+        // Usa a data já formatada (d/m/Y) — determinística, evita ambiguidade de
+        // formato brasileiro que o Carbon::parse poderia interpretar errado.
+        $formatted = $patient['discharge_info']['dt_previsto_alta_formatted'] ?? null;
 
-        if (empty($raw)) {
+        if (empty($formatted)) {
             return false;
         }
 
         try {
-            return Carbon::parse($raw)->startOfDay()->lte(Carbon::today()->addDays(3));
+            $date = Carbon::createFromFormat('d/m/Y', $formatted)->startOfDay();
+
+            return $date->lte(Carbon::today()->addDays(3));
         } catch (\Throwable $e) {
             return false;
         }

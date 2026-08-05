@@ -57,9 +57,7 @@ class HuddlePatientModal extends Component
         $this->modalPatients = collect($sectorPatients)
             ->filter(fn ($p) => ! empty($p['has_patient']) && ! empty($p['nr_atendimento']))
             ->values()
-            ->map(fn ($p) => array_merge($p, [
-                'label' => trim(($p['cd_unidade_basica'] ?? '').' – '.($p['nm_pessoa_fisica'] ?? 'Paciente')),
-            ]))
+            ->map(fn ($p) => $this->slimPatient($p))
             ->toArray();
 
         $index = collect($this->modalPatients)
@@ -209,6 +207,40 @@ class HuddlePatientModal extends Component
         $total = count($this->modalPatients);
         $this->canGoPrevious = $this->currentPatientIndex > 0;
         $this->canGoNext = $this->currentPatientIndex < ($total - 1);
+    }
+
+    /**
+     * Projeta apenas os campos que o modal exibe — evita serializar o paciente inteiro
+     * (~150 KB com pending_events/checklist) no snapshot do Livewire, o que deixava a
+     * navegação lenta.
+     *
+     * @return array<string, mixed>
+     */
+    private function slimPatient(array $p): array
+    {
+        return [
+            'has_patient' => true,
+            'nr_atendimento' => $p['nr_atendimento'] ?? null,
+            'cd_setor_atendimento' => $p['cd_setor_atendimento'] ?? $this->sectorId,
+            'cd_unidade_basica' => $p['cd_unidade_basica'] ?? null,
+            'nm_pessoa_fisica' => $p['nm_pessoa_fisica'] ?? null,
+            'age_label' => $p['age_label'] ?? null,
+            'internment_days' => $p['internment_days'] ?? null,
+            'convenio' => $p['convenio'] ?? null,
+            'medico_responsavel' => $p['medico_responsavel'] ?? null,
+            'mews_score' => $p['mews_score'] ?? null,
+            'pews_score' => $p['pews_score'] ?? null,
+            'braden_score' => $p['braden_score'] ?? null,
+            'morse_score' => $p['morse_score'] ?? null,
+            'pain_score' => $p['pain_score'] ?? null,
+            'vte_score' => $p['vte_score'] ?? null,
+            'huddle_discharge_within_72h' => $p['huddle_discharge_within_72h'] ?? false,
+            'huddle_discharge_within_24h' => $p['huddle_discharge_within_24h'] ?? false,
+            'discharge_info' => [
+                'dt_previsto_alta_formatted' => $p['discharge_info']['dt_previsto_alta_formatted'] ?? null,
+            ],
+            'label' => trim(($p['cd_unidade_basica'] ?? '').' – '.($p['nm_pessoa_fisica'] ?? 'Paciente')),
+        ];
     }
 
     private function authorizeConduct(): void

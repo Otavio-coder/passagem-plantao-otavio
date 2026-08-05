@@ -106,9 +106,10 @@
 
                     {{-- Pendências (obrigatórias): categoria + status Red/Green + contagem do Tasy --}}
                     @if($isRound)
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-gray-500 text-white w-max">
-                            Discutir em Round
-                        </span>
+                        <div class="flex items-center justify-center gap-2 w-full rounded-lg bg-slate-700 text-white px-3 py-2 shadow-sm">
+                            <i class="fas fa-users-line text-sm"></i>
+                            <span class="text-xs font-bold uppercase tracking-wide">Discutir em Round</span>
+                        </div>
                     @else
                         <div class="grid grid-cols-2 gap-1">
                             @foreach($categories as $cat)

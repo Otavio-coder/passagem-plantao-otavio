@@ -11,6 +11,10 @@
     $greenCount = (int) ($patient['huddle_green_count'] ?? 0);
     $edd = $patient['huddle_expected_discharge'] ?? null;
 
+    // Exames pendentes em destaque (selo) e sequência de dias na mesma cor
+    $examesPend = (int) ($patient['huddle_pending']['exames'] ?? 0);
+    $streak = $patient['huddle_streak'] ?? null; // ['color' => 'red'|'green', 'days' => int]
+
     // Round automático: sem previsão de alta nas próximas 72h (vindo do Tasy)
     $isRound = ! ($patient['huddle_discharge_within_72h'] ?? false);
     $within24h = $patient['huddle_discharge_within_24h'] ?? false;
@@ -129,6 +133,27 @@
                             <span class="w-2 h-2 rounded-full bg-green-500"></span>{{ $greenCount }} green
                         </span>
                         <span class="text-gray-400">na internação</span>
+                    </div>
+
+                    {{-- Dias consecutivos na mesma cor (Red2Green) --}}
+                    @if($streak && ($streak['days'] ?? 0) > 0)
+                        <div class="flex items-center gap-1.5 text-[11px]">
+                            <i class="fas fa-calendar-day {{ ($streak['color'] ?? '') === 'green' ? 'text-green-500' : 'text-red-500' }}"></i>
+                            <span class="text-gray-600">
+                                <strong class="{{ ($streak['color'] ?? '') === 'green' ? 'text-green-700' : 'text-red-700' }}">{{ $streak['days'] }} {{ $streak['days'] == 1 ? 'dia' : 'dias' }}</strong>
+                                seguido{{ $streak['days'] == 1 ? '' : 's' }} em {{ ($streak['color'] ?? '') === 'green' ? 'green' : 'red' }}
+                            </span>
+                        </div>
+                    @endif
+
+                    {{-- Selo de exames pendentes (destaque) --}}
+                    <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold {{ $examesPend > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-50 text-gray-500 border border-gray-100' }}">
+                        <i class="fas fa-flask {{ $examesPend > 0 ? 'text-amber-500' : 'text-gray-300' }}"></i>
+                        @if($examesPend > 0)
+                            <span>{{ $examesPend }} {{ $examesPend == 1 ? 'exame pendente' : 'exames pendentes' }}</span>
+                        @else
+                            <span>Sem exames pendentes</span>
+                        @endif
                     </div>
 
                     @if($isRound)

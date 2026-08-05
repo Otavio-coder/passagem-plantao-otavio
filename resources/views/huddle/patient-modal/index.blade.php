@@ -56,6 +56,17 @@
         {{-- ── Conteúdo rolável ────────────────────────────────────────────── --}}
         <div class="flex-1 overflow-y-auto">
 
+            {{-- Bloqueio de fim de semana / feriado: a rotina não roda nesses dias.
+                 A visualização é liberada, mas o preenchimento fica desabilitado. --}}
+            @unless($huddleAvailable)
+                <div class="px-4 pt-3">
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+                        <p class="font-semibold text-amber-800"><i class="fas fa-triangle-exclamation mr-1"></i>Huddle indisponível hoje</p>
+                        <p class="text-[11px] text-amber-700 mt-0.5">{{ $huddleBlockedReason ?? 'A rotina do Huddle não ocorre neste dia.' }}</p>
+                    </div>
+                </div>
+            @endunless
+
             {{-- Dados do paciente --}}
             <div class="px-4 py-3 border-b border-gray-100 grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-700">
                 <div><span class="text-gray-400">Atend.:</span> <strong>{{ $p['nr_atendimento'] ?? '—' }}</strong></div>
@@ -111,7 +122,7 @@
                                 @endif
                             </div>
 
-                            @can('conduzir huddle')
+                            @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
                                 <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
                                     <button type="button"
                                             wire:click="answerItem('{{ $code }}', 'sim')"
@@ -141,24 +152,27 @@
                                 @endif
                             @else
                                 <p class="mt-1 text-xs text-gray-500">Resposta: <strong>{{ $answer ? ucfirst($answer) : '—' }}</strong></p>
-                            @endcan
+                            @endif
                         </div>
                     @endforeach
 
-                    {{-- DPA local --}}
-                    <div class="rounded-xl border border-gray-200 p-3">
-                        <p class="text-sm font-semibold text-gray-800 mb-2">Previsão de alta (DPA) no Huddle</p>
-                        @can('conduzir huddle')
-                            <div class="flex flex-wrap items-end gap-2">
-                                <input type="date" wire:model="expectedDischarge"
-                                       class="text-sm rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                <button type="button" wire:click="saveDischarge" wire:loading.attr="disabled" wire:target="saveDischarge"
-                                        class="text-sm px-3 py-1.5 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">Salvar</button>
-                            </div>
-                            <p class="mt-1 text-[11px] text-gray-400">Grava apenas no Huddle — não altera o Tasy.</p>
+                @endif
+
+                {{-- Comentários obrigatórios quando o dia é vermelho — sempre ao final do
+                     formulário, independente da janela de 72h. --}}
+                @if($dayColor === 'red')
+                    <div class="rounded-xl border border-red-200 bg-red-50 p-3" wire:key="comments-{{ $p['nr_atendimento'] ?? 'x' }}">
+                        <label class="block text-sm font-semibold text-red-800 mb-1">Comentários <span class="text-red-500">*</span></label>
+                        <p class="text-[11px] text-red-600 mb-2">Paciente em situação <strong>red</strong> — o registro dos comentários do dia é obrigatório.</p>
+                        @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
+                            <textarea wire:model="comments" rows="3"
+                                      placeholder="Descreva o motivo do dia vermelho e as condutas definidas..."
+                                      class="w-full text-sm rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]"></textarea>
+                            <button type="button" wire:click="saveComments" wire:loading.attr="disabled" wire:target="saveComments"
+                                    class="mt-2 text-sm px-3 py-1.5 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">Salvar comentários</button>
                         @else
-                            <p class="text-sm">{{ $expectedDischarge ?? 'não definida' }}</p>
-                        @endcan
+                            <p class="text-sm text-gray-700 whitespace-pre-line">{{ $comments ?: '—' }}</p>
+                        @endif
                     </div>
                 @endif
             </div>

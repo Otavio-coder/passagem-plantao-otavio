@@ -1,0 +1,35 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dias de funcionamento do Huddle
+    |--------------------------------------------------------------------------
+    |
+    | A rotina de preenchimento do Huddle não ocorre aos finais de semana nem
+    | em feriados. Os feriados abaixo bloqueiam o formulário nas datas listadas.
+    |
+    | - Datas fixas (todo ano): formato 'MM-DD' (ex.: '01-01' = 1º de janeiro).
+    | - Datas específicas (um ano só): formato 'YYYY-MM-DD' (ex.: móveis como Páscoa).
+    |
+    */
+
+    'holidays' => [
+        // Feriados nacionais fixos
+        '01-01', // Confraternização Universal
+        '04-21', // Tiradentes
+        '05-01', // Dia do Trabalho
+        '09-07', // Independência
+        '10-12', // Nossa Senhora Aparecida
+        '11-02', // Finados
+        '11-15', // Proclamação da República
+        '12-25', // Natal
+
+        // Feriados móveis / locais — adicionar por ano (YYYY-MM-DD)
+        // '2026-02-17', // Carnaval
+        // '2026-04-03', // Sexta-feira Santa
+        // '2026-06-04', // Corpus Christi
+    ],
+
+];

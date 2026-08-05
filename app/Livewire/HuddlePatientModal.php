@@ -4,11 +4,12 @@ namespace App\Livewire;
 
 use App\Actions\Huddle\AnswerChecklistItemAction;
 use App\Actions\Huddle\OpenPatientDayAction;
-use App\Actions\Huddle\SetExpectedDischargeAction;
+use App\Actions\Huddle\SaveHuddleCommentsAction;
 use App\Actions\Huddle\SetHuddleTriageAction;
 use App\Enums\Huddle\DayColor;
 use App\Enums\Huddle\HuddleChecklistItem;
 use App\Models\Huddle\HuddlePatientDay;
+use App\Services\Huddle\HuddleAvailability;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
@@ -35,9 +36,13 @@ class HuddlePatientModal extends Component
     // ── Estado do Huddle para o paciente atual ──────────────────────────────
     public ?string $triageStatus = null;      // 'huddle' | 'round'
 
-    public ?string $expectedDischarge = null; // DPA registrada no Huddle (Y-m-d)
-
     public ?string $clinicalCriteria = null;
+
+    /** Cor do dia derivada do checklist ('red' | 'green'). Controla o campo de comentários. */
+    public ?string $dayColor = null;
+
+    /** Comentários do dia — exibido quando o dia é vermelho. */
+    public ?string $comments = null;
 
     /** @var array<string, array{answer: ?string, signal: ?string, responsible: ?string, due_at: ?string, notes: ?string}> */
     public array $checklist = [];
@@ -95,7 +100,7 @@ class HuddlePatientModal extends Component
         $this->reset([
             'showModal', 'currentPatient', 'hospitalName', 'sectorId', 'modalPatients',
             'currentPatientIndex', 'canGoPrevious', 'canGoNext',
-            'triageStatus', 'expectedDischarge', 'clinicalCriteria', 'checklist',
+            'triageStatus', 'clinicalCriteria', 'checklist',
         ]);
     }
 
@@ -104,6 +109,7 @@ class HuddlePatientModal extends Component
     public function setTriage(string $status): void
     {
         $this->authorizeConduct();
+        $this->ensureAvailable();
 
         $day = $this->ensureDay();
         app(SetHuddleTriageAction::class)->execute($day, $status, (int) Auth::id());
@@ -114,6 +120,7 @@ class HuddlePatientModal extends Component
     public function answerItem(string $itemCode, string $answer): void
     {
         $this->authorizeConduct();
+        $this->ensureAvailable();
 
         $item = HuddleChecklistItem::tryFrom($itemCode);
         if (! $item) {
@@ -140,6 +147,7 @@ class HuddlePatientModal extends Component
     public function saveItemDetails(string $itemCode): void
     {
         $this->authorizeConduct();
+        $this->ensureAvailable();
 
         $item = HuddleChecklistItem::tryFrom($itemCode);
         $current = $this->checklist[$itemCode] ?? null;
@@ -165,25 +173,25 @@ class HuddlePatientModal extends Component
         $this->loadHuddleState();
     }
 
-    public function saveDischarge(): void
+    public function saveComments(): void
     {
         $this->authorizeConduct();
+        $this->ensureAvailable();
 
         $day = $this->ensureDay();
-        app(SetExpectedDischargeAction::class)->execute(
-            $day,
-            $this->expectedDischarge,
-            $this->clinicalCriteria,
-            (int) Auth::id(),
-        );
+        app(SaveHuddleCommentsAction::class)->execute($day, $this->comments, (int) Auth::id());
 
         $this->loadHuddleState();
     }
 
     public function render()
     {
+        $availability = app(HuddleAvailability::class);
+
         return view('huddle.patient-modal.index', [
             'checklistItems' => HuddleChecklistItem::cases(),
+            'huddleAvailable' => $availability->isAvailable(),
+            'huddleBlockedReason' => $availability->blockedReason(),
         ]);
     }
 
@@ -248,6 +256,14 @@ class HuddlePatientModal extends Component
         abort_unless(Auth::user()?->can('conduzir huddle'), 403);
     }
 
+    /**
+     * Bloqueia a gravação em dias sem funcionamento (fim de semana/feriado).
+     */
+    private function ensureAvailable(): void
+    {
+        abort_unless(app(HuddleAvailability::class)->isAvailable(), 403, 'Huddle indisponível hoje.');
+    }
+
     private function currentAttendance(): int
     {
         return (int) ($this->currentPatient['nr_atendimento'] ?? 0);
@@ -286,8 +302,9 @@ class HuddlePatientModal extends Component
         }
 
         $this->triageStatus = $day->status;
-        $this->expectedDischarge = $day->expected_discharge_date?->format('Y-m-d');
         $this->clinicalCriteria = $day->clinical_criteria;
+        $this->dayColor = $day->color instanceof DayColor ? $day->color->value : (string) $day->color;
+        $this->comments = $day->comments;
 
         foreach ($day->checklistAnswers as $answer) {
             $code = $answer->item_code instanceof HuddleChecklistItem
@@ -307,8 +324,9 @@ class HuddlePatientModal extends Component
     private function resetHuddleForm(): void
     {
         $this->triageStatus = null;
-        $this->expectedDischarge = null;
         $this->clinicalCriteria = null;
+        $this->dayColor = null;
+        $this->comments = null;
 
         $this->checklist = [];
         foreach (HuddleChecklistItem::cases() as $item) {

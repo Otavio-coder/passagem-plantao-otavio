@@ -44,6 +44,13 @@ class HuddlePatientModal extends Component
     /** Comentários do dia — exibido quando o dia é vermelho. */
     public ?string $comments = null;
 
+    /** Auditoria do dia: login e data/hora da última atualização de quem preencheu. */
+    public ?string $filledByLogin = null;
+
+    public ?string $filledByName = null;
+
+    public ?string $filledAt = null;
+
     /** @var array<string, array{answer: ?string, signal: ?string, responsible: ?string, due_at: ?string, notes: ?string}> */
     public array $checklist = [];
 
@@ -101,6 +108,7 @@ class HuddlePatientModal extends Component
             'showModal', 'currentPatient', 'hospitalName', 'sectorId', 'modalPatients',
             'currentPatientIndex', 'canGoPrevious', 'canGoNext',
             'triageStatus', 'clinicalCriteria', 'checklist',
+            'dayColor', 'comments', 'filledByLogin', 'filledByName', 'filledAt',
         ]);
     }
 
@@ -292,7 +300,7 @@ class HuddlePatientModal extends Component
         $this->resetHuddleForm();
 
         $day = HuddlePatientDay::query()
-            ->with('checklistAnswers')
+            ->with(['updatedBy', 'createdBy', 'checklistAnswers.answeredBy'])
             ->forPatient($this->currentAttendance())
             ->forDate(Carbon::today()->toDateString())
             ->first();
@@ -306,6 +314,13 @@ class HuddlePatientModal extends Component
         $this->dayColor = $day->color instanceof DayColor ? $day->color->value : (string) $day->color;
         $this->comments = $day->comments;
 
+        // Auditoria do dia: quem fez a última atualização (updatedBy) ou, se ainda não
+        // houve atualização, quem abriu o registro (createdBy).
+        $auditUser = $day->updatedBy ?? $day->createdBy;
+        $this->filledByLogin = $auditUser?->username;
+        $this->filledByName = $auditUser?->name;
+        $this->filledAt = ($day->updated_at ?? $day->created_at)?->format('d/m/Y H:i');
+
         foreach ($day->checklistAnswers as $answer) {
             $code = $answer->item_code instanceof HuddleChecklistItem
                 ? $answer->item_code->value
@@ -317,6 +332,8 @@ class HuddlePatientModal extends Component
                 'responsible' => $answer->responsible,
                 'due_at' => $answer->due_at?->format('Y-m-d'),
                 'notes' => $answer->notes,
+                'answered_by_login' => $answer->answeredBy?->username,
+                'answered_at' => $answer->updated_at?->format('d/m/Y H:i'),
             ];
         }
     }
@@ -327,6 +344,9 @@ class HuddlePatientModal extends Component
         $this->clinicalCriteria = null;
         $this->dayColor = null;
         $this->comments = null;
+        $this->filledByLogin = null;
+        $this->filledByName = null;
+        $this->filledAt = null;
 
         $this->checklist = [];
         foreach (HuddleChecklistItem::cases() as $item) {
@@ -336,6 +356,8 @@ class HuddlePatientModal extends Component
                 'responsible' => null,
                 'due_at' => null,
                 'notes' => null,
+                'answered_by_login' => null,
+                'answered_at' => null,
             ];
         }
     }

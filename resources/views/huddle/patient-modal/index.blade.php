@@ -153,6 +153,14 @@
                             @else
                                 <p class="mt-1 text-xs text-gray-500">Resposta: <strong>{{ $answer ? ucfirst($answer) : '—' }}</strong></p>
                             @endif
+
+                            {{-- Auditoria do item: login e data/hora de quem respondeu --}}
+                            @if(! empty($state['answered_by_login'] ?? null))
+                                <p class="mt-2 text-[10px] text-gray-400 flex items-center gap-1">
+                                    <i class="fas fa-user-check"></i>
+                                    <span>{{ $state['answered_by_login'] }}@if(! empty($state['answered_at'] ?? null)) · {{ $state['answered_at'] }}@endif</span>
+                                </p>
+                            @endif
                         </div>
                     @endforeach
 
@@ -173,6 +181,16 @@
                         @else
                             <p class="text-sm text-gray-700 whitespace-pre-line">{{ $comments ?: '—' }}</p>
                         @endif
+                    </div>
+                @endif
+
+                {{-- Auditoria do dia: login e data/hora da última atualização --}}
+                @if($filledByLogin || $filledAt)
+                    <div class="pt-2 border-t border-gray-100 text-[11px] text-gray-400 flex items-center gap-1.5">
+                        <i class="fas fa-clock-rotate-left"></i>
+                        <span>Última atualização por
+                            <strong class="text-gray-600">{{ $filledByLogin ?? '—' }}</strong>@if($filledByName) ({{ $filledByName }})@endif@if($filledAt) em {{ $filledAt }}@endif
+                        </span>
                     </div>
                 @endif
             </div>

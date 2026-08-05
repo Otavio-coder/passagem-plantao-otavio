@@ -2,7 +2,7 @@
     x-data="{ showModal: @entangle('showModal') }"
     x-show="showModal"
     x-cloak
-    class="fixed inset-0 z-[1100] overflow-y-auto bg-black/50"
+    class="fixed inset-0 z-[9998]"
     @keydown.escape.window="$wire.closeModal()"
     style="display: none;"
 >
@@ -13,11 +13,13 @@
         $within72h = $p['huddle_discharge_within_72h'] ?? false;
     @endphp
 
-    {{-- Wrapper rolável: centraliza quando cabe; permite rolar até o topo quando é alto --}}
-    <div class="flex min-h-full items-start sm:items-center justify-center p-2 sm:p-4">
+    {{-- Backdrop (mesmo padrão do modal do SBAR — z alto vence a navbar) --}}
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$wire.closeModal()"></div>
+
+    {{-- Camada de centralização --}}
+    <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
     {{-- Coluna com altura limitada: cabeçalho e rodapé fixos, meio rolável --}}
-    <div class="relative w-full max-w-3xl max-h-[95vh] flex flex-col overflow-hidden bg-white rounded-2xl shadow-2xl font-montserrat"
-         @click.outside="$wire.closeModal()">
+    <div class="relative w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden bg-white rounded-2xl shadow-2xl font-montserrat">
 
         {{-- ── Cabeçalho fixo: navegação + identificação ───────────────────── --}}
         <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3">

@@ -18,9 +18,13 @@
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$wire.closeModal()"></div>
 
     {{-- Camada de centralização --}}
-    <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
-    {{-- Coluna com altura limitada: cabeçalho e rodapé fixos, meio rolável --}}
-    <div class="relative w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden bg-white rounded-2xl shadow-2xl font-montserrat">
+    <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
+    {{-- Altura DEFINIDA (como o SBAR) para o scroll interno funcionar: cabeçalho e
+         rodapé fixos, meio rolável. --}}
+    <div class="relative bg-white flex flex-col overflow-hidden shadow-2xl font-montserrat
+                w-full h-full
+                sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
+                lg:w-[85vw] lg:h-[90vh] lg:max-w-3xl">
 
         {{-- ── Cabeçalho fixo: navegação + identificação ───────────────────── --}}
         <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3">

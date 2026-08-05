@@ -29,6 +29,7 @@ class HuddlePatientDay extends Model
         'status',
         'expected_discharge_date',
         'clinical_criteria',
+        'comments',
         'senior_reviewed_at',
         'created_by_user_id',
         'updated_by_user_id',
@@ -72,6 +73,47 @@ class HuddlePatientDay extends Model
         $anyRed = $answers->contains(fn ($answer) => $answer->signal === DayColor::Red);
 
         return $anyRed ? DayColor::Red : DayColor::Green;
+    }
+
+    /**
+     * Sequência de dias consecutivos na mesma cor, a partir do dia mais recente da
+     * internação para trás. Ex.: ['color' => 'red', 'days' => 3] = 3 dias seguidos red.
+     *
+     * "Consecutivos" considera os dias de huddle registrados em datas sucessivas
+     * (a rotina não roda em fins de semana/feriados, então a sequência acompanha os
+     * dias úteis registrados). Retorna null quando não há registro.
+     *
+     * @return array{color: string, days: int}|null
+     */
+    public static function consecutiveStreak(int $nrAtendimento): ?array
+    {
+        $days = static::query()
+            ->select('huddle_date', 'color')
+            ->where('nr_atendimento', $nrAtendimento)
+            ->orderByDesc('huddle_date')
+            ->get();
+
+        if ($days->isEmpty()) {
+            return null;
+        }
+
+        $streakColor = $days->first()->color instanceof DayColor
+            ? $days->first()->color->value
+            : (string) $days->first()->color;
+
+        $count = 0;
+
+        foreach ($days as $day) {
+            $color = $day->color instanceof DayColor ? $day->color->value : (string) $day->color;
+
+            if ($color !== $streakColor) {
+                break;
+            }
+
+            $count++;
+        }
+
+        return ['color' => $streakColor, 'days' => $count];
     }
 
     public function createdBy(): BelongsTo

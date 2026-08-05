@@ -112,6 +112,9 @@ class HuddleBoardService
 
         // Idade legível (meses para menores de 1 ano) e as janelas de alta (72h/24h),
         // automáticas a partir da previsão de alta do Tasy (sem pergunta manual).
+        // Sequência de dias consecutivos na mesma cor (contagem red/green seguidos).
+        $patient['huddle_streak'] = HuddlePatientDay::consecutiveStreak($nr);
+
         $patient['age_label'] = $this->ageLabel($patient);
         $days = $this->daysUntilDischarge($patient);
         $patient['huddle_days_until_discharge'] = $days;

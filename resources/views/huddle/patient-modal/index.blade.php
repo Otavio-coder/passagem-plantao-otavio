@@ -2,6 +2,7 @@
     x-data="{ showModal: @entangle('showModal') }"
     x-show="showModal"
     x-cloak
+    x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
     class="fixed inset-0 z-[9998]"
     @keydown.escape.window="$wire.closeModal()"
     style="display: none;"
@@ -107,11 +108,17 @@
                             </div>
 
                             @can('conduzir huddle')
-                                <div class="mt-2 flex gap-2">
-                                    <button wire:click="answerItem('{{ $code }}', 'sim')"
-                                            class="px-3 py-1 rounded-lg text-xs font-medium border {{ $answer === 'sim' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}">Sim</button>
-                                    <button wire:click="answerItem('{{ $code }}', 'nao')"
-                                            class="px-3 py-1 rounded-lg text-xs font-medium border {{ $answer === 'nao' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}">Não</button>
+                                <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
+                                    <button type="button"
+                                            wire:click="answerItem('{{ $code }}', 'sim')"
+                                            wire:loading.attr="disabled"
+                                            wire:target="answerItem"
+                                            class="px-3 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 {{ $answer === 'sim' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}">Sim</button>
+                                    <button type="button"
+                                            wire:click="answerItem('{{ $code }}', 'nao')"
+                                            wire:loading.attr="disabled"
+                                            wire:target="answerItem"
+                                            class="px-3 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 {{ $answer === 'nao' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}">Não</button>
                                 </div>
 
                                 @if($signal === 'red')
@@ -122,8 +129,9 @@
                                                    class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
                                             <input type="date" wire:model="checklist.{{ $code }}.due_at"
                                                    class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                            <button wire:click="saveItemDetails('{{ $code }}')"
-                                                    class="sm:col-span-2 justify-self-start text-xs px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700">Salvar responsável/prazo</button>
+                                            <button type="button" wire:click="saveItemDetails('{{ $code }}')"
+                                                    wire:loading.attr="disabled" wire:target="saveItemDetails"
+                                                    class="sm:col-span-2 justify-self-start text-xs px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-60">Salvar responsável/prazo</button>
                                         </div>
                                     @endif
                                 @endif
@@ -140,7 +148,8 @@
                             <div class="flex flex-wrap items-end gap-2">
                                 <input type="date" wire:model="expectedDischarge"
                                        class="text-sm rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                <button wire:click="saveDischarge" class="text-sm px-3 py-1.5 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78]">Salvar</button>
+                                <button type="button" wire:click="saveDischarge" wire:loading.attr="disabled" wire:target="saveDischarge"
+                                        class="text-sm px-3 py-1.5 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">Salvar</button>
                             </div>
                             <p class="mt-1 text-[11px] text-gray-400">Grava apenas no Huddle — não altera o Tasy.</p>
                         @else
@@ -153,7 +162,7 @@
 
         {{-- ── Rodapé fixo ─────────────────────────────────────────────────── --}}
         <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end">
-            <button wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
+            <button type="button" wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
         </div>
     </div>
     </div>

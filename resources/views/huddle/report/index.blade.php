@@ -35,7 +35,8 @@
                                     wire:change="changeHospital($event.target.value)"
                                     wire:loading.attr="disabled"
                                     wire:target="changeHospital,changeSector,refreshData"
-                                    class="rounded-lg border-0 bg-white/95 text-gray-800 text-sm font-medium px-3 py-2 shadow-sm focus:ring-2 focus:ring-white/60 disabled:opacity-60">
+                                    title="{{ collect($hospitals)->firstWhere('hospital_id', $selectedHospital)['hospital_name'] ?? '' }}"
+                                    class="min-w-[16rem] max-w-full rounded-lg border-0 bg-white/95 text-gray-800 text-sm font-medium pl-3 pr-8 py-2 shadow-sm focus:ring-2 focus:ring-white/60 disabled:opacity-60">
                                     @foreach($hospitals as $hospital)
                                         <option value="{{ $hospital['hospital_id'] }}" @selected($hospital['hospital_id'] == $selectedHospital)>
                                             {{ $hospital['hospital_name'] }}
@@ -48,7 +49,8 @@
                                     wire:change="changeSector($event.target.value)"
                                     wire:loading.attr="disabled"
                                     wire:target="changeHospital,changeSector,refreshData"
-                                    class="rounded-lg border-0 bg-white/95 text-gray-800 text-sm font-medium px-3 py-2 shadow-sm focus:ring-2 focus:ring-white/60 disabled:opacity-60">
+                                    title="{{ collect($sectors)->firstWhere('cd_setor_atendimento', $selectedSector)['ds_setor_atendimento'] ?? '' }}"
+                                    class="min-w-[12rem] max-w-full rounded-lg border-0 bg-white/95 text-gray-800 text-sm font-medium pl-3 pr-8 py-2 shadow-sm focus:ring-2 focus:ring-white/60 disabled:opacity-60">
                                     @foreach($sectors as $sector)
                                         <option value="{{ $sector['cd_setor_atendimento'] }}" @selected($sector['cd_setor_atendimento'] == $selectedSector)>
                                             {{ $sector['ds_setor_atendimento'] }}

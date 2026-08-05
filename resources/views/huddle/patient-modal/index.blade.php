@@ -2,7 +2,7 @@
     x-data="{ showModal: @entangle('showModal') }"
     x-show="showModal"
     x-cloak
-    class="fixed inset-0 z-[100] overflow-y-auto bg-black/50"
+    class="fixed inset-0 z-[1100] overflow-y-auto bg-black/50"
     @keydown.escape.window="$wire.closeModal()"
     style="display: none;"
 >

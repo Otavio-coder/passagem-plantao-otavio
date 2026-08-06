@@ -3,24 +3,29 @@
 namespace App\Actions\Huddle;
 
 use App\Enums\Huddle\UnitClassification;
-use App\Models\Huddle\HuddlePatientDay;
 use App\Models\Huddle\HuddleSafetyAssessment;
+use Carbon\Carbon;
 
 /**
- * Grava (ou atualiza) o card do Huddle de Segurança de um dia de paciente.
+ * Grava (ou atualiza) o card do Huddle de Segurança de uma unidade no dia.
  *
- * Normaliza os tipos vindos do formulário: contagens (inteiro >= 0 ou nulo),
- * condicionais sim/não (boolean ou nulo), classificação da unidade (enum) e
- * campos de texto. Mantém a auditoria (created_by/updated_by).
+ * Um registro por setor/dia. Normaliza os tipos vindos do formulário: contagens
+ * (inteiro >= 0 ou nulo), condicionais sim/não (boolean ou nulo), classificação da
+ * unidade (enum) e campos de texto. Mantém a auditoria (created_by/updated_by).
  */
 class SaveSafetyAssessmentAction
 {
     /**
      * @param  array<string, mixed>  $data
      */
-    public function execute(HuddlePatientDay $day, array $data, int $userId): HuddleSafetyAssessment
+    public function execute(int $sectorId, array $data, int $userId, ?string $date = null): HuddleSafetyAssessment
     {
-        $assessment = HuddleSafetyAssessment::firstOrNew(['huddle_patient_day_id' => $day->id]);
+        $date ??= Carbon::today()->toDateString();
+
+        $assessment = HuddleSafetyAssessment::firstOrNew([
+            'sector_id' => $sectorId,
+            'huddle_date' => $date,
+        ]);
 
         if (! $assessment->exists) {
             $assessment->created_by_user_id = $userId;

@@ -21,6 +21,7 @@
 
     // Cor do dia (Red2Green) — só se aplica a paciente do Huddle
     $isGreen = ($patient['huddle_color'] ?? 'red') === 'green';
+    $isRed = ! $isRound && ! $isGreen;
     $borderClass = $isRound ? 'border-slate-300' : ($isGreen ? 'border-green-400' : 'border-red-400');
 
     // Médico abreviado (primeiro + último nome), como no SBAR
@@ -56,6 +57,21 @@
             <x-huddle-card.empty-bed :patient="$patient" />
         @else
             <div class="flex flex-col h-full overflow-hidden">
+
+                @php
+                    $openPayload = [
+                        'attendanceNumber' => (int) ($patient['nr_atendimento'] ?? 0),
+                        'hospital' => $currentHospitalName,
+                        'sectorId' => (int) $sectorId,
+                        'sbarPatient' => [
+                            'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
+                            'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
+                            'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
+                            'has_patient' => true,
+                        ],
+                        'patients' => [],
+                    ];
+                @endphp
 
                 {{-- Cabeçalho: leito + badge Red/Green/Round --}}
                 <div class="flex-shrink-0 p-3 flex flex-col gap-2">
@@ -180,37 +196,27 @@
                     @endif
                 </div>
 
-                {{-- Ações do card: Detalhes (checklist/comentários) e Huddle de Segurança --}}
-                @php
-                    $openPayload = [
-                        'attendanceNumber' => (int) ($patient['nr_atendimento'] ?? 0),
-                        'hospital' => $currentHospitalName,
-                        'sectorId' => (int) $sectorId,
-                        'sbarPatient' => [
-                            'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
-                            'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
-                            'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
-                            'has_patient' => true,
-                        ],
-                        'patients' => [],
-                    ];
-                @endphp
-                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100 flex gap-1.5">
+                {{-- Ações do card: Round Unidade (formulário por unidade) + Detalhes --}}
+                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100 space-y-1.5">
                     <button
                         type="button"
-                        class="flex-1 bg-slate-100 text-gray-800 px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
+                        class="w-full px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
+                        @click.prevent="$dispatch('openUnitSafety', {
+                            sectorId: {{ (int) $sectorId }},
+                            hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
+                            sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
+                        })"
+                    >
+                        <i class="fas fa-clipboard-check"></i>
+                        <span>Round Unidade</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="w-full bg-slate-100 text-gray-800 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
                         @click.prevent="$dispatch('openModal', {{ \Illuminate\Support\Js::from($openPayload) }})"
                     >
                         <i class="fas fa-notes-medical text-gray-500"></i>
                         <span>Detalhes</span>
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 bg-[#004D9D]/10 text-[#004D9D] px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-[#004D9D]/20 transition-colors"
-                        @click.prevent="$dispatch('openModal', Object.assign({}, {{ \Illuminate\Support\Js::from($openPayload) }}, { focus: 'safety' }))"
-                    >
-                        <i class="fas fa-clipboard-check"></i>
-                        <span>Segurança</span>
                     </button>
                 </div>
             </div>

@@ -113,4 +113,7 @@
 
     {{-- Modal de detalhe do paciente (reutiliza o componente existente) --}}
     @livewire('huddle-patient-modal')
+
+    {{-- Modal do Huddle de Segurança por unidade (botão "Round Unidade" dos cards) --}}
+    @livewire('huddle-unit-safety-modal')
 </div>

@@ -7,20 +7,19 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Card do Huddle de Segurança (gestão à vista), preenchido por paciente/dia.
+     * Card do Huddle de Segurança (gestão à vista), preenchido por unidade/dia.
      *
-     * Uma linha por dia de huddle (huddle_patient_day_id). Organiza os 4 eixos:
-     * ocupação e fluxo, risco clínico e segurança, condições operacionais e a
-     * classificação de risco da unidade.
+     * Uma linha por setor (sector_id) por dia (huddle_date), compartilhada por todos
+     * os leitos daquela unidade. Organiza os 4 eixos: ocupação e fluxo, risco clínico
+     * e segurança, condições operacionais e a classificação de risco da unidade.
      */
     public function up(): void
     {
         Schema::create('huddle_safety_assessments', function (Blueprint $table): void {
             $table->id();
 
-            $table->foreignId('huddle_patient_day_id')
-                ->constrained('huddle_patient_days')
-                ->cascadeOnDelete();
+            $table->unsignedInteger('sector_id');
+            $table->date('huddle_date');
 
             // Eixo 1 — Ocupação e fluxo (contagens)
             $table->unsignedSmallInteger('expected_discharges')->nullable();       // Altas Previstas
@@ -51,8 +50,8 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Um único card por dia de huddle
-            $table->unique('huddle_patient_day_id');
+            // Um único card por unidade por dia
+            $table->unique(['sector_id', 'huddle_date']);
         });
     }
 

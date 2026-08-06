@@ -73,23 +73,23 @@
                     ];
                 @endphp
 
-                {{-- Cabeçalho: leito + badge Red/Green/Round --}}
+                {{-- Cabeçalho: leito + botão Round Unidade (canto superior direito) --}}
                 <div class="flex-shrink-0 p-3 flex flex-col gap-2">
                     <div class="flex justify-between items-center gap-2">
                         <span class="inline-flex items-center bg-slate-100 text-slate-800 text-sm md:text-base font-bold px-3 py-1 rounded-full shadow-sm">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
 
-                        @if($isRound)
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-slate-700 text-white shadow-sm">
-                                <i class="fas fa-users-line"></i> Round
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm text-white {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}">
-                                <span class="w-1.5 h-1.5 rounded-full bg-white/90"></span>
-                                {{ $isGreen ? 'Green' : 'Red' }}
-                            </span>
-                        @endif
+                        {{-- Round Unidade: abre o formulário por unidade; fica vermelho quando o paciente é red --}}
+                        <button type="button"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-sm transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
+                                @click.prevent="$dispatch('openUnitSafety', {
+                                    sectorId: {{ (int) $sectorId }},
+                                    hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
+                                    sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
+                                })">
+                            <i class="fas fa-clipboard-check"></i> Round Unidade
+                        </button>
                     </div>
 
                     {{-- Nome + idade --}}
@@ -196,20 +196,8 @@
                     @endif
                 </div>
 
-                {{-- Ações do card: Round Unidade (formulário por unidade) + Detalhes --}}
-                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100 space-y-1.5">
-                    <button
-                        type="button"
-                        class="w-full px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
-                        @click.prevent="$dispatch('openUnitSafety', {
-                            sectorId: {{ (int) $sectorId }},
-                            hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
-                            sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
-                        })"
-                    >
-                        <i class="fas fa-clipboard-check"></i>
-                        <span>Round Unidade</span>
-                    </button>
+                {{-- Botão de detalhe (checklist, comentários, auditoria) --}}
+                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100">
                     <button
                         type="button"
                         class="w-full bg-slate-100 text-gray-800 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"

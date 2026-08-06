@@ -57,23 +57,47 @@
         @else
             <div class="flex flex-col h-full overflow-hidden">
 
-                {{-- Cabeçalho: leito + badge Red/Green/Round --}}
+                @php
+                    $openPayload = [
+                        'attendanceNumber' => (int) ($patient['nr_atendimento'] ?? 0),
+                        'hospital' => $currentHospitalName,
+                        'sectorId' => (int) $sectorId,
+                        'sbarPatient' => [
+                            'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
+                            'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
+                            'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
+                            'has_patient' => true,
+                        ],
+                        'patients' => [],
+                    ];
+                @endphp
+
+                {{-- Cabeçalho: leito + status + acesso ao Huddle de Segurança --}}
                 <div class="flex-shrink-0 p-3 flex flex-col gap-2">
                     <div class="flex justify-between items-center gap-2">
                         <span class="inline-flex items-center bg-slate-100 text-slate-800 text-sm md:text-base font-bold px-3 py-1 rounded-full shadow-sm">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
 
-                        @if($isRound)
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-slate-700 text-white shadow-sm">
-                                <i class="fas fa-users-line"></i> Round
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm text-white {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}">
-                                <span class="w-1.5 h-1.5 rounded-full bg-white/90"></span>
-                                {{ $isGreen ? 'Green' : 'Red' }}
-                            </span>
-                        @endif
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            @if($isRound)
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-slate-700 text-white shadow-sm">
+                                    <i class="fas fa-users-line"></i> Round
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm text-white {{ $isGreen ? 'bg-green-500' : 'bg-red-500' }}">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-white/90"></span>
+                                    {{ $isGreen ? 'Green' : 'Red' }}
+                                </span>
+                            @endif
+
+                            {{-- Acesso ao segundo formulário (Huddle de Segurança) --}}
+                            <button type="button" title="Huddle de Segurança"
+                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-[#004D9D] text-white shadow-sm hover:bg-[#003a78] transition-colors"
+                                    @click.prevent="$dispatch('openModal', Object.assign({}, {{ \Illuminate\Support\Js::from($openPayload) }}, { focus: 'safety' }))">
+                                <i class="fas fa-clipboard-check"></i> Segurança
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Nome + idade --}}
@@ -180,37 +204,15 @@
                     @endif
                 </div>
 
-                {{-- Ações do card: Detalhes (checklist/comentários) e Huddle de Segurança --}}
-                @php
-                    $openPayload = [
-                        'attendanceNumber' => (int) ($patient['nr_atendimento'] ?? 0),
-                        'hospital' => $currentHospitalName,
-                        'sectorId' => (int) $sectorId,
-                        'sbarPatient' => [
-                            'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
-                            'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
-                            'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
-                            'has_patient' => true,
-                        ],
-                        'patients' => [],
-                    ];
-                @endphp
-                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100 flex gap-1.5">
+                {{-- Botão de detalhe (checklist, comentários, auditoria) --}}
+                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100">
                     <button
                         type="button"
-                        class="flex-1 bg-slate-100 text-gray-800 px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
+                        class="w-full bg-slate-100 text-gray-800 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
                         @click.prevent="$dispatch('openModal', {{ \Illuminate\Support\Js::from($openPayload) }})"
                     >
                         <i class="fas fa-notes-medical text-gray-500"></i>
                         <span>Detalhes</span>
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 bg-[#004D9D]/10 text-[#004D9D] px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-[#004D9D]/20 transition-colors"
-                        @click.prevent="$dispatch('openModal', Object.assign({}, {{ \Illuminate\Support\Js::from($openPayload) }}, { focus: 'safety' }))"
-                    >
-                        <i class="fas fa-clipboard-check"></i>
-                        <span>Segurança</span>
                     </button>
                 </div>
             </div>

@@ -180,21 +180,37 @@
                     @endif
                 </div>
 
-                {{-- Botão de detalhe --}}
-                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100">
+                {{-- Ações do card: Detalhes (checklist/comentários) e Huddle de Segurança --}}
+                @php
+                    $openPayload = [
+                        'attendanceNumber' => (int) ($patient['nr_atendimento'] ?? 0),
+                        'hospital' => $currentHospitalName,
+                        'sectorId' => (int) $sectorId,
+                        'sbarPatient' => [
+                            'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
+                            'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
+                            'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
+                            'has_patient' => true,
+                        ],
+                        'patients' => [],
+                    ];
+                @endphp
+                <div class="mt-auto flex-shrink-0 p-1.5 border-t border-gray-100 flex gap-1.5">
                     <button
                         type="button"
-                        class="w-full bg-slate-100 text-gray-800 px-3 py-2 rounded-md flex items-center justify-center gap-2 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
-                        @click.prevent="$dispatch('openModal', {
-                            attendanceNumber: {{ (int) ($patient['nr_atendimento'] ?? 0) }},
-                            hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
-                            sectorId: {{ (int) $sectorId }},
-                            sbarPatient: {{ \Illuminate\Support\Js::from(['nr_atendimento' => $patient['nr_atendimento'] ?? 0, 'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null, 'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null, 'has_patient' => true]) }},
-                            patients: []
-                        })"
+                        class="flex-1 bg-slate-100 text-gray-800 px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-slate-200 transition-colors"
+                        @click.prevent="$dispatch('openModal', {{ \Illuminate\Support\Js::from($openPayload) }})"
                     >
                         <i class="fas fa-notes-medical text-gray-500"></i>
                         <span>Detalhes</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="flex-1 bg-[#004D9D]/10 text-[#004D9D] px-2 py-2 rounded-md flex items-center justify-center gap-1.5 shadow-sm text-sm font-medium hover:bg-[#004D9D]/20 transition-colors"
+                        @click.prevent="$dispatch('openModal', Object.assign({}, {{ \Illuminate\Support\Js::from($openPayload) }}, { focus: 'safety' }))"
+                    >
+                        <i class="fas fa-clipboard-check"></i>
+                        <span>Segurança</span>
                     </button>
                 </div>
             </div>

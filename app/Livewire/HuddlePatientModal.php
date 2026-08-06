@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Actions\Huddle\AnswerChecklistItemAction;
 use App\Actions\Huddle\OpenPatientDayAction;
 use App\Actions\Huddle\SaveHuddleCommentsAction;
+use App\Actions\Huddle\SaveSafetyAssessmentAction;
 use App\Actions\Huddle\SetHuddleTriageAction;
 use App\Enums\Huddle\DayColor;
 use App\Enums\Huddle\HuddleChecklistItem;
@@ -44,11 +45,21 @@ class HuddlePatientModal extends Component
     /** Comentários do dia — exibido quando o dia é vermelho. */
     public ?string $comments = null;
 
+    /** Auditoria do dia: login e data/hora da última atualização de quem preencheu. */
+    public ?string $filledByLogin = null;
+
+    public ?string $filledByName = null;
+
+    public ?string $filledAt = null;
+
     /** @var array<string, array{answer: ?string, signal: ?string, responsible: ?string, due_at: ?string, notes: ?string}> */
     public array $checklist = [];
 
+    /** Card do Huddle de Segurança (Eixos 1-4). @var array<string, mixed> */
+    public array $safety = [];
+
     #[On('openModal')]
-    public function openWithPatient(int $attendanceNumber, string $hospital, array $sbarPatient, array $patients = [], int $sectorId = 0): void
+    public function openWithPatient(int $attendanceNumber, string $hospital, array $sbarPatient, array $patients = [], int $sectorId = 0, string $focus = ''): void
     {
         $this->hospitalName = $hospital;
         $this->sectorId = $sectorId;
@@ -75,6 +86,11 @@ class HuddlePatientModal extends Component
         $this->loadHuddleState();
 
         $this->showModal = true;
+
+        // Aberto pelo botão "Segurança" do card: rola até o Huddle de Segurança.
+        if ($focus === 'safety') {
+            $this->dispatch('huddle-scroll-safety');
+        }
     }
 
     public function goToPreviousPatient(): void
@@ -101,6 +117,7 @@ class HuddlePatientModal extends Component
             'showModal', 'currentPatient', 'hospitalName', 'sectorId', 'modalPatients',
             'currentPatientIndex', 'canGoPrevious', 'canGoNext',
             'triageStatus', 'clinicalCriteria', 'checklist',
+            'dayColor', 'comments', 'filledByLogin', 'filledByName', 'filledAt', 'safety',
         ]);
     }
 
@@ -180,6 +197,17 @@ class HuddlePatientModal extends Component
 
         $day = $this->ensureDay();
         app(SaveHuddleCommentsAction::class)->execute($day, $this->comments, (int) Auth::id());
+
+        $this->loadHuddleState();
+    }
+
+    public function saveSafetyAssessment(): void
+    {
+        $this->authorizeConduct();
+        $this->ensureAvailable();
+
+        $day = $this->ensureDay();
+        app(SaveSafetyAssessmentAction::class)->execute($day, $this->safety, (int) Auth::id());
 
         $this->loadHuddleState();
     }
@@ -292,7 +320,7 @@ class HuddlePatientModal extends Component
         $this->resetHuddleForm();
 
         $day = HuddlePatientDay::query()
-            ->with('checklistAnswers')
+            ->with(['updatedBy', 'createdBy', 'checklistAnswers.answeredBy', 'safetyAssessment'])
             ->forPatient($this->currentAttendance())
             ->forDate(Carbon::today()->toDateString())
             ->first();
@@ -301,10 +329,19 @@ class HuddlePatientModal extends Component
             return;
         }
 
+        $this->loadSafetyAssessment($day);
+
         $this->triageStatus = $day->status;
         $this->clinicalCriteria = $day->clinical_criteria;
         $this->dayColor = $day->color instanceof DayColor ? $day->color->value : (string) $day->color;
         $this->comments = $day->comments;
+
+        // Auditoria do dia: quem fez a última atualização (updatedBy) ou, se ainda não
+        // houve atualização, quem abriu o registro (createdBy).
+        $auditUser = $day->updatedBy ?? $day->createdBy;
+        $this->filledByLogin = $auditUser?->username;
+        $this->filledByName = $auditUser?->name;
+        $this->filledAt = ($day->updated_at ?? $day->created_at)?->format('d/m/Y H:i');
 
         foreach ($day->checklistAnswers as $answer) {
             $code = $answer->item_code instanceof HuddleChecklistItem
@@ -317,8 +354,68 @@ class HuddlePatientModal extends Component
                 'responsible' => $answer->responsible,
                 'due_at' => $answer->due_at?->format('Y-m-d'),
                 'notes' => $answer->notes,
+                'answered_by_login' => $answer->answeredBy?->username,
+                'answered_at' => $answer->updated_at?->format('d/m/Y H:i'),
             ];
         }
+    }
+
+    /**
+     * Popula o card do Huddle de Segurança a partir do registro persistido (se houver).
+     */
+    private function loadSafetyAssessment(HuddlePatientDay $day): void
+    {
+        $sa = $day->safetyAssessment;
+
+        if (! $sa) {
+            return;
+        }
+
+        $this->safety = [
+            'expected_discharges' => $sa->expected_discharges,
+            'expected_admissions' => $sa->expected_admissions,
+            'blocked_beds_isolation' => $sa->blocked_beds_isolation,
+            'blocked_beds_maintenance' => $sa->blocked_beds_maintenance,
+            'critical_patient_no_bed' => $sa->critical_patient_no_bed,
+            'critical_medication_failure' => $sa->critical_medication_failure,
+            'adverse_event_24h' => $sa->adverse_event_24h,
+            'physical_chemical_restraint' => $sa->physical_chemical_restraint,
+            'barrier_breach' => $sa->barrier_breach,
+            'pressure_injuries' => $sa->pressure_injuries,
+            'falls' => $sa->falls,
+            'staff_shortage' => $sa->staff_shortage,
+            'critical_exam_delay' => $sa->critical_exam_delay,
+            'unit_classification' => $sa->unit_classification?->value,
+            'justification' => $sa->justification,
+            'immediate_measures' => $sa->immediate_measures,
+        ];
+    }
+
+    /**
+     * Estrutura inicial (vazia) do card do Huddle de Segurança.
+     *
+     * @return array<string, mixed>
+     */
+    private function defaultSafety(): array
+    {
+        return [
+            'expected_discharges' => null,
+            'expected_admissions' => null,
+            'blocked_beds_isolation' => null,
+            'blocked_beds_maintenance' => null,
+            'critical_patient_no_bed' => null,
+            'critical_medication_failure' => null,
+            'adverse_event_24h' => null,
+            'physical_chemical_restraint' => null,
+            'barrier_breach' => null,
+            'pressure_injuries' => null,
+            'falls' => null,
+            'staff_shortage' => null,
+            'critical_exam_delay' => null,
+            'unit_classification' => null,
+            'justification' => null,
+            'immediate_measures' => null,
+        ];
     }
 
     private function resetHuddleForm(): void
@@ -327,6 +424,10 @@ class HuddlePatientModal extends Component
         $this->clinicalCriteria = null;
         $this->dayColor = null;
         $this->comments = null;
+        $this->filledByLogin = null;
+        $this->filledByName = null;
+        $this->filledAt = null;
+        $this->safety = $this->defaultSafety();
 
         $this->checklist = [];
         foreach (HuddleChecklistItem::cases() as $item) {
@@ -336,6 +437,8 @@ class HuddlePatientModal extends Component
                 'responsible' => null,
                 'due_at' => null,
                 'notes' => null,
+                'answered_by_login' => null,
+                'answered_at' => null,
             ];
         }
     }

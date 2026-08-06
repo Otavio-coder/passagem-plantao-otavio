@@ -59,7 +59,7 @@ class HuddlePatientModal extends Component
     public array $safety = [];
 
     #[On('openModal')]
-    public function openWithPatient(int $attendanceNumber, string $hospital, array $sbarPatient, array $patients = [], int $sectorId = 0): void
+    public function openWithPatient(int $attendanceNumber, string $hospital, array $sbarPatient, array $patients = [], int $sectorId = 0, string $focus = ''): void
     {
         $this->hospitalName = $hospital;
         $this->sectorId = $sectorId;
@@ -86,6 +86,11 @@ class HuddlePatientModal extends Component
         $this->loadHuddleState();
 
         $this->showModal = true;
+
+        // Aberto pelo botão "Segurança" do card: rola até o Huddle de Segurança.
+        if ($focus === 'safety') {
+            $this->dispatch('huddle-scroll-safety');
+        }
     }
 
     public function goToPreviousPatient(): void

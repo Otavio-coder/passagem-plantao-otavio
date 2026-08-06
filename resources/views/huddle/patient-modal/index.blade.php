@@ -5,6 +5,7 @@
     x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
     class="fixed inset-0 z-[9998]"
     @keydown.escape.window="$wire.closeModal()"
+    @huddle-scroll-safety.window="setTimeout(() => document.getElementById('huddle-safety-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)"
     style="display: none;"
 >
     @php
@@ -189,7 +190,7 @@
                     ];
                 @endphp
 
-                <div class="rounded-xl border border-[#004D9D]/20 bg-white overflow-hidden">
+                <div id="huddle-safety-card" class="rounded-xl border border-[#004D9D]/20 bg-white overflow-hidden scroll-mt-2">
                     <div class="bg-[#004D9D]/5 px-3 py-2 border-b border-[#004D9D]/10">
                         <p class="text-sm font-bold text-[#004D9D]"><i class="fas fa-clipboard-check mr-1"></i>Huddle de Segurança</p>
                     </div>

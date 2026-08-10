@@ -49,4 +49,18 @@ return [
         // 6229,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Questionário do Huddle no Tasy (módulo QUE_)
+    |--------------------------------------------------------------------------
+    |
+    | NR_SEQUENCIA do QUE_QUESTIONARIO correspondente ao formulário do Huddle
+    | (ex.: "Teste avaliação"). É o id estável usado pelo comando
+    | huddle:sync-questions para espelhar as perguntas/opções do Tasy para o
+    | banco local. Defina no .env: HUDDLE_QUESTIONNAIRE_SEQ=NNNNNN
+    |
+    */
+
+    'questionnaire_seq' => env('HUDDLE_QUESTIONNAIRE_SEQ'),
+
 ];

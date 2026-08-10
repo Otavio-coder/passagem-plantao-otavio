@@ -40,6 +40,14 @@ Schedule::command('huddle:open-day')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Espelha a definição do questionário do Huddle (perguntas/opções) do Tasy para o
+// banco local, diariamente às 06:20. Só roda quando o questionário está configurado.
+Schedule::command('huddle:sync-questions')
+    ->dailyAt('06:20')
+    ->when(fn () => (bool) config('huddle.questionnaire_seq'))
+    ->withoutOverlapping()
+    ->runInBackground();
+
 /**
  * Retorna todos os sector IDs ativos: union de nurse_handover_beds + user_sector_preferences.
  * Garante cobertura de setores que não possuem leitos cadastrados no handover.

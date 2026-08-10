@@ -62,7 +62,9 @@ class HuddleUnitSafetyModal extends Component
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        $this->loadSafety();
+        // Avisa a tela (toast + marca o card) e fecha o modal.
+        $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
+        $this->closeModal();
     }
 
     public function render()

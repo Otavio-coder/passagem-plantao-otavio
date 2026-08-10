@@ -1,12 +1,24 @@
 <div
-    x-data="{ showModal: @entangle('showModal') }"
-    x-show="showModal"
-    x-cloak
-    x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
-    class="fixed inset-0 z-[9998]"
-    @keydown.escape.window="$wire.closeModal()"
-    style="display: none;"
+    x-data="{ showModal: @entangle('showModal'), toast: false, toastMsg: '', timer: null }"
+    @huddle-round-saved.window="toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
 >
+    {{-- Toast de confirmação: fica fora do modal para continuar visível depois que ele fecha --}}
+    <div x-show="toast" x-transition x-cloak
+         class="fixed bottom-5 right-5 z-[9999] flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-xl shadow-2xl font-montserrat text-sm font-medium"
+         style="display: none;">
+        <i class="fas fa-circle-check"></i>
+        <span x-text="toastMsg"></span>
+    </div>
+
+    {{-- Modal --}}
+    <div
+        x-show="showModal"
+        x-cloak
+        x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
+        class="fixed inset-0 z-[9998]"
+        @keydown.escape.window="$wire.closeModal()"
+        style="display: none;"
+    >
     @php
         $canEditSafety = $huddleAvailable && auth()->user()?->can('conduzir huddle');
         $eixo1 = [
@@ -196,10 +208,12 @@
             @if($canEditSafety)
                 <button type="button" wire:click="saveSafetyAssessment" wire:loading.attr="disabled" wire:target="saveSafetyAssessment"
                         class="px-4 py-2 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60 text-sm font-medium">
-                    Salvar Round Unidade
+                    <span wire:loading.remove wire:target="saveSafetyAssessment">Salvar Round Unidade</span>
+                    <span wire:loading wire:target="saveSafetyAssessment">Salvando…</span>
                 </button>
             @endif
         </div>
+    </div>
     </div>
     </div>
 </div>

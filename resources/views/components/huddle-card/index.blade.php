@@ -80,15 +80,20 @@
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
 
-                        {{-- Round Unidade: abre o formulário por unidade; fica vermelho quando o paciente é red --}}
+                        {{-- Round Unidade: abre o formulário por unidade; fica vermelho quando o paciente é red.
+                             Mostra "✓" quando a unidade já teve o Round preenchido hoje (marca ao salvar). --}}
                         <button type="button"
+                                x-data="{ done: {{ ($patient['huddle_unit_round_done'] ?? false) ? 'true' : 'false' }} }"
+                                @huddle-round-saved.window="done = true"
                                 class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-sm transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
                                 @click.prevent="$dispatch('openUnitSafety', {
                                     sectorId: {{ (int) $sectorId }},
                                     hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
                                     sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
                                 })">
-                            <i class="fas fa-clipboard-check"></i> Round Unidade
+                            <i class="fas fa-clipboard-check"></i>
+                            <span>Round Unidade</span>
+                            <i class="fas fa-check" x-show="done" x-cloak title="Preenchido hoje"></i>
                         </button>
                     </div>
 

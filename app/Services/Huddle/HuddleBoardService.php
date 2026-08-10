@@ -5,6 +5,7 @@ namespace App\Services\Huddle;
 use App\Enums\Huddle\DayColor;
 use App\Enums\Huddle\HuddleChecklistItem;
 use App\Models\Huddle\HuddlePatientDay;
+use App\Models\Huddle\HuddleSafetyAssessment;
 use App\Services\PatientData\PatientDataLoader;
 use Carbon\Carbon;
 
@@ -43,8 +44,14 @@ class HuddleBoardService
         $transporte = $dischargeLoader->transporteForSector($sectorId, $attendanceNumbers);
         $orientacao = $dischargeLoader->orientacaoForSector($sectorId, $attendanceNumbers);
 
+        // A unidade já teve o Round Unidade preenchido hoje? (1 registro por setor/dia)
+        $roundDone = HuddleSafetyAssessment::query()
+            ->forSector($sectorId)
+            ->forDate($date)
+            ->exists();
+
         return array_map(
-            fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte, $orientacao),
+            fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte, $orientacao, $roundDone),
             $patients
         );
     }
@@ -78,11 +85,14 @@ class HuddleBoardService
      * @param  array<int, string|null>  $orientacao
      * @return array<string, mixed>
      */
-    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = [], array $orientacao = []): array
+    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = [], array $orientacao = [], bool $roundDone = false): array
     {
         if (empty($patient['has_patient']) || empty($patient['nr_atendimento'])) {
             return $patient;
         }
+
+        // Marca no card que a unidade já teve o Round Unidade preenchido hoje.
+        $patient['huddle_unit_round_done'] = $roundDone;
 
         $nr = (int) $patient['nr_atendimento'];
         $record = $dayRecords[$nr] ?? null;

@@ -35,6 +35,9 @@ class HuddleUnitSafetyModal extends Component
     /** Campos dos 4 eixos. @var array<string, mixed> */
     public array $safety = [];
 
+    /** Travado: já existe registro da unidade no dia — não pode ser alterado. */
+    public bool $locked = false;
+
     #[On('openUnitSafety')]
     public function openForSector(int $sectorId, string $hospital = '', string $sectorLabel = ''): void
     {
@@ -51,7 +54,7 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->reset([
             'showModal', 'sectorId', 'hospitalName', 'sectorLabel',
-            'safety', 'filledByLogin', 'filledAt',
+            'safety', 'filledByLogin', 'filledAt', 'locked',
         ]);
     }
 
@@ -59,6 +62,14 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+
+        // Trava: uma vez preenchido no dia, o Round Unidade não pode ser alterado.
+        $jaPreenchido = HuddleSafetyAssessment::query()
+            ->forSector($this->sectorId)
+            ->forDate(Carbon::today()->toDateString())
+            ->exists();
+
+        abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
@@ -97,6 +108,7 @@ class HuddleUnitSafetyModal extends Component
         $this->safety = $this->defaultSafety();
         $this->filledByLogin = null;
         $this->filledAt = null;
+        $this->locked = false;
 
         $sa = HuddleSafetyAssessment::query()
             ->with('updatedBy', 'createdBy')
@@ -107,6 +119,9 @@ class HuddleUnitSafetyModal extends Component
         if (! $sa) {
             return;
         }
+
+        // Já existe registro no dia: abre só-leitura (não pode ser alterado).
+        $this->locked = true;
 
         $this->safety = [
             'expected_discharges' => $sa->expected_discharges,

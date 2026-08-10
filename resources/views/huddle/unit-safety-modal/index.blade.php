@@ -20,7 +20,7 @@
         style="display: none;"
     >
     @php
-        $canEditSafety = $huddleAvailable && auth()->user()?->can('conduzir huddle');
+        $canEditSafety = $huddleAvailable && auth()->user()?->can('conduzir huddle') && ! $locked;
         $eixo1 = [
             'expected_discharges' => 'Altas Previstas',
             'expected_admissions' => 'Admissões Previstas',
@@ -75,6 +75,15 @@
                     </div>
                 </div>
             @endunless
+
+            @if($locked)
+                <div class="px-4 pt-3">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <p class="font-semibold text-slate-700"><i class="fas fa-lock mr-1"></i>Round Unidade já preenchido hoje</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Este registro não pode ser alterado. Exibindo somente leitura.</p>
+                    </div>
+                </div>
+            @endif
 
             <div class="p-4 space-y-4">
 

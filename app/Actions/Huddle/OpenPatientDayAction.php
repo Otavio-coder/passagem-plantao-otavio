@@ -15,7 +15,7 @@ use Carbon\Carbon;
  */
 class OpenPatientDayAction
 {
-    public function execute(int $nrAtendimento, int $sectorId, int $userId, ?string $date = null): HuddlePatientDay
+    public function execute(int $nrAtendimento, int $sectorId, ?int $userId = null, ?string $date = null): HuddlePatientDay
     {
         $date ??= Carbon::today()->toDateString();
 

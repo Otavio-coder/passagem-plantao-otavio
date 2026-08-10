@@ -32,4 +32,21 @@ return [
         // '2026-06-04', // Corpus Christi
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Setores materializados pela rotina diária (huddle:open-day)
+    |--------------------------------------------------------------------------
+    |
+    | Lista de cd_setor_atendimento que o comando huddle:open-day deve processar
+    | todo dia. Se ficar vazio, o comando processa TODOS os setores ativos
+    | (nurse_handover_beds + user_sector_preferences), igual ao aquecimento do SBAR.
+    | Preencha para restringir o Huddle a setores específicos.
+    |
+    */
+
+    'sectors' => [
+        // 6228,
+        // 6229,
+    ],
+
 ];

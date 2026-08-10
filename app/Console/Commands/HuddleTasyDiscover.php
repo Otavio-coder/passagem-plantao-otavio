@@ -41,7 +41,7 @@ class HuddleTasyDiscover extends Command
             $questionSeqs = $this->questions($seq);
 
             $this->section('4) Opções de resposta');
-            $this->options($questionSeqs);
+            $this->questionOptions($questionSeqs);
         } else {
             $this->warn('Sem questionário identificado — pulando perguntas/opções.');
         }
@@ -162,7 +162,7 @@ class HuddleTasyDiscover extends Command
         return array_map(fn ($r) => (int) $r->nr_sequencia, $rows);
     }
 
-    private function options(array $questionSeqs): void
+    private function questionOptions(array $questionSeqs): void
     {
         if (empty($questionSeqs)) {
             $this->line('  —');

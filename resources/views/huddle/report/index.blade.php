@@ -17,7 +17,8 @@
                     </div>
                 </div>
             @else
-                <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden font-montserrat">
+                <div class="relative bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-xl overflow-hidden font-montserrat"
+                     x-data="{ searchText: '', showLegend: false }">
 
                     {{-- Header --}}
                     <div class="bg-[#004D9D]/90 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 z-50 shadow-lg">
@@ -27,6 +28,11 @@
                                 <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                                     Huddle — Gestão de Altas
                                 </h1>
+                                <button @click="showLegend = true" title="Legenda e orientações"
+                                        class="px-2 sm:px-3 py-1.5 sm:py-2 text-white text-lg sm:text-sm font-bold rounded hover:bg-white/20 transition-colors flex-shrink-0">
+                                    <span class="hidden sm:inline">Legenda e orientações</span>
+                                    <span class="sm:hidden">?</span>
+                                </button>
                             </div>
 
                             <div class="flex flex-wrap items-center justify-center lg:justify-end gap-2">
@@ -58,6 +64,17 @@
                                     @endforeach
                                 </select>
 
+                                {{-- Busca por leito ou paciente --}}
+                                <div class="relative flex items-center flex-shrink-0">
+                                    <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
+                                    <input type="text" x-model="searchText" placeholder="Leito ou paciente..."
+                                           class="bg-white text-gray-700 border border-gray-300 rounded-lg py-2 pl-7 pr-7 text-sm focus:ring-2 focus:ring-white/60 w-44 xl:w-52" autocomplete="off">
+                                    <button x-show="searchText" x-cloak @click="searchText = ''"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                                        <i class="fas fa-times text-xs"></i>
+                                    </button>
+                                </div>
+
                                 {{-- Atualizar --}}
                                 <button
                                     wire:click="refreshData"
@@ -65,7 +82,8 @@
                                     wire:target="refreshData"
                                     class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-white bg-[#0071B9] hover:bg-[#004D9D] shadow-md text-sm font-medium disabled:opacity-60">
                                     <i class="fas fa-rotate-right" wire:loading.class="animate-spin" wire:target="refreshData"></i>
-                                    <span class="hidden sm:inline">Atualizar</span>
+                                    <span wire:loading.remove wire:target="refreshData" class="hidden sm:inline">Atualizar</span>
+                                    <span wire:loading wire:target="refreshData" class="hidden sm:inline">Atualizando...</span>
                                 </button>
                             </div>
                         </div>
@@ -95,7 +113,9 @@
                             <script>window.__huddleModalPatients = @json($patients);</script>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                                 @foreach($patients as $index => $patient)
-                                    <div wire:key="huddle-patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}">
+                                    @php $huddleNeedle = \Illuminate\Support\Str::lower(trim(($patient['cd_unidade_basica'] ?? '').' '.($patient['nm_pessoa_fisica'] ?? ''))); @endphp
+                                    <div wire:key="huddle-patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}"
+                                         x-show="searchText.trim() === '' || @js($huddleNeedle).includes(searchText.toLowerCase().trim())">
                                         <x-huddle-card
                                             :patient="$patient"
                                             :current-hospital-name="$currentHospitalName"
@@ -105,6 +125,71 @@
                                 @endforeach
                             </div>
                         @endif
+                    </div>
+
+                    {{-- Legenda e orientações --}}
+                    <div x-show="showLegend" x-cloak class="fixed inset-0 z-[9997]" style="display: none;"
+                         @keydown.escape.window="showLegend = false">
+                        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showLegend = false"></div>
+                        <div class="absolute inset-0 flex items-center justify-center p-4">
+                            <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto font-montserrat">
+                                <div class="sticky top-0 bg-[#004D9D] text-white px-4 py-3 flex items-center justify-between z-10">
+                                    <p class="font-bold text-base"><i class="fas fa-circle-info mr-1"></i>Legenda e orientações</p>
+                                    <button @click="showLegend = false" class="p-1.5 rounded hover:bg-white/20"><i class="fas fa-times"></i></button>
+                                </div>
+
+                                <div class="p-4 space-y-5 text-sm text-gray-700">
+                                    {{-- Status do paciente --}}
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Status do paciente (Red2Green)</p>
+                                        <div class="space-y-2">
+                                            <div class="flex items-center gap-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-white bg-red-500"><span class="w-1.5 h-1.5 rounded-full bg-white/90"></span>Red</span><span>Dia vermelho — plano de alta não avançou. Todo dia começa vermelho.</span></div>
+                                            <div class="flex items-center gap-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-white bg-green-500"><span class="w-1.5 h-1.5 rounded-full bg-white/90"></span>Green</span><span>Dia verde — o plano do dia avançou a jornada de alta.</span></div>
+                                            <div class="flex items-center gap-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-white bg-slate-700"><i class="fas fa-users-line"></i>Round</span><span>Sem previsão de alta em 72h — discutir em Round.</span></div>
+                                        </div>
+                                        <p class="text-[11px] text-gray-400 mt-2">A borda do card também segue essa cor.</p>
+                                    </div>
+
+                                    {{-- Pendências --}}
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Pendências (Exames, Procedimentos, etc.)</p>
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span>Pendente</span></div>
+                                            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span><span>Resolvido / OK</span></div>
+                                            <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span><span>Sem informação</span></div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Selos do card --}}
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Selos do card</p>
+                                        <ul class="space-y-1.5 list-none">
+                                            <li class="flex items-center gap-2"><i class="fas fa-flask text-amber-500"></i><span><strong>Exames pendentes</strong> — quantidade de exames a resolver.</span></li>
+                                            <li class="flex items-center gap-2"><i class="fas fa-calendar-day text-red-500"></i><span><strong>X dias seguidos</strong> — sequência do paciente na mesma cor.</span></li>
+                                        </ul>
+                                    </div>
+
+                                    {{-- Botões --}}
+                                    <div>
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Ações</p>
+                                        <ul class="space-y-2 list-none">
+                                            <li class="flex items-start gap-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-white bg-[#004D9D] mt-0.5"><i class="fas fa-clipboard-check"></i>Round Unidade</span><span>Formulário da unidade (por setor/dia). Fica <strong class="text-red-600">vermelho</strong> quando o paciente é red; o <i class="fas fa-check text-green-600"></i> indica que já foi preenchido hoje. Após salvar, não pode ser alterado.</span></li>
+                                            <li class="flex items-start gap-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-gray-700 bg-slate-100 mt-0.5"><i class="fas fa-notes-medical"></i>Detalhes</span><span>Checklist do paciente, comentários (obrigatórios quando red) e auditoria (quem preencheu e quando).</span></li>
+                                        </ul>
+                                    </div>
+
+                                    {{-- Orientações --}}
+                                    <div class="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-amber-700 mb-1">Orientações</p>
+                                        <ul class="space-y-1 list-disc list-inside text-amber-800 text-[13px]">
+                                            <li>A rotina do Huddle não ocorre em fins de semana e feriados.</li>
+                                            <li>Use a busca por <strong>leito ou paciente</strong> para localizar rapidamente.</li>
+                                            <li>Clique em <strong>Atualizar</strong> para buscar os dados mais recentes do Tasy.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif

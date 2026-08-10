@@ -51,17 +51,12 @@
                 sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
                 lg:w-[85vw] lg:h-[90vh] lg:max-w-2xl">
 
-        {{-- Cabeçalho --}}
-        <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3 flex items-center justify-between gap-3">
-            <div class="min-w-0">
-                <p class="font-bold text-base leading-tight"><i class="fas fa-clipboard-check mr-1"></i>Round Unidade</p>
-                <p class="text-[11px] text-white/80 truncate">
-                    {{ $hospitalName ?: '—' }}@if($sectorLabel) · {{ $sectorLabel }}@endif · preenchimento por unidade
-                </p>
-            </div>
-            <button type="button" wire:click="closeModal" class="p-2 rounded-lg hover:bg-white/20" title="Fechar">
-                <i class="fas fa-times"></i>
-            </button>
+        {{-- Cabeçalho (fechar apenas pelo botão do rodapé) --}}
+        <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3">
+            <p class="font-bold text-base leading-tight"><i class="fas fa-clipboard-check mr-1"></i>Round Unidade</p>
+            <p class="text-[11px] text-white/80 truncate">
+                {{ $hospitalName ?: '—' }}@if($sectorLabel) · {{ $sectorLabel }}@endif · preenchimento por unidade
+            </p>
         </div>
 
         {{-- Conteúdo rolável --}}
@@ -95,7 +90,7 @@
                             <div class="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2.5 py-1.5">
                                 <span class="text-xs text-gray-700">{{ $label }}</span>
                                 @if($canEditSafety)
-                                    <input type="number" min="0" wire:model="safety.{{ $key }}"
+                                    <input type="number" min="0" step="1" onkeydown="if(['-','e','E','+'].includes(event.key)) event.preventDefault()" wire:model="safety.{{ $key }}"
                                            class="w-20 text-sm text-right rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
                                 @else
                                     <strong class="text-sm text-gray-800">{{ $safety[$key] ?? '—' }}</strong>
@@ -129,7 +124,7 @@
                             <div class="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2.5 py-1.5">
                                 <span class="text-xs text-gray-700">{{ $label }}</span>
                                 @if($canEditSafety)
-                                    <input type="number" min="0" wire:model="safety.{{ $key }}"
+                                    <input type="number" min="0" step="1" onkeydown="if(['-','e','E','+'].includes(event.key)) event.preventDefault()" wire:model="safety.{{ $key }}"
                                            class="w-20 text-sm text-right rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
                                 @else
                                     <strong class="text-sm text-gray-800">{{ $safety[$key] ?? '—' }}</strong>
@@ -212,7 +207,11 @@
         </div>
 
         {{-- Rodapé --}}
-        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end gap-2">
+        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-2">
+            <p class="text-xs text-red-600 font-medium min-w-0 flex-1">
+                @if($errorMsg)<i class="fas fa-triangle-exclamation mr-1"></i>{{ $errorMsg }}@endif
+            </p>
+            <div class="flex gap-2 shrink-0">
             <button type="button" wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
             @if($canEditSafety)
                 <button type="button" wire:click="saveSafetyAssessment" wire:loading.attr="disabled" wire:target="saveSafetyAssessment"
@@ -221,6 +220,7 @@
                     <span wire:loading wire:target="saveSafetyAssessment">Salvando…</span>
                 </button>
             @endif
+            </div>
         </div>
     </div>
     </div>

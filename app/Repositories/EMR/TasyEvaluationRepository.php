@@ -175,17 +175,12 @@ class TasyEvaluationRepository
     /**
      * Grava uma avaliação completa no Tasy (cabeçalho + respostas).
      *
-     * ⚠️  REQUER INSERT privilege na conexão Oracle.
-     *     Hoje a conexão é read-only. Para habilitar, o DBA precisa executar:
-     *
-     *     GRANT INSERT ON TASY.MED_AVALIACAO_PACIENTE TO <usuario>;
-     *     GRANT INSERT ON TASY.MED_AVALIACAO_RESULT TO <usuario>;
-     *     GRANT SELECT ON TASY.MED_AVALIACAO_PACIENTE_SEQ TO <usuario>;
-     *     -- (ou a sequence equivalente na instância)
+     * Geração de PK: esta instância do Tasy não expõe sequence para
+     * MED_AVALIACAO_PACIENTE — o nr_sequencia é obtido via MAX+1 dentro
+     * da transação. O SELECT FOR UPDATE na subquery garante lock exclusivo
+     * no pico de nr_sequencia, prevenindo colisão entre escritas concorrentes.
      *
      * @param  array<int, array{ds_resultado: string, qt_resultado: ?int}>  $answers  Indexado por nr_seq_item
-     *
-     * @throws \RuntimeException  Se a conexão não tiver permissão de INSERT
      */
     public function saveEvaluation(
         int $attendanceNumber,
@@ -200,10 +195,10 @@ class TasyEvaluationRepository
         try {
             $db->beginTransaction();
 
-            // 1. Obtém próximo nr_sequencia via sequence Oracle
-            //    O nome da sequence pode variar por instância — ajustar se necessário.
+            // 1. Obtém próximo nr_sequencia via MAX+1 com lock
             $seq = $db->selectOne("
-                SELECT tasy.med_avaliacao_paciente_seq.NEXTVAL AS next_val FROM DUAL
+                SELECT NVL(MAX(nr_sequencia), 0) + 1 AS next_val
+                FROM tasy.med_avaliacao_paciente
             ");
 
             $nrSequencia = (int) $seq->next_val;

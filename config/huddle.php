@@ -63,4 +63,20 @@ return [
 
     'questionnaire_seq' => env('HUDDLE_QUESTIONNAIRE_SEQ'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Write-back das respostas no Tasy (Fase 3)
+    |--------------------------------------------------------------------------
+    |
+    | Gravar respostas no Tasy exige um usuário dedicado com INSERT/UPDATE
+    | (conexão 'tasy_write' em config/database.php). Enquanto não houver esse
+    | usuário/permissão, mantenha desabilitado — o Huddle salva localmente e não
+    | tenta escrever no Oracle. Para ativar: HUDDLE_TASY_WRITE_ENABLED=true.
+    |
+    */
+
+    'tasy_write_enabled' => env('HUDDLE_TASY_WRITE_ENABLED', false),
+
+    'tasy_write_connection' => 'tasy_write',
+
 ];

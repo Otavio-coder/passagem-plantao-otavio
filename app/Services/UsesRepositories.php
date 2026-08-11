@@ -8,6 +8,7 @@ use App\Repositories\EMR\PatientMultidisciplinaryRepository;
 use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
+use App\Repositories\EMR\TasyEvaluationRepository;
 use App\Repositories\MySQL\UserRepository;
 
 trait UsesRepositories
@@ -70,5 +71,10 @@ trait UsesRepositories
     public function prescriptions(): PatientPrescriptionsRepository
     {
         return $this->getRepo(PatientPrescriptionsRepository::class);
+    }
+
+    public function evaluations(): TasyEvaluationRepository
+    {
+        return $this->getRepo(TasyEvaluationRepository::class);
     }
 }

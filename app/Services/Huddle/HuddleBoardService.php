@@ -137,32 +137,32 @@ class HuddleBoardService
     }
 
     /**
-     * Idade legível: "X meses" para menores de 1 ano, senão "X anos".
+     * Idade legível a partir das partes inteiras vindas do Oracle (mesmo modelo do
+     * SBAR): "X anos" para 1 ano ou mais; para menores de 1 ano, "X meses" (ou
+     * "recém-nascido"). Usa idade/meses inteiros — nunca cálculo com fração.
      */
     private function ageLabel(array $patient): string
     {
-        $birth = $patient['birth_date'] ?? null;
+        $years = $patient['age'] ?? null;
 
-        if (! empty($birth)) {
-            try {
-                $bd = Carbon::parse($birth);
-                $years = $bd->age;
-
-                if ($years < 1) {
-                    $months = $bd->diffInMonths(Carbon::now());
-
-                    return $months <= 0 ? 'recém-nascido' : $months.' '.($months === 1 ? 'mês' : 'meses');
-                }
-
-                return $years.' anos';
-            } catch (\Throwable $e) {
-                // cai no fallback abaixo
-            }
+        if ($years === null || ! is_numeric($years)) {
+            return '—';
         }
 
-        $age = $patient['age'] ?? null;
+        $years = (int) $years;
 
-        return $age !== null ? $age.' anos' : '—';
+        if ($years >= 1) {
+            return $years.' '.($years === 1 ? 'ano' : 'anos');
+        }
+
+        // Menos de 1 ano → meses inteiros (parte já calculada pelo Oracle).
+        $months = (int) ($patient['age_months'] ?? 0);
+
+        if ($months <= 0) {
+            return 'recém-nascido';
+        }
+
+        return $months.' '.($months === 1 ? 'mês' : 'meses');
     }
 
     /**

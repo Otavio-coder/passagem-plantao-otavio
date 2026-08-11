@@ -138,6 +138,8 @@ class DemographicsLoader implements SectorLoader
                 'nr_prontuario' => $bed->nr_prontuario ?? 'N/A',
                 'birth_date' => $bed->birth_date ? Carbon::parse($bed->birth_date)->format('d/m/Y') : null,
                 'age' => $age,
+                'age_months' => is_numeric($bed->age_months ?? null) ? (int) $bed->age_months : null,
+                'age_days' => is_numeric($bed->age_days ?? null) ? (int) $bed->age_days : null,
                 'age_detailed' => $formatter->formatDetailedAgeFromParts($age, $bed->age_months ?? null, $bed->age_days ?? null),
                 'sexo' => $bed->sexo ?? 'N/A',
                 'convenio' => $bed->convenio ?? 'Não informado',

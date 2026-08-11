@@ -2,7 +2,6 @@
 
 namespace App\Actions\Huddle;
 
-use App\Enums\Huddle\HuddleChecklistItem;
 use App\Enums\Huddle\TasyEvaluationItemMap;
 use App\Models\Huddle\HuddlePatientDay;
 use App\Repositories\EMR\TasyEvaluationRepository;
@@ -102,31 +101,12 @@ class SyncChecklistToTasyAction
     /**
      * Mapeia os campos de notes do checklist para os itens de "Recomendação" do Tasy.
      *
-     * Mapeamento completo (dropdown → recomendação):
-     *   CriteriosClinicos (122014) → RecCriteriosClinicos (122027)
-     *   ExamesLaudo (122023)       → RecExamesLaudo (122028)
-     *   Procedimentos (122024)     → RecProcedimentos (122018)
-     *   Terapias (122025)          → RecTerapias (122019)
-     *   Consultorias (122015)      → RecConsultorias (122020)
-     *   OrientacaoAlta (122026)    → RecOrientacaoAlta (122021)
-     *   Transporte (122016)        → RecTransporte (122022)
      */
     private function appendRecommendations(array &$payload, array $checklistAnswers): void
     {
-        foreach ($checklistAnswers as $itemCode => $answer) {
-            $checklistItem = HuddleChecklistItem::tryFrom($itemCode);
-            if (! $checklistItem) {
-                continue;
-            }
 
-            $recItem = TasyEvaluationItemMap::recommendationForChecklist($checklistItem);
-            if (! $recItem) {
-                continue;
-            }
 
-            $notes = $answer['notes'] ?? null;
             if ($notes !== null && trim($notes) !== '') {
-                $payload[$recItem->value] = [
                     'ds_resultado' => mb_substr(trim($notes), 0, 4000),
                     'qt_resultado' => null,
                 ];

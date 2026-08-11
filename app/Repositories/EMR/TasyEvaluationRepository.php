@@ -16,9 +16,13 @@ use Illuminate\Support\Facades\Log;
  *   MED_AVALIACAO_PACIENTE → instância de avaliação por paciente (cabeçalho)
  *   MED_AVALIACAO_RESULT   → resposta de cada item numa avaliação
  *
+ * IMPORTANTE: a conexão Oracle atual é read-only. Os métodos de escrita
+ * (saveEvaluation) estão preparados mas dependem de INSERT privilege — ver
+ * docblock do método para instruções ao DBA.
  */
 class TasyEvaluationRepository
 {
+    protected string $connection = 'tasy';
 
     // ─── LEITURA: ESTRUTURA DO FORMULÁRIO ─────────────────────────────────
 
@@ -171,8 +175,17 @@ class TasyEvaluationRepository
     /**
      * Grava uma avaliação completa no Tasy (cabeçalho + respostas).
      *
+     * ⚠️  REQUER INSERT privilege na conexão Oracle.
+     *     Hoje a conexão é read-only. Para habilitar, o DBA precisa executar:
+     *
+     *     GRANT INSERT ON TASY.MED_AVALIACAO_PACIENTE TO <usuario>;
+     *     GRANT INSERT ON TASY.MED_AVALIACAO_RESULT TO <usuario>;
+     *     GRANT SELECT ON TASY.MED_AVALIACAO_PACIENTE_SEQ TO <usuario>;
+     *     -- (ou a sequence equivalente na instância)
      *
      * @param  array<int, array{ds_resultado: string, qt_resultado: ?int}>  $answers  Indexado por nr_seq_item
+     *
+     * @throws \RuntimeException  Se a conexão não tiver permissão de INSERT
      */
     public function saveEvaluation(
         int $attendanceNumber,
@@ -187,7 +200,10 @@ class TasyEvaluationRepository
         try {
             $db->beginTransaction();
 
+            // 1. Obtém próximo nr_sequencia via sequence Oracle
+            //    O nome da sequence pode variar por instância — ajustar se necessário.
             $seq = $db->selectOne("
+                SELECT tasy.med_avaliacao_paciente_seq.NEXTVAL AS next_val FROM DUAL
             ");
 
             $nrSequencia = (int) $seq->next_val;

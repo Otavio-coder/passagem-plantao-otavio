@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Log;
  *
  * Fluxo de dados:
  *   LEITURA:  Tasy Oracle → Cache Redis → Livewire component
- *   ESCRITA:  Livewire → MySQL (primário) → Tasy Oracle (via SyncChecklistToTasyAction)
  *
  * As perguntas são cacheadas por 24h (raramente mudam). Avaliações de paciente
  * usam cache de 10 min (mesmo padrão do TasyService).
@@ -93,26 +92,6 @@ class TasyEvaluationService
         return array_values(
             array_filter($this->getFormItems(), fn ($item) => $item['checklist_code'] !== null && ! $item['is_triage_gate'])
         );
-    }
-
-    /**
-     * Retorna mapa de labels dos itens de checklist vindos do Tasy.
-     * Usado pela view para exibir o texto da pergunta do Oracle em vez do hardcoded.
-     *
-     * @return array<string, string>  ['criterios_clinicos' => 'Critérios Clínicos estipulados...', ...]
-     */
-    public function getChecklistLabels(): array
-    {
-        $items = $this->getChecklistItems();
-        $labels = [];
-
-        foreach ($items as $item) {
-            if (! empty($item['checklist_code'])) {
-                $labels[$item['checklist_code']] = $item['ds_item'];
-            }
-        }
-
-        return $labels;
     }
 
     // ─── AVALIAÇÕES DO PACIENTE ───────────────────────────────────────────

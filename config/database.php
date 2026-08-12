@@ -137,6 +137,18 @@ return [
             'prefix' => '',
         ],
 
+        'tasy_homolog' => [
+            'driver' => 'oracle',
+            'host' => env('DB_TASY_HOMOLOG_HOST'),
+            'port' => env('DB_TASY_HOMOLOG_PORT', '1521'),
+            'database' => env('DB_TASY_HOMOLOG_SERVICE_NAME'),
+            'service_name' => env('DB_TASY_HOMOLOG_SERVICE_NAME'),
+            'username' => env('DB_TASY_HOMOLOG_USERNAME'),
+            'password' => env('DB_TASY_HOMOLOG_PASSWORD'),
+            'charset' => 'AL32UTF8',
+            'prefix' => '',
+        ],
+
         'scola' => [
             'driver' => 'oracle',
             'tns' => env('SCOLA_TNS'),
@@ -151,6 +163,18 @@ return [
         ],
 
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Conexão Oracle para escrita de avaliações do Huddle
+    |--------------------------------------------------------------------------
+    |
+    | Define qual conexão Oracle o TasyEvaluationRepository usa para INSERTs.
+    | Em produção: 'tasy'. Para testes: 'tasy_homolog'.
+    |
+    */
+
+    'tasy_evaluation_connection' => env('TASY_EVALUATION_CONNECTION', 'tasy'),
 
     /*
     |--------------------------------------------------------------------------

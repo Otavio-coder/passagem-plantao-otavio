@@ -16,13 +16,18 @@ use Illuminate\Support\Facades\Log;
  *   MED_AVALIACAO_PACIENTE → instância de avaliação por paciente (cabeçalho)
  *   MED_AVALIACAO_RESULT   → resposta de cada item numa avaliação
  *
- * IMPORTANTE: a conexão Oracle atual é read-only. Os métodos de escrita
- * (saveEvaluation) estão preparados mas dependem de INSERT privilege — ver
- * docblock do método para instruções ao DBA.
+ * Conexão configurável via TASY_EVALUATION_CONNECTION no .env:
+ *   - 'tasy' (padrão): banco de produção
+ *   - 'tasy_homolog': banco de homologação/testes
  */
 class TasyEvaluationRepository
 {
-    protected string $connection = 'tasy';
+    protected string $connection;
+
+    public function __construct()
+    {
+        $this->connection = config('database.tasy_evaluation_connection', 'tasy');
+    }
 
     // ─── LEITURA: ESTRUTURA DO FORMULÁRIO ─────────────────────────────────
 

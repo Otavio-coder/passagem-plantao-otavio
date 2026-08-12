@@ -8,6 +8,7 @@ use App\Repositories\EMR\PatientMultidisciplinaryRepository;
 use App\Repositories\EMR\PatientPrescriptionsRepository;
 use App\Repositories\EMR\PatientScalesRepository;
 use App\Repositories\EMR\PatientSurgeryRepository;
+use App\Services\Scola\ScolaExamStatusService;
 use App\Services\Tasy\TasyService;
 use App\Services\UserDisplayNameResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -41,7 +42,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Blaze::optimize()->in(resource_path('views/components'));
+        if ($this->app->environment('production')) {
+            Blaze::optimize()->in(resource_path('views/components'));
+        }
 
         Blade::anonymousComponentNamespace('sbar.patient.modal', 'sbar-patient-modal');
         Blade::anonymousComponentNamespace('sbar.patient.modal.tabs', 'sbar');
@@ -52,8 +55,5 @@ class AppServiceProvider extends ServiceProvider
 
         // Autoriza o LogViewer package para usuários com permissão 'ver logs'
         Gate::define('viewLogViewer', fn ($user) => $user->can('ver logs'));
-
-        // Garante que Alpine.js é injetado em todas as páginas, mesmo sem componentes Livewire.
-        \Livewire\Livewire::forceAssetInjection();
     }
 }

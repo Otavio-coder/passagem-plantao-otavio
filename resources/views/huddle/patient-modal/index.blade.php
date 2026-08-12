@@ -123,9 +123,7 @@
                                     </span>
                                 @endif
                             </div>
-                            @if($tasyLabel)
-                                <p class="text-[10px] text-gray-400 mt-0.5"><i class="fas fa-database mr-0.5"></i>Tasy #{{ \App\Enums\Huddle\TasyEvaluationItemMap::fromChecklistItem($item)->value }}</p>
-                            @endif
+                            {{-- Referência Tasy removida para simplificar a interface --}}
 
                             @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
                                 <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
@@ -143,14 +141,6 @@
 
                                 @if($signal === 'red')
                                     <p class="mt-2 text-[11px] text-red-600"><i class="fas fa-circle-exclamation mr-0.5"></i>{{ $item->redAction() }}</p>
-                                    @if($item->requiresFollowUp())
-                                        <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <input type="text" wire:model="checklist.{{ $code }}.responsible" placeholder="Responsável (opcional)"
-                                                   class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                            <input type="date" wire:model="checklist.{{ $code }}.due_at"
-                                                   class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                        </div>
-                                    @endif
                                 @endif
 
                                 {{-- Recomendação (texto livre) — visível após responder --}}

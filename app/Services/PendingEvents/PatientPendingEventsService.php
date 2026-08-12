@@ -32,7 +32,7 @@ class PatientPendingEventsService
 {
     use UsesRepositories;
 
-    private const CACHE_TTL = 600; // 10 minutos
+    private const CACHE_TTL = 900; // 15 minutos — reduz frequência de cold loads Oracle
 
     /** Máximo de nr_atendimento por cláusula IN nas queries Oracle. */
     private const CHUNK_SIZE = 200;

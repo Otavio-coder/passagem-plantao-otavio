@@ -128,7 +128,9 @@
                             </div>
                         @elseif(empty($patients))
                             <div class="bg-white/70 border border-gray-200 rounded-lg px-6 py-10 text-center text-gray-600">
-                                Nenhum paciente encontrado para este setor.
+                                <i class="fas fa-calendar-check text-3xl text-gray-300 mb-3"></i>
+                                <p class="font-semibold text-gray-700">Nenhum paciente com previsão de alta nas próximas 72h</p>
+                                <p class="text-sm text-gray-500 mt-1">Apenas pacientes com data de alta prevista para até 3 dias aparecem no Huddle.</p>
                             </div>
                         @else
                             <script>window.__huddleModalPatients = @json($patients);</script>

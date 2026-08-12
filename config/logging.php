@@ -137,6 +137,15 @@ return [
             'permission' => 0664,
         ],
 
+        'performance' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/performance.log'),
+            'level' => 'info',
+            'days' => 7,
+            'replace_placeholders' => true,
+            'permission' => 0664,
+        ],
+
     ],
 
 ];

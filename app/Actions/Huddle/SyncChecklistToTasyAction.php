@@ -101,12 +101,30 @@ class SyncChecklistToTasyAction
     /**
      * Mapeia os campos de notes do checklist para os itens de "Recomendação" do Tasy.
      *
+     * Mapeamento fixo (baseado na ordem do formulário Tasy):
+     *   CriteriosClinicos → Recomendacao1 (122017)
+     *   ExamesLaudo       → Recomendacao2 (122018)
+     *   Procedimentos     → Recomendacao3 (122019)
+     *   Terapias          → Recomendacao4 (122020)
+     *   Consultorias      → Recomendacao5 (122021)
+     *   OrientacaoAlta    → Recomendacao6 (122022)
      */
     private function appendRecommendations(array &$payload, array $checklistAnswers): void
     {
+        $recommendationMap = [
+            'criterios_clinicos' => TasyEvaluationItemMap::Recomendacao1->value,
+            'exames_laudo'       => TasyEvaluationItemMap::Recomendacao2->value,
+            'procedimentos'      => TasyEvaluationItemMap::Recomendacao3->value,
+            'terapias'           => TasyEvaluationItemMap::Recomendacao4->value,
+            'consultorias'       => TasyEvaluationItemMap::Recomendacao5->value,
+            'orientacao_alta'    => TasyEvaluationItemMap::Recomendacao6->value,
+        ];
 
+        foreach ($recommendationMap as $itemCode => $tasyItemId) {
+            $notes = $checklistAnswers[$itemCode]['notes'] ?? null;
 
             if ($notes !== null && trim($notes) !== '') {
+                $payload[$tasyItemId] = [
                     'ds_resultado' => mb_substr(trim($notes), 0, 4000),
                     'qt_resultado' => null,
                 ];

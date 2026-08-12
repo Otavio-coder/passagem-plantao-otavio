@@ -28,6 +28,13 @@ enum TasyEvaluationItemMap: int
     case Terapias = 122025;
     case OrientacaoAlta = 122026;
 
+    // ── Campos de recomendação (texto livre) ──────────────────────────
+    case Recomendacao1 = 122017;
+    case Recomendacao2 = 122018;
+    case Recomendacao3 = 122019;
+    case Recomendacao4 = 122020;
+    case Recomendacao5 = 122021;
+    case Recomendacao6 = 122022;
 
     /**
      * Retorna o HuddleChecklistItem correspondente, ou null para itens
@@ -53,6 +60,12 @@ enum TasyEvaluationItemMap: int
     public function isDropdown(): bool
     {
         return match ($this) {
+            self::Recomendacao1,
+            self::Recomendacao2,
+            self::Recomendacao3,
+            self::Recomendacao4,
+            self::Recomendacao5,
+            self::Recomendacao6 => false,
             default             => true,
         };
     }

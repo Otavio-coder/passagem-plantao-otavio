@@ -135,6 +135,14 @@ class HuddlePatientModal extends Component
             return;
         }
 
+        // Toggle: clicar na mesma resposta desmarca o item
+        $currentAnswer = $this->checklist[$itemCode]['answer'] ?? null;
+        if ($currentAnswer === $answer) {
+            $this->clearItem($itemCode, $item);
+
+            return;
+        }
+
         $signal = $answer === $item->greenAnswer() ? DayColor::Green : DayColor::Red;
         $day = $this->ensureDay();
 
@@ -151,6 +159,34 @@ class HuddlePatientModal extends Component
             nmUsuario: Auth::user()?->username,
             cdSetorAtendimento: $this->currentSector() ?: null,
         );
+
+        $this->loadHuddleState();
+    }
+
+    /**
+     * Remove a resposta de um item do checklist (toggle off).
+     */
+    public function clearItem(string $itemCode, ?HuddleChecklistItem $item = null): void
+    {
+        $this->authorizeConduct();
+        $this->ensureAvailable();
+
+        $item ??= HuddleChecklistItem::tryFrom($itemCode);
+        if (! $item) {
+            return;
+        }
+
+        $day = HuddlePatientDay::query()
+            ->forPatient($this->currentAttendance())
+            ->forDate(Carbon::today()->toDateString())
+            ->first();
+
+        if ($day) {
+            $day->checklistAnswers()->where('item_code', $itemCode)->delete();
+            unset($day->checklistAnswers); // limpa relação carregada
+            $day->color = $day->deriveColorFromChecklist();
+            $day->save();
+        }
 
         $this->loadHuddleState();
     }

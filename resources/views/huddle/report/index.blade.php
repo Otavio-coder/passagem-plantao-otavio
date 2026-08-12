@@ -82,7 +82,7 @@
                         $currentSectorLabel = collect($sectors)->firstWhere('cd_setor_atendimento', $selectedSector)['ds_setor_atendimento'] ?? '';
                         $roundDone = collect($patients)->first(fn($p) => !empty($p['has_patient']))['huddle_unit_round_done'] ?? false;
                     @endphp
-                    <div class="bg-white/80 border-b border-gray-200 px-2 sm:px-3 lg:px-4 py-2 flex items-center justify-start">
+                    <div class="bg-white/80 border-b border-gray-200 px-2 sm:px-3 lg:px-4 py-2 flex items-center justify-start gap-2">
                         <button type="button"
                                 x-data="{ done: {{ $roundDone ? 'true' : 'false' }} }"
                                 @huddle-round-saved.window="done = true"
@@ -95,6 +95,16 @@
                             <i class="fas fa-clipboard-check"></i>
                             <span>Round Unidade</span>
                             <i class="fas fa-check text-green-300" x-show="done" x-cloak title="Preenchido hoje"></i>
+                        </button>
+
+                        <button type="button"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors bg-white text-[#004D9D] border border-[#004D9D] hover:bg-[#004D9D]/10"
+                                @click.prevent="$dispatch('openRoundHistory', {
+                                    sectorId: {{ (int) $selectedSector }},
+                                    sectorLabel: {{ \Illuminate\Support\Js::from($currentSectorLabel) }}
+                                })">
+                            <i class="fas fa-clock-rotate-left"></i>
+                            <span>Histórico</span>
                         </button>
                     </div>
 
@@ -139,4 +149,7 @@
 
     {{-- Modal do Huddle de Segurança por unidade (botão "Round Unidade" centralizado no header) --}}
     @livewire('huddle-unit-safety-modal')
+
+    {{-- Modal de histórico de Rounds Unidade --}}
+    @livewire('huddle-round-history-modal')
 </div>

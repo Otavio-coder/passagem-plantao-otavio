@@ -98,7 +98,7 @@
                     </div>
                 @else
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <p class="font-semibold text-gray-700">Sem previsão de alta nas próximas 72h — discutir em Round</p>
+                        <p class="font-semibold text-gray-700">Sem previsão de alta nas próximas 72h</p>
                         <p class="text-[11px] text-gray-500 mt-0.5">Previsão do Tasy: <strong>{{ $tasyPrevAlta ?? 'não registrada' }}</strong></p>
                     </div>
                 @endif

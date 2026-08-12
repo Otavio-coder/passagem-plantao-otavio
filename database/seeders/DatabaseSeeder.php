@@ -142,6 +142,9 @@ class DatabaseSeeder extends Seeder
                 $user->assignRole('Administrador');
             }
 
+            // Perguntas do Round Unidade (idempotente — updateOrCreate)
+            $this->call(HuddleUnitQuestionSeeder::class);
+
             $this->command->info('Sucesso! Perfis e permissões configurados.');
             $this->command->info("Usuário administrador: {$user->username}");
             $this->command->table(

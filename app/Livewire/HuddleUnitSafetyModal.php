@@ -4,9 +4,11 @@ namespace App\Livewire;
 
 use App\Actions\Huddle\SaveSafetyAssessmentAction;
 use App\Models\Huddle\HuddleSafetyAssessment;
+use App\Models\Huddle\HuddleUnitQuestion;
 use App\Services\Huddle\HuddleAvailability;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -16,6 +18,9 @@ use Livewire\Component;
  * Acionado pelo botão "Round Unidade" de qualquer card do setor. O preenchimento é
  * único por unidade/dia (huddle_safety_assessments) e compartilhado por todos os
  * leitos daquela unidade.
+ *
+ * As perguntas são lidas dinamicamente da tabela `huddle_unit_questions` (MySQL),
+ * permitindo edição sem deploy. Cache de 24h (raramente mudam).
  */
 class HuddleUnitSafetyModal extends Component
 {
@@ -137,6 +142,7 @@ class HuddleUnitSafetyModal extends Component
         return view('huddle.unit-safety-modal.index', [
             'huddleAvailable' => $availability->isAvailable(),
             'huddleBlockedReason' => $availability->blockedReason(),
+            'questionsByAxis' => $this->getQuestionsByAxis(),
         ]);
     }
 
@@ -150,6 +156,18 @@ class HuddleUnitSafetyModal extends Component
     private function ensureAvailable(): void
     {
         abort_unless(app(HuddleAvailability::class)->isAvailable(), 403, 'Huddle indisponível hoje.');
+    }
+
+    /**
+     * Retorna as perguntas ativas agrupadas por eixo, com cache de 24h.
+     *
+     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Collection<int, HuddleUnitQuestion>>
+     */
+    private function getQuestionsByAxis(): \Illuminate\Support\Collection
+    {
+        return Cache::remember('huddle_unit_questions_by_axis', 86400, function () {
+            return HuddleUnitQuestion::activeGroupedByAxis();
+        });
     }
 
     /**
@@ -176,24 +194,19 @@ class HuddleUnitSafetyModal extends Component
         // Já existe registro no dia: abre só-leitura (não pode ser alterado).
         $this->locked = true;
 
-        $this->safety = [
-            'expected_discharges' => $sa->expected_discharges,
-            'expected_admissions' => $sa->expected_admissions,
-            'blocked_beds_isolation' => $sa->blocked_beds_isolation,
-            'blocked_beds_maintenance' => $sa->blocked_beds_maintenance,
-            'critical_patient_no_bed' => $sa->critical_patient_no_bed,
-            'critical_medication_failure' => $sa->critical_medication_failure,
-            'adverse_event_24h' => $sa->adverse_event_24h,
-            'physical_chemical_restraint' => $sa->physical_chemical_restraint,
-            'barrier_breach' => $sa->barrier_breach,
-            'pressure_injuries' => $sa->pressure_injuries,
-            'falls' => $sa->falls,
-            'staff_shortage' => $sa->staff_shortage,
-            'critical_exam_delay' => $sa->critical_exam_delay,
-            'unit_classification' => $sa->unit_classification?->value,
-            'justification' => $sa->justification,
-            'immediate_measures' => $sa->immediate_measures,
-        ];
+        // Carrega dinamicamente as respostas com base nas perguntas cadastradas
+        $questions = $this->getQuestionsByAxis()->flatten();
+        foreach ($questions as $question) {
+            $key = $question->field_key;
+            $value = $sa->{$key};
+
+            // Para enums (unit_classification), pega o ->value
+            if (is_object($value) && property_exists($value, 'value')) {
+                $value = $value->value;
+            }
+
+            $this->safety[$key] = $value;
+        }
 
         $auditUser = $sa->updatedBy ?? $sa->createdBy;
         $this->filledByLogin = $auditUser?->username;
@@ -201,27 +214,41 @@ class HuddleUnitSafetyModal extends Component
     }
 
     /**
+     * Gera os valores padrão (null) a partir das perguntas cadastradas no banco.
+     *
      * @return array<string, mixed>
      */
     private function defaultSafety(): array
     {
-        return [
-            'expected_discharges' => null,
-            'expected_admissions' => null,
-            'blocked_beds_isolation' => null,
-            'blocked_beds_maintenance' => null,
-            'critical_patient_no_bed' => null,
-            'critical_medication_failure' => null,
-            'adverse_event_24h' => null,
-            'physical_chemical_restraint' => null,
-            'barrier_breach' => null,
-            'pressure_injuries' => null,
-            'falls' => null,
-            'staff_shortage' => null,
-            'critical_exam_delay' => null,
-            'unit_classification' => null,
-            'justification' => null,
-            'immediate_measures' => null,
-        ];
+        $questions = $this->getQuestionsByAxis()->flatten();
+        $defaults = [];
+
+        foreach ($questions as $question) {
+            $defaults[$question->field_key] = null;
+        }
+
+        // Fallback: se o banco ainda não tiver perguntas, mantém os campos base
+        if (empty($defaults)) {
+            return [
+                'expected_discharges' => null,
+                'expected_admissions' => null,
+                'blocked_beds_isolation' => null,
+                'blocked_beds_maintenance' => null,
+                'critical_patient_no_bed' => null,
+                'critical_medication_failure' => null,
+                'adverse_event_24h' => null,
+                'physical_chemical_restraint' => null,
+                'barrier_breach' => null,
+                'pressure_injuries' => null,
+                'falls' => null,
+                'staff_shortage' => null,
+                'critical_exam_delay' => null,
+                'unit_classification' => null,
+                'justification' => null,
+                'immediate_measures' => null,
+            ];
+        }
+
+        return $defaults;
     }
 }

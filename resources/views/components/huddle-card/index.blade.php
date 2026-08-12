@@ -177,28 +177,21 @@
                         @endif
                     </div>
 
-                    @if($isRound)
-                        <div class="flex items-center justify-center gap-2 w-full rounded-lg bg-slate-700 text-white px-3 py-2 shadow-sm">
-                            <i class="fas fa-users-line text-sm"></i>
-                            <span class="text-xs font-bold uppercase tracking-wide">Discutir em Round</span>
-                        </div>
-                    @else
-                        <div class="grid grid-cols-2 gap-1">
-                            @foreach($categories as $cat)
-                                @php
-                                    $sig = $cat['force'] ?? ($cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null));
-                                    $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
-                                @endphp
-                                <div class="flex items-center gap-1 bg-slate-50 rounded px-1.5 py-0.5 text-[10px]">
-                                    <span class="w-2 h-2 rounded-full {{ $dot }} shrink-0"></span>
-                                    <span class="text-gray-700 truncate">{{ $cat['label'] }}</span>
-                                    @if(! is_null($cat['count']) && $cat['count'] > 0)
-                                        <span class="ml-auto font-bold text-gray-800">{{ $cat['count'] }}</span>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
+                    <div class="grid grid-cols-2 gap-1">
+                        @foreach($categories as $cat)
+                            @php
+                                $sig = $cat['force'] ?? ($cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null));
+                                $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
+                            @endphp
+                            <div class="flex items-center gap-1 bg-slate-50 rounded px-1.5 py-0.5 text-[10px]">
+                                <span class="w-2 h-2 rounded-full {{ $dot }} shrink-0"></span>
+                                <span class="text-gray-700 truncate">{{ $cat['label'] }}</span>
+                                @if(! is_null($cat['count']) && $cat['count'] > 0)
+                                    <span class="ml-auto font-bold text-gray-800">{{ $cat['count'] }}</span>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
 
                 {{-- Botão de detalhe (checklist, comentários, auditoria) --}}

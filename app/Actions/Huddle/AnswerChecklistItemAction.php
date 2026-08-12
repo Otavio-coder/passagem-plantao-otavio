@@ -6,6 +6,7 @@ use App\Enums\Huddle\DayColor;
 use App\Enums\Huddle\HuddleChecklistItem;
 use App\Models\Huddle\HuddleChecklistAnswer;
 use App\Models\Huddle\HuddlePatientDay;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Grava (ou atualiza) a resposta de um item do checklist e recalcula a cor do dia.
@@ -13,6 +14,10 @@ use App\Models\Huddle\HuddlePatientDay;
  * A cor do HuddlePatientDay é sempre derivada do conjunto de respostas
  * (Red se qualquer item estiver Red), nunca definida solta — assim a cor do card
  * reflete fielmente o checklist.
+ *
+ * Quando todos os itens estiverem respondidos, dispara a sincronização para o Tasy
+ * (Oracle) via SyncChecklistToTasyAction. A sync é fire-and-forget — se falhar,
+ * o erro é logado mas não bloqueia o fluxo.
  */
 class AnswerChecklistItemAction
 {
@@ -25,6 +30,9 @@ class AnswerChecklistItemAction
         ?string $responsible = null,
         ?string $dueAt = null,
         ?string $notes = null,
+        ?string $cdPessoaFisica = null,
+        ?string $nmUsuario = null,
+        ?int $cdSetorAtendimento = null,
     ): HuddleChecklistAnswer {
         $record = HuddleChecklistAnswer::updateOrCreate(
             [
@@ -47,6 +55,47 @@ class AnswerChecklistItemAction
             'updated_by_user_id' => $userId,
         ]);
 
+        // Sincroniza com Tasy quando todos os itens estiverem respondidos
+        if ($cdPessoaFisica && $this->isChecklistComplete($day)) {
+            $this->syncToTasy($day, $cdPessoaFisica, $nmUsuario ?? 'PASSAGEM_PLANTAO', $cdSetorAtendimento);
+        }
+
         return $record;
+    }
+
+    /**
+     * Verifica se todos os 7 itens do checklist foram respondidos.
+     */
+    private function isChecklistComplete(HuddlePatientDay $day): bool
+    {
+        $totalItems = count(HuddleChecklistItem::cases());
+        $answeredItems = $day->checklistAnswers->count();
+
+        return $answeredItems >= $totalItems;
+    }
+
+    /**
+     * Dispara sincronização para o Tasy — fire-and-forget.
+     */
+    private function syncToTasy(
+        HuddlePatientDay $day,
+        string $cdPessoaFisica,
+        string $nmUsuario,
+        ?int $cdSetorAtendimento,
+    ): void {
+        try {
+            app(SyncChecklistToTasyAction::class)->execute(
+                day: $day,
+                cdPessoaFisica: $cdPessoaFisica,
+                nmUsuario: $nmUsuario,
+                cdSetorAtendimento: $cdSetorAtendimento,
+            );
+        } catch (\Throwable $e) {
+            // Nunca bloqueia o fluxo do MySQL — só loga
+            Log::error('[AnswerChecklistItem] Sync Tasy falhou (não-bloqueante)', [
+                'nr_atendimento' => $day->nr_atendimento,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

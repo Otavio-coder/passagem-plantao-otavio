@@ -98,7 +98,7 @@
                     </div>
                 @else
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <p class="font-semibold text-gray-700">Sem previsão de alta nas próximas 72h — discutir em Round</p>
+                        <p class="font-semibold text-gray-700">Sem previsão de alta nas próximas 72h</p>
                         <p class="text-[11px] text-gray-500 mt-0.5">Previsão do Tasy: <strong>{{ $tasyPrevAlta ?? 'não registrada' }}</strong></p>
                     </div>
                 @endif
@@ -108,19 +108,24 @@
                     @foreach($checklistItems as $item)
                         @php
                             $code = $item->value;
-                            $state = $checklist[$code] ?? ['answer' => null, 'signal' => null, 'responsible' => null, 'due_at' => null];
+                            $state = $checklist[$code] ?? ['answer' => null, 'signal' => null, 'responsible' => null, 'due_at' => null, 'notes' => null];
                             $answer = $state['answer'] ?? null;
                             $signal = $state['signal'] ?? null;
+                            $tasyLabel = $tasyLabels[$code] ?? null;
                         @endphp
-                        <div class="rounded-xl border border-gray-200 p-3">
+                        <div class="rounded-xl border {{ $signal === 'red' ? 'border-red-200' : ($signal === 'green' ? 'border-green-200' : 'border-gray-200') }} p-3">
                             <div class="flex items-start justify-between gap-2">
-                                <p class="text-sm font-medium text-gray-800">{{ $item->label() }}</p>
+                                {{-- Label do Oracle quando disponível, fallback para enum --}}
+                                <p class="text-sm font-medium text-gray-800">{{ $tasyLabel ?? $item->label() }}</p>
                                 @if($signal)
                                     <span class="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full text-white {{ $signal === 'red' ? 'bg-red-500' : 'bg-green-500' }}">
                                         {{ $signal === 'red' ? 'Red' : 'Green' }}
                                     </span>
                                 @endif
                             </div>
+                            @if($tasyLabel)
+                                <p class="text-[10px] text-gray-400 mt-0.5"><i class="fas fa-database mr-0.5"></i>Tasy #{{ \App\Enums\Huddle\TasyEvaluationItemMap::fromChecklistItem($item)->value }}</p>
+                            @endif
 
                             @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
                                 <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
@@ -137,21 +142,41 @@
                                 </div>
 
                                 @if($signal === 'red')
-                                    <p class="mt-2 text-[11px] text-red-600">{{ $item->redAction() }}</p>
+                                    <p class="mt-2 text-[11px] text-red-600"><i class="fas fa-circle-exclamation mr-0.5"></i>{{ $item->redAction() }}</p>
                                     @if($item->requiresFollowUp())
                                         <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <input type="text" wire:model="checklist.{{ $code }}.responsible" placeholder="Responsável (opcional)"
                                                    class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
                                             <input type="date" wire:model="checklist.{{ $code }}.due_at"
                                                    class="text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]">
-                                            <button type="button" wire:click="saveItemDetails('{{ $code }}')"
-                                                    wire:loading.attr="disabled" wire:target="saveItemDetails"
-                                                    class="sm:col-span-2 justify-self-start text-xs px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-60">Salvar responsável/prazo</button>
                                         </div>
                                     @endif
                                 @endif
+
+                                {{-- Recomendação (texto livre) — visível após responder --}}
+                                @if($answer)
+                                    <div class="mt-2">
+                                        <label class="block text-[11px] font-medium text-gray-500 mb-1">
+                                            <i class="fas fa-pen-to-square mr-0.5"></i>Recomendação
+                                        </label>
+                                        <textarea wire:model="checklist.{{ $code }}.notes" rows="2"
+                                                  placeholder="Recomendação ou observação sobre este item..."
+                                                  class="w-full text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D] placeholder:text-gray-400"></textarea>
+                                    </div>
+                                    <div class="mt-1.5 flex items-center gap-2">
+                                        <button type="button" wire:click="saveItemDetails('{{ $code }}')"
+                                                wire:loading.attr="disabled" wire:target="saveItemDetails('{{ $code }}')"
+                                                class="text-xs px-3 py-1 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">
+                                            <span wire:loading.remove wire:target="saveItemDetails('{{ $code }}')">Salvar</span>
+                                            <span wire:loading wire:target="saveItemDetails('{{ $code }}')"><i class="fas fa-spinner fa-spin"></i></span>
+                                        </button>
+                                    </div>
+                                @endif
                             @else
                                 <p class="mt-1 text-xs text-gray-500">Resposta: <strong>{{ $answer ? ucfirst($answer) : '—' }}</strong></p>
+                                @if(! empty($state['notes'] ?? null))
+                                    <p class="mt-1 text-xs text-gray-600"><span class="text-gray-400">Recomendação:</span> {{ $state['notes'] }}</p>
+                                @endif
                             @endif
 
                             {{-- Auditoria do item: login e data/hora de quem respondeu --}}

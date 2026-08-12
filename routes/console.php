@@ -44,9 +44,10 @@ $activeSectorIds = function (): array {
     return $fromBeds->merge($fromPrefs)->filter()->unique()->values()->all();
 };
 
-// Limpa e re-aquece caches de dados de setor a cada hora.
-// Aquecimento de pending events é síncrono (sem queue) para garantir que o cache fique
-// quente imediatamente após a limpeza — sem depender de queue workers.
+// Limpa e re-aquece TODOS os caches de dados de setor a cada hora.
+// Antes: limpava tudo mas só re-aquecia pending events — o primeiro usuário após a limpeza
+// enfrentava 5 queries Oracle frias (demographics, scales, clinical, multi, surgery).
+// Agora: re-aquece todos os loaders sincronamente para garantir cache quente imediato.
 Schedule::call(function () use ($activeSectorIds) {
     $sectorIds = $activeSectorIds();
     $pendingService = app(PatientPendingEventsService::class);
@@ -55,13 +56,29 @@ Schedule::call(function () use ($activeSectorIds) {
         'sector_multi_', 'sector_surgery_'];
 
     foreach ($sectorIds as $sectorId) {
-        // Limpa dados estáticos (demografia, escalas, clínico, multidisciplinar, cirurgia)
+        // Limpa dados estáticos + pending + composite
         foreach ($staticPrefixes as $prefix) {
             Cache::forget($prefix.$sectorId);
         }
-
-        // Re-aquece pending events agora (síncrono) para o próximo usuário encontrar cache quente
         Cache::forget("sector_pending_fast_{$sectorId}");
+
+        // Limpa cache composto (todos os turnos) para forçar rebuild com dados frescos
+        foreach (['M', 'T', 'N'] as $shift) {
+            Cache::forget("sector_composite_{$sectorId}_{$shift}");
+        }
+
+        // Re-aquece TODOS os loaders — não apenas pending events
+        try {
+            PatientDataLoader::forSector($sectorId)
+                ->include('demographics', 'scales', 'clinical', 'multidisciplinary', 'surgery')
+                ->get();
+        } catch (Throwable $e) {
+            Log::warning('[schedule:sbar-cache-clear] Falha ao aquecer dados estáticos', [
+                'sector_id' => $sectorId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         try {
             $pendingService->getPendingEventsForSector($sectorId);
         } catch (Throwable $e) {
@@ -76,11 +93,17 @@ Schedule::call(function () use ($activeSectorIds) {
 // Pre-aquece TODOS os dados de setor 15 min antes de cada troca de turno
 // (06:45 → manhã 07h, 12:45 → tarde 13h, 18:45 → noite 19h).
 // Síncrono — sem queue — para garantir execução mesmo sem workers.
+// Também limpa caches compostos do turno anterior para forçar rebuild com dados frescos.
 $warmAllSectors = function () use ($activeSectorIds) {
     $sectorIds = $activeSectorIds();
     $pendingService = app(PatientPendingEventsService::class);
 
     foreach ($sectorIds as $sectorId) {
+        // Limpa cache composto do turno anterior (todos, por segurança)
+        foreach (['M', 'T', 'N'] as $shift) {
+            Cache::forget("sector_composite_{$sectorId}_{$shift}");
+        }
+
         try {
             PatientDataLoader::forSector($sectorId)
                 ->include('demographics', 'scales', 'clinical', 'multidisciplinary', 'surgery')

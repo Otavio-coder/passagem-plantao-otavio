@@ -28,13 +28,16 @@ enum TasyEvaluationItemMap: int
     case Terapias = 122025;
     case OrientacaoAlta = 122026;
 
-    // ── Campos de recomendação (texto livre) ──────────────────────────
-    case Recomendacao1 = 122017;
-    case Recomendacao2 = 122018;
-    case Recomendacao3 = 122019;
-    case Recomendacao4 = 122020;
-    case Recomendacao5 = 122021;
-    case Recomendacao6 = 122022;
+    // ── Campos de recomendação (texto livre) ────────────────────────────
+    // Mapeamento confirmado via layout do formulário Tasy (dropdown → rec):
+    case RecAlta72h = 122017;            // Recomendação de Previsao72h (122013)
+    case RecProcedimentos = 122018;      // Recomendação de Procedimentos (122024)
+    case RecTerapias = 122019;           // Recomendação de Terapias (122025)
+    case RecConsultorias = 122020;       // Recomendação de Consultorias (122015)
+    case RecOrientacaoAlta = 122021;     // Recomendação de OrientacaoAlta (122026)
+    case RecTransporte = 122022;         // Recomendação de Transporte (122016)
+    case RecCriteriosClinicos = 122027;  // Recomendação de CriteriosClinicos (122014)
+    case RecExamesLaudo = 122028;        // Recomendação de ExamesLaudo (122023)
 
     /**
      * Retorna o HuddleChecklistItem correspondente, ou null para itens
@@ -60,14 +63,24 @@ enum TasyEvaluationItemMap: int
     public function isDropdown(): bool
     {
         return match ($this) {
-            self::Recomendacao1,
-            self::Recomendacao2,
-            self::Recomendacao3,
-            self::Recomendacao4,
-            self::Recomendacao5,
-            self::Recomendacao6 => false,
-            default             => true,
+            self::RecAlta72h,
+            self::RecProcedimentos,
+            self::RecTerapias,
+            self::RecConsultorias,
+            self::RecOrientacaoAlta,
+            self::RecTransporte,
+            self::RecCriteriosClinicos,
+            self::RecExamesLaudo => false,
+            default              => true,
         };
+    }
+
+    /**
+     * Indica se o item é um campo de recomendação (texto livre).
+     */
+    public function isRecommendation(): bool
+    {
+        return ! $this->isDropdown();
     }
 
     /**
@@ -105,5 +118,77 @@ enum TasyEvaluationItemMap: int
             self::cases(),
             fn (self $item) => $item->checklistItem() !== null,
         );
+    }
+
+    /**
+     * Retorna o item de recomendação (texto livre) associado a um item dropdown.
+     *
+     * Mapeamento completo confirmado via layout do formulário Tasy:
+     *
+     *   Dropdown (Sim/Não)              → Recomendação (texto livre)
+     *   ─────────────────────────────────────────────────────────────
+     *   Previsao72h (122013)            → RecAlta72h (122017)
+     *   CriteriosClinicos (122014)      → RecCriteriosClinicos (122027)
+     *   ExamesLaudo (122023)            → RecExamesLaudo (122028)
+     *   Procedimentos (122024)          → RecProcedimentos (122018)
+     *   Terapias (122025)               → RecTerapias (122019)
+     *   Consultorias (122015)           → RecConsultorias (122020)
+     *   OrientacaoAlta (122026)         → RecOrientacaoAlta (122021)
+     *   Transporte (122016)             → RecTransporte (122022)
+     */
+    public static function recommendationFor(self $dropdown): ?self
+    {
+        return match ($dropdown) {
+            self::Previsao72h       => self::RecAlta72h,
+            self::CriteriosClinicos => self::RecCriteriosClinicos,
+            self::ExamesLaudo       => self::RecExamesLaudo,
+            self::Procedimentos     => self::RecProcedimentos,
+            self::Terapias          => self::RecTerapias,
+            self::Consultorias      => self::RecConsultorias,
+            self::OrientacaoAlta    => self::RecOrientacaoAlta,
+            self::Transporte        => self::RecTransporte,
+            default                 => null,
+        };
+    }
+
+    /**
+     * Mapeamento reverso: dado um HuddleChecklistItem, retorna o item de
+     * recomendação correspondente no Tasy.
+     */
+    public static function recommendationForChecklist(HuddleChecklistItem $item): ?self
+    {
+        $dropdown = self::fromChecklistItem($item);
+
+        return self::recommendationFor($dropdown);
+    }
+
+    /**
+     * Retorna todos os itens dropdown com alias para uso na função tasy.aval().
+     *
+     * @return array<string, int>  ['alias' => nr_sequencia]
+     */
+    public static function avalColumns(): array
+    {
+        return [
+            // Dropdowns (Sim/Não)
+            'alta_72h'           => self::Previsao72h->value,
+            'criterios_clinicos' => self::CriteriosClinicos->value,
+            'exames_laudo'       => self::ExamesLaudo->value,
+            'procedimentos'      => self::Procedimentos->value,
+            'terapias'           => self::Terapias->value,
+            'consultorias'       => self::Consultorias->value,
+            'orientacao_alta'    => self::OrientacaoAlta->value,
+            'transporte'         => self::Transporte->value,
+
+            // Recomendações (texto livre) — mesma ordem dos dropdowns
+            'rec_alta_72h'           => self::RecAlta72h->value,
+            'rec_criterios_clinicos' => self::RecCriteriosClinicos->value,
+            'rec_exames_laudo'       => self::RecExamesLaudo->value,
+            'rec_procedimentos'      => self::RecProcedimentos->value,
+            'rec_terapias'           => self::RecTerapias->value,
+            'rec_consultorias'       => self::RecConsultorias->value,
+            'rec_orientacao_alta'    => self::RecOrientacaoAlta->value,
+            'rec_transporte'         => self::RecTransporte->value,
+        ];
     }
 }

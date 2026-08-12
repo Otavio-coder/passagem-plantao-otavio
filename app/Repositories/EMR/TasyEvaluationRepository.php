@@ -16,13 +16,18 @@ use Illuminate\Support\Facades\Log;
  *   MED_AVALIACAO_PACIENTE → instância de avaliação por paciente (cabeçalho)
  *   MED_AVALIACAO_RESULT   → resposta de cada item numa avaliação
  *
- * IMPORTANTE: a conexão Oracle atual é read-only. Os métodos de escrita
- * (saveEvaluation) estão preparados mas dependem de INSERT privilege — ver
- * docblock do método para instruções ao DBA.
+ * Conexão configurável via TASY_EVALUATION_CONNECTION no .env:
+ *   - 'tasy' (padrão): banco de produção
+ *   - 'tasy_homolog': banco de homologação/testes
  */
 class TasyEvaluationRepository
 {
-    protected string $connection = 'tasy';
+    protected string $connection;
+
+    public function __construct()
+    {
+        $this->connection = config('database.tasy_evaluation_connection', 'tasy');
+    }
 
     // ─── LEITURA: ESTRUTURA DO FORMULÁRIO ─────────────────────────────────
 
@@ -170,22 +175,116 @@ class TasyEvaluationRepository
         ]);
     }
 
+    // ─── LEITURA: AVALIAÇÕES COM tasy.aval() ────────────────────────────
+
+    /**
+     * Busca avaliações do Huddle com respostas inline via função tasy.aval().
+     *
+     * Cada linha retorna o cabeçalho da avaliação + todas as respostas como
+     * colunas planas (alta_72h, criterios_clinicos, rec_alta_72h, etc.),
+     * evitando múltiplos JOINs ao med_avaliacao_result.
+     *
+     * Filtros opcionais:
+     *   - $attendanceNumber: paciente específico
+     *   - $cdEstabelecimento: hospital (1 = Matriz, 31 = HDJB)
+     *   - $dateFrom / $dateTo: período
+     *   - $limit: máximo de registros
+     *
+     * @return array<int, object>
+     */
+    public function getEvaluationsWithAnswers(
+        ?int $attendanceNumber = null,
+        ?int $cdEstabelecimento = null,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        int $limit = 50,
+        int $tipoAvaliacao = TasyEvaluationItemMap::TIPO_AVALIACAO,
+    ): array {
+        // Monta as colunas tasy.aval() dinamicamente a partir do enum
+        $avalCols = TasyEvaluationItemMap::avalColumns();
+        $avalSelect = '';
+        foreach ($avalCols as $alias => $nrSeq) {
+            $avalSelect .= ",\n                tasy.aval(map.nr_sequencia, {$nrSeq}) AS {$alias}";
+        }
+
+        $where = "map.nr_seq_tipo_avaliacao = :tipo
+              AND map.ie_situacao = 'A'
+              AND map.dt_inativacao IS NULL";
+
+        $bindings = ['tipo' => $tipoAvaliacao];
+
+        if ($attendanceNumber !== null) {
+            $where .= "\n              AND map.nr_atendimento = :nr_atendimento";
+            $bindings['nr_atendimento'] = $attendanceNumber;
+        }
+
+        if ($cdEstabelecimento !== null) {
+            $where .= "\n              AND map.cd_estabelecimento = :cd_estab";
+            $bindings['cd_estab'] = $cdEstabelecimento;
+        }
+
+        if ($dateFrom !== null) {
+            $where .= "\n              AND map.dt_avaliacao >= TO_DATE(:dt_from, 'YYYY-MM-DD')";
+            $bindings['dt_from'] = $dateFrom;
+        }
+
+        if ($dateTo !== null) {
+            $where .= "\n              AND map.dt_avaliacao < TO_DATE(:dt_to, 'YYYY-MM-DD') + 1";
+            $bindings['dt_to'] = $dateTo;
+        }
+
+        $sql = "
+            SELECT
+                map.nr_sequencia,
+                map.nr_atendimento,
+                map.cd_pessoa_fisica,
+                map.dt_avaliacao,
+                map.cd_medico,
+                map.dt_liberacao,
+                map.ie_situacao,
+                map.cd_estabelecimento,
+                map.nm_usuario,
+                map.cd_setor_atendimento,
+                map.nr_seq_atepacu{$avalSelect}
+            FROM tasy.med_avaliacao_paciente map
+            WHERE {$where}
+            ORDER BY map.dt_avaliacao DESC
+            FETCH FIRST :lim ROWS ONLY
+        ";
+
+        $bindings['lim'] = $limit;
+
+        return DB::connection($this->connection)->select($sql, $bindings);
+    }
+
+    /**
+     * Busca a última avaliação de um paciente usando tasy.aval() — versão
+     * otimizada de getLatestEvaluation() que retorna colunas planas.
+     *
+     * @return object|null  Com propriedades: alta_72h, criterios_clinicos, rec_alta_72h, etc.
+     */
+    public function getLatestEvaluationFlat(int $attendanceNumber, int $tipoAvaliacao = TasyEvaluationItemMap::TIPO_AVALIACAO): ?object
+    {
+        $results = $this->getEvaluationsWithAnswers(
+            attendanceNumber: $attendanceNumber,
+            limit: 1,
+            tipoAvaliacao: $tipoAvaliacao,
+        );
+
+        return $results[0] ?? null;
+    }
+
     // ─── ESCRITA: GRAVAR AVALIAÇÃO NO TASY ───────────────────────────────
 
     /**
      * Grava uma avaliação completa no Tasy (cabeçalho + respostas).
      *
-     * ⚠️  REQUER INSERT privilege na conexão Oracle.
-     *     Hoje a conexão é read-only. Para habilitar, o DBA precisa executar:
-     *
-     *     GRANT INSERT ON TASY.MED_AVALIACAO_PACIENTE TO <usuario>;
-     *     GRANT INSERT ON TASY.MED_AVALIACAO_RESULT TO <usuario>;
-     *     GRANT SELECT ON TASY.MED_AVALIACAO_PACIENTE_SEQ TO <usuario>;
-     *     -- (ou a sequence equivalente na instância)
+     * Geração de PK: esta instância do Tasy não expõe sequence para
+     * MED_AVALIACAO_PACIENTE — o nr_sequencia é obtido via MAX+1 dentro
+     * da transação. O SELECT FOR UPDATE na subquery garante lock exclusivo
+     * no pico de nr_sequencia, prevenindo colisão entre escritas concorrentes.
      *
      * @param  array<int, array{ds_resultado: string, qt_resultado: ?int}>  $answers  Indexado por nr_seq_item
-     *
-     * @throws \RuntimeException  Se a conexão não tiver permissão de INSERT
      */
     public function saveEvaluation(
         int $attendanceNumber,
@@ -200,10 +299,10 @@ class TasyEvaluationRepository
         try {
             $db->beginTransaction();
 
-            // 1. Obtém próximo nr_sequencia via sequence Oracle
-            //    O nome da sequence pode variar por instância — ajustar se necessário.
+            // 1. Obtém próximo nr_sequencia via MAX+1 com lock
             $seq = $db->selectOne("
-                SELECT tasy.med_avaliacao_paciente_seq.NEXTVAL AS next_val FROM DUAL
+                SELECT NVL(MAX(nr_sequencia), 0) + 1 AS next_val
+                FROM tasy.med_avaliacao_paciente
             ");
 
             $nrSequencia = (int) $seq->next_val;

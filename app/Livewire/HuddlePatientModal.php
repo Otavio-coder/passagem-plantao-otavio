@@ -139,14 +139,17 @@ class HuddlePatientModal extends Component
         $day = $this->ensureDay();
 
         app(AnswerChecklistItemAction::class)->execute(
-            $day,
-            $item,
-            $answer,
-            $signal,
-            (int) Auth::id(),
-            $this->checklist[$itemCode]['responsible'] ?? null,
-            $this->checklist[$itemCode]['due_at'] ?? null,
-            $this->checklist[$itemCode]['notes'] ?? null,
+            day: $day,
+            item: $item,
+            answer: $answer,
+            signal: $signal,
+            userId: (int) Auth::id(),
+            responsible: $this->checklist[$itemCode]['responsible'] ?? null,
+            dueAt: $this->checklist[$itemCode]['due_at'] ?? null,
+            notes: $this->checklist[$itemCode]['notes'] ?? null,
+            cdPessoaFisica: $this->currentPatient['cd_pessoa_fisica'] ?? null,
+            nmUsuario: Auth::user()?->username,
+            cdSetorAtendimento: $this->currentSector() ?: null,
         );
 
         $this->loadHuddleState();
@@ -168,14 +171,17 @@ class HuddlePatientModal extends Component
         $day = $this->ensureDay();
 
         app(AnswerChecklistItemAction::class)->execute(
-            $day,
-            $item,
-            $current['answer'],
-            DayColor::from($current['signal']),
-            (int) Auth::id(),
-            $current['responsible'] ?? null,
-            $current['due_at'] ?? null,
-            $current['notes'] ?? null,
+            day: $day,
+            item: $item,
+            answer: $current['answer'],
+            signal: DayColor::from($current['signal']),
+            userId: (int) Auth::id(),
+            responsible: $current['responsible'] ?? null,
+            dueAt: $current['due_at'] ?? null,
+            notes: $current['notes'] ?? null,
+            cdPessoaFisica: $this->currentPatient['cd_pessoa_fisica'] ?? null,
+            nmUsuario: Auth::user()?->username,
+            cdSetorAtendimento: $this->currentSector() ?: null,
         );
 
         $this->loadHuddleState();
@@ -195,9 +201,11 @@ class HuddlePatientModal extends Component
     public function render()
     {
         $availability = app(HuddleAvailability::class);
+        $tasyLabels = app(\App\Services\Tasy\TasyEvaluationService::class)->getChecklistLabels();
 
         return view('huddle.patient-modal.index', [
             'checklistItems' => HuddleChecklistItem::cases(),
+            'tasyLabels' => $tasyLabels,
             'huddleAvailable' => $availability->isAvailable(),
             'huddleBlockedReason' => $availability->blockedReason(),
         ]);
@@ -237,6 +245,7 @@ class HuddlePatientModal extends Component
         return [
             'has_patient' => true,
             'nr_atendimento' => $p['nr_atendimento'] ?? null,
+            'cd_pessoa_fisica' => $p['cd_pessoa_fisica'] ?? null,
             'cd_setor_atendimento' => $p['cd_setor_atendimento'] ?? $this->sectorId,
             'cd_unidade_basica' => $p['cd_unidade_basica'] ?? null,
             'nm_pessoa_fisica' => $p['nm_pessoa_fisica'] ?? null,

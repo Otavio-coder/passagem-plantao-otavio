@@ -13,6 +13,7 @@ use App\Services\UserDisplayNameResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Blaze\Blaze;
 use Livewire\Facades\Livewire;
@@ -55,5 +56,14 @@ class AppServiceProvider extends ServiceProvider
 
         // Garante que Alpine.js é injetado em todas as páginas, mesmo sem componentes Livewire.
         \Livewire\Livewire::forceAssetInjection();
+
+        // ── Safeguard: alerta quando a conexão de avaliação Tasy NÃO é produção ──
+        $tasyEvalConn = config('database.tasy_evaluation_connection', 'tasy');
+        if ($tasyEvalConn !== 'tasy') {
+            Log::warning("⚠️  TASY_EVALUATION_CONNECTION está apontando para [{$tasyEvalConn}] — NÃO é produção! Lembre-se de reverter para 'tasy' após os testes.");
+
+            // Compartilha flag com todas as views para exibir banner visual
+            view()->share('__tasyHomologBanner', $tasyEvalConn);
+        }
     }
 }

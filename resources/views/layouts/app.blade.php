@@ -84,6 +84,7 @@
     </script>
 </head>
 <body class="flex flex-col h-screen overflow-hidden text-gray-800 bg-gray-300 antialiased">
+<x-ui.tasy-homolog-banner />
 @stack('page-bg')
 <div id="page-progress"></div>
 <!-- NAVBAR (inclui menu mobile integrado) -->

@@ -73,28 +73,12 @@
                     ];
                 @endphp
 
-                {{-- Cabeçalho: leito + botão Round Unidade (canto superior direito) --}}
+                {{-- Cabeçalho: leito --}}
                 <div class="flex-shrink-0 p-3 flex flex-col gap-2">
                     <div class="flex justify-between items-center gap-2">
                         <span class="inline-flex items-center bg-slate-100 text-slate-800 text-sm md:text-base font-bold px-3 py-1 rounded-full shadow-sm">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
-
-                        {{-- Round Unidade: abre o formulário por unidade; fica vermelho quando o paciente é red.
-                             Mostra "✓" quando a unidade já teve o Round preenchido hoje (marca ao salvar). --}}
-                        <button type="button"
-                                x-data="{ done: {{ ($patient['huddle_unit_round_done'] ?? false) ? 'true' : 'false' }} }"
-                                @huddle-round-saved.window="done = true"
-                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-sm transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
-                                @click.prevent="$dispatch('openUnitSafety', {
-                                    sectorId: {{ (int) $sectorId }},
-                                    hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
-                                    sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
-                                })">
-                            <i class="fas fa-clipboard-check"></i>
-                            <span>Round Unidade</span>
-                            <i class="fas fa-check" x-show="done" x-cloak title="Preenchido hoje"></i>
-                        </button>
                     </div>
 
                     {{-- Nome + idade --}}
@@ -177,28 +161,21 @@
                         @endif
                     </div>
 
-                    @if($isRound)
-                        <div class="flex items-center justify-center gap-2 w-full rounded-lg bg-slate-700 text-white px-3 py-2 shadow-sm">
-                            <i class="fas fa-users-line text-sm"></i>
-                            <span class="text-xs font-bold uppercase tracking-wide">Discutir em Round</span>
-                        </div>
-                    @else
-                        <div class="grid grid-cols-2 gap-1">
-                            @foreach($categories as $cat)
-                                @php
-                                    $sig = $cat['force'] ?? ($cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null));
-                                    $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
-                                @endphp
-                                <div class="flex items-center gap-1 bg-slate-50 rounded px-1.5 py-0.5 text-[10px]">
-                                    <span class="w-2 h-2 rounded-full {{ $dot }} shrink-0"></span>
-                                    <span class="text-gray-700 truncate">{{ $cat['label'] }}</span>
-                                    @if(! is_null($cat['count']) && $cat['count'] > 0)
-                                        <span class="ml-auto font-bold text-gray-800">{{ $cat['count'] }}</span>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
+                    <div class="grid grid-cols-2 gap-1">
+                        @foreach($categories as $cat)
+                            @php
+                                $sig = $cat['force'] ?? ($cat['item'] ? ($signals[$cat['item']] ?? null) : (($cat['done'] ?? false) ? 'green' : null));
+                                $dot = $sig === 'red' ? 'bg-red-500' : ($sig === 'green' ? 'bg-green-500' : 'bg-gray-300');
+                            @endphp
+                            <div class="flex items-center gap-1 bg-slate-50 rounded px-1.5 py-0.5 text-[10px]">
+                                <span class="w-2 h-2 rounded-full {{ $dot }} shrink-0"></span>
+                                <span class="text-gray-700 truncate">{{ $cat['label'] }}</span>
+                                @if(! is_null($cat['count']) && $cat['count'] > 0)
+                                    <span class="ml-auto font-bold text-gray-800">{{ $cat['count'] }}</span>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
 
                 {{-- Botão de detalhe (checklist, comentários, auditoria) --}}

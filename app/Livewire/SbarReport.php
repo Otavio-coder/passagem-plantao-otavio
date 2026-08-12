@@ -126,49 +126,43 @@ class SbarReport extends Component
         }
 
         try {
-            $user = Auth::user();
-            $handoverCacheKey = 'sector_handover_'.$this->selectedSector.'_'.Auth::id().'_'.ShiftService::getCurrentShift();
+            $shift = ShiftService::getCurrentShift();
 
-            if ($user->only_assigned_beds) {
-                $bedCodes = NurseHandoverBed::where('user_id', $user->id)
-                    ->where('sector_id', $this->selectedSector)
-                    ->pluck('bed_code')
-                    ->toArray();
+            // ── Cache composto por setor ────────────────────────────────────
+            // Resultado COMPLETO (PatientDataLoader + handover + formatação)
+            // compartilhado entre TODOS os usuários que visualizam este setor
+            // no mesmo turno. Evita:
+            //   ▸ 6 leituras Redis individuais + merge PHP (PatientDataLoader)
+            //   ▸ 3 queries MySQL (injectHandoverStatus)
+            //   ▸ N transformações PHP por paciente (preparePatientsForView)
+            // TTL = 5 min. Sub-loaders (10–15 min) servem como fallback quente
+            // quando o composto expira.
+            $compositeKey = "sector_composite_{$this->selectedSector}_{$shift}";
+            $allPatients = Cache::get($compositeKey);
 
-                if (! empty($bedCodes)) {
-                    $patients = Cache::remember(
-                        "sector_patients_{$this->selectedSector}_{$user->id}",
-                        900,
-                        fn () => $this->applyBedFilter(
-                            PatientDataLoader::forSector($this->selectedSector)
-                                ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
-                                ->get()
-                        )
-                    );
+            if ($allPatients === null) {
+                $t0 = hrtime(true);
 
-                    $withHandover = Cache::remember(
-                        $handoverCacheKey,
-                        300,
-                        fn () => $this->injectHandoverStatus($patients)
-                    );
+                $patients = PatientDataLoader::forSector($this->selectedSector)
+                    ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
+                    ->get();
 
-                    return $this->preparePatientsForView($withHandover);
-                }
+                $withHandover = $this->injectHandoverStatus($patients);
+                $allPatients = $this->preparePatientsForView($withHandover);
+
+                Cache::put($compositeKey, $allPatients, 300);
+
+                $ms = round((hrtime(true) - $t0) / 1e6);
+                Log::info("[SbarReport] composite cache MISS sector={$this->selectedSector} shift={$shift} patients=".count($allPatients)." built={$ms}ms");
             }
 
-            $patients = PatientDataLoader::forSector($this->selectedSector)
-                ->include('demographics', 'scales', 'pending_events', 'clinical', 'multidisciplinary', 'surgery')
-                ->get();
+            // Filtro de leitos é por usuário — aplicado após o cache compartilhado
+            $user = Auth::user();
+            if ($user->only_assigned_beds) {
+                return $this->applyBedFilter($allPatients);
+            }
 
-            $filtered = $this->applyBedFilter($patients);
-
-            $withHandover = Cache::remember(
-                $handoverCacheKey,
-                300,
-                fn () => $this->injectHandoverStatus($filtered)
-            );
-
-            return $this->preparePatientsForView($withHandover);
+            return $allPatients;
         } catch (\Exception $e) {
             Log::error('Error loading patients', [
                 'exception' => $e,
@@ -478,6 +472,7 @@ class SbarReport extends Component
         try {
             if ($this->selectedSector) {
                 PatientDataLoader::forSector($this->selectedSector)->clearDynamicCache();
+                $this->clearCompositeCache($this->selectedSector);
                 $this->clearUserHandoverCache($this->selectedSector);
             }
 
@@ -499,6 +494,7 @@ class SbarReport extends Component
         try {
             if ($this->selectedSector) {
                 PatientDataLoader::forSector($this->selectedSector)->clearCache();
+                $this->clearCompositeCache($this->selectedSector);
             }
 
             unset($this->patients);
@@ -644,15 +640,16 @@ class SbarReport extends Component
     public function onHandoverCacheCleared(): void
     {
         // sector_handover_* já foi limpo no modal antes do dispatch.
-        // Invalidar o computed força recompute: usa sector_patients_* (quente, ~5ms)
-        // e re-executa injectHandoverStatus (MySQL, ~100ms) sem tocar no Oracle.
+        // Limpa o cache composto para que o handover status atualizado seja visível
+        // para todos os usuários do setor, não apenas quem salvou a nota.
+        $this->clearCompositeCache($this->selectedSector);
         unset($this->patients);
-
     }
 
     public function onNursePreferencesUpdated(): void
     {
         if ($this->selectedSector) {
+            $this->clearCompositeCache($this->selectedSector);
             $this->clearUserHandoverCache($this->selectedSector);
         }
         unset($this->patients);
@@ -667,6 +664,27 @@ class SbarReport extends Component
             Cache::forget("sector_handover_{$sectorId}_{$userId}_{$shift}");
         }
         Cache::forget("sector_patients_{$sectorId}_{$userId}");
+    }
+
+    /**
+     * Limpa o cache composto de um setor (todos os turnos).
+     *
+     * O cache composto armazena o resultado COMPLETO do setor (dados + handover + formatação)
+     * compartilhado entre todos os usuários. Deve ser limpo quando:
+     * - O usuário pede atualização (refreshData / forceRefreshData)
+     * - Uma nota de passagem é salva (onHandoverCacheCleared)
+     * - O schedule horário renova os sub-caches
+     */
+    private function clearCompositeCache(?int $sectorId = null): void
+    {
+        $sector = $sectorId ?? $this->selectedSector;
+        if (! $sector) {
+            return;
+        }
+
+        foreach (['M', 'T', 'N'] as $shift) {
+            Cache::forget("sector_composite_{$sector}_{$shift}");
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

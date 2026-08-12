@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Fluxo de dados:
  *   LEITURA:  Tasy Oracle → Cache Redis → Livewire component
+ *   ESCRITA:  Livewire → MySQL (HuddleChecklistAnswer) → [futuro] Tasy Oracle
  *
  * As perguntas são cacheadas por 24h (raramente mudam). Avaliações de paciente
  * usam cache de 10 min (mesmo padrão do TasyService).

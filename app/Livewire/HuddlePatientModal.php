@@ -201,9 +201,11 @@ class HuddlePatientModal extends Component
     public function render()
     {
         $availability = app(HuddleAvailability::class);
+        $tasyLabels = app(\App\Services\Tasy\TasyEvaluationService::class)->getChecklistLabels();
 
         return view('huddle.patient-modal.index', [
             'checklistItems' => HuddleChecklistItem::cases(),
+            'tasyLabels' => $tasyLabels,
             'huddleAvailable' => $availability->isAvailable(),
             'huddleBlockedReason' => $availability->blockedReason(),
         ]);

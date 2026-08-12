@@ -29,19 +29,15 @@ enum TasyEvaluationItemMap: int
     case OrientacaoAlta = 122026;
 
     // ── Campos de recomendação (texto livre) ────────────────────────────
-    // Mapeamento confirmado via formulário Tasy (dropdown → recomendação):
+    // Mapeamento confirmado via layout do formulário Tasy (dropdown → rec):
     case RecAlta72h = 122017;            // Recomendação de Previsao72h (122013)
     case RecProcedimentos = 122018;      // Recomendação de Procedimentos (122024)
+    case RecTerapias = 122019;           // Recomendação de Terapias (122025)
+    case RecConsultorias = 122020;       // Recomendação de Consultorias (122015)
+    case RecOrientacaoAlta = 122021;     // Recomendação de OrientacaoAlta (122026)
+    case RecTransporte = 122022;         // Recomendação de Transporte (122016)
     case RecCriteriosClinicos = 122027;  // Recomendação de CriteriosClinicos (122014)
     case RecExamesLaudo = 122028;        // Recomendação de ExamesLaudo (122023)
-
-    // Recomendações cujo pai ainda precisa ser confirmado no formulário Tasy.
-    // Pertencem a: Consultorias(122015), Transporte(122016), Terapias(122025)
-    //              ou OrientacaoAlta(122026) — verificar via nr_seq_superior.
-    case Recomendacao19 = 122019;
-    case Recomendacao20 = 122020;
-    case Recomendacao21 = 122021;
-    case Recomendacao22 = 122022;
 
     /**
      * Retorna o HuddleChecklistItem correspondente, ou null para itens
@@ -69,12 +65,12 @@ enum TasyEvaluationItemMap: int
         return match ($this) {
             self::RecAlta72h,
             self::RecProcedimentos,
+            self::RecTerapias,
+            self::RecConsultorias,
+            self::RecOrientacaoAlta,
+            self::RecTransporte,
             self::RecCriteriosClinicos,
-            self::RecExamesLaudo,
-            self::Recomendacao19,
-            self::Recomendacao20,
-            self::Recomendacao21,
-            self::Recomendacao22 => false,
+            self::RecExamesLaudo => false,
             default              => true,
         };
     }
@@ -127,17 +123,18 @@ enum TasyEvaluationItemMap: int
     /**
      * Retorna o item de recomendação (texto livre) associado a um item dropdown.
      *
-     * Mapeamento confirmado via formulário Tasy:
-     *   Previsao72h (122013)      → RecAlta72h (122017)
-     *   CriteriosClinicos (122014) → RecCriteriosClinicos (122027)
-     *   ExamesLaudo (122023)       → RecExamesLaudo (122028)
-     *   Procedimentos (122024)     → RecProcedimentos (122018)
+     * Mapeamento completo confirmado via layout do formulário Tasy:
      *
-     * Os itens abaixo aguardam confirmação do mapeamento via nr_seq_superior:
-     *   Consultorias (122015)      → Recomendacao19|20|21|22 ?
-     *   Transporte (122016)        → Recomendacao19|20|21|22 ?
-     *   Terapias (122025)          → Recomendacao19|20|21|22 ?
-     *   OrientacaoAlta (122026)    → Recomendacao19|20|21|22 ?
+     *   Dropdown (Sim/Não)              → Recomendação (texto livre)
+     *   ─────────────────────────────────────────────────────────────
+     *   Previsao72h (122013)            → RecAlta72h (122017)
+     *   CriteriosClinicos (122014)      → RecCriteriosClinicos (122027)
+     *   ExamesLaudo (122023)            → RecExamesLaudo (122028)
+     *   Procedimentos (122024)          → RecProcedimentos (122018)
+     *   Terapias (122025)               → RecTerapias (122019)
+     *   Consultorias (122015)           → RecConsultorias (122020)
+     *   OrientacaoAlta (122026)         → RecOrientacaoAlta (122021)
+     *   Transporte (122016)             → RecTransporte (122022)
      */
     public static function recommendationFor(self $dropdown): ?self
     {
@@ -146,9 +143,10 @@ enum TasyEvaluationItemMap: int
             self::CriteriosClinicos => self::RecCriteriosClinicos,
             self::ExamesLaudo       => self::RecExamesLaudo,
             self::Procedimentos     => self::RecProcedimentos,
-            // TODO: confirmar mapeamento dos 4 restantes via query:
-            // SELECT nr_sequencia, ds_item, nr_seq_superior FROM tasy.med_item_avaliar
-            // WHERE nr_seq_tipo = 9291 AND ie_situacao = 'A' ORDER BY qt_tab_order
+            self::Terapias          => self::RecTerapias,
+            self::Consultorias      => self::RecConsultorias,
+            self::OrientacaoAlta    => self::RecOrientacaoAlta,
+            self::Transporte        => self::RecTransporte,
             default                 => null,
         };
     }
@@ -175,22 +173,22 @@ enum TasyEvaluationItemMap: int
             // Dropdowns (Sim/Não)
             'alta_72h'           => self::Previsao72h->value,
             'criterios_clinicos' => self::CriteriosClinicos->value,
-            'consultorias'       => self::Consultorias->value,
-            'transporte'         => self::Transporte->value,
             'exames_laudo'       => self::ExamesLaudo->value,
             'procedimentos'      => self::Procedimentos->value,
             'terapias'           => self::Terapias->value,
+            'consultorias'       => self::Consultorias->value,
             'orientacao_alta'    => self::OrientacaoAlta->value,
+            'transporte'         => self::Transporte->value,
 
-            // Recomendações (texto livre)
+            // Recomendações (texto livre) — mesma ordem dos dropdowns
             'rec_alta_72h'           => self::RecAlta72h->value,
             'rec_criterios_clinicos' => self::RecCriteriosClinicos->value,
             'rec_exames_laudo'       => self::RecExamesLaudo->value,
             'rec_procedimentos'      => self::RecProcedimentos->value,
-            'rec_19'                 => self::Recomendacao19->value,
-            'rec_20'                 => self::Recomendacao20->value,
-            'rec_21'                 => self::Recomendacao21->value,
-            'rec_22'                 => self::Recomendacao22->value,
+            'rec_terapias'           => self::RecTerapias->value,
+            'rec_consultorias'       => self::RecConsultorias->value,
+            'rec_orientacao_alta'    => self::RecOrientacaoAlta->value,
+            'rec_transporte'         => self::RecTransporte->value,
         ];
     }
 }

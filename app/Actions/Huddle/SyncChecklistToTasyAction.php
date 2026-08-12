@@ -102,15 +102,14 @@ class SyncChecklistToTasyAction
     /**
      * Mapeia os campos de notes do checklist para os itens de "Recomendação" do Tasy.
      *
-     * Mapeamento confirmado via formulário Tasy (dropdown → recomendação):
-     *   CriteriosClinicos → RecCriteriosClinicos (122027)
-     *   ExamesLaudo       → RecExamesLaudo (122028)
-     *   Procedimentos     → RecProcedimentos (122018)
-     *
-     * Itens abaixo aguardam confirmação (verificar nr_seq_superior no Tasy):
-     *   Terapias          → ? (122019|122020|122021|122022)
-     *   Consultorias      → ? (122019|122020|122021|122022)
-     *   OrientacaoAlta    → ? (122019|122020|122021|122022)
+     * Mapeamento completo (dropdown → recomendação):
+     *   CriteriosClinicos (122014) → RecCriteriosClinicos (122027)
+     *   ExamesLaudo (122023)       → RecExamesLaudo (122028)
+     *   Procedimentos (122024)     → RecProcedimentos (122018)
+     *   Terapias (122025)          → RecTerapias (122019)
+     *   Consultorias (122015)      → RecConsultorias (122020)
+     *   OrientacaoAlta (122026)    → RecOrientacaoAlta (122021)
+     *   Transporte (122016)        → RecTransporte (122022)
      */
     private function appendRecommendations(array &$payload, array $checklistAnswers): void
     {
@@ -122,7 +121,7 @@ class SyncChecklistToTasyAction
 
             $recItem = TasyEvaluationItemMap::recommendationForChecklist($checklistItem);
             if (! $recItem) {
-                continue; // Mapeamento ainda não confirmado para este item
+                continue;
             }
 
             $notes = $answer['notes'] ?? null;
@@ -133,9 +132,5 @@ class SyncChecklistToTasyAction
                 ];
             }
         }
-
-        // Recomendação do gate de triagem (alta 72h)
-        // Se houver comentários gerais, grava na rec do gate
-        // (gerenciado pelo caller se necessário)
     }
 }

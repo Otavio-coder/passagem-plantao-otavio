@@ -2,6 +2,7 @@
 
 namespace App\Actions\Huddle;
 
+use App\Enums\Huddle\HuddleChecklistItem;
 use App\Enums\Huddle\TasyEvaluationItemMap;
 use App\Models\Huddle\HuddlePatientDay;
 use App\Repositories\EMR\TasyEvaluationRepository;
@@ -101,34 +102,40 @@ class SyncChecklistToTasyAction
     /**
      * Mapeia os campos de notes do checklist para os itens de "Recomendação" do Tasy.
      *
-     * Mapeamento fixo (baseado na ordem do formulário Tasy):
-     *   CriteriosClinicos → Recomendacao1 (122017)
-     *   ExamesLaudo       → Recomendacao2 (122018)
-     *   Procedimentos     → Recomendacao3 (122019)
-     *   Terapias          → Recomendacao4 (122020)
-     *   Consultorias      → Recomendacao5 (122021)
-     *   OrientacaoAlta    → Recomendacao6 (122022)
+     * Mapeamento confirmado via formulário Tasy (dropdown → recomendação):
+     *   CriteriosClinicos → RecCriteriosClinicos (122027)
+     *   ExamesLaudo       → RecExamesLaudo (122028)
+     *   Procedimentos     → RecProcedimentos (122018)
+     *
+     * Itens abaixo aguardam confirmação (verificar nr_seq_superior no Tasy):
+     *   Terapias          → ? (122019|122020|122021|122022)
+     *   Consultorias      → ? (122019|122020|122021|122022)
+     *   OrientacaoAlta    → ? (122019|122020|122021|122022)
      */
     private function appendRecommendations(array &$payload, array $checklistAnswers): void
     {
-        $recommendationMap = [
-            'criterios_clinicos' => TasyEvaluationItemMap::Recomendacao1->value,
-            'exames_laudo'       => TasyEvaluationItemMap::Recomendacao2->value,
-            'procedimentos'      => TasyEvaluationItemMap::Recomendacao3->value,
-            'terapias'           => TasyEvaluationItemMap::Recomendacao4->value,
-            'consultorias'       => TasyEvaluationItemMap::Recomendacao5->value,
-            'orientacao_alta'    => TasyEvaluationItemMap::Recomendacao6->value,
-        ];
+        foreach ($checklistAnswers as $itemCode => $answer) {
+            $checklistItem = HuddleChecklistItem::tryFrom($itemCode);
+            if (! $checklistItem) {
+                continue;
+            }
 
-        foreach ($recommendationMap as $itemCode => $tasyItemId) {
-            $notes = $checklistAnswers[$itemCode]['notes'] ?? null;
+            $recItem = TasyEvaluationItemMap::recommendationForChecklist($checklistItem);
+            if (! $recItem) {
+                continue; // Mapeamento ainda não confirmado para este item
+            }
 
+            $notes = $answer['notes'] ?? null;
             if ($notes !== null && trim($notes) !== '') {
-                $payload[$tasyItemId] = [
+                $payload[$recItem->value] = [
                     'ds_resultado' => mb_substr(trim($notes), 0, 4000),
                     'qt_resultado' => null,
                 ];
             }
         }
+
+        // Recomendação do gate de triagem (alta 72h)
+        // Se houver comentários gerais, grava na rec do gate
+        // (gerenciado pelo caller se necessário)
     }
 }

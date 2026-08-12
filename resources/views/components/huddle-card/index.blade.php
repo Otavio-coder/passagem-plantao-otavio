@@ -73,28 +73,12 @@
                     ];
                 @endphp
 
-                {{-- Cabeçalho: leito + botão Round Unidade (canto superior direito) --}}
+                {{-- Cabeçalho: leito --}}
                 <div class="flex-shrink-0 p-3 flex flex-col gap-2">
                     <div class="flex justify-between items-center gap-2">
                         <span class="inline-flex items-center bg-slate-100 text-slate-800 text-sm md:text-base font-bold px-3 py-1 rounded-full shadow-sm">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
-
-                        {{-- Round Unidade: abre o formulário por unidade; fica vermelho quando o paciente é red.
-                             Mostra "✓" quando a unidade já teve o Round preenchido hoje (marca ao salvar). --}}
-                        <button type="button"
-                                x-data="{ done: {{ ($patient['huddle_unit_round_done'] ?? false) ? 'true' : 'false' }} }"
-                                @huddle-round-saved.window="done = true"
-                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-sm transition-colors {{ $isRed ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#004D9D] text-white hover:bg-[#003a78]' }}"
-                                @click.prevent="$dispatch('openUnitSafety', {
-                                    sectorId: {{ (int) $sectorId }},
-                                    hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
-                                    sectorLabel: {{ \Illuminate\Support\Js::from($patient['cd_setor_atendimento_nome'] ?? ($patient['cd_unidade_basica'] ?? '')) }}
-                                })">
-                            <i class="fas fa-clipboard-check"></i>
-                            <span>Round Unidade</span>
-                            <i class="fas fa-check" x-show="done" x-cloak title="Preenchido hoje"></i>
-                        </button>
                     </div>
 
                     {{-- Nome + idade --}}

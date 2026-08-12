@@ -95,6 +95,27 @@
                         @endif
                     </div>
 
+                    {{-- Botão centralizado Round Unidade (abaixo do header azul) --}}
+                    @php
+                        $currentSectorLabel = collect($sectors)->firstWhere('cd_setor_atendimento', $selectedSector)['ds_setor_atendimento'] ?? '';
+                        $roundDone = collect($patients)->first(fn($p) => !empty($p['has_patient']))['huddle_unit_round_done'] ?? false;
+                    @endphp
+                    <div class="bg-white/80 border-b border-gray-200 px-2 sm:px-3 lg:px-4 py-2 flex items-center justify-start">
+                        <button type="button"
+                                x-data="{ done: {{ $roundDone ? 'true' : 'false' }} }"
+                                @huddle-round-saved.window="done = true"
+                                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide shadow-sm transition-colors bg-[#004D9D] text-white hover:bg-[#003a78]"
+                                @click.prevent="$dispatch('openUnitSafety', {
+                                    sectorId: {{ (int) $selectedSector }},
+                                    hospital: {{ \Illuminate\Support\Js::from($currentHospitalName) }},
+                                    sectorLabel: {{ \Illuminate\Support\Js::from($currentSectorLabel) }}
+                                })">
+                            <i class="fas fa-clipboard-check"></i>
+                            <span>Round Unidade</span>
+                            <i class="fas fa-check text-green-300" x-show="done" x-cloak title="Preenchido hoje"></i>
+                        </button>
+                    </div>
+
                     {{-- Corpo --}}
                     <div class="p-2 sm:p-3 lg:p-4">
 
@@ -199,6 +220,6 @@
     {{-- Modal de detalhe do paciente (reutiliza o componente existente) --}}
     @livewire('huddle-patient-modal')
 
-    {{-- Modal do Huddle de Segurança por unidade (botão "Round Unidade" dos cards) --}}
+    {{-- Modal do Huddle de Segurança por unidade (botão "Round Unidade" centralizado no header) --}}
     @livewire('huddle-unit-safety-modal')
 </div>

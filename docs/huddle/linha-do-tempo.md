@@ -101,6 +101,64 @@ transporte, orientação e prescrição de alta (a confirmar com a equipe do Tas
   Coordenador e Enfermeiro. A partir daqui, os commits passaram a ser assinados como
   **Otavio Nunes**.
 
+## Fase 11 — Edição no modal: checklist e comentários (03–06/08)
+
+**O que foi feito:** a tela de edição do Huddle foi conectada às Actions:
+- Checklist SAFER no modal de detalhe do paciente, com botões **Sim/Não** por item.
+- Campo de **comentários do dia** (obrigatório quando o dia é RED).
+- **Auditoria** em cada item: login e data/hora de quem respondeu.
+- **Cor do dia derivada automaticamente** do checklist (se todos green → GREEN; qualquer red → RED).
+- Campo de **Recomendação** (texto livre) em cada item do checklist.
+
+## Fase 12 — Round Unidade: perguntas dinâmicas via MySQL (06–08/08)
+
+**O que foi feito:**
+- Criação da tabela `huddle_unit_questions` para armazenar as perguntas do Round Unidade
+  dinamicamente (antes estavam hardcoded na Blade view).
+- Model `HuddleUnitQuestion` com scope `active()`, `ordered()` e `activeGroupedByAxis()`.
+- Seeder `HuddleUnitQuestionSeeder` com os 4 eixos e 16 perguntas base.
+- `HuddleUnitSafetyModal` carrega perguntas do banco com cache de 24h.
+- Permite edição, adição e desativação de perguntas sem deploy.
+
+## Fase 13 — Ajustes de UI nos cards do Huddle (08/08)
+
+**O que foi feito:**
+- Texto do botão alterado de "ROUND" para "ROUND UNIDADE".
+- Remoção dos blocos "DISCUTIR EM ROUND" dos cards e do modal de detalhe do paciente.
+
+## Fase 14 — Performance do SBAR (10/08)
+
+**O que foi feito:** diagnóstico e correção de lentidão reportada no SBAR:
+- **Cache composto por setor** (`sector_composite_{sectorId}_{shift}`, TTL 5 min) no
+  `SbarReport::patients()` — elimina 6 queries Oracle em acessos dentro da janela.
+- **Correção do schedule de aquecimento** (`routes/console.php`): o job horário agora
+  re-aquece **todos os loaders** após limpar o cache (antes só re-aquecia pending events,
+  deixando 5 queries Oracle frias para o primeiro usuário).
+- **TTL do pending events** aumentado de 10 para 15 minutos.
+
+## Fase 15 — Centralização do Round Unidade e filtro 72h (12/08)
+
+**O que foi feito:**
+- **Botão "Round Unidade" centralizado** no header do Huddle (abaixo da barra azul, em
+  linha separada), removido dos cards individuais. O card mostra apenas o número do leito.
+- **Filtro de 72h** no `HuddleBoardService`: o painel agora exibe **apenas pacientes com
+  previsão de alta nas próximas 72 horas**. Leitos vagos e pacientes sem previsão são
+  excluídos. Mensagem informativa quando não há pacientes no filtro.
+- O cálculo de 72h agora considera a **previsão editada no Huddle** (prioridade sobre Tasy).
+
+## Fase 16 — Simplificação do checklist e funcionalidades novas (12/08)
+
+**O que foi feito:**
+- **Referência "Tasy #" removida** dos itens do checklist (simplificação visual).
+- **Campos de responsável e data removidos** do follow-up (mantido apenas o campo de
+  Recomendação).
+- **Toggle Sim/Não**: clicar duas vezes na mesma resposta agora **desmarca** o item e
+  recalcula a cor do dia automaticamente.
+- **Histórico de Rounds Unidade**: novo componente `HuddleRoundHistoryModal` com botão
+  "Histórico" ao lado do "Round Unidade". Exibe todos os Rounds preenchidos **divididos
+  por unidade (setor)**, com accordion expansível por data, respostas agrupadas por eixo
+  e auditoria de quem preencheu.
+
 ---
 
 ## Onde estamos agora
@@ -108,20 +166,27 @@ transporte, orientação e prescrição de alta (a confirmar com a equipe do Tas
 | Bloco | Situação |
 |-------|----------|
 | Visualização (painel + card + acesso) | ✅ pronto e **no servidor** |
-| Camada de escrita (Actions) | ✅ no repositório (falta conectar à tela) |
-| Autopreenchimento da previsão de alta | ⬜ próximo (desbloqueado) |
-| Edição no modal (marcar verde, previsão, motivos) | ⬜ próximo |
-| Testes, job diário, filtros, modo TV | ⬜ pendentes |
-| Decisões da área (regra do verde, motivos, campos Tasy) | 🟡 em validação |
+| Camada de escrita (Actions + checklist + comentários) | ✅ pronta e conectada à tela |
+| Edição no modal (Sim/Não toggle, cor, recomendação) | ✅ pronto |
+| Round Unidade (perguntas dinâmicas MySQL) | ✅ pronto |
+| Histórico de Rounds (dividido por unidade) | ✅ pronto |
+| Filtro de 72h (previsão de alta) | ✅ pronto |
+| Performance (cache composto + aquecimento) | ✅ pronto |
+| Autopreenchimento da previsão de alta | ✅ funciona (dado já vem do Tasy) |
+| Round Unidade centralizado no header | ✅ pronto |
+| Testes automatizados | ⬜ pendente |
+| Job diário de materialização | ⬜ pendente |
+| Modo monitor/TV | ⬜ pendente |
+| Write-back Tasy (evolução PEP) | ⬜ Fase 3 |
+| Decisões da área (regra do verde, campos Tasy) | 🟡 em validação |
 
 ## Próximos passos
 
-1. Autopreenchimento da previsão de alta (usa o dado que já vem do Tasy).
-2. Edição no modal, conectando as Actions.
-3. Testes automatizados das regras (cor, limite de motivos).
-4. Job diário que materializa o dia como vermelho.
-5. Mapeamento das tabelas de transporte/orientação com a equipe do Tasy.
-6. Validação com a enfermagem (roteiro de 10 perguntas já preparado).
+1. Testes automatizados das regras (cor, limite de motivos, toggle, filtro 72h).
+2. Job diário que materializa o dia como vermelho.
+3. Mapeamento das tabelas de transporte/orientação com a equipe do Tasy.
+4. Validação com a enfermagem (roteiro de 10 perguntas já preparado).
+5. Modo monitor/TV (após decisão de segurança).
 
 ---
 
@@ -129,6 +194,7 @@ transporte, orientação e prescrição de alta (a confirmar com a equipe do Tas
 
 > "Transformamos o Huddle de Gestão de Altas — hoje feito no papel e sem padrão — em um
 > painel digital dentro da Passagem de Plantão, baseado na metodologia SAFER + Red2Green
-> comprovada em literatura, reaproveitando a integração que já temos com o Tasy. A
-> visualização já está no ar; a próxima etapa é a edição pela enfermagem e o
-> autopreenchimento a partir do prontuário."
+> comprovada em literatura, reaproveitando a integração que já temos com o Tasy. O painel
+> filtra automaticamente pacientes com alta prevista em 72h, permite checklist com toggle
+> Sim/Não, Round Unidade com perguntas dinâmicas e histórico completo por unidade. O
+> sistema já está no ar e em validação pela enfermagem."

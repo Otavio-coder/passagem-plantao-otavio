@@ -223,15 +223,40 @@ class HuddlePatientModal extends Component
         $this->loadHuddleState();
     }
 
-    public function saveComments(): void
+    /**
+     * Salva as recomendações (notes) de todos os itens respondidos de uma vez.
+     * Substitui os botões individuais de "Salvar" por item.
+     */
+    public function saveAllNotes(): void
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
 
         $day = $this->ensureDay();
-        app(SaveHuddleCommentsAction::class)->execute($day, $this->comments, (int) Auth::id());
+
+        foreach ($this->checklist as $code => $state) {
+            $item = HuddleChecklistItem::tryFrom($code);
+            if (! $item || empty($state['answer']) || empty($state['signal'])) {
+                continue;
+            }
+
+            app(AnswerChecklistItemAction::class)->execute(
+                day: $day,
+                item: $item,
+                answer: $state['answer'],
+                signal: DayColor::from($state['signal']),
+                userId: (int) Auth::id(),
+                responsible: $state['responsible'] ?? null,
+                dueAt: $state['due_at'] ?? null,
+                notes: $state['notes'] ?? null,
+                cdPessoaFisica: $this->currentPatient['cd_pessoa_fisica'] ?? null,
+                nmUsuario: Auth::user()?->username,
+                cdSetorAtendimento: $this->currentSector() ?: null,
+            );
+        }
 
         $this->loadHuddleState();
+        $this->dispatch('huddle-notes-saved', message: 'Recomendações salvas com sucesso!');
     }
 
     public function render()

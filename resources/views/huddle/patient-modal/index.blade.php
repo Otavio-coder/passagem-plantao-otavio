@@ -1,5 +1,11 @@
 <div
-    x-data="{ showModal: @entangle('showModal') }"
+    x-data="{
+        showModal: @entangle('showModal'),
+        toast: false,
+        toastMsg: '',
+        timer: null
+    }"
+    @huddle-notes-saved.window="toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
     x-show="showModal"
     x-cloak
     x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
@@ -7,20 +13,27 @@
     @keydown.escape.window="$wire.closeModal()"
     style="display: none;"
 >
+    {{-- Toast de confirmação --}}
+    <div x-show="toast" x-transition x-cloak
+         class="fixed bottom-5 right-5 z-[9999] flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-xl shadow-2xl font-montserrat text-sm font-medium"
+         style="display: none;">
+        <i class="fas fa-circle-check"></i>
+        <span x-text="toastMsg"></span>
+    </div>
+
     @php
         $p = $currentPatient;
         $tasyPrevAlta = $p['discharge_info']['dt_previsto_alta_formatted'] ?? null;
         $mews = $p['mews_score'] ?? ($p['pews_score'] ?? null);
         $within72h = $p['huddle_discharge_within_72h'] ?? false;
+        $canConduct = $huddleAvailable && auth()->user()?->can('conduzir huddle');
     @endphp
 
-    {{-- Backdrop (mesmo padrão do modal do SBAR — z alto vence a navbar) --}}
+    {{-- Backdrop --}}
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$wire.closeModal()"></div>
 
     {{-- Camada de centralização --}}
     <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
-    {{-- Altura DEFINIDA (como o SBAR) para o scroll interno funcionar: cabeçalho e
-         rodapé fixos, meio rolável. --}}
     <div class="relative bg-white flex flex-col overflow-hidden shadow-2xl font-montserrat
                 w-full h-full
                 sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
@@ -56,8 +69,6 @@
         {{-- ── Conteúdo rolável ────────────────────────────────────────────── --}}
         <div class="flex-1 overflow-y-auto">
 
-            {{-- Bloqueio de fim de semana / feriado: a rotina não roda nesses dias.
-                 A visualização é liberada, mas o preenchimento fica desabilitado. --}}
             @unless($huddleAvailable)
                 <div class="px-4 pt-3">
                     <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
@@ -90,7 +101,7 @@
 
             <div class="px-4 py-4 space-y-4">
 
-                {{-- Gate 72h automático (sem pergunta manual) --}}
+                {{-- Gate 72h automático --}}
                 @if($within72h)
                     <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
                         <p class="font-semibold text-green-800">Previsão de alta nas próximas 72h — incluído no Huddle</p>
@@ -103,19 +114,18 @@
                     </div>
                 @endif
 
-                {{-- Checklist (apenas para pacientes do Huddle) --}}
+                {{-- ── Checklist SAFER ──────────────────────────────────────── --}}
                 @if($within72h)
                     @foreach($checklistItems as $item)
                         @php
                             $code = $item->value;
-                            $state = $checklist[$code] ?? ['answer' => null, 'signal' => null, 'responsible' => null, 'due_at' => null, 'notes' => null];
+                            $state = $checklist[$code] ?? ['answer' => null, 'signal' => null, 'notes' => null];
                             $answer = $state['answer'] ?? null;
                             $signal = $state['signal'] ?? null;
                             $tasyLabel = $tasyLabels[$code] ?? null;
                         @endphp
                         <div class="rounded-xl border {{ $signal === 'red' ? 'border-red-200' : ($signal === 'green' ? 'border-green-200' : 'border-gray-200') }} p-3">
                             <div class="flex items-start justify-between gap-2">
-                                {{-- Label do Oracle quando disponível, fallback para enum --}}
                                 <p class="text-sm font-medium text-gray-800">{{ $tasyLabel ?? $item->label() }}</p>
                                 @if($signal)
                                     <span class="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full text-white {{ $signal === 'red' ? 'bg-red-500' : 'bg-green-500' }}">
@@ -123,9 +133,9 @@
                                     </span>
                                 @endif
                             </div>
-                            {{-- Referência Tasy removida para simplificar a interface --}}
 
-                            @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
+                            @if($canConduct)
+                                {{-- Botões Sim/Não --}}
                                 <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
                                     <button type="button"
                                             wire:click="answerItem('{{ $code }}', 'sim')"
@@ -143,7 +153,7 @@
                                     <p class="mt-2 text-[11px] text-red-600"><i class="fas fa-circle-exclamation mr-0.5"></i>{{ $item->redAction() }}</p>
                                 @endif
 
-                                {{-- Recomendação (texto livre) — visível após responder --}}
+                                {{-- Recomendação (sempre visível após responder, sem botão individual) --}}
                                 @if($answer)
                                     <div class="mt-2">
                                         <label class="block text-[11px] font-medium text-gray-500 mb-1">
@@ -153,14 +163,6 @@
                                                   placeholder="Recomendação ou observação sobre este item..."
                                                   class="w-full text-xs rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D] placeholder:text-gray-400"></textarea>
                                     </div>
-                                    <div class="mt-1.5 flex items-center gap-2">
-                                        <button type="button" wire:click="saveItemDetails('{{ $code }}')"
-                                                wire:loading.attr="disabled" wire:target="saveItemDetails('{{ $code }}')"
-                                                class="text-xs px-3 py-1 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">
-                                            <span wire:loading.remove wire:target="saveItemDetails('{{ $code }}')">Salvar</span>
-                                            <span wire:loading wire:target="saveItemDetails('{{ $code }}')"><i class="fas fa-spinner fa-spin"></i></span>
-                                        </button>
-                                    </div>
                                 @endif
                             @else
                                 <p class="mt-1 text-xs text-gray-500">Resposta: <strong>{{ $answer ? ucfirst($answer) : '—' }}</strong></p>
@@ -168,52 +170,23 @@
                                     <p class="mt-1 text-xs text-gray-600"><span class="text-gray-400">Recomendação:</span> {{ $state['notes'] }}</p>
                                 @endif
                             @endif
-
-                            {{-- Auditoria do item: login e data/hora de quem respondeu --}}
-                            @if(! empty($state['answered_by_login'] ?? null))
-                                <p class="mt-2 text-[10px] text-gray-400 flex items-center gap-1">
-                                    <i class="fas fa-user-check"></i>
-                                    <span>{{ $state['answered_by_login'] }}@if(! empty($state['answered_at'] ?? null)) · {{ $state['answered_at'] }}@endif</span>
-                                </p>
-                            @endif
                         </div>
                     @endforeach
-
-                @endif
-
-                {{-- Comentários obrigatórios quando o dia é vermelho — sempre ao final do
-                     formulário, independente da janela de 72h. --}}
-                @if($dayColor === 'red')
-                    <div class="rounded-xl border border-red-200 bg-red-50 p-3" wire:key="comments-{{ $p['nr_atendimento'] ?? 'x' }}">
-                        <label class="block text-sm font-semibold text-red-800 mb-1">Comentários <span class="text-red-500">*</span></label>
-                        <p class="text-[11px] text-red-600 mb-2">Paciente em situação <strong>red</strong> — o registro dos comentários do dia é obrigatório.</p>
-                        @if($huddleAvailable && auth()->user()?->can('conduzir huddle'))
-                            <textarea wire:model="comments" rows="3"
-                                      placeholder="Descreva o motivo do dia vermelho e as condutas definidas..."
-                                      class="w-full text-sm rounded-lg border-gray-300 focus:ring-[#004D9D] focus:border-[#004D9D]"></textarea>
-                            <button type="button" wire:click="saveComments" wire:loading.attr="disabled" wire:target="saveComments"
-                                    class="mt-2 text-sm px-3 py-1.5 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60">Salvar comentários</button>
-                        @else
-                            <p class="text-sm text-gray-700 whitespace-pre-line">{{ $comments ?: '—' }}</p>
-                        @endif
-                    </div>
-                @endif
-
-                {{-- Auditoria do dia: login e data/hora da última atualização --}}
-                @if($filledByLogin || $filledAt)
-                    <div class="pt-2 border-t border-gray-100 text-[11px] text-gray-400 flex items-center gap-1.5">
-                        <i class="fas fa-clock-rotate-left"></i>
-                        <span>Última atualização por
-                            <strong class="text-gray-600">{{ $filledByLogin ?? '—' }}</strong>@if($filledByName) ({{ $filledByName }})@endif@if($filledAt) em {{ $filledAt }}@endif
-                        </span>
-                    </div>
                 @endif
             </div>
         </div>
 
         {{-- ── Rodapé fixo ─────────────────────────────────────────────────── --}}
-        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end">
+        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end gap-2">
             <button type="button" wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
+            @if($canConduct && $within72h)
+                <button type="button" wire:click="saveAllNotes"
+                        wire:loading.attr="disabled" wire:target="saveAllNotes"
+                        class="px-4 py-2 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60 text-sm font-medium">
+                    <span wire:loading.remove wire:target="saveAllNotes">Salvar</span>
+                    <span wire:loading wire:target="saveAllNotes"><i class="fas fa-spinner fa-spin mr-1"></i>Salvando…</span>
+                </button>
+            @endif
         </div>
     </div>
     </div>

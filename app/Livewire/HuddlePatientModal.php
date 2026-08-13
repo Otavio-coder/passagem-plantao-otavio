@@ -232,6 +232,15 @@ class HuddlePatientModal extends Component
         $this->authorizeConduct();
         $this->ensureAvailable();
 
+        // Valida: todas as questões devem estar respondidas antes de salvar.
+        $allAnswered = collect(HuddleChecklistItem::cases())->every(
+            fn ($item) => ! empty($this->checklist[$item->value]['answer'] ?? null)
+        );
+
+        if (! $allAnswered) {
+            return;
+        }
+
         $day = $this->ensureDay();
 
         foreach ($this->checklist as $code => $state) {

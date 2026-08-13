@@ -177,16 +177,41 @@
         </div>
 
         {{-- ── Rodapé fixo ─────────────────────────────────────────────────── --}}
-        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex justify-end gap-2">
-            <button type="button" wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
+        @php
+            $answeredCount = $within72h
+                ? collect($checklistItems)->filter(fn ($item) => ! empty($checklist[$item->value]['answer'] ?? null))->count()
+                : 0;
+            $totalItems = count($checklistItems);
+            $allAnswered = $within72h && $answeredCount === $totalItems;
+        @endphp
+        <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-2">
+            {{-- Progresso --}}
             @if($canConduct && $within72h)
-                <button type="button" wire:click="saveAllNotes"
-                        wire:loading.attr="disabled" wire:target="saveAllNotes"
-                        class="px-4 py-2 rounded-lg bg-[#004D9D] text-white hover:bg-[#003a78] disabled:opacity-60 text-sm font-medium">
-                    <span wire:loading.remove wire:target="saveAllNotes">Salvar</span>
-                    <span wire:loading wire:target="saveAllNotes"><i class="fas fa-spinner fa-spin mr-1"></i>Salvando…</span>
-                </button>
+                <p class="text-[11px] {{ $allAnswered ? 'text-green-600 font-medium' : 'text-gray-400' }}">
+                    @if($allAnswered)
+                        <i class="fas fa-check-circle mr-0.5"></i>Todas as questões respondidas
+                    @else
+                        <i class="fas fa-info-circle mr-0.5"></i>{{ $answeredCount }}/{{ $totalItems }} respondidas
+                    @endif
+                </p>
+            @else
+                <span></span>
             @endif
+
+            <div class="flex gap-2">
+                <button type="button" wire:click="closeModal" class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
+                @if($canConduct && $within72h)
+                    <button type="button" wire:click="saveAllNotes"
+                            wire:loading.attr="disabled" wire:target="saveAllNotes"
+                            @disabled(! $allAnswered)
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                   {{ $allAnswered ? 'bg-[#004D9D] text-white hover:bg-[#003a78]' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}
+                                   disabled:opacity-60">
+                        <span wire:loading.remove wire:target="saveAllNotes">Salvar</span>
+                        <span wire:loading wire:target="saveAllNotes"><i class="fas fa-spinner fa-spin mr-1"></i>Salvando…</span>
+                    </button>
+                @endif
+            </div>
         </div>
     </div>
     </div>

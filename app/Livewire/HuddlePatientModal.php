@@ -266,6 +266,9 @@ class HuddlePatientModal extends Component
 
         $this->loadHuddleState();
         $this->dispatch('huddle-notes-saved', message: 'Recomendações salvas com sucesso!');
+
+        // Atualiza o board para refletir os novos contadores red/green no card.
+        $this->dispatch('refreshData');
     }
 
     public function render()

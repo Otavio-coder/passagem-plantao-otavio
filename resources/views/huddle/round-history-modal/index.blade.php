@@ -22,31 +22,33 @@
                     </button>
                 </div>
 
-                {{-- Seletor de unidade (botão único com setas para alternar) --}}
+                {{-- Seletor de unidade — mesmo visual do cabeçalho do Huddle Gestão de Altas --}}
                 @if(count($unitNames) > 1)
                     @php $totalUnits = count($unitNames); @endphp
-                    <div class="flex-shrink-0 px-5 pt-3 pb-2 border-b border-gray-100 flex items-center justify-center gap-3">
-                        <button @click="activeUnit = (activeUnit - 1 + {{ $totalUnits }}) % {{ $totalUnits }}"
-                                class="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-[#004D9D] transition-colors"
-                                title="Unidade anterior">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
+                    <div class="flex-shrink-0 px-5 pt-3 pb-2 border-b border-gray-100 flex items-center justify-start">
+                        <div class="inline-flex items-center gap-1 bg-[#004D9D] rounded-xl px-1 py-1 shadow-sm">
+                            <button @click="activeUnit = (activeUnit - 1 + {{ $totalUnits }}) % {{ $totalUnits }}"
+                                    class="p-2 rounded-lg text-white hover:bg-white/20 transition-colors"
+                                    title="Unidade anterior">
+                                <i class="fas fa-chevron-left text-sm"></i>
+                            </button>
 
-                        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004D9D] text-white text-sm font-bold shadow-sm min-w-[180px] justify-center">
-                            <i class="fas fa-hospital text-[11px]"></i>
-                            @foreach($unitNames as $idx => $name)
-                                <span x-show="activeUnit === {{ $idx }}" x-cloak>
-                                    {{ $name }}
-                                    <span class="text-[10px] font-normal opacity-70">({{ count($historyByUnit[$name]) }})</span>
-                                </span>
-                            @endforeach
+                            <div class="relative min-w-[160px] text-center">
+                                @foreach($unitNames as $idx => $name)
+                                    <span x-show="activeUnit === {{ $idx }}" x-cloak
+                                          class="inline-flex items-center gap-1.5 bg-white/90 text-[#004D9D] font-bold text-sm px-3 py-1 rounded-full">
+                                        <i class="fas fa-hospital text-[10px]"></i>
+                                        {{ $name }}
+                                    </span>
+                                @endforeach
+                            </div>
+
+                            <button @click="activeUnit = (activeUnit + 1) % {{ $totalUnits }}"
+                                    class="p-2 rounded-lg text-white hover:bg-white/20 transition-colors"
+                                    title="Próxima unidade">
+                                <i class="fas fa-chevron-right text-sm"></i>
+                            </button>
                         </div>
-
-                        <button @click="activeUnit = (activeUnit + 1) % {{ $totalUnits }}"
-                                class="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-[#004D9D] transition-colors"
-                                title="Próxima unidade">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
                     </div>
                 @endif
 

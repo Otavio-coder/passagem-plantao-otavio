@@ -1,6 +1,10 @@
 <div>
     @if($showModal)
-        <div class="fixed inset-0 z-[70] flex items-center justify-center p-4" x-data x-on:keydown.escape.window="$wire.closeModal()">
+        @php $unitNames = array_keys($historyByUnit ?? []); @endphp
+
+        <div class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+             x-data="{ activeUnit: 0 }"
+             x-on:keydown.escape.window="$wire.closeModal()">
             {{-- Overlay --}}
             <div class="absolute inset-0 bg-black/50" wire:click="closeModal"></div>
 
@@ -18,8 +22,25 @@
                     </button>
                 </div>
 
+                {{-- Seletor de unidades (abas) --}}
+                @if(count($unitNames) > 1)
+                    <div class="flex-shrink-0 px-5 pt-3 pb-2 border-b border-gray-100 flex flex-wrap gap-2">
+                        @foreach($historyByUnit as $unitName => $records)
+                            <button @click="activeUnit = {{ $loop->index }}"
+                                    :class="activeUnit === {{ $loop->index }}
+                                        ? 'bg-[#004D9D] text-white shadow-sm'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                                <i class="fas fa-hospital text-[11px]"></i>
+                                {{ $unitName }}
+                                <span class="text-[10px] opacity-70">({{ count($records) }})</span>
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+
                 {{-- Corpo --}}
-                <div class="flex-1 overflow-y-auto p-5 space-y-8">
+                <div class="flex-1 overflow-y-auto p-5">
                     @if(empty($historyByUnit))
                         <div class="text-center py-10 text-gray-500">
                             <i class="fas fa-folder-open text-4xl text-gray-300 mb-3"></i>
@@ -28,18 +49,25 @@
                         </div>
                     @else
                         @foreach($historyByUnit as $unitName => $records)
-                            <div>
-                                {{-- Título da unidade --}}
-                                <div class="flex items-center gap-3 mb-4 pb-2 border-b-2 border-[#004D9D]/20">
-                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004D9D] text-white text-sm font-bold shadow-sm">
-                                        <i class="fas fa-hospital"></i>
-                                        {{ $unitName }}
-                                    </span>
-                                    <span class="text-xs text-gray-400 font-medium">{{ count($records) }} {{ count($records) === 1 ? 'registro' : 'registros' }}</span>
-                                </div>
+                            <div x-show="activeUnit === {{ $loop->index }}"
+                                 x-cloak
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0"
+                                 x-transition:enter-end="opacity-100">
+
+                                {{-- Título da unidade (visível quando há uma única unidade) --}}
+                                @if(count($unitNames) === 1)
+                                    <div class="flex items-center gap-3 mb-4 pb-2 border-b-2 border-[#004D9D]/20">
+                                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004D9D] text-white text-sm font-bold shadow-sm">
+                                            <i class="fas fa-hospital"></i>
+                                            {{ $unitName }}
+                                        </span>
+                                        <span class="text-xs text-gray-400 font-medium">{{ count($records) }} {{ count($records) === 1 ? 'registro' : 'registros' }}</span>
+                                    </div>
+                                @endif
 
                                 {{-- Registros da unidade --}}
-                                <div class="space-y-3 ml-1">
+                                <div class="space-y-3">
                                     @foreach($records as $record)
                                         <details class="group border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                                             <summary class="flex items-center justify-between px-4 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors select-none">

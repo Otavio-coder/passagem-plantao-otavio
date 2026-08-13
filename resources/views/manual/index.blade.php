@@ -331,13 +331,9 @@
         <a href="#sec-modal" class="sub">Janela do Paciente</a>
         <a href="#sec-chat" class="sub">Chat e Anotações</a>
         <a href="#sec-passagem" class="sub">Iniciando a Passagem</a>
-        <a href="#sec-huddle"><span class="num">7</span> Huddle — Gestão de Altas</a>
-        <a href="#sec-huddle-card" class="sub">Cartão do Huddle</a>
-        <a href="#sec-huddle-detalhes" class="sub">Detalhes do Paciente</a>
-        <a href="#sec-huddle-round" class="sub">Round Unidade</a>
-        <a href="#sec-app"><span class="num">8</span> Instalar como App</a>
-        <a href="#sec-dicas"><span class="num">9</span> Dicas Importantes</a>
-        <a href="#sec-glossario"><span class="num">10</span> Glossário</a>
+        <a href="#sec-app"><span class="num">7</span> Instalar como App</a>
+        <a href="#sec-dicas"><span class="num">8</span> Dicas Importantes</a>
+        <a href="#sec-glossario"><span class="num">9</span> Glossário</a>
     </nav>
 
     {{-- ── Main area ───────────────────────────────────────────── --}}
@@ -953,69 +949,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 7. HUDDLE — GESTÃO DE ALTAS
-            ══════════════════════════════════════════════════════════ --}}
-            {{-- ══════════════════════════════════════════════════════════
-                 7. HUDDLE — GESTÃO DE ALTAS
-            ══════════════════════════════════════════════════════════ --}}
-            <section class="section" id="sec-huddle">
-                <h2 class="s-title section-anchor"><span class="s-num">7.</span> Huddle — Gestão de Altas</h2>
-
-                <p>O <strong>Huddle — Gestão de Altas</strong> é o painel voltado à <strong>gestão do fluxo de altas</strong> dos pacientes internados. Ele acompanha, dia a dia, o quanto o plano de cuidado de cada paciente avançou em direção à alta, usando a metodologia <strong>Red2Green</strong>: todo dia começa <strong>vermelho (Red)</strong> e só se torna <strong>verde (Green)</strong> quando o plano do dia efetivamente avançou a jornada de alta.</p>
-
-                <p>Assim como o SBAR, o Huddle lê os dados dos pacientes diretamente do prontuário Tasy e os organiza em uma grade de cartões por setor. O acesso é controlado por permissão: <strong>visualizar</strong> o painel e <strong>conduzir</strong> o Huddle (preencher) são liberações distintas.</p>
-
-                <div class="callout callout-info">
-                    <div class="callout-title">Cabeçalho do painel</div>
-                    No topo do Huddle você encontra o seletor de <strong>hospital</strong> e <strong>setor</strong>, a <strong>busca por leito ou paciente</strong>, o botão <strong>Atualizar</strong> (força a leitura mais recente do Tasy) e o botão <strong>Legenda e orientações</strong>, que abre a explicação das cores e dos selos do cartão.
-                </div>
-
-                <h3 class="ss-title section-anchor" id="sec-huddle-card" style="font-size:1rem; color:var(--brand); border-bottom:1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.1 O cartão do Huddle</h3>
-                <p>Cada leito é um cartão. Os principais elementos são:</p>
-                <ul>
-                    <li><strong>Status Red / Green / Round:</strong> a cor do dia do paciente. <em>Round</em> indica que o paciente não tem previsão de alta nas próximas 72 horas e deve ser discutido em round. A <strong>borda do cartão</strong> também segue essa cor.</li>
-                    <li><strong>Contadores da internação:</strong> quantos dias vermelhos e verdes o paciente acumulou.</li>
-                    <li><strong>Dias seguidos:</strong> a sequência de dias na mesma cor (ex.: "3 dias seguidos em red").</li>
-                    <li><strong>Exames pendentes:</strong> um selo em destaque com a quantidade de exames a resolver.</li>
-                    <li><strong>Pendências:</strong> indicadores coloridos (vermelho = pendente, verde = resolvido, cinza = sem informação) para exames, procedimentos, terapias, multidisciplinar, orientação, transporte e prescrição de alta.</li>
-                </ul>
-
-                <h3 class="ss-title section-anchor" id="sec-huddle-detalhes" style="font-size:1rem; color:var(--brand); border-bottom:1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.2 Detalhes do paciente</h3>
-                <p>O botão <strong>Detalhes</strong> abre a janela do paciente, com o checklist de critérios de alta. Ao responder cada item, o sistema calcula a cor do dia: <strong>se qualquer item for marcado como vermelho, o paciente fica vermelho</strong>, independentemente dos demais.</p>
-                <ul>
-                    <li><strong>Comentários obrigatórios:</strong> quando o paciente está vermelho, aparece ao final do formulário um campo de comentários que deve ser preenchido.</li>
-                    <li><strong>Auditoria:</strong> cada resposta e o dia registram <strong>quem preencheu e quando</strong> (login e data/hora).</li>
-                </ul>
-
-                <h3 class="ss-title section-anchor" id="sec-huddle-round" style="font-size:1rem; color:var(--brand); border-bottom:1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.3 Round Unidade</h3>
-                <p>No canto superior direito de cada cartão há o botão <strong>Round Unidade</strong>, que abre o formulário de gestão à vista <strong>da unidade</strong> (um preenchimento por setor, por dia), organizado em quatro eixos:</p>
-                <ul>
-                    <li><strong>Eixo 1 — Ocupação e fluxo:</strong> altas e admissões previstas, leitos bloqueados por isolamento e por manutenção.</li>
-                    <li><strong>Eixo 2 — Risco clínico e segurança:</strong> paciente grave sem leito, falha de medicação crítica, evento adverso (24h), contenção física/química, quebra de barreira, LPP e quedas.</li>
-                    <li><strong>Eixo 3 — Condições operacionais:</strong> déficit de equipe e atraso de exame crítico.</li>
-                    <li><strong>Eixo 4 — Classificação:</strong> classificação da unidade (Verde, Amarelo ou Vermelho), justificativa e medidas imediatas.</li>
-                </ul>
-                <p>O botão fica <strong>vermelho</strong> quando o paciente do cartão está vermelho, e exibe um <strong>✓</strong> quando a unidade já teve o Round preenchido no dia.</p>
-                <div class="callout callout-warn">
-                    <div class="callout-title">Não pode ser alterado após salvo</div>
-                    Uma vez salvo no dia, o Round Unidade fica <strong>somente leitura</strong> e não pode ser modificado — garantindo a integridade do registro.
-                </div>
-
-                <h3 class="ss-title">7.4 Regras de funcionamento</h3>
-                <ul>
-                    <li><strong>Dias úteis:</strong> a rotina de preenchimento do Huddle não ocorre em <strong>fins de semana e feriados</strong> — nesses dias o formulário fica somente leitura.</li>
-                    <li><strong>Atualização diária:</strong> todo dia útil, pela manhã, o sistema materializa automaticamente o Huddle a partir do Tasy (cada paciente ativo começa o dia em vermelho).</li>
-                    <li><strong>Dados sempre atualizados:</strong> os dados vêm do Tasy com atualização periódica; o botão <strong>Atualizar</strong> força a busca imediata.</li>
-                </ul>
-            </section>
-
-            <hr class="divider">
-
-            {{-- ══════════════════════════════════════════════════════════
-                 8. INSTALAÇÃO COMO APP
+                 7. INSTALAÇÃO COMO APP
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-app">
-                <h2 class="s-title section-anchor"><span class="s-num">8.</span> Instalar como Aplicativo</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">7.</span> Instalar como Aplicativo</h2>
 
                 <p>O sistema pode ser instalado como um aplicativo no celular ou tablet, funcionando de forma similar a um app nativo. Isso facilita o acesso rápido sem precisar abrir o navegador e digitar o endereço toda vez. Após instalado, o app fica disponível na tela inicial do dispositivo.</p>
 
@@ -1055,10 +992,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 9. DICAS IMPORTANTES
+                 8. DICAS IMPORTANTES
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-dicas">
-                <h2 class="s-title section-anchor"><span class="s-num">9.</span> Dicas Importantes</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">8.</span> Dicas Importantes</h2>
 
                 <h3 class="ss-title">Manter os leitos configurados atualizados</h3>
                 <p>Se você mudar de setor ou de escala, atualize seus leitos em <strong>Meus Setores → Meus Leitos</strong>. A configuração é salva no seu perfil e é utilizada pelo sistema para direcionar a passagem de plantão corretamente.</p>
@@ -1100,10 +1037,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 10. GLOSSÁRIO
+                 9. GLOSSÁRIO
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-glossario">
-                <h2 class="s-title section-anchor"><span class="s-num">10.</span> Glossário</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">9.</span> Glossário</h2>
                 <p>Definições dos principais termos utilizados no sistema e neste manual.</p>
 
                 <div class="glossary-item gi-open" x-data="{ open: true }" :class="{ 'gi-open': open }">

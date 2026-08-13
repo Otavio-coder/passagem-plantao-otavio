@@ -394,13 +394,13 @@
             {{--
                 Colunas DataTables (índices, data: object keys):
                  0  paciente         1  ugb             2  atendimento
-                 3  tipo_label       4  status_execucao  5  motivo_categoria (Critério)
+                 3  tipo_label       4  status_execucao  5  criterio_pendencia (Critério)
                  6  scola_status     7  item             8  data_solicitacao
-                 9  data_coleta     10  data_resultado  11  tempo_pendente
-                12  setor_origem    13  prev_alta
-                14  tipo_evento (hidden) 15 is_overdue (hidden)
-                16  motivo_categoria (hidden — filtro status) 17 classificacao (hidden)
-                18  is_oculto (hidden — filtro padrão oculta HGT/Fisioterapia)
+                 9  data_coleta     10  data_resultado  11  data_execucao_conta (Exec. Conta)
+                12  tempo_pendente  13  setor_origem    14  prev_alta
+                15  tipo_evento (hidden) 16 is_overdue (hidden)
+                17  motivo_categoria (hidden) 18 classificacao (hidden)
+                19  is_oculto (hidden — filtro padrão oculta HGT/Fisioterapia)
             --}}
             <div id="kpi-bar"></div>
 
@@ -490,8 +490,33 @@ $(document).ready(function () {
     var tipoLabelMap = {};
     var serverTotal = 0; // total real do servidor (inclui ocultos)
 
+    var ajaxRetried = false;
+
     var table = $('#pendencias-table').DataTable({
-        ajax: { url: dtDataUrl, dataSrc: 'data', cache: true },
+        ajax: {
+            url: dtDataUrl,
+            dataSrc: 'data',
+            cache: true,
+            timeout: 60000, // 60s — evita ficar pendurado se Oracle estiver lento
+            error: function (xhr, textStatus, errorThrown) {
+                // Retry automático (1 tentativa) em caso de timeout ou erro de rede
+                if (!ajaxRetried && (textStatus === 'timeout' || xhr.status === 0 || xhr.status >= 500)) {
+                    ajaxRetried = true;
+                    console.warn('[Pendências] Primeira tentativa falhou (' + textStatus + '), retentando...');
+                    setTimeout(function () { table.ajax.reload(null, false); }, 2000);
+                    return;
+                }
+                hidePendingLoader();
+                var msg = textStatus === 'timeout'
+                    ? 'A consulta demorou demais (timeout). Tente novamente ou selecione menos setores.'
+                    : 'Erro ao carregar pendências: ' + (errorThrown || textStatus);
+                var errHtml = '<div class="mx-3 mt-3 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">'
+                    + '<i class="fas fa-triangle-exclamation"></i> ' + esc(msg)
+                    + ' <button onclick="ajaxRetried=false;table.ajax.reload(null,false);showPendingLoader()" class="ml-auto px-3 py-1 bg-amber-100 hover:bg-amber-200 rounded-lg text-xs font-semibold transition">Tentar novamente</button>'
+                    + '</div>';
+                $('#dt-wrapper').before(errHtml);
+            },
+        },
         deferRender: true,
         pageLength: 25,
         lengthMenu: [10, 25, 50, 100, { label: 'Todos', value: -1 }],
@@ -701,7 +726,8 @@ $(document).ready(function () {
 
     window._pendenciasTable = table;
     window._dtTable = table;
-    setTimeout(hidePendingLoader, 12000);
+    // Safety: esconde overlay após 90s (compatível com timeout AJAX de 60s + retry de 2s + margem)
+    setTimeout(hidePendingLoader, 90000);
 
     function populateFilterDropdowns(tipoLabels, categorias, classificacoes) {
         tipoLabelMap = tipoLabels || {};
@@ -757,7 +783,7 @@ $(document).ready(function () {
     }
 
     function rebuildCascadeFilters() {
-        rebuildSelect('#filter-tipo', 14, 'Todos os tipos', tipoLabelMap);
+        rebuildSelect('#filter-tipo', 15, 'Todos os tipos', tipoLabelMap);
         rebuildSelect('#filter-status', 4, 'Todos os status', null);
     }
 
@@ -869,7 +895,7 @@ $(document).ready(function () {
         document.querySelectorAll('.classif-check').forEach(function (c) { c.checked = false; });
         var lbl = document.getElementById('classif-btn-label');
         if (lbl) { lbl.textContent = 'Todas as classificações'; }
-        table.columns([15, 16, 17, 18]).search('').draw();
+        table.columns([4, 15, 16, 17, 18]).search('').draw();
         table.column(19).search('^0$', true, false).draw();
         table.search('').draw();
     });

@@ -50,10 +50,20 @@ class HuddleBoardService
             ->forDate($date)
             ->exists();
 
-        return array_map(
+        $enriched = array_map(
             fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte, $orientacao, $roundDone),
             $patients
         );
+
+        // Filtra: exibe apenas pacientes com previsão de alta nas próximas 72h.
+        // Leitos vazios e pacientes sem previsão são excluídos do board.
+        return array_values(array_filter($enriched, function (array $patient) {
+            if (empty($patient['has_patient'])) {
+                return false;
+            }
+
+            return $patient['huddle_discharge_within_72h'] ?? false;
+        }));
     }
 
     /**
@@ -181,7 +191,10 @@ class HuddleBoardService
      */
     private function daysUntilDischarge(array $patient): ?int
     {
-        $formatted = $patient['discharge_info']['dt_previsto_alta_formatted'] ?? null;
+        // Usa a previsão de alta consolidada: editada no Huddle tem prioridade sobre Tasy.
+        $formatted = $patient['huddle_expected_discharge']
+            ?? $patient['discharge_info']['dt_previsto_alta_formatted']
+            ?? null;
 
         if (empty($formatted)) {
             return null;

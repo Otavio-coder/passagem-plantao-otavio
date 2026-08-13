@@ -63,7 +63,13 @@ class HuddleUnitSafetyModal extends Component
         ]);
     }
 
-    public function saveSafetyAssessment(): void
+    /**
+     * Recebe o formulário inteiro do Alpine e salva.
+     * Após salvar, reabre em modo somente-leitura (não fecha o modal).
+     *
+     * @param  array<string, mixed>  $formData  Estado do formulário vindo do Alpine.js
+     */
+    public function saveRound(array $formData): void
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
@@ -76,11 +82,29 @@ class HuddleUnitSafetyModal extends Component
 
         abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
+        // Valida: todas as questões devem estar respondidas.
+        $questions = $this->getQuestionsByAxis()->flatten();
+
+        foreach ($questions as $question) {
+            $key = $question->field_key;
+            $value = $formData[$key] ?? null;
+
+            if ($value === null || $value === '') {
+                $this->dispatch('round-validation-error', message: 'Preencha todas as questões antes de salvar.');
+
+                return;
+            }
+        }
+
+        $this->safety = $formData;
+
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Avisa a tela (toast + marca o card) e fecha o modal.
+        // Recarrega em modo somente-leitura (locked) em vez de fechar.
+        $this->loadSafety();
+
+        // Avisa a tela (toast + marca o card do board).
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
-        $this->closeModal();
     }
 
     public function render()

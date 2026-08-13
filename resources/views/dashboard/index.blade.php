@@ -136,20 +136,20 @@
                         </a>
                     </div>
                     @endcan
-                    {{-- Usuários — Coordenador + Administrador --}}
-                    @role('Administrador')
+                    {{-- Huddle — Gestão de Altas --}}
+                    @can('ver huddle')
                     <div class="border shadow-md rounded-lg cursor-pointer hover:shadow-2xl bg-white">
                         <a href="{{ route('huddle.report') }}" class="quick-card flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-4 h-full">
                             <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-gradient-to-tr from-santacasa-100 to-santacasa-default text-white">
                                 <x-healthicons-o-discharge class="text-sm sm:text-lg" />
                             </div>
                             <div class="text-center sm:text-left">
-                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Huddle de Alta</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Em breve — área em desenvolvimento</p>
+                                <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Huddle — Gestão de Altas</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Acompanhamento diário de altas com checklist SAFER e Round Unidade</p>
                             </div>
                         </a>
                     </div>
-                    @endrole
+                    @endcan
                 </div>
             </div>
         </div>

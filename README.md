@@ -221,6 +221,124 @@ Visão consolidada de todas as pendências assistenciais de múltiplos setores e
 
 Suporte completo a Progressive Web App. Instalável no Android (Chrome) e iOS (Safari). Opera em modo tela cheia sem barra de navegador. Requer conexão com a rede interna para dados clínicos.
 
+### Huddle — Gestão de Altas
+
+Módulo de gestão de altas hospitalares baseado na metodologia **SAFER bundle + Red2Green days** (BMJ Open Quality 2024), que demonstrou redução do **Length of Stay (LOS)** de 19 → 14,2 dias (p<0.001) sem piorar mortalidade nem reinternação. Integrado ao sistema de Passagem de Plantão, conduzido pela enfermagem.
+
+#### Painel de Altas (`/huddle`)
+
+- **Grade de cards por leito** — exibe apenas pacientes com previsão de alta nas próximas **72 horas** (filtro automático via `HuddleBoardService`)
+- **Codificação Red2Green** — todo dia começa **RED**; vira **GREEN** somente quando o plano avançou a jornada de alta. Cor derivada automaticamente do checklist (`deriveColorFromChecklist()`)
+- **Contadores por internação** — total de dias RED e GREEN acumulados, com **streak** (dias consecutivos na mesma cor)
+- **Previsão de alta (EDD)** — autopreenchida do Tasy (`tasy.atend_previsao_alta.dt_previsto_alta`), sobrescrevível no Huddle. Alertas visuais para alta ≤24h
+- **Pendências por categoria** — exames, procedimentos, multidisciplinar, terapias, orientação de alta, transporte, prescrição de alta — com sinais visuais (red/green) e contagens do Tasy
+- **Seletores de hospital e setor** — configuráveis por usuário via preferências de setor
+- **Dados reaproveitados do SBAR** — `PatientDataLoader` carrega demographics, scales, pending events, clinical, multidisciplinary e surgery em batch do Oracle, com cache Redis granular
+
+#### Checklist SAFER (Modal de Detalhe)
+
+Ao clicar em **Detalhes** no card, abre o modal com checklist baseado nos 5 elementos do SAFER bundle:
+
+| Elemento | Item do checklist | Sinal |
+|----------|-------------------|-------|
+| **S** — Senior review | Revisão pelo médico sênior antes do meio-dia | Green se sim |
+| **A** — EDD + CCD | Previsão de alta e critérios clínicos definidos | Green se sim |
+| **F** — Flow | Fluxo de admissão do paciente | Green se organizado |
+| **E** — Early discharge | Alta pela manhã (meta até 10h) | Green se viável |
+| **R** — Review | Revisão de internações prolongadas (>6 dias) | Green se revisado |
+
+- **Toggle Sim/Não** — clicar duas vezes na mesma resposta **desmarca** o item. A cor do dia é recalculada automaticamente (`HuddlePatientDay::deriveColorFromChecklist()`)
+- **Recomendação por item** — campo de texto livre para observações em cada item do checklist
+- **Comentários do dia** — obrigatório quando o dia é RED (motivo do dia vermelho)
+- **Auditoria completa** — login e data/hora de quem respondeu cada item e quem atualizou o dia
+- **Navegação entre pacientes** — setas anterior/próximo sem fechar o modal, com limpeza automática de estado (`resetHuddleForm()`)
+
+#### Round Unidade (Avaliação de Segurança)
+
+Avaliação diária por unidade (setor), **um registro por setor/dia**, compartilhada por todos os leitos. Botão centralizado no header do painel.
+
+- **Perguntas dinâmicas** — armazenadas na tabela `huddle_unit_questions` (MySQL), editáveis sem deploy. Cache Redis de 24h
+- **4 eixos de avaliação** — Ocupação/Fluxo, Risco Clínico/Segurança, Condições Operacionais, Classificação de Risco da Unidade
+- **16 perguntas base** — tipos de campo: `number`, `boolean`, `select`, `text`. Seeder `HuddleUnitQuestionSeeder`
+- **Trava após preenchimento** — uma vez preenchido no dia, o Round não pode ser alterado (locked)
+- **Histórico completo** — botão "Histórico" ao lado do "Round Unidade". Exibe todos os Rounds preenchidos **divididos por unidade**, com accordion expansível por data, respostas agrupadas por eixo e auditoria
+
+#### Modelo de Dados (MySQL)
+
+| Tabela | Descrição |
+|--------|-----------|
+| `huddle_patient_days` | Estado diário do paciente: cor (enum red/green, default red), EDD, CCD. Unique `(nr_atendimento, huddle_date)` |
+| `huddle_red_reasons` | Motivos do dia RED (FK → patient_days). Cap de 2 motivos/dia na Action |
+| `huddle_checklist_answers` | Respostas do checklist SAFER por item, com signal, recomendação e auditoria |
+| `huddle_safety_assessments` | Round Unidade — 1 registro por setor/dia, 4 eixos de avaliação |
+| `huddle_unit_questions` | Perguntas dinâmicas do Round, com `field_key`, `axis`, `field_type`, `sort_order`, `is_active` |
+
+#### Arquitetura de Aplicação
+
+```
+App\Services\Huddle\HuddleBoardService     — orquestrador: PatientDataLoader + MySQL merge + filtro 72h
+App\Services\Huddle\HuddleDischargeLoader   — dados de transporte e orientação (Tasy)
+App\Services\Huddle\HuddleAvailability      — gate de funcionamento (dias úteis)
+
+App\Actions\Huddle\OpenPatientDayAction     — cria dia como RED (idempotente)
+App\Actions\Huddle\SetDayColorAction        — transição RED↔GREEN
+App\Actions\Huddle\RegisterRedReasonsAction — aplica cap de 2 motivos/dia
+App\Actions\Huddle\AnswerChecklistItemAction — persiste resposta + signal + auditoria
+App\Actions\Huddle\SaveHuddleCommentsAction — comentários do dia
+App\Actions\Huddle\SaveSafetyAssessmentAction — persiste Round Unidade
+
+App\Livewire\HuddleBoard                   — painel principal (#[Computed(persist:true)])
+App\Livewire\HuddlePatientModal            — modal com checklist SAFER + toggle + navegação
+App\Livewire\HuddleUnitSafetyModal         — modal do Round Unidade (perguntas dinâmicas)
+App\Livewire\HuddleRoundHistoryModal       — histórico de Rounds dividido por unidade
+
+App\Enums\Huddle\DayColor                   — Red, Green (com cardStyling(), shortLabel())
+App\Enums\Huddle\RedReasonCategory          — MultidisciplinaryTeam, Tests, External, Surgery, Misc
+App\Enums\Huddle\RedReason                  — catálogo completo com category() e label()
+App\Enums\Huddle\HuddleChecklistItem        — itens SAFER com greenAnswer(), redAction()
+App\Enums\Huddle\UnitClassification         — classificação de risco da unidade
+```
+
+#### Autorização
+
+| Permissão | Quem recebe | O que pode |
+|-----------|-------------|------------|
+| `ver huddle` | Administrador, Coordenador, Enfermeiro, Multidisciplinar | Visualizar painel e histórico |
+| `conduzir huddle` | Administrador, Coordenador, Enfermeiro | Editar checklist, cor, Round Unidade |
+
+Gate em cada método de escrita: `authorizeConduct()` + `ensureAvailable()` (bloqueia em fins de semana/feriados).
+
+#### Performance e Cache
+
+| Camada | Chave Redis | TTL | Descrição |
+|--------|-------------|-----|-----------|
+| Composto | `sector_composite_{sectorId}_{shift}` | 5 min | Cache completo do setor (compartilhado entre usuários) |
+| Demographics | `sector_demographics_{sectorId}` | 15 min | Dados do paciente, leito, médico |
+| Scales | `sector_scales_{sectorId}` | 15 min | MEWS/PEWS, Braden, Morse, Dor, TEV |
+| Pending Events | `sector_pending_fast_{sectorId}` | 15 min | Exames, procedimentos, hemoterapia |
+| Clinical | `sector_clinical_{sectorId}` | 15 min | Isolamento, dispositivos, alergias |
+| Multidisciplinary | `sector_multi_{sectorId}` | 10 min | Equipes e solicitações abertas |
+| Surgery | `sector_surgery_{sectorId}` | 10 min | Cirurgias agendadas |
+| Round Questions | `huddle_unit_questions_by_axis` | 24h | Perguntas do Round Unidade |
+
+**Aquecimento agendado** (`routes/console.php`):
+- **Horário** — limpa e re-aquece todos os loaders para todos os setores ativos
+- **Pré-turno** — 15 min antes de cada troca (06:45, 12:45, 18:45)
+
+#### Comandos de Operação
+
+```bash
+# Limpar dados de teste do Huddle (somente MySQL, não afeta Tasy)
+php artisan huddle:purge-test-data                      # limpa tudo
+php artisan huddle:purge-test-data --today               # só registros de hoje
+php artisan huddle:purge-test-data --sector=123           # só um setor
+php artisan huddle:purge-test-data --sector=123 --today   # combina filtros
+php artisan huddle:purge-test-data --force                # sem confirmação
+
+# Popular perguntas do Round Unidade
+php artisan db:seed --class=HuddleUnitQuestionSeeder
+```
+
 ### Indicador de Conexão
 
 Indicador no canto inferior direito mostra status da conexão em tempo real:

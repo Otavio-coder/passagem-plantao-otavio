@@ -100,8 +100,9 @@ class HuddleUnitSafetyModal extends Component
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Recarrega em modo somente-leitura (locked) em vez de fechar.
-        $this->loadSafety();
+        // Fecha o modal e volta para a tela inicial. Ao reabrir, loadSafety()
+        // encontrará o registro do dia e exibirá em modo somente-leitura (locked).
+        $this->closeModal();
 
         // Avisa a tela (toast + marca o card do board).
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');

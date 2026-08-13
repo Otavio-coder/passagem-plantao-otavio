@@ -160,7 +160,15 @@ class HuddlePatientModal extends Component
             cdSetorAtendimento: $this->currentSector() ?: null,
         );
 
-        $this->loadHuddleState();
+        // Atualiza apenas o item respondido — preserva notas/respostas dos demais.
+        $this->checklist[$itemCode]['answer'] = $answer;
+        $this->checklist[$itemCode]['signal'] = $signal->value;
+        $this->checklist[$itemCode]['answered_by_login'] = Auth::user()?->username;
+        $this->checklist[$itemCode]['answered_at'] = now()->format('d/m/Y H:i');
+
+        // Recalcula a cor do dia a partir de todas as respostas persistidas.
+        $day->unsetRelation('checklistAnswers');
+        $this->dayColor = $day->deriveColorFromChecklist()->value;
     }
 
     /**
@@ -186,9 +194,19 @@ class HuddlePatientModal extends Component
             unset($day->checklistAnswers); // limpa relação carregada
             $day->color = $day->deriveColorFromChecklist();
             $day->save();
+            $this->dayColor = $day->color->value;
         }
 
-        $this->loadHuddleState();
+        // Limpa apenas o item desmarcado — preserva notas/respostas dos demais.
+        $this->checklist[$itemCode] = [
+            'answer' => null,
+            'signal' => null,
+            'responsible' => null,
+            'due_at' => null,
+            'notes' => null,
+            'answered_by_login' => null,
+            'answered_at' => null,
+        ];
     }
 
     public function saveItemDetails(string $itemCode): void

@@ -43,9 +43,6 @@ class HuddleUnitSafetyModal extends Component
     /** Travado: já existe registro da unidade no dia — não pode ser alterado. */
     public bool $locked = false;
 
-    /** Mensagem de erro de validação (campos obrigatórios). */
-    public ?string $errorMsg = null;
-
     #[On('openUnitSafety')]
     public function openForSector(int $sectorId, string $hospital = '', string $sectorLabel = ''): void
     {
@@ -62,15 +59,26 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->reset([
             'showModal', 'sectorId', 'hospitalName', 'sectorLabel',
-            'safety', 'filledByLogin', 'filledAt', 'errorMsg',
+            'safety', 'filledByLogin', 'filledAt',
             // NÃO reseta 'locked' — precisa persistir após finalizar
         ]);
     }
 
-    public function saveSafetyAssessment(): void
+    /**
+     * Salva o Round Unidade. Recebe os dados do formulário Alpine via parâmetro,
+     * pois os inputs usam x-model local (não @entangle).
+     *
+     * @param  array<string, mixed>  $formData  Dados coletados pelo Alpine (form object)
+     */
+    public function saveSafetyAssessment(array $formData = []): void
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+
+        // Recebe os dados do Alpine → Livewire
+        if (! empty($formData)) {
+            $this->safety = $formData;
+        }
 
         // Trava: se já existe registro finalizado no dia, não pode ser alterado.
         $jaFinalizado = HuddleSafetyAssessment::query()
@@ -81,59 +89,67 @@ class HuddleUnitSafetyModal extends Component
 
         abort_if($jaFinalizado, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
-        // Todos os campos são obrigatórios; números não podem ser negativos.
+        // Validação dinâmica baseada nas perguntas cadastradas
         if (! $this->allFieldsFilled()) {
-            $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
+            $this->dispatch('round-validation-error', message: 'Preencha todos os campos (sem números negativos) antes de salvar.');
+
             return;
         }
-
-        $this->errorMsg = null;
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
         // Salvo com sucesso: marca como finalizado e fecha modal
         $this->locked = true;
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
-        $this->dispatch('huddle-round-closed');
-        
-        // Fecha sem resetar 'locked'
+        $this->dispatch('refreshData');
         $this->showModal = false;
     }
 
     /**
      * Valida que todos os campos do Round Unidade foram preenchidos.
-     * Números: inteiro >= 0. Sim/Não: boolean definido. Classificação e textos: preenchidos.
+     *
+     * Usa as perguntas cadastradas no banco (dinâmico) em vez de lista hardcoded,
+     * garantindo que validação e formulário estejam sempre em sincronia.
      */
     private function allFieldsFilled(): bool
     {
-        $numeros = [
-            'expected_discharges', 'expected_admissions', 'blocked_beds_isolation',
-            'blocked_beds_maintenance', 'pressure_injuries', 'falls',
-        ];
-        foreach ($numeros as $campo) {
-            $valor = $this->safety[$campo] ?? null;
-            if ($valor === null || $valor === '' || ! is_numeric($valor) || (int) $valor < 0) {
+        $questions = $this->getQuestionsByAxis()->flatten();
+
+        foreach ($questions as $question) {
+            $key = $question->field_key;
+            $valor = $this->safety[$key] ?? null;
+
+            if ($valor === null || $valor === '') {
                 return false;
             }
-        }
 
-        $simNao = [
-            'critical_patient_no_bed', 'critical_medication_failure', 'adverse_event_24h',
-            'physical_chemical_restraint', 'barrier_breach', 'staff_shortage', 'critical_exam_delay',
-        ];
-        foreach ($simNao as $campo) {
-            if (! is_bool($this->safety[$campo] ?? null)) {
-                return false;
+            // Números: inteiro >= 0
+            if ($question->field_type === 'number') {
+                if (! is_numeric($valor) || (int) $valor < 0) {
+                    return false;
+                }
             }
-        }
 
-        if (! in_array($this->safety['unit_classification'] ?? null, ['verde', 'amarelo', 'vermelho'], true)) {
-            return false;
-        }
+            // Booleanos: deve ser bool (true/false), não string
+            if ($question->field_type === 'boolean') {
+                if (! is_bool($valor)) {
+                    return false;
+                }
+            }
 
-        foreach (['justification', 'immediate_measures'] as $campo) {
-            if (trim((string) ($this->safety[$campo] ?? '')) === '') {
-                return false;
+            // Select: valor deve estar nas opções cadastradas
+            if ($question->field_type === 'select') {
+                $validOptions = collect($question->options ?? [])->pluck('value')->all();
+                if (! empty($validOptions) && ! in_array($valor, $validOptions, true)) {
+                    return false;
+                }
+            }
+
+            // Texto: não pode estar vazio após trim
+            if ($question->field_type === 'text') {
+                if (trim((string) $valor) === '') {
+                    return false;
+                }
             }
         }
 
@@ -184,7 +200,6 @@ class HuddleUnitSafetyModal extends Component
         $this->filledByLogin = null;
         $this->filledAt = null;
         $this->locked = false;
-        $this->errorMsg = null;
 
         $sa = HuddleSafetyAssessment::query()
             ->with('updatedBy', 'createdBy')

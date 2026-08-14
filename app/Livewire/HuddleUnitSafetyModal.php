@@ -62,7 +62,8 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->reset([
             'showModal', 'sectorId', 'hospitalName', 'sectorLabel',
-            'safety', 'filledByLogin', 'filledAt', 'locked', 'errorMsg',
+            'safety', 'filledByLogin', 'filledAt', 'errorMsg',
+            // NÃO reseta 'locked' — precisa persistir após finalizar
         ]);
     }
 
@@ -83,7 +84,6 @@ class HuddleUnitSafetyModal extends Component
         // Todos os campos são obrigatórios; números não podem ser negativos.
         if (! $this->allFieldsFilled()) {
             $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
-
             return;
         }
 
@@ -91,10 +91,12 @@ class HuddleUnitSafetyModal extends Component
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Marca como finalizado, fecha o modal e emite eventos.
+        // Salvo com sucesso: marca como finalizado e fecha modal
         $this->locked = true;
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
         $this->dispatch('huddle-round-closed');
+        
+        // Fecha sem resetar 'locked'
         $this->showModal = false;
     }
 

@@ -43,6 +43,9 @@ class HuddleUnitSafetyModal extends Component
     /** Travado: já existe registro da unidade no dia — não pode ser alterado. */
     public bool $locked = false;
 
+    /** Mensagem de erro de validação (campos obrigatórios). */
+    public ?string $errorMsg = null;
+
     #[On('openUnitSafety')]
     public function openForSector(int $sectorId, string $hospital = '', string $sectorLabel = ''): void
     {
@@ -59,17 +62,11 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->reset([
             'showModal', 'sectorId', 'hospitalName', 'sectorLabel',
-            'safety', 'filledByLogin', 'filledAt', 'locked',
+            'safety', 'filledByLogin', 'filledAt', 'locked', 'errorMsg',
         ]);
     }
 
-    /**
-     * Recebe o formulário inteiro do Alpine e salva.
-     * Após salvar, reabre em modo somente-leitura (não fecha o modal).
-     *
-     * @param  array<string, mixed>  $formData  Estado do formulário vindo do Alpine.js
-     */
-    public function saveRound(array $formData): void
+    public function saveSafetyAssessment(): void
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
@@ -82,33 +79,60 @@ class HuddleUnitSafetyModal extends Component
 
         abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
-        // Valida: todas as questões devem estar respondidas.
-        $questions = $this->getQuestionsByAxis()->flatten();
+        // Todos os campos são obrigatórios; números não podem ser negativos.
+        if (! $this->allFieldsFilled()) {
+            $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
 
-        foreach ($questions as $question) {
-            $key = $question->field_key;
-            $value = $formData[$key] ?? null;
-
-            if ($value === null || $value === '') {
-                $this->dispatch('round-validation-error', message: 'Preencha todas as questões antes de salvar.');
-
-                return;
-            }
+            return;
         }
 
-        $this->safety = $formData;
+        $this->errorMsg = null;
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Avisa a tela (toast + marca o card do board) ANTES de fechar,
-        // para que o evento seja emitido com o componente ainda montado.
+        // Avisa a tela (toast + marca o card) e fecha o modal.
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
-        $this->dispatch('refreshData');
+        $this->closeModal();
+    }
 
-        // Fecha o modal e volta para a tela inicial. Ao reabrir, loadSafety()
-        // encontrará o registro do dia e exibirá em modo somente-leitura (locked).
-        $this->showModal = false;
-        $this->locked = true;
+    /**
+     * Valida que todos os campos do Round Unidade foram preenchidos.
+     * Números: inteiro >= 0. Sim/Não: boolean definido. Classificação e textos: preenchidos.
+     */
+    private function allFieldsFilled(): bool
+    {
+        $numeros = [
+            'expected_discharges', 'expected_admissions', 'blocked_beds_isolation',
+            'blocked_beds_maintenance', 'pressure_injuries', 'falls',
+        ];
+        foreach ($numeros as $campo) {
+            $valor = $this->safety[$campo] ?? null;
+            if ($valor === null || $valor === '' || ! is_numeric($valor) || (int) $valor < 0) {
+                return false;
+            }
+        }
+
+        $simNao = [
+            'critical_patient_no_bed', 'critical_medication_failure', 'adverse_event_24h',
+            'physical_chemical_restraint', 'barrier_breach', 'staff_shortage', 'critical_exam_delay',
+        ];
+        foreach ($simNao as $campo) {
+            if (! is_bool($this->safety[$campo] ?? null)) {
+                return false;
+            }
+        }
+
+        if (! in_array($this->safety['unit_classification'] ?? null, ['verde', 'amarelo', 'vermelho'], true)) {
+            return false;
+        }
+
+        foreach (['justification', 'immediate_measures'] as $campo) {
+            if (trim((string) ($this->safety[$campo] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function render()
@@ -155,6 +179,7 @@ class HuddleUnitSafetyModal extends Component
         $this->filledByLogin = null;
         $this->filledAt = null;
         $this->locked = false;
+        $this->errorMsg = null;
 
         $sa = HuddleSafetyAssessment::query()
             ->with('updatedBy', 'createdBy')

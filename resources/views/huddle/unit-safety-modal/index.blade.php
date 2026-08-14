@@ -162,7 +162,7 @@
                                 class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
                         <button type="button"
                                 :disabled="!allAnswered || saving"
-                                @click="saving = true; $wire.saveRound(form).then(() => { saving = false; }).catch(() => saving = false)"
+                                @click="saving = true; $wire.saveSafetyAssessment().then(() => { saving = false; }).catch(() => saving = false)"
                                 :class="allAnswered && !saving
                                     ? 'bg-[#004D9D] text-white hover:bg-[#003a78]'
                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'"

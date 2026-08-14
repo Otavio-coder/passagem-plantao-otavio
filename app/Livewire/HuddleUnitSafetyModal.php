@@ -144,8 +144,9 @@ class HuddleUnitSafetyModal extends Component
     /**
      * Valida que todos os campos do Round Unidade foram preenchidos.
      *
-     * Usa as perguntas cadastradas no banco (dinâmico) em vez de lista hardcoded,
-     * garantindo que validação e formulário estejam sempre em sincronia.
+     * Tolerante com tipos: o Livewire pode enviar bool como int (0/1),
+     * string como "true"/"false", etc. A SaveSafetyAssessmentAction
+     * faz a conversão final de tipos — aqui só verificamos presença.
      */
     private function allFieldsFilled(): bool
     {
@@ -153,39 +154,58 @@ class HuddleUnitSafetyModal extends Component
 
         foreach ($questions as $question) {
             $key = $question->field_key;
-            $valor = $this->safety[$key] ?? null;
 
-            if ($valor === null || $valor === '') {
+            if (! array_key_exists($key, $this->safety)) {
+                Log::warning("[HuddleRound] Campo ausente: {$key}");
+
                 return false;
             }
 
-            // Números: inteiro >= 0
-            if ($question->field_type === 'number') {
-                if (! is_numeric($valor) || (int) $valor < 0) {
-                    return false;
-                }
-            }
+            $valor = $this->safety[$key];
 
-            // Booleanos: deve ser bool (true/false), não string
-            if ($question->field_type === 'boolean') {
-                if (! is_bool($valor)) {
-                    return false;
-                }
-            }
+            switch ($question->field_type) {
+                case 'number':
+                    // Aceita int, float, string numérica; >= 0
+                    if ($valor === null || $valor === '' || ! is_numeric($valor) || (int) $valor < 0) {
+                        Log::warning("[HuddleRound] Número inválido: {$key}", ['valor' => $valor, 'tipo' => gettype($valor)]);
 
-            // Select: valor deve estar nas opções cadastradas
-            if ($question->field_type === 'select') {
-                $validOptions = collect($question->options ?? [])->pluck('value')->all();
-                if (! empty($validOptions) && ! in_array($valor, $validOptions, true)) {
-                    return false;
-                }
-            }
+                        return false;
+                    }
+                    break;
 
-            // Texto: não pode estar vazio após trim
-            if ($question->field_type === 'text') {
-                if (trim((string) $valor) === '') {
-                    return false;
-                }
+                case 'boolean':
+                    // Aceita bool, int (0/1), string ("true"/"false", "0"/"1")
+                    // O único valor inaceitável é null (campo não respondido)
+                    if ($valor === null) {
+                        Log::warning("[HuddleRound] Booleano não respondido: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                case 'select':
+                    // Aceita qualquer valor não-vazio (ex: 'verde', 'amarelo')
+                    if ($valor === null || $valor === '') {
+                        Log::warning("[HuddleRound] Select vazio: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                case 'text':
+                    if ($valor === null || trim((string) $valor) === '') {
+                        Log::warning("[HuddleRound] Texto vazio: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                default:
+                    if ($valor === null || $valor === '') {
+                        Log::warning("[HuddleRound] Campo vazio: {$key} (tipo: {$question->field_type})");
+
+                        return false;
+                    }
             }
         }
 

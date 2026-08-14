@@ -137,14 +137,18 @@ return [
             'prefix' => '',
         ],
 
-        'tasy_homolog' => [
+        // Conexão de ESCRITA no Tasy (write-back do Huddle). Usa um usuário dedicado
+        // com INSERT/UPDATE nas tabelas do questionário — nunca o usuário de leitura.
+        // Host/serviço herdam da conexão de leitura por padrão (mesmo banco primário);
+        // basta definir o usuário/senha dedicados no .env para ativar.
+        'tasy_write' => [
             'driver' => 'oracle',
-            'host' => env('DB_TASY_HOMOLOG_HOST'),
-            'port' => env('DB_TASY_HOMOLOG_PORT', '1521'),
-            'database' => env('DB_TASY_HOMOLOG_SERVICE_NAME'),
-            'service_name' => env('DB_TASY_HOMOLOG_SERVICE_NAME'),
-            'username' => env('DB_TASY_HOMOLOG_USERNAME'),
-            'password' => env('DB_TASY_HOMOLOG_PASSWORD'),
+            'host' => env('DB_TASY_WRITE_HOST', env('DB_TASY_HOST')),
+            'port' => env('DB_TASY_WRITE_PORT', '1521'),
+            'database' => env('DB_TASY_WRITE_SERVICE_NAME', env('DB_TASY_SERVICE_NAME')),
+            'service_name' => env('DB_TASY_WRITE_SERVICE_NAME', env('DB_TASY_SERVICE_NAME')),
+            'username' => env('DB_TASY_WRITE_USERNAME'),
+            'password' => env('DB_TASY_WRITE_PASSWORD'),
             'charset' => 'AL32UTF8',
             'prefix' => '',
         ],
@@ -163,18 +167,6 @@ return [
         ],
 
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Conexão Oracle para escrita de avaliações do Huddle
-    |--------------------------------------------------------------------------
-    |
-    | Define qual conexão Oracle o TasyEvaluationRepository usa para INSERTs.
-    | Em produção: 'tasy'. Para testes: 'tasy_homolog'.
-    |
-    */
-
-    'tasy_evaluation_connection' => env('TASY_EVALUATION_CONNECTION', 'tasy'),
 
     /*
     |--------------------------------------------------------------------------

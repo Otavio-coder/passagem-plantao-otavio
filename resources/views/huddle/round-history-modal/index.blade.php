@@ -22,33 +22,16 @@
                     </button>
                 </div>
 
-                {{-- Seletor de unidade — mesmo visual do cabeçalho do Huddle Gestão de Altas --}}
+                {{-- Seletor de unidade — mesmo padrão do select de hospital do Gestão de Altas --}}
                 @if(count($unitNames) > 1)
-                    @php $totalUnits = count($unitNames); @endphp
                     <div class="flex-shrink-0 px-5 pt-3 pb-2 border-b border-gray-100 flex items-center justify-start">
-                        <div class="inline-flex items-center gap-1 bg-[#004D9D] rounded-xl px-1 py-1 shadow-sm">
-                            <button @click="activeUnit = (activeUnit - 1 + {{ $totalUnits }}) % {{ $totalUnits }}"
-                                    class="p-2 rounded-lg text-white hover:bg-white/20 transition-colors"
-                                    title="Unidade anterior">
-                                <i class="fas fa-chevron-left text-sm"></i>
-                            </button>
-
-                            <div class="relative min-w-[160px] text-center">
-                                @foreach($unitNames as $idx => $name)
-                                    <span x-show="activeUnit === {{ $idx }}" x-cloak
-                                          class="inline-flex items-center gap-1.5 bg-white/90 text-[#004D9D] font-bold text-sm px-3 py-1 rounded-full">
-                                        <i class="fas fa-hospital text-[10px]"></i>
-                                        {{ $name }}
-                                    </span>
-                                @endforeach
-                            </div>
-
-                            <button @click="activeUnit = (activeUnit + 1) % {{ $totalUnits }}"
-                                    class="p-2 rounded-lg text-white hover:bg-white/20 transition-colors"
-                                    title="Próxima unidade">
-                                <i class="fas fa-chevron-right text-sm"></i>
-                            </button>
-                        </div>
+                        <select x-model="activeUnit"
+                                @change="activeUnit = parseInt($event.target.value)"
+                                class="min-w-[16rem] max-w-full rounded-lg border-0 bg-white/95 text-gray-800 text-sm font-medium pl-3 pr-8 py-2 shadow-sm focus:ring-2 focus:ring-[#004D9D]/40">
+                            @foreach($unitNames as $idx => $name)
+                                <option value="{{ $idx }}">{{ $name }} ({{ count($historyByUnit[$name]) }})</option>
+                            @endforeach
+                        </select>
                     </div>
                 @endif
 

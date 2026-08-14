@@ -86,9 +86,12 @@ class HuddleRoundHistoryModal extends Component
                     $value = 'Não';
                 }
 
+                $axisNum = $q['axis'];
+                $axisTitle = $q['axis_label'] ?? "Eixo {$axisNum}";
+
                 $answers[] = [
                     'label' => $q['label'],
-                    'axis' => $q['axis'],
+                    'axis' => "Eixo {$axisNum} · {$axisTitle}",
                     'value' => $value,
                 ];
             }
@@ -110,14 +113,14 @@ class HuddleRoundHistoryModal extends Component
     }
 
     /**
-     * @return array<int, array{field_key: string, label: string, axis: string}>
+     * @return array<int, array{field_key: string, label: string, axis: string, axis_label: string|null}>
      */
     private function getQuestions(): array
     {
         return Cache::remember('huddle_unit_questions_flat', 86400, function () {
             return HuddleUnitQuestion::active()
                 ->ordered()
-                ->get(['field_key', 'label', 'axis'])
+                ->get(['field_key', 'label', 'axis', 'axis_label'])
                 ->toArray();
         });
     }

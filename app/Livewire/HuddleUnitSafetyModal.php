@@ -9,6 +9,7 @@ use App\Services\Huddle\HuddleAvailability;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -24,6 +25,9 @@ use Livewire\Component;
  */
 class HuddleUnitSafetyModal extends Component
 {
+    /** @internal Marcador de deploy — grep 'DEPLOY_V' para verificar */
+    public const DEPLOY_V = '2026-08-14-v4';
+
     public bool $showModal = false;
 
     public int $sectorId = 0;
@@ -72,6 +76,13 @@ class HuddleUnitSafetyModal extends Component
      */
     public function saveSafetyAssessment(array $formData = []): void
     {
+        Log::info('[HuddleRound] saveSafetyAssessment CHAMADO', [
+            'deploy_v' => self::DEPLOY_V,
+            'sector_id' => $this->sectorId,
+            'formData_keys' => array_keys($formData),
+            'formData_count' => count($formData),
+        ]);
+
         $this->authorizeConduct();
         $this->ensureAvailable();
 
@@ -80,13 +91,20 @@ class HuddleUnitSafetyModal extends Component
             $this->safety = $formData;
         }
 
-        // Trava: se já existe registro finalizado no dia, não pode ser alterado.
+        Log::info('[HuddleRound] safety após merge', [
+            'safety_count' => count($this->safety),
+            'safety_keys' => array_keys($this->safety),
+            'sample' => array_slice($this->safety, 0, 3, true),
+        ]);
+
+        // Trava: se já existe registro no dia, não pode ser alterado.
         $jaExiste = HuddleSafetyAssessment::query()
             ->forSector($this->sectorId)
             ->forDate(Carbon::today()->toDateString())
             ->exists();
 
         if ($jaExiste) {
+            Log::warning('[HuddleRound] Registro já existe — bloqueado');
             $this->dispatch('round-validation-error', message: 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
             return;
@@ -94,6 +112,9 @@ class HuddleUnitSafetyModal extends Component
 
         // Validação dinâmica baseada nas perguntas cadastradas
         if (! $this->allFieldsFilled()) {
+            Log::warning('[HuddleRound] allFieldsFilled() retornou false', [
+                'safety' => $this->safety,
+            ]);
             $this->dispatch('round-validation-error', message: 'Preencha todos os campos (sem números negativos) antes de salvar.');
 
             return;
@@ -101,10 +122,12 @@ class HuddleUnitSafetyModal extends Component
 
         try {
             app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
+            Log::info('[HuddleRound] Salvo com sucesso');
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('[HuddleRound] Erro ao salvar Round Unidade', [
+            Log::error('[HuddleRound] Erro ao salvar Round Unidade', [
                 'sector_id' => $this->sectorId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             $this->dispatch('round-validation-error', message: 'Erro ao salvar: ' . $e->getMessage());
 

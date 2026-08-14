@@ -162,7 +162,22 @@
                                 class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
                         <button type="button"
                                 :disabled="!allAnswered || saving"
-                                @click="saving = true; validationError = ''; $wire.saveSafetyAssessment(form).then(() => { saving = false; }).catch(e => { saving = false; validationError = 'Erro ao salvar. Verifique os dados e tente novamente.'; setTimeout(() => validationError = '', 6000); })"
+                                @click="
+                                    saving = true;
+                                    validationError = '';
+                                    let data = {};
+                                    for (let k in form) { data[k] = form[k]; }
+                                    $wire.saveSafetyAssessment(data)
+                                        .then(() => {
+                                            saving = false;
+                                            if ($wire.locked) { showModal = false; }
+                                        })
+                                        .catch(e => {
+                                            saving = false;
+                                            validationError = e.message || 'Erro ao salvar';
+                                            setTimeout(() => validationError = '', 8000);
+                                        });
+                                "
                                 :class="allAnswered && !saving
                                     ? 'bg-[#004D9D] text-white hover:bg-[#003a78]'
                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'"

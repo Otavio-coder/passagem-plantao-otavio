@@ -31,6 +31,23 @@ Schedule::command('chat:cleanup --days=30')
 Schedule::command('queue:prune-failed --hours=168')
     ->weekly();
 
+// Materializa o dia do Huddle (Red2Green): cria os registros do dia em vermelho
+// para cada paciente ativo dos setores. Roda em dias úteis às 06:30, antes do
+// pré-aquecimento das 06:45. Fim de semana/feriado é ignorado pelo próprio comando.
+Schedule::command('huddle:open-day')
+    ->weekdays()
+    ->at('06:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Espelha a definição do questionário do Huddle (perguntas/opções) do Tasy para o
+// banco local, diariamente às 06:20. Só roda quando o questionário está configurado.
+Schedule::command('huddle:sync-questions')
+    ->dailyAt('06:20')
+    ->when(fn () => (bool) config('huddle.questionnaire_seq'))
+    ->withoutOverlapping()
+    ->runInBackground();
+
 /**
  * Retorna todos os sector IDs ativos: union de nurse_handover_beds + user_sector_preferences.
  * Garante cobertura de setores que não possuem leitos cadastrados no handover.

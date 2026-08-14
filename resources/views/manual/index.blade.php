@@ -331,14 +331,9 @@
         <a href="#sec-modal" class="sub">Janela do Paciente</a>
         <a href="#sec-chat" class="sub">Chat e Anotações</a>
         <a href="#sec-passagem" class="sub">Iniciando a Passagem</a>
-        <a href="#sec-huddle"><span class="num">7</span> Huddle — Gestão de Altas</a>
-        <a href="#sec-huddle-painel" class="sub">Painel do Huddle</a>
-        <a href="#sec-huddle-checklist" class="sub">Checklist SAFER</a>
-        <a href="#sec-huddle-round" class="sub">Round Unidade</a>
-        <a href="#sec-huddle-historico" class="sub">Histórico de Rounds</a>
-        <a href="#sec-app"><span class="num">8</span> Instalar como App</a>
-        <a href="#sec-dicas"><span class="num">9</span> Dicas Importantes</a>
-        <a href="#sec-glossario"><span class="num">10</span> Glossário</a>
+        <a href="#sec-app"><span class="num">7</span> Instalar como App</a>
+        <a href="#sec-dicas"><span class="num">8</span> Dicas Importantes</a>
+        <a href="#sec-glossario"><span class="num">9</span> Glossário</a>
     </nav>
 
     {{-- ── Main area ───────────────────────────────────────────── --}}
@@ -954,155 +949,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 7. HUDDLE — GESTÃO DE ALTAS
-            ══════════════════════════════════════════════════════════ --}}
-            <section class="section" id="sec-huddle">
-                <h2 class="s-title section-anchor"><span class="s-num">7.</span> Huddle — Gestão de Altas</h2>
-
-                <p>O <strong>Huddle de Gestão de Altas</strong> é um módulo do sistema dedicado ao acompanhamento diário dos pacientes com previsão de alta hospitalar. Ele digitaliza a metodologia <strong>SAFER + Red2Green</strong>, comprovada em literatura científica (BMJ Open Quality, 2024), que reduziu o tempo médio de permanência hospitalar de 19 para 14 dias em hospitais que a adotaram.</p>
-
-                <p>O objetivo é tornar visível, a cada dia, o que <strong>libera ou trava a alta</strong> de cada paciente, para que a equipe atue nos bloqueios em vez de esperar passivamente pela alta médica.</p>
-
-                <div class="callout callout-info">
-                    <div class="callout-title">O que é a metodologia SAFER + Red2Green?</div>
-                    <strong>SAFER</strong> é um bundle de boas práticas para gestão de fluxo hospitalar: <strong>S</strong>enior review (avaliação médica precoce), <strong>A</strong>ll patients with EDD (todos com previsão de alta), <strong>F</strong>low (gestão de fluxo de leitos), <strong>E</strong>arly discharge (alta antes das 10h) e <strong>R</strong>eview (revisão de pacientes com longa permanência). <strong>Red2Green</strong> classifica cada dia da internação como <span class="chip chip-red">VERMELHO</span> (dia com bloqueio — o paciente não avançou para a alta) ou <span class="chip chip-green">VERDE</span> (dia produtivo — todas as ações para alta foram realizadas).
-                </div>
-
-                <p><strong>Quem acessa o Huddle:</strong></p>
-                <ul>
-                    <li><strong>Enfermeiros, Coordenadores e Administradores</strong> podem visualizar e conduzir o Huddle (permissão <em>conduzir huddle</em>)</li>
-                    <li>Demais perfis com permissão <em>ver huddle</em> podem visualizar o painel, mas não editar</li>
-                </ul>
-
-                <p>O Huddle está acessível pelo menu <strong>Huddle</strong> na barra de navegação, tanto em desktop quanto em dispositivos móveis.</p>
-            </section>
-
-            {{-- 7.1 Painel do Huddle --}}
-            <section class="section" id="sec-huddle-painel">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.1 Painel do Huddle</h3>
-
-                <p>O painel exibe os pacientes do setor selecionado que possuem <strong>previsão de alta nas próximas 72 horas</strong>. Pacientes sem previsão de alta ou com previsão superior a 3 dias não aparecem no painel — o filtro é automático.</p>
-
-                <p><strong>Informações exibidas em cada cartão:</strong></p>
-                <ul>
-                    <li><strong>Número do leito</strong></li>
-                    <li><strong>Nome do paciente</strong> e número do prontuário</li>
-                    <li><strong>Cor do dia</strong> — badge <span class="chip chip-red">RED</span> ou <span class="chip chip-green">GREEN</span> indicando se o dia é produtivo ou bloqueado</li>
-                    <li><strong>Previsão de alta</strong> — data prevista para a alta, vinda do Tasy ou editada no Huddle</li>
-                    <li><strong>Contadores</strong> — quantos dias RED e quantos GREEN o paciente acumulou na internação atual</li>
-                    <li><strong>Comentários do dia</strong> — observações registradas pelo enfermeiro durante o Huddle</li>
-                </ul>
-
-                <div class="callout callout-tip">
-                    <div class="callout-title">Filtro de 72 horas</div>
-                    O Huddle foca nos pacientes com alta próxima para que a equipe concentre esforços onde a ação terá impacto imediato. Se nenhum paciente do setor tem previsão de alta em 72h, o painel exibe uma mensagem informativa.
-                </div>
-
-                <p><strong>Cores do dia — o que significam:</strong></p>
-                <div class="color-row"><div class="swatch swatch-red"></div><div><strong>RED — Dia bloqueado</strong><br>Pelo menos um item do checklist SAFER não foi cumprido. Alguma pendência está impedindo o avanço da alta. Registre o motivo para análise.</div></div>
-                <div class="color-row"><div class="swatch swatch-green"></div><div><strong>GREEN — Dia produtivo</strong><br>Todos os itens do checklist SAFER foram respondidos como "Sim". O paciente avançou em direção à alta sem bloqueios.</div></div>
-
-                <p>Todo dia começa automaticamente como <span class="chip chip-red">RED</span>. A cor muda para <span class="chip chip-green">GREEN</span> somente quando todos os itens do checklist forem respondidos positivamente.</p>
-
-                <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Seleção de hospital e setor</h4>
-                <p>Assim como no painel SBAR, o Huddle permite selecionar o hospital e o setor nos filtros do cabeçalho. O painel carrega os dados do setor escolhido, respeitando as mesmas preferências de setores configuradas em <strong>Meus Setores</strong>.</p>
-            </section>
-
-            {{-- 7.2 Checklist SAFER --}}
-            <section class="section" id="sec-huddle-checklist">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.2 Checklist SAFER</h3>
-
-                <p>Ao clicar no botão <strong>Detalhes</strong> de um cartão do Huddle, abre-se o modal do paciente com o <strong>Checklist SAFER</strong>. Este checklist é o coração do Huddle: são os critérios que a equipe responde diariamente para cada paciente.</p>
-
-                <p><strong>Itens do checklist:</strong></p>
-                <table class="scale-table">
-                    <thead>
-                        <tr><th>Item</th><th>Pergunta</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td><strong>S — Senior Review</strong></td><td>O paciente foi avaliado pelo médico responsável hoje?</td></tr>
-                        <tr><td><strong>A — EDD Definida</strong></td><td>A data prevista de alta está definida e atualizada?</td></tr>
-                        <tr><td><strong>F — Flow</strong></td><td>Os processos de fluxo de leito estão em andamento (alta administrativa, limpeza)?</td></tr>
-                        <tr><td><strong>E — Early Discharge</strong></td><td>A alta está sendo planejada para o período da manhã?</td></tr>
-                        <tr><td><strong>R — Review</strong></td><td>Pacientes com permanência prolongada foram revisados para possíveis ações?</td></tr>
-                    </tbody>
-                </table>
-
-                <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Como responder o checklist</h4>
-
-                <div class="steps">
-                    <div class="step"><div class="step-body">Clique em <strong>Detalhes</strong> no cartão do paciente no painel do Huddle.</div></div>
-                    <div class="step"><div class="step-body">No modal, cada item SAFER aparece com os botões <strong>Sim</strong> e <strong>Não</strong>.</div></div>
-                    <div class="step"><div class="step-body">Clique em <strong>Sim</strong> se o critério foi cumprido ou <strong>Não</strong> se não foi. Ao responder "Não", uma mensagem orienta sobre a ação necessária.</div></div>
-                    <div class="step"><div class="step-body">Se quiser <strong>desmarcar</strong> uma resposta, clique novamente no mesmo botão (Sim ou Não). O item volta ao estado "não respondido" e a cor do dia é recalculada automaticamente.</div></div>
-                </div>
-
-                <p><strong>Campo de Recomendação:</strong> cada item do checklist possui um campo de texto opcional para o enfermeiro registrar recomendações ou observações específicas sobre aquele critério.</p>
-
-                <div class="callout callout-info">
-                    <div class="callout-title">Cálculo automático da cor do dia</div>
-                    A cor do dia é calculada automaticamente conforme o checklist é preenchido. Se todos os 5 itens SAFER forem respondidos como "Sim", o dia muda para <span class="chip chip-green">GREEN</span>. Se qualquer item for "Não" ou não estiver respondido, o dia permanece <span class="chip chip-red">RED</span>. A cada alteração no checklist, a cor é recalculada instantaneamente.
-                </div>
-
-                <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Previsão de alta</h4>
-                <p>O modal também exibe e permite editar a <strong>data prevista de alta</strong>. A data pode vir automaticamente do prontuário Tasy ou ser definida manualmente pelo enfermeiro. Quando editada no Huddle, a data local tem prioridade sobre a do Tasy para fins de cálculo do filtro de 72h.</p>
-
-                <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Comentários do dia</h4>
-                <p>O enfermeiro pode registrar <strong>comentários do dia</strong> no modal, detalhando o contexto do paciente ou os motivos pelos quais o dia é RED. Este campo é especialmente útil para a comunicação entre turnos sobre o que impede a alta.</p>
-
-                <h4 style="font-size:0.88rem; font-weight:700; margin:1.25rem 0 0.5rem; color:var(--ink)">Auditoria</h4>
-                <p>Cada resposta do checklist registra automaticamente o <strong>login do usuário</strong> e a <strong>data/hora</strong> de quem respondeu, garantindo rastreabilidade completa das decisões do Huddle.</p>
-            </section>
-
-            {{-- 7.3 Round Unidade --}}
-            <section class="section" id="sec-huddle-round">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.3 Round Unidade</h3>
-
-                <p>O <strong>Round Unidade</strong> é uma avaliação diária da segurança da unidade como um todo — diferente do checklist por paciente, ele avalia condições gerais do setor. O botão está localizado no cabeçalho do Huddle, abaixo da barra azul.</p>
-
-                <p><strong>Como funciona:</strong></p>
-                <div class="steps">
-                    <div class="step"><div class="step-body">No painel do Huddle, clique no botão <strong>Round Unidade</strong> no cabeçalho.</div></div>
-                    <div class="step"><div class="step-body">Um modal abre com perguntas organizadas por <strong>eixos temáticos</strong> (ex: Segurança do Paciente, Infraestrutura, Processos, Equipe).</div></div>
-                    <div class="step"><div class="step-body">Responda cada pergunta. As perguntas são dinâmicas e podem ser adicionadas ou modificadas pelo administrador sem necessidade de atualização do sistema.</div></div>
-                    <div class="step"><div class="step-body">Clique em <strong>Salvar</strong> para registrar o Round. O botão exibirá um ícone de confirmação verde indicando que o Round já foi preenchido hoje.</div></div>
-                </div>
-
-                <div class="callout callout-warn">
-                    <div class="callout-title">Limite de um Round por dia</div>
-                    Cada setor pode ter apenas <strong>um Round Unidade por dia</strong>. Se o Round já foi preenchido para o setor no dia, o sistema informa quem o preencheu e quando, impedindo duplicação.
-                </div>
-
-                <p><strong>Eixos de avaliação:</strong> as perguntas do Round são agrupadas por eixos que cobrem diferentes dimensões da segurança assistencial. Cada eixo tem suas perguntas, e novas perguntas podem ser incluídas conforme a necessidade do hospital — sem necessidade de alteração técnica no sistema.</p>
-            </section>
-
-            {{-- 7.4 Histórico de Rounds --}}
-            <section class="section" id="sec-huddle-historico">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.4 Histórico de Rounds</h3>
-
-                <p>Ao lado do botão "Round Unidade", o botão <strong>Histórico</strong> permite visualizar todos os Rounds preenchidos anteriormente. O histórico é <strong>dividido por unidade (setor)</strong>, permitindo comparar as avaliações de diferentes setores ao longo do tempo.</p>
-
-                <p><strong>Como visualizar:</strong></p>
-                <div class="steps">
-                    <div class="step"><div class="step-body">Clique no botão <strong>Histórico</strong> ao lado do "Round Unidade" no cabeçalho do Huddle.</div></div>
-                    <div class="step"><div class="step-body">O modal exibe seções separadas por <strong>setor/unidade</strong>, com os nomes das unidades em ordem alfabética.</div></div>
-                    <div class="step"><div class="step-body">Dentro de cada unidade, os Rounds são listados por data em formato <strong>accordion</strong> — clique na data para expandir e ver as respostas.</div></div>
-                    <div class="step"><div class="step-body">As respostas são agrupadas por eixo temático, com a informação de <strong>quem preencheu</strong> e <strong>quando</strong>.</div></div>
-                </div>
-
-                <div class="callout callout-tip">
-                    <div class="callout-title">Acompanhamento longitudinal</div>
-                    O histórico permite à coordenação identificar padrões recorrentes nas avaliações de segurança de cada unidade ao longo dos dias, facilitando ações corretivas direcionadas.
-                </div>
-            </section>
-
-            <hr class="divider">
-
-            {{-- ══════════════════════════════════════════════════════════
-                 8. INSTALAÇÃO COMO APP
+                 7. INSTALAÇÃO COMO APP
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-app">
-                <h2 class="s-title section-anchor"><span class="s-num">8.</span> Instalar como Aplicativo</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">7.</span> Instalar como Aplicativo</h2>
 
                 <p>O sistema pode ser instalado como um aplicativo no celular ou tablet, funcionando de forma similar a um app nativo. Isso facilita o acesso rápido sem precisar abrir o navegador e digitar o endereço toda vez. Após instalado, o app fica disponível na tela inicial do dispositivo.</p>
 
@@ -1111,7 +961,7 @@
                     O aplicativo instalado ainda requer conexão com a rede interna da Santa Casa para funcionar. Ele não opera offline para dados clínicos.
                 </div>
 
-                <h3 class="ss-title">8.1 Instalação no Android (Chrome)</h3>
+                <h3 class="ss-title">7.1 Instalação no Android (Chrome)</h3>
 
                 <div class="steps">
                     <div class="step"><div class="step-body">Abra o navegador Chrome no seu dispositivo Android e acesse o endereço do sistema.</div></div>
@@ -1126,7 +976,7 @@
                     Em alguns dispositivos Android, o Chrome exibe automaticamente um banner na parte inferior da tela com a opção de instalar o app após alguns acessos. Basta tocar em <strong>Instalar</strong> quando esse banner aparecer.
                 </div>
 
-                <h3 class="ss-title">8.2 Instalação no iPhone e iPad (Safari)</h3>
+                <h3 class="ss-title">7.2 Instalação no iPhone e iPad (Safari)</h3>
 
                 <p>No iOS, a instalação só funciona pelo navegador Safari. Outros navegadores (Chrome, Edge) no iPhone não oferecem suporte à instalação de aplicativos web.</p>
 
@@ -1142,10 +992,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 9. DICAS IMPORTANTES
+                 8. DICAS IMPORTANTES
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-dicas">
-                <h2 class="s-title section-anchor"><span class="s-num">9.</span> Dicas Importantes</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">8.</span> Dicas Importantes</h2>
 
                 <h3 class="ss-title">Manter os leitos configurados atualizados</h3>
                 <p>Se você mudar de setor ou de escala, atualize seus leitos em <strong>Meus Setores → Meus Leitos</strong>. A configuração é salva no seu perfil e é utilizada pelo sistema para direcionar a passagem de plantão corretamente.</p>
@@ -1187,10 +1037,10 @@
             <hr class="divider">
 
             {{-- ══════════════════════════════════════════════════════════
-                 10. GLOSSÁRIO
+                 9. GLOSSÁRIO
             ══════════════════════════════════════════════════════════ --}}
             <section class="section" id="sec-glossario">
-                <h2 class="s-title section-anchor"><span class="s-num">10.</span> Glossário</h2>
+                <h2 class="s-title section-anchor"><span class="s-num">9.</span> Glossário</h2>
                 <p>Definições dos principais termos utilizados no sistema e neste manual.</p>
 
                 <div class="glossary-item gi-open" x-data="{ open: true }" :class="{ 'gi-open': open }">
@@ -1260,26 +1110,6 @@
                 <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
                     <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">PICC</div>
                     <p class="gi-content" x-show="open">Cateter Central de Inserção Periférica. Dispositivo venoso de longa permanência, monitorado pelo serviço de Acessos Vasculares. A solicitação para avaliação desse serviço aparece como pendência multidisciplinar nos cartões do painel.</p>
-                </div>
-                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Huddle de Gestão de Altas</div>
-                    <p class="gi-content" x-show="open">Reunião rápida diária focada na gestão de altas hospitalares. No sistema, é um módulo que digitaliza esse processo, exibindo pacientes com previsão de alta em até 72 horas e permitindo o acompanhamento diário do progresso de cada paciente em direção à alta, utilizando a metodologia SAFER + Red2Green.</p>
-                </div>
-                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">SAFER Bundle</div>
-                    <p class="gi-content" x-show="open">Conjunto de boas práticas para gestão de fluxo hospitalar: <strong>S</strong>enior review (avaliação médica precoce), <strong>A</strong>ll patients with EDD (todos com previsão de alta), <strong>F</strong>low (gestão de fluxo de leitos), <strong>E</strong>arly discharge (alta antes das 10h) e <strong>R</strong>eview (revisão de pacientes com longa permanência). Cada letra corresponde a um item do checklist diário do Huddle.</p>
-                </div>
-                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Red2Green Days</div>
-                    <p class="gi-content" x-show="open">Metodologia que classifica cada dia de internação como <strong>RED</strong> (bloqueado — houve impedimento para o avanço da alta) ou <strong>GREEN</strong> (produtivo — todas as ações planejadas para a alta foram realizadas). O objetivo é reduzir o número de dias RED, diminuindo o tempo médio de permanência hospitalar.</p>
-                </div>
-                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">EDD — Expected Discharge Date</div>
-                    <p class="gi-content" x-show="open">Data prevista de alta do paciente. No sistema, pode ser preenchida automaticamente a partir do prontuário Tasy ou editada manualmente pelo enfermeiro no Huddle. A previsão de alta é o critério principal do filtro de 72 horas do painel.</p>
-                </div>
-                <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Round Unidade</div>
-                    <p class="gi-content" x-show="open">Avaliação diária de segurança da unidade hospitalar como um todo (não por paciente). No módulo Huddle, é preenchido uma vez por dia por setor, com perguntas organizadas por eixos temáticos (segurança, infraestrutura, processos, equipe). O histórico pode ser consultado dividido por unidade.</p>
                 </div>
             </section>
 

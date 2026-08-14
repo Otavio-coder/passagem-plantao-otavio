@@ -71,13 +71,23 @@ class HuddleUnitSafetyModal extends Component
         $this->authorizeConduct();
         $this->ensureAvailable();
 
-        // Trava: uma vez preenchido no dia, o Round Unidade não pode ser alterado.
-        $jaPreenchido = HuddleSafetyAssessment::query()
+        // Trava: se já existe registro finalizado no dia, não pode ser alterado.
+        $jaFinalizado = HuddleSafetyAssessment::query()
             ->forSector($this->sectorId)
             ->forDate(Carbon::today()->toDateString())
+            ->where('finalized', true)
             ->exists();
 
-        abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+        abort_if($jaFinalizado, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+
+        // Todos os campos são obrigatórios; números não podem ser negativos.
+        if (! $this->allFieldsFilled()) {
+            $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
+
+            return;
+        }
+
+        $this->errorMsg = null;
 
         // Todos os campos são obrigatórios; números não podem ser negativos.
         if (! $this->allFieldsFilled()) {
@@ -90,8 +100,10 @@ class HuddleUnitSafetyModal extends Component
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Avisa a tela (toast + marca o card) e fecha o modal.
+        // Avisa a tela (toast + marca o card), fecha o modal e emite evento global para navegação/atualização.
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
+        $this->dispatch('huddle-round-closed');
+        $this->locked = true;
         $this->closeModal();
     }
 
@@ -191,8 +203,8 @@ class HuddleUnitSafetyModal extends Component
             return;
         }
 
-        // Já existe registro no dia: abre só-leitura (não pode ser alterado).
-        $this->locked = true;
+        // Se o registro existe e está marcado como finalizado, abre somente-leitura.
+        $this->locked = (bool) ($sa->finalized ?? true);
 
         // Carrega dinamicamente as respostas com base nas perguntas cadastradas
         $questions = $this->getQuestionsByAxis()->flatten();

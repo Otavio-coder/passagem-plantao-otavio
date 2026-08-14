@@ -32,4 +32,51 @@ return [
         // '2026-06-04', // Corpus Christi
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Setores materializados pela rotina diária (huddle:open-day)
+    |--------------------------------------------------------------------------
+    |
+    | Lista de cd_setor_atendimento que o comando huddle:open-day deve processar
+    | todo dia. Se ficar vazio, o comando processa TODOS os setores ativos
+    | (nurse_handover_beds + user_sector_preferences), igual ao aquecimento do SBAR.
+    | Preencha para restringir o Huddle a setores específicos.
+    |
+    */
+
+    'sectors' => [
+        // 6228,
+        // 6229,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Questionário do Huddle no Tasy (módulo QUE_)
+    |--------------------------------------------------------------------------
+    |
+    | NR_SEQUENCIA do QUE_QUESTIONARIO correspondente ao formulário do Huddle
+    | (ex.: "Teste avaliação"). É o id estável usado pelo comando
+    | huddle:sync-questions para espelhar as perguntas/opções do Tasy para o
+    | banco local. Defina no .env: HUDDLE_QUESTIONNAIRE_SEQ=NNNNNN
+    |
+    */
+
+    'questionnaire_seq' => env('HUDDLE_QUESTIONNAIRE_SEQ'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Write-back das respostas no Tasy (Fase 3)
+    |--------------------------------------------------------------------------
+    |
+    | Gravar respostas no Tasy exige um usuário dedicado com INSERT/UPDATE
+    | (conexão 'tasy_write' em config/database.php). Enquanto não houver esse
+    | usuário/permissão, mantenha desabilitado — o Huddle salva localmente e não
+    | tenta escrever no Oracle. Para ativar: HUDDLE_TASY_WRITE_ENABLED=true.
+    |
+    */
+
+    'tasy_write_enabled' => env('HUDDLE_TASY_WRITE_ENABLED', false),
+
+    'tasy_write_connection' => 'tasy_write',
+
 ];

@@ -2,6 +2,7 @@
 
 namespace App\Repositories\EMR;
 
+use App\Services\PerformanceProfiler;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -31,6 +32,8 @@ class PatientClinicalRepository
      */
     public function getBatchClinicalDetails(array $attendanceNumbers): array
     {
+        $profiler = new PerformanceProfiler('PatientClinical::getBatchClinicalDetails', 5000);
+
         if (empty($attendanceNumbers)) {
             return [];
         }
@@ -38,8 +41,8 @@ class PatientClinicalRepository
         $chunks = array_chunk($attendanceNumbers, self::CLINICAL_CHUNK_SIZE);
         $allResults = [];
 
-        $t0 = hrtime(true);
-        foreach ($chunks as $chunk) {
+        $profiler->checkpoint('start_main_query');
+        foreach ($chunks as $chunkIdx => $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
 
             $results = DB::connection($this->connection)->select("
@@ -239,16 +242,17 @@ class PatientClinicalRepository
             foreach ($results as $result) {
                 $allResults[$result->nr_atendimento] = $result;
             }
+
+            $profiler->checkpoint("main_query_chunk_" . ($chunkIdx + 1));
         }
-        Log::info('[Clinical] query=main_clinical ms='.intval((hrtime(true) - $t0) / 1e6));
 
-        $t1 = hrtime(true);
+        $profiler->checkpoint('diagnostics_start');
         $diagnostics = $this->getBatchDiagnostics($attendanceNumbers);
-        Log::info('[Clinical] query=diagnostics ms='.intval((hrtime(true) - $t1) / 1e6));
+        $profiler->checkpoint('diagnostics_end');
 
-        $t2 = hrtime(true);
+        $profiler->checkpoint('antimicrobials_start');
         $antimicrobials = $this->getBatchAntimicrobials($attendanceNumbers);
-        Log::info('[Clinical] query=antimicrobials ms='.intval((hrtime(true) - $t2) / 1e6));
+        $profiler->checkpoint('antimicrobials_end');
 
         $finalResults = [];
         foreach ($attendanceNumbers as $nr) {
@@ -259,6 +263,12 @@ class PatientClinicalRepository
 
             $finalResults[$nr] = $basic;
         }
+
+        $profiler->checkpoint('end');
+        $report = $profiler->report();
+
+        // Log em formato tabela para visualização
+        Log::channel('performance')->info($profiler->table());
 
         return $finalResults;
     }

@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    'default' => env('LOG_CHANNEL', 'single'),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,7 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'daily,stderr')),
+            'channels' => explode(',', env('LOG_STACK', 'single,stderr')),
             'ignore_exceptions' => false,
         ],
 
@@ -133,6 +133,15 @@ return [
             'path' => storage_path('logs/audit.log'),
             'level' => 'info',
             'days' => 30,
+            'replace_placeholders' => true,
+            'permission' => 0664,
+        ],
+
+        'performance' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/performance.log'),
+            'level' => 'info',
+            'days' => 7,
             'replace_placeholders' => true,
             'permission' => 0664,
         ],

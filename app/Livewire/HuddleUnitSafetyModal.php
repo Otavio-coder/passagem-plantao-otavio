@@ -89,22 +89,13 @@ class HuddleUnitSafetyModal extends Component
 
         $this->errorMsg = null;
 
-        // Todos os campos são obrigatórios; números não podem ser negativos.
-        if (! $this->allFieldsFilled()) {
-            $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
-
-            return;
-        }
-
-        $this->errorMsg = null;
-
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Avisa a tela (toast + marca o card), fecha o modal e emite evento global para navegação/atualização.
+        // Marca como finalizado, fecha o modal e emite eventos.
+        $this->locked = true;
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
         $this->dispatch('huddle-round-closed');
-        $this->locked = true;
-        $this->closeModal();
+        $this->showModal = false;
     }
 
     /**

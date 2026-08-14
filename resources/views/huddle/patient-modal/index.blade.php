@@ -5,7 +5,7 @@
         toastMsg: '',
         timer: null
     }"
-    @huddle-notes-saved.window="toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
+    @huddle-notes-saved.window="showModal = false; toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
     x-show="showModal"
     x-cloak
     x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"

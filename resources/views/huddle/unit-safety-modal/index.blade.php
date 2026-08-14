@@ -1,6 +1,6 @@
 <div
     x-data="{ showModal: @entangle('showModal'), toast: false, toastMsg: '', timer: null }"
-    @huddle-round-saved.window="toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
+    @huddle-round-saved.window="showModal = false; toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
 >
     {{-- Toast de confirmação: fica fora do modal para continuar visível depois que ele fecha --}}
     <div x-show="toast" x-transition x-cloak
@@ -162,7 +162,7 @@
                                 class="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">Fechar</button>
                         <button type="button"
                                 :disabled="!allAnswered || saving"
-                                @click="saving = true; $wire.saveRound(form).then(() => saving = false).catch(() => saving = false)"
+                                @click="saving = true; $wire.saveRound(form).then(() => { saving = false; }).catch(() => saving = false)"
                                 :class="allAnswered && !saving
                                     ? 'bg-[#004D9D] text-white hover:bg-[#003a78]'
                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'"

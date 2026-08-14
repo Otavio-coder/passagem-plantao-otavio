@@ -95,6 +95,28 @@ class TasyEvaluationService
         );
     }
 
+    /**
+     * Retorna as labels do Tasy para os itens do checklist, indexadas pelo código local.
+     *
+     * Usado para exibir o texto da pergunta vindo do Tasy quando disponível,
+     * com fallback para HuddleChecklistItem::label().
+     *
+     * @return array<string, string>  ['criterios_clinicos' => 'Critérios Clínicos estipulados…', …]
+     */
+    public function getChecklistLabels(): array
+    {
+        $items = $this->getChecklistItems();
+
+        $labels = [];
+        foreach ($items as $item) {
+            if (! empty($item['checklist_code'])) {
+                $labels[$item['checklist_code']] = $item['ds_item'];
+            }
+        }
+
+        return $labels;
+    }
+
     // ─── AVALIAÇÕES DO PACIENTE ───────────────────────────────────────────
 
     /**

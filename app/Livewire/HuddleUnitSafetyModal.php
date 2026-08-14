@@ -71,13 +71,14 @@ class HuddleUnitSafetyModal extends Component
         $this->authorizeConduct();
         $this->ensureAvailable();
 
-        // Trava: uma vez preenchido no dia, o Round Unidade não pode ser alterado.
-        $jaPreenchido = HuddleSafetyAssessment::query()
+        // Trava: se já existe registro finalizado no dia, não pode ser alterado.
+        $jaFinalizado = HuddleSafetyAssessment::query()
             ->forSector($this->sectorId)
             ->forDate(Carbon::today()->toDateString())
+            ->where('finalized', true)
             ->exists();
 
-        abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+        abort_if($jaFinalizado, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
         // Todos os campos são obrigatórios; números não podem ser negativos.
         if (! $this->allFieldsFilled()) {
@@ -90,9 +91,11 @@ class HuddleUnitSafetyModal extends Component
 
         app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
 
-        // Avisa a tela (toast + marca o card) e fecha o modal.
+        // Marca como finalizado, fecha o modal e emite eventos.
+        $this->locked = true;
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
-        $this->closeModal();
+        $this->dispatch('huddle-round-closed');
+        $this->showModal = false;
     }
 
     /**
@@ -191,8 +194,8 @@ class HuddleUnitSafetyModal extends Component
             return;
         }
 
-        // Já existe registro no dia: abre só-leitura (não pode ser alterado).
-        $this->locked = true;
+        // Se o registro existe e está marcado como finalizado, abre somente-leitura.
+        $this->locked = (bool) ($sa->finalized ?? true);
 
         // Carrega dinamicamente as respostas com base nas perguntas cadastradas
         $questions = $this->getQuestionsByAxis()->flatten();

@@ -26,7 +26,7 @@
         $tasyPrevAlta = $p['discharge_info']['dt_previsto_alta_formatted'] ?? null;
         $mews = $p['mews_score'] ?? ($p['pews_score'] ?? null);
         $within72h = $p['huddle_discharge_within_72h'] ?? false;
-        $canConduct = $huddleAvailable && auth()->user()?->can('conduzir huddle');
+        $canConduct = $huddleAvailable && auth()->user()?->can('conduzir huddle') && ! $locked;
     @endphp
 
     {{-- Backdrop --}}
@@ -100,6 +100,19 @@
             </div>
 
             <div class="px-4 py-4 space-y-4">
+
+                {{-- Banner de checklist finalizado --}}
+                @if($locked)
+                    <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
+                        <p class="font-semibold text-green-700"><i class="fas fa-check-circle mr-1"></i>Checklist finalizado</p>
+                        <p class="text-[11px] text-green-600 mt-0.5">
+                            Este registro foi finalizado e não pode ser alterado. Exibindo somente leitura.
+                            @if($filledByLogin || $filledAt)
+                                <br>Finalizado por <strong>{{ $filledByLogin ?? '—' }}</strong>@if($filledAt) em {{ $filledAt }}@endif.
+                            @endif
+                        </p>
+                    </div>
+                @endif
 
                 {{-- Gate 72h automático --}}
                 @if($within72h)
@@ -185,8 +198,12 @@
             $allAnswered = $within72h && $answeredCount === $totalItems;
         @endphp
         <div class="shrink-0 border-t border-gray-100 px-4 py-3 flex items-center justify-between gap-2">
-            {{-- Progresso --}}
-            @if($canConduct && $within72h)
+            {{-- Progresso / Estado --}}
+            @if($locked)
+                <p class="text-[11px] text-green-600 font-medium">
+                    <i class="fas fa-lock mr-0.5"></i>Checklist finalizado — somente leitura
+                </p>
+            @elseif($canConduct && $within72h)
                 <p class="text-[11px] {{ $allAnswered ? 'text-green-600 font-medium' : 'text-gray-400' }}">
                     @if($allAnswered)
                         <i class="fas fa-check-circle mr-0.5"></i>Todas as questões respondidas

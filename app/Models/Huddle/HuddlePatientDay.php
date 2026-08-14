@@ -30,6 +30,7 @@ class HuddlePatientDay extends Model
         'expected_discharge_date',
         'clinical_criteria',
         'comments',
+        'finalized_at',
         'senior_reviewed_at',
         'created_by_user_id',
         'updated_by_user_id',
@@ -41,8 +42,17 @@ class HuddlePatientDay extends Model
             'color' => DayColor::class,
             'huddle_date' => 'date',
             'expected_discharge_date' => 'date',
+            'finalized_at' => 'datetime',
             'senior_reviewed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * O checklist do dia foi finalizado e não pode ser alterado.
+     */
+    public function isFinalized(): bool
+    {
+        return $this->finalized_at !== null;
     }
 
     public function redReasons(): HasMany

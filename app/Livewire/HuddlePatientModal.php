@@ -51,6 +51,9 @@ class HuddlePatientModal extends Component
 
     public ?string $filledAt = null;
 
+    /** Travado: checklist já foi finalizado — não pode ser alterado. */
+    public bool $locked = false;
+
     /** @var array<string, array{answer: ?string, signal: ?string, responsible: ?string, due_at: ?string, notes: ?string}> */
     public array $checklist = [];
 
@@ -109,6 +112,7 @@ class HuddlePatientModal extends Component
             'currentPatientIndex', 'canGoPrevious', 'canGoNext',
             'triageStatus', 'clinicalCriteria', 'checklist',
             'dayColor', 'comments', 'filledByLogin', 'filledByName', 'filledAt',
+            'locked',
         ]);
     }
 
@@ -118,6 +122,7 @@ class HuddlePatientModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+        $this->ensureNotFinalized();
 
         $day = $this->ensureDay();
         app(SetHuddleTriageAction::class)->execute($day, $status, (int) Auth::id());
@@ -129,6 +134,7 @@ class HuddlePatientModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+        $this->ensureNotFinalized();
 
         $item = HuddleChecklistItem::tryFrom($itemCode);
         if (! $item) {
@@ -178,6 +184,7 @@ class HuddlePatientModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+        $this->ensureNotFinalized();
 
         $item ??= HuddleChecklistItem::tryFrom($itemCode);
         if (! $item) {
@@ -213,6 +220,7 @@ class HuddlePatientModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+        $this->ensureNotFinalized();
 
         $item = HuddleChecklistItem::tryFrom($itemCode);
         $current = $this->checklist[$itemCode] ?? null;
@@ -249,6 +257,7 @@ class HuddlePatientModal extends Component
     {
         $this->authorizeConduct();
         $this->ensureAvailable();
+        $this->ensureNotFinalized();
 
         // Valida: todas as questões devem estar respondidas antes de salvar.
         $allAnswered = collect(HuddleChecklistItem::cases())->every(
@@ -282,15 +291,23 @@ class HuddlePatientModal extends Component
             );
         }
 
+        // Finaliza o registro — a partir deste ponto, o checklist é somente-leitura.
+        $day->update([
+            'finalized_at' => now(),
+            'updated_by_user_id' => (int) Auth::id(),
+        ]);
+
         $this->loadHuddleState();
 
         // Avisa a tela (toast + board) ANTES de fechar,
         // para que o evento seja emitido com o componente ainda montado.
-        $this->dispatch('huddle-notes-saved', message: 'Recomendações salvas com sucesso!');
+        $this->dispatch('huddle-notes-saved', message: 'Checklist finalizado com sucesso!');
         $this->dispatch('refreshData');
 
-        // Fecha o modal — ao reabrir, loadHuddleState() mostra o estado salvo.
+        // Fecha o modal — ao reabrir, loadHuddleState() encontra finalized_at
+        // e exibe em modo somente-leitura (locked).
         $this->showModal = false;
+        $this->locked = true;
     }
 
     public function render()
@@ -376,6 +393,14 @@ class HuddlePatientModal extends Component
         abort_unless(app(HuddleAvailability::class)->isAvailable(), 403, 'Huddle indisponível hoje.');
     }
 
+    /**
+     * Bloqueia qualquer edição quando o checklist já foi finalizado.
+     */
+    private function ensureNotFinalized(): void
+    {
+        abort_if($this->locked, 403, 'Este checklist já foi finalizado e não pode ser alterado.');
+    }
+
     private function currentAttendance(): int
     {
         return (int) ($this->currentPatient['nr_atendimento'] ?? 0);
@@ -412,6 +437,9 @@ class HuddlePatientModal extends Component
         if (! $day) {
             return;
         }
+
+        // Se o checklist foi finalizado, bloqueia qualquer edição.
+        $this->locked = $day->isFinalized();
 
         $this->triageStatus = $day->status;
         $this->clinicalCriteria = $day->clinical_criteria;
@@ -451,6 +479,7 @@ class HuddlePatientModal extends Component
         $this->filledByLogin = null;
         $this->filledByName = null;
         $this->filledAt = null;
+        $this->locked = false;
 
         $this->checklist = [];
         foreach (HuddleChecklistItem::cases() as $item) {

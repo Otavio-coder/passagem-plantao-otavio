@@ -22,6 +22,7 @@ class HuddleSafetyAssessment extends Model
     protected $fillable = [
         'sector_id',
         'huddle_date',
+        'finalized',
         'expected_discharges',
         'expected_admissions',
         'blocked_beds_isolation',
@@ -47,6 +48,7 @@ class HuddleSafetyAssessment extends Model
         return [
             'huddle_date' => 'date',
             'critical_patient_no_bed' => 'boolean',
+            'finalized' => 'boolean',
             'critical_medication_failure' => 'boolean',
             'adverse_event_24h' => 'boolean',
             'physical_chemical_restraint' => 'boolean',

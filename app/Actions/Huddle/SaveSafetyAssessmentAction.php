@@ -32,6 +32,9 @@ class SaveSafetyAssessmentAction
         }
 
         $assessment->fill([
+            // Marca finalizado ao salvar (regra: salvar = finalizar)
+            'finalized' => true,
+
             // Eixo 1 — contagens
             'expected_discharges' => $this->intOrNull($data['expected_discharges'] ?? null),
             'expected_admissions' => $this->intOrNull($data['expected_admissions'] ?? null),

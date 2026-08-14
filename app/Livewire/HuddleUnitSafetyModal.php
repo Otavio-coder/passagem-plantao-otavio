@@ -81,13 +81,16 @@ class HuddleUnitSafetyModal extends Component
         }
 
         // Trava: se já existe registro finalizado no dia, não pode ser alterado.
-        $jaFinalizado = HuddleSafetyAssessment::query()
+        $jaExiste = HuddleSafetyAssessment::query()
             ->forSector($this->sectorId)
             ->forDate(Carbon::today()->toDateString())
-            ->where('finalized', true)
             ->exists();
 
-        abort_if($jaFinalizado, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+        if ($jaExiste) {
+            $this->dispatch('round-validation-error', message: 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+
+            return;
+        }
 
         // Validação dinâmica baseada nas perguntas cadastradas
         if (! $this->allFieldsFilled()) {
@@ -96,7 +99,17 @@ class HuddleUnitSafetyModal extends Component
             return;
         }
 
-        app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
+        try {
+            app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[HuddleRound] Erro ao salvar Round Unidade', [
+                'sector_id' => $this->sectorId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('round-validation-error', message: 'Erro ao salvar: ' . $e->getMessage());
+
+            return;
+        }
 
         // Salvo com sucesso: marca como finalizado e fecha modal
         $this->locked = true;
@@ -211,8 +224,8 @@ class HuddleUnitSafetyModal extends Component
             return;
         }
 
-        // Se o registro existe e está marcado como finalizado, abre somente-leitura.
-        $this->locked = (bool) ($sa->finalized ?? true);
+        // Já existe registro no dia: abre somente-leitura.
+        $this->locked = true;
 
         // Carrega dinamicamente as respostas com base nas perguntas cadastradas
         $questions = $this->getQuestionsByAxis()->flatten();

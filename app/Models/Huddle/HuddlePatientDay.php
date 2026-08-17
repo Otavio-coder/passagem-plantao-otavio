@@ -126,6 +126,62 @@ class HuddlePatientDay extends Model
         return ['color' => $streakColor, 'days' => $count];
     }
 
+    /**
+     * Versão em batch de consecutiveStreak(): uma única query para N pacientes.
+     *
+     * Carrega todos os registros de huddle dos pacientes informados, agrupa por
+     * nr_atendimento e calcula a sequência em PHP. Evita N queries individuais.
+     *
+     * @param  int[]  $nrAtendimentos
+     * @return array<int, array{color: string, days: int}|null>
+     */
+    public static function consecutiveStreakBatch(array $nrAtendimentos): array
+    {
+        $result = [];
+
+        if (empty($nrAtendimentos)) {
+            return $result;
+        }
+
+        $grouped = static::query()
+            ->select('nr_atendimento', 'huddle_date', 'color')
+            ->whereIn('nr_atendimento', $nrAtendimentos)
+            ->orderBy('nr_atendimento')
+            ->orderByDesc('huddle_date')
+            ->get()
+            ->groupBy('nr_atendimento');
+
+        foreach ($nrAtendimentos as $nr) {
+            $days = $grouped->get($nr);
+
+            if (! $days || $days->isEmpty()) {
+                $result[$nr] = null;
+
+                continue;
+            }
+
+            $streakColor = $days->first()->color instanceof DayColor
+                ? $days->first()->color->value
+                : (string) $days->first()->color;
+
+            $count = 0;
+
+            foreach ($days as $day) {
+                $color = $day->color instanceof DayColor ? $day->color->value : (string) $day->color;
+
+                if ($color !== $streakColor) {
+                    break;
+                }
+
+                $count++;
+            }
+
+            $result[$nr] = ['color' => $streakColor, 'days' => $count];
+        }
+
+        return $result;
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');

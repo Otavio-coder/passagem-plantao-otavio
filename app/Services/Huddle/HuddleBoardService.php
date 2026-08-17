@@ -8,13 +8,16 @@ use App\Models\Huddle\HuddlePatientDay;
 use App\Models\Huddle\HuddleSafetyAssessment;
 use App\Services\PatientData\PatientDataLoader;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Monta o board do Huddle de Gestão de Altas para um setor.
  *
- * Reaproveita o PatientDataLoader (demografia + pendências + multidisciplinar +
- * cirurgia) e faz o merge com o estado do Huddle persistido em MySQL
- * (huddle_patient_days do dia + contadores red/green da internação).
+ * Usa PatientDataLoader com apenas os loaders necessários (demographics,
+ * pending_events, multidisciplinary) — scales, clinical e surgery não são
+ * usados pelo Huddle. Aplica pré-filtro de 72h para evitar work MySQL/PHP
+ * em pacientes que seriam descartados. Streaks são carregados em batch
+ * (1 query) ao invés de N queries individuais.
  *
  * Enquanto não há registro do dia para um paciente, o card assume RED por padrão,
  * conforme a metodologia Red2Green ("todo dia começa vermelho").
@@ -27,22 +30,63 @@ class HuddleBoardService
     public function forSector(int $sectorId, ?string $date = null): array
     {
         $date ??= Carbon::today()->toDateString();
+        $t0 = hrtime(true);
 
+        // ── OTIMIZAÇÃO 1: Carregar apenas os loaders necessários ─────────
+        // O Huddle não usa scales (MEWS/PEWS/Braden), clinical (diagnósticos,
+        // alergias, dispositivos) nem surgery (cirurgias agendadas detalhadas).
+        // Pendências de cirurgia já vêm pelo PendingEventsLoader como tipo 'cirurgia'.
         $patients = PatientDataLoader::forSector($sectorId)
-            ->include('demographics', 'scales', 'pending_events', 'multidisciplinary', 'surgery', 'clinical')
+            ->include('demographics', 'pending_events', 'multidisciplinary')
             ->get();
 
-        $attendanceNumbers = collect($patients)
-            ->filter(fn ($p) => ! empty($p['has_patient']) && ! empty($p['nr_atendimento']))
-            ->pluck('nr_atendimento')
-            ->map(fn ($nr) => (int) $nr)
-            ->all();
+        // Separar leitos ocupados (com paciente)
+        $occupied = [];
 
-        $dayRecords = $this->dayRecords($sectorId, $date, $attendanceNumbers);
-        $colorCounts = HuddlePatientDay::colorCountsFor($attendanceNumbers);
+        foreach ($patients as $patient) {
+            if (! empty($patient['has_patient']) && ! empty($patient['nr_atendimento'])) {
+                $nr = (int) $patient['nr_atendimento'];
+                $occupied[$nr] = $patient;
+            }
+        }
+
+        $allNumbers = array_keys($occupied);
+
+        if (empty($allNumbers)) {
+            Log::info("[HuddleBoardService] sector={$sectorId} occupied=0 — sem pacientes");
+
+            return [];
+        }
+
+        // dayRecords: query MySQL leve (indexada), necessária para pré-filtro e merge
+        $dayRecords = $this->dayRecords($sectorId, $date, $allNumbers);
+
+        // ── OTIMIZAÇÃO 2: Pré-filtro de 72h ──────────────────────────────
+        // Identifica candidatos ANTES de consultar colorCounts/streaks/orientação,
+        // evitando trabalho MySQL e PHP para pacientes que serão descartados.
+        $candidateNumbers = [];
+
+        foreach ($occupied as $nr => $patient) {
+            if ($this->isDischargeCandidate($patient, $dayRecords[$nr] ?? null)) {
+                $candidateNumbers[] = $nr;
+            }
+        }
+
+        if (empty($candidateNumbers)) {
+            $tTotal = round((hrtime(true) - $t0) / 1e6);
+            Log::info("[HuddleBoardService] sector={$sectorId} occupied=".count($allNumbers)." candidates=0 total={$tTotal}ms");
+
+            return [];
+        }
+
+        // MySQL queries apenas para candidatos 72h
+        $colorCounts = HuddlePatientDay::colorCountsFor($candidateNumbers);
         $dischargeLoader = app(HuddleDischargeLoader::class);
-        $transporte = $dischargeLoader->transporteForSector($sectorId, $attendanceNumbers);
-        $orientacao = $dischargeLoader->orientacaoForSector($sectorId, $attendanceNumbers);
+        $transporte = $dischargeLoader->transporteForSector($sectorId, $candidateNumbers);
+        $orientacao = $dischargeLoader->orientacaoForSector($sectorId, $candidateNumbers);
+
+        // ── OTIMIZAÇÃO 3: Streak em batch (1 query) ao invés de N individuais
+        $streaks = HuddlePatientDay::consecutiveStreakBatch($candidateNumbers);
 
         // A unidade já teve o Round Unidade preenchido hoje? (1 registro por setor/dia)
         $roundDone = HuddleSafetyAssessment::query()
@@ -50,20 +94,29 @@ class HuddleBoardService
             ->forDate($date)
             ->exists();
 
-        $enriched = array_map(
-            fn (array $patient) => $this->mergeHuddleState($patient, $dayRecords, $colorCounts, $transporte, $orientacao, $roundDone),
-            $patients
-        );
+        // Enriquecer apenas candidatos 72h
+        $result = [];
 
-        // Filtra: exibe apenas pacientes com previsão de alta nas próximas 72h.
-        // Leitos vazios e pacientes sem previsão são excluídos do board.
-        return array_values(array_filter($enriched, function (array $patient) {
-            if (empty($patient['has_patient'])) {
-                return false;
+        foreach ($candidateNumbers as $nr) {
+            $enriched = $this->mergeHuddleState(
+                $occupied[$nr], $dayRecords, $colorCounts,
+                $transporte, $orientacao, $roundDone, $streaks
+            );
+
+            // Filtro final estrito: 72h usando data consolidada (Huddle edit > Tasy)
+            if ($enriched['huddle_discharge_within_72h'] ?? false) {
+                $result[] = $enriched;
             }
+        }
 
-            return $patient['huddle_discharge_within_72h'] ?? false;
-        }));
+        $tTotal = round((hrtime(true) - $t0) / 1e6);
+        Log::info('[HuddleBoardService] sector='.$sectorId
+            .' occupied='.count($allNumbers)
+            .' candidates='.count($candidateNumbers)
+            .' final='.count($result)
+            .' total='.$tTotal.'ms');
+
+        return $result;
     }
 
     /**
@@ -93,9 +146,10 @@ class HuddleBoardService
      * @param  array<int, array{red: int, green: int}>  $colorCounts
      * @param  array<int, string|null>  $transporte
      * @param  array<int, string|null>  $orientacao
+     * @param  array<int, array{color: string, days: int}|null>  $streaks
      * @return array<string, mixed>
      */
-    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = [], array $orientacao = [], bool $roundDone = false): array
+    private function mergeHuddleState(array $patient, array $dayRecords, array $colorCounts, array $transporte = [], array $orientacao = [], bool $roundDone = false, array $streaks = []): array
     {
         if (empty($patient['has_patient']) || empty($patient['nr_atendimento'])) {
             return $patient;
@@ -130,10 +184,9 @@ class HuddleBoardService
         $patient['huddle_pending'] = $this->pendingCounts($patient);
         $patient['huddle_prescricao_alta'] = ($patient['discharge_info']['tipo'] ?? null) === 'alta_medica';
 
-        // Idade legível (meses para menores de 1 ano) e as janelas de alta (72h/24h),
-        // automáticas a partir da previsão de alta do Tasy (sem pergunta manual).
         // Sequência de dias consecutivos na mesma cor (contagem red/green seguidos).
-        $patient['huddle_streak'] = HuddlePatientDay::consecutiveStreak($nr);
+        // Usa o batch pré-carregado ao invés de query individual por paciente.
+        $patient['huddle_streak'] = $streaks[$nr] ?? null;
 
         $patient['age_label'] = $this->ageLabel($patient);
         $days = $this->daysUntilDischarge($patient);
@@ -208,6 +261,56 @@ class HuddleBoardService
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Pré-filtro: verifica se o paciente pode estar dentro da janela de 72h.
+     *
+     * Usa margem generosa (5 dias) na previsão do Tasy para cobrir edições
+     * que antecipam a alta. Também verifica a data editada no Huddle (dayRecord).
+     * Pacientes com alta médica já concedida são sempre candidatos.
+     */
+    private function isDischargeCandidate(array $patient, ?HuddlePatientDay $dayRecord): bool
+    {
+        // 1. Previsão do Tasy (via PendingEventsLoader → discharge_info)
+        $tasyDate = $patient['discharge_info']['dt_previsto_alta_formatted']
+            ?? $patient['discharge_prediction']  // fallback: do DemographicsLoader
+            ?? null;
+
+        if (! empty($tasyDate)) {
+            try {
+                $date = Carbon::createFromFormat('d/m/Y', $tasyDate)->startOfDay();
+                $days = (int) Carbon::today()->diffInDays($date, false);
+
+                // Margem de 5 dias: cobre edições que antecipam a previsão
+                if ($days >= -1 && $days <= 5) {
+                    return true;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        // 2. Alta médica já concedida → sempre candidato
+        if (($patient['discharge_info']['tipo'] ?? null) === 'alta_medica') {
+            return true;
+        }
+
+        // 3. Data editada no Huddle (dayRecord.expected_discharge_date)
+        if ($dayRecord?->expected_discharge_date) {
+            try {
+                $days = (int) Carbon::today()->diffInDays(
+                    $dayRecord->expected_discharge_date->startOfDay(),
+                    false
+                );
+
+                if ($days >= 0 && $days <= 3) {
+                    return true;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return false;
     }
 
     /**

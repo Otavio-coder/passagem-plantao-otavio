@@ -148,6 +148,10 @@ class DemographicsLoader implements SectorLoader
                 'internment_days' => $internmentDays,
                 'is_new_patient' => $isNewPatient,
                 'is_pediatric' => $isPediatric,
+                // Previsão de alta do Tasy (já consultada no JOIN — exposta para pré-filtro do Huddle)
+                'discharge_prediction' => $bed->apa_dt_previsto_alta
+                    ? Carbon::parse($bed->apa_dt_previsto_alta)->format('d/m/Y')
+                    : null,
                 // estilo padrão do card (sobrescrito pelo TasyFormatter se escalas forem carregadas)
                 'gradient_style' => $hasPatient
                     ? 'background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);'

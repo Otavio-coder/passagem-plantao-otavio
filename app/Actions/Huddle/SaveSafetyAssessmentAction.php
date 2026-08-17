@@ -5,6 +5,7 @@ namespace App\Actions\Huddle;
 use App\Enums\Huddle\UnitClassification;
 use App\Models\Huddle\HuddleSafetyAssessment;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Grava (ou atualiza) o card do Huddle de Segurança de uma unidade no dia.
@@ -31,10 +32,7 @@ class SaveSafetyAssessmentAction
             $assessment->created_by_user_id = $userId;
         }
 
-        $assessment->fill([
-            // Marca finalizado ao salvar (regra: salvar = finalizar)
-            'finalized' => true,
-
+        $fillData = [
             // Eixo 1 — contagens
             'expected_discharges' => $this->intOrNull($data['expected_discharges'] ?? null),
             'expected_admissions' => $this->intOrNull($data['expected_admissions'] ?? null),
@@ -58,8 +56,15 @@ class SaveSafetyAssessmentAction
             'unit_classification' => $this->classificationOrNull($data['unit_classification'] ?? null),
             'justification' => $this->textOrNull($data['justification'] ?? null),
             'immediate_measures' => $this->textOrNull($data['immediate_measures'] ?? null),
-        ]);
+        ];
 
+        // Marca finalizado ao salvar (regra: salvar = finalizar).
+        // Resiliente: se a migration ainda não rodou, salva sem o campo.
+        if (Schema::hasColumn('huddle_safety_assessments', 'finalized')) {
+            $fillData['finalized'] = true;
+        }
+
+        $assessment->fill($fillData);
         $assessment->updated_by_user_id = $userId;
         $assessment->save();
 

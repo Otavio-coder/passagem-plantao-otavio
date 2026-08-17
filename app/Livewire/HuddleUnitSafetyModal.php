@@ -9,6 +9,7 @@ use App\Services\Huddle\HuddleAvailability;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -24,6 +25,9 @@ use Livewire\Component;
  */
 class HuddleUnitSafetyModal extends Component
 {
+    /** @internal Marcador de deploy — grep 'DEPLOY_V' para verificar */
+    public const DEPLOY_V = '2026-08-14-v4';
+
     public bool $showModal = false;
 
     public int $sectorId = 0;
@@ -43,9 +47,6 @@ class HuddleUnitSafetyModal extends Component
     /** Travado: já existe registro da unidade no dia — não pode ser alterado. */
     public bool $locked = false;
 
-    /** Mensagem de erro de validação (campos obrigatórios). */
-    public ?string $errorMsg = null;
-
     #[On('openUnitSafety')]
     public function openForSector(int $sectorId, string $hospital = '', string $sectorLabel = ''): void
     {
@@ -62,78 +63,149 @@ class HuddleUnitSafetyModal extends Component
     {
         $this->reset([
             'showModal', 'sectorId', 'hospitalName', 'sectorLabel',
-            'safety', 'filledByLogin', 'filledAt', 'errorMsg',
+            'safety', 'filledByLogin', 'filledAt',
             // NÃO reseta 'locked' — precisa persistir após finalizar
         ]);
     }
 
-    public function saveSafetyAssessment(): void
+    /**
+     * Salva o Round Unidade. Recebe os dados do formulário Alpine via parâmetro,
+     * pois os inputs usam x-model local (não @entangle).
+     *
+     * @param  array<string, mixed>  $formData  Dados coletados pelo Alpine (form object)
+     */
+    public function saveSafetyAssessment(array $formData = []): void
     {
+        Log::info('[HuddleRound] saveSafetyAssessment CHAMADO', [
+            'deploy_v' => self::DEPLOY_V,
+            'sector_id' => $this->sectorId,
+            'formData_keys' => array_keys($formData),
+            'formData_count' => count($formData),
+        ]);
+
         $this->authorizeConduct();
         $this->ensureAvailable();
 
-        // Trava: se já existe registro finalizado no dia, não pode ser alterado.
-        $jaFinalizado = HuddleSafetyAssessment::query()
+        // Recebe os dados do Alpine → Livewire
+        if (! empty($formData)) {
+            $this->safety = $formData;
+        }
+
+        Log::info('[HuddleRound] safety após merge', [
+            'safety_count' => count($this->safety),
+            'safety_keys' => array_keys($this->safety),
+            'sample' => array_slice($this->safety, 0, 3, true),
+        ]);
+
+        // Trava: se já existe registro no dia, não pode ser alterado.
+        $jaExiste = HuddleSafetyAssessment::query()
             ->forSector($this->sectorId)
             ->forDate(Carbon::today()->toDateString())
-            ->where('finalized', true)
             ->exists();
 
-        abort_if($jaFinalizado, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+        if ($jaExiste) {
+            Log::warning('[HuddleRound] Registro já existe — bloqueado');
+            $this->dispatch('round-validation-error', message: 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
 
-        // Todos os campos são obrigatórios; números não podem ser negativos.
-        if (! $this->allFieldsFilled()) {
-            $this->errorMsg = 'Preencha todos os campos (sem números negativos) antes de salvar.';
             return;
         }
 
-        $this->errorMsg = null;
+        // Validação dinâmica baseada nas perguntas cadastradas
+        if (! $this->allFieldsFilled()) {
+            Log::warning('[HuddleRound] allFieldsFilled() retornou false', [
+                'safety' => $this->safety,
+            ]);
+            $this->dispatch('round-validation-error', message: 'Preencha todos os campos (sem números negativos) antes de salvar.');
 
-        app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
+            return;
+        }
+
+        try {
+            app(SaveSafetyAssessmentAction::class)->execute($this->sectorId, $this->safety, (int) Auth::id());
+            Log::info('[HuddleRound] Salvo com sucesso');
+        } catch (\Throwable $e) {
+            Log::error('[HuddleRound] Erro ao salvar Round Unidade', [
+                'sector_id' => $this->sectorId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $this->dispatch('round-validation-error', message: 'Erro ao salvar: ' . $e->getMessage());
+
+            return;
+        }
 
         // Salvo com sucesso: marca como finalizado e fecha modal
         $this->locked = true;
         $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
-        $this->dispatch('huddle-round-closed');
-        
-        // Fecha sem resetar 'locked'
+        $this->dispatch('refreshData');
         $this->showModal = false;
     }
 
     /**
      * Valida que todos os campos do Round Unidade foram preenchidos.
-     * Números: inteiro >= 0. Sim/Não: boolean definido. Classificação e textos: preenchidos.
+     *
+     * Tolerante com tipos: o Livewire pode enviar bool como int (0/1),
+     * string como "true"/"false", etc. A SaveSafetyAssessmentAction
+     * faz a conversão final de tipos — aqui só verificamos presença.
      */
     private function allFieldsFilled(): bool
     {
-        $numeros = [
-            'expected_discharges', 'expected_admissions', 'blocked_beds_isolation',
-            'blocked_beds_maintenance', 'pressure_injuries', 'falls',
-        ];
-        foreach ($numeros as $campo) {
-            $valor = $this->safety[$campo] ?? null;
-            if ($valor === null || $valor === '' || ! is_numeric($valor) || (int) $valor < 0) {
+        $questions = $this->getQuestionsByAxis()->flatten();
+
+        foreach ($questions as $question) {
+            $key = $question->field_key;
+
+            if (! array_key_exists($key, $this->safety)) {
+                Log::warning("[HuddleRound] Campo ausente: {$key}");
+
                 return false;
             }
-        }
 
-        $simNao = [
-            'critical_patient_no_bed', 'critical_medication_failure', 'adverse_event_24h',
-            'physical_chemical_restraint', 'barrier_breach', 'staff_shortage', 'critical_exam_delay',
-        ];
-        foreach ($simNao as $campo) {
-            if (! is_bool($this->safety[$campo] ?? null)) {
-                return false;
-            }
-        }
+            $valor = $this->safety[$key];
 
-        if (! in_array($this->safety['unit_classification'] ?? null, ['verde', 'amarelo', 'vermelho'], true)) {
-            return false;
-        }
+            switch ($question->field_type) {
+                case 'number':
+                    // Aceita int, float, string numérica; >= 0
+                    if ($valor === null || $valor === '' || ! is_numeric($valor) || (int) $valor < 0) {
+                        Log::warning("[HuddleRound] Número inválido: {$key}", ['valor' => $valor, 'tipo' => gettype($valor)]);
 
-        foreach (['justification', 'immediate_measures'] as $campo) {
-            if (trim((string) ($this->safety[$campo] ?? '')) === '') {
-                return false;
+                        return false;
+                    }
+                    break;
+
+                case 'boolean':
+                    // Aceita bool, int (0/1), string ("true"/"false", "0"/"1")
+                    // O único valor inaceitável é null (campo não respondido)
+                    if ($valor === null) {
+                        Log::warning("[HuddleRound] Booleano não respondido: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                case 'select':
+                    // Aceita qualquer valor não-vazio (ex: 'verde', 'amarelo')
+                    if ($valor === null || $valor === '') {
+                        Log::warning("[HuddleRound] Select vazio: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                case 'text':
+                    if ($valor === null || trim((string) $valor) === '') {
+                        Log::warning("[HuddleRound] Texto vazio: {$key}");
+
+                        return false;
+                    }
+                    break;
+
+                default:
+                    if ($valor === null || $valor === '') {
+                        Log::warning("[HuddleRound] Campo vazio: {$key} (tipo: {$question->field_type})");
+
+                        return false;
+                    }
             }
         }
 
@@ -184,7 +256,6 @@ class HuddleUnitSafetyModal extends Component
         $this->filledByLogin = null;
         $this->filledAt = null;
         $this->locked = false;
-        $this->errorMsg = null;
 
         $sa = HuddleSafetyAssessment::query()
             ->with('updatedBy', 'createdBy')
@@ -196,8 +267,8 @@ class HuddleUnitSafetyModal extends Component
             return;
         }
 
-        // Se o registro existe e está marcado como finalizado, abre somente-leitura.
-        $this->locked = (bool) ($sa->finalized ?? true);
+        // Já existe registro no dia: abre somente-leitura.
+        $this->locked = true;
 
         // Carrega dinamicamente as respostas com base nas perguntas cadastradas
         $questions = $this->getQuestionsByAxis()->flatten();

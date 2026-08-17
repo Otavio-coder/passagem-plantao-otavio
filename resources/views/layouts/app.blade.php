@@ -8,8 +8,8 @@
     @auth
         <meta name="sbar-user-full-name" content="{{ auth()->user()->name }}">
     @endauth
-    <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/noty.css' ) }}"/>
-    <link rel="stylesheet" href="{{ secure_asset( '/vendor/noty/themes/nest.css' ) }}"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noty/3.1.4/noty.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/noty/3.1.4/themes/nest.css"/>
     <link rel="shortcut icon" type="image/x-icon" href="{{ secure_asset( 'images/favicon.ico') }}">
     <link rel="stylesheet" href="{{ secure_asset( '/vendor/fontawesome-free-6.3.0-web/css/all.min.css' ) }}"/>
     <link rel="stylesheet" href="https://cdn.datatables.net/2.2.2/css/dataTables.dataTables.min.css"/>
@@ -209,9 +209,11 @@
 @endauth
 
 <!-- Scripts -->
-<script type="text/javascript" src="{{ asset('js/jquery.js') }}"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+@if(file_exists(public_path('js/common.js')))
 <script src="{{ asset('/js/common.js' . preventCache()) }}"></script>
-<script src="{{ asset('/vendor/noty/noty.min.js') }}"></script>
+@endif
+<script src="https://cdnjs.cloudflare.com/ajax/libs/noty/3.1.4/noty.min.js"></script>
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.min.js"></script>
 @stack('scripts')
 <script>

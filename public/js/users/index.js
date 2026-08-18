@@ -35,8 +35,7 @@ $(document).ready(function () {
             templates: {
                 suggestion: function (data) {
                     return '<div class="p-2 hover:bg-gray-100 cursor-pointer">' +
-                        '<strong>' + data.name + '</strong>' +
-                        '<br><small class="text-gray-500">' + data.username + ' — ' + data.email + '</small>' +
+                        data.name +
                         '</div>';
                 },
                 notFound: '<div class="p-2 text-gray-400">Nenhum usuário encontrado no AD</div>'
@@ -46,6 +45,9 @@ $(document).ready(function () {
         $('#username').val(suggestion.username);
         $('#email').val(suggestion.email);
     });
+
+    // Fix: garante que o input do typeahead fique em largura total
+    $('.twitter-typeahead').css({ 'width': '100%', 'display': 'block' });
 
     // ── Editar Usuário (preenche e abre o modal) ────────────────────────
     $(document).on('click', '.edit-user', function (e) {

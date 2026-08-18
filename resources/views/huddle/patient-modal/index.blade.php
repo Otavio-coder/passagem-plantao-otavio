@@ -166,8 +166,8 @@
                                     <p class="mt-2 text-[11px] text-red-600"><i class="fas fa-circle-exclamation mr-0.5"></i>{{ $item->redAction() }}</p>
                                 @endif
 
-                                {{-- Recomendação (disponível para qualquer item respondido) --}}
-                                @if($answer)
+                                {{-- Recomendação (apenas itens Red respondidos) --}}
+                                @if($answer && $signal === 'red')
                                     <div class="mt-2">
                                         <label class="block text-[11px] font-medium text-gray-500 mb-1">
                                             <i class="fas fa-pen-to-square mr-0.5"></i>Recomendação
@@ -179,7 +179,7 @@
                                 @endif
                             @else
                                 <p class="mt-1 text-xs text-gray-500">Resposta: <strong>{{ $answer ? ucfirst($answer) : '—' }}</strong></p>
-                                @if(! empty($state['notes'] ?? null))
+                                @if($signal === 'red' && ! empty($state['notes'] ?? null))
                                     <p class="mt-1 text-xs text-gray-600"><span class="text-gray-400">Recomendação:</span> {{ $state['notes'] }}</p>
                                 @endif
                             @endif

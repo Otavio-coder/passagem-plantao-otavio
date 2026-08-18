@@ -66,6 +66,7 @@
                         'sectorId' => (int) $sectorId,
                         'sbarPatient' => [
                             'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
+                            'cd_pessoa_fisica' => $patient['cd_pessoa_fisica'] ?? null,
                             'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
                             'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
                             'has_patient' => true,

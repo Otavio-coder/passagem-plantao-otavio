@@ -44,7 +44,10 @@
 /public/hot
 /public/storage
 /public/css
-/public/js
+/public/js/*
+!/public/js/common.js
+!/public/js/users
+!/public/js/profiles
 /public/mix-manifest.json
 /public/vendor/**/*
 /public/vendor/*/dist

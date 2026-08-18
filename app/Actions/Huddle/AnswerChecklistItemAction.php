@@ -100,16 +100,25 @@ class AnswerChecklistItemAction
                 'nm_usuario' => $nmUsuario,
             ]);
 
-            app(SyncChecklistToTasyAction::class)->execute(
+            $nrSequencia = app(SyncChecklistToTasyAction::class)->execute(
                 day: $day,
                 cdPessoaFisica: $cdPessoaFisica,
                 nmUsuario: $nmUsuario,
                 cdSetorAtendimento: $cdSetorAtendimento,
             );
 
-            Log::info('[AnswerChecklistItem] Sync Tasy concluída com sucesso', [
-                'nr_atendimento' => $day->nr_atendimento,
-            ]);
+            // SyncChecklistToTasyAction retorna null quando falha internamente
+            // (catch próprio) — verificar o retorno para não logar falso sucesso.
+            if ($nrSequencia !== null) {
+                Log::info('[AnswerChecklistItem] Sync Tasy concluída com sucesso', [
+                    'nr_atendimento' => $day->nr_atendimento,
+                    'nr_sequencia_tasy' => $nrSequencia,
+                ]);
+            } else {
+                Log::warning('[AnswerChecklistItem] Sync Tasy retornou null (falha interna ou payload vazio)', [
+                    'nr_atendimento' => $day->nr_atendimento,
+                ]);
+            }
         } catch (\Throwable $e) {
             // Nunca bloqueia o fluxo do MySQL — só loga
             Log::error('[AnswerChecklistItem] Sync Tasy falhou (não-bloqueante)', [

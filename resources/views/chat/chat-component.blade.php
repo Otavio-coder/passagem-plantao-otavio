@@ -90,21 +90,21 @@
         @php
             $shiftKey = $this->shiftDisplay['shift'] ?? 'default';
             $headerBg = match ($shiftKey) {
-                'morning'   => 'background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);',
-                'afternoon' => 'background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);',
-                'night'     => 'background: linear-gradient(135deg, #4338ca 0%, #581c87 100%);',
-                default     => 'background: linear-gradient(135deg, #4b5563 0%, #374151 100%);',
+                'morning'   => 'background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);',
+                'afternoon' => 'background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);',
+                'night'     => 'background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);',
+                default     => 'background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);',
             };
         @endphp
         <div class="flex-shrink-0 relative overflow-hidden rounded-none sm:rounded-t-lg" style="{{ $headerBg }}">
-            <div class="relative z-10 text-white px-3 sm:px-4 py-2 sm:py-2.5">
-                {{-- Top row: shift badge + time + stats --}}
+            <div class="relative z-10 text-white px-3 sm:px-4 py-1.5 sm:py-2">
+                {{-- Single compact row: shift badge + user + time --}}
                 <div class="flex items-center justify-between gap-2 min-w-0">
                     <div class="flex items-center gap-2 min-w-0">
-                        {{-- Shift icon + name badge --}}
-                        <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-lg px-2.5 py-1 border border-white/25">
+                        {{-- Shift badge --}}
+                        <div class="inline-flex items-center gap-1 bg-white/25 rounded-md px-2 py-0.5 border border-white/30 flex-shrink-0">
                             {!! $this->shiftDisplay['icon_html'] !!}
-                            <span class="text-xs sm:text-sm font-bold text-white tracking-wide leading-none">
+                            <span class="text-xs font-bold text-white tracking-wide leading-none">
                                 {{ $this->shiftDisplay['badge'] }}
                             </span>
                         </div>
@@ -114,11 +114,21 @@
                                 type="button"
                                 @click="document.getElementById('messages-container')?.scrollTo({ top: 0, behavior: 'smooth' })"
                                 title="Ir para anotação fixada"
-                                class="inline-flex items-center justify-center text-yellow-300 hover:text-yellow-200 focus:outline-none"
+                                class="inline-flex items-center justify-center text-yellow-300 hover:text-yellow-200 focus:outline-none flex-shrink-0"
                             >
                                 <i class="fas fa-thumbtack text-xs"></i>
                             </button>
                         @endif
+
+                        {{-- Avatar + user name (prominent) --}}
+                        <x-ui.user-avatar
+                            :photo="$this->userPhotos[$currentUser['id'] ?? 0] ?? null"
+                            :name="$currentUser['name'] ?? 'U'"
+                            class="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 border-2 border-white/60 shadow-sm"
+                        />
+                        <span class="text-white text-sm sm:text-base font-bold leading-tight truncate max-w-[10rem] sm:max-w-[14rem] lg:max-w-[20rem]">
+                            {{ $currentUser['name'] ?? 'Usuário' }}
+                        </span>
                     </div>
 
                     <div class="flex items-center gap-2 flex-shrink-0">
@@ -129,88 +139,23 @@
                     </div>
                 </div>
 
-                {{-- Bottom row: user info + live count --}}
-                <div class="flex items-center justify-between gap-2 mt-1.5">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <x-ui.user-avatar
-                            :photo="$this->userPhotos[$currentUser['id'] ?? 0] ?? null"
-                            :name="$currentUser['name'] ?? 'U'"
-                            class="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 border-2 border-white/50 shadow-sm"
-                        />
-                        <div class="min-w-0">
-                            <span class="text-white text-xs sm:text-sm font-semibold leading-none truncate block">
-                                {{ $currentUser['name'] ?? 'Usuário' }}
-                            </span>
-                            @if(!empty($currentUser['role']))
-                                <span class="text-white/70 text-[10px] sm:text-xs leading-none">{{ $currentUser['role'] }}</span>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-1.5 flex-shrink-0">
-                        <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                        @if(($this->messageStats['shift_count'] ?? 0) > 0)
-                            <span class="text-white/90 text-[10px] sm:text-xs font-medium">
-                                {{ $this->messageStats['shift_count'] }} no turno
-                            </span>
-                        @else
-                            <span class="text-white/60 text-[10px] sm:text-xs">Sem anotações</span>
-                        @endif
-                    </div>
+                {{-- Ultra-compact info strip --}}
+                <div class="mt-0.5 flex flex-nowrap items-center gap-1.5 text-[10px] sm:text-[11px] text-white/80 overflow-x-auto scrollbar-hide">
+                    @if(!empty($currentUser['role']))
+                        <span class="whitespace-nowrap">{{ $currentUser['role'] }}</span>
+                        <span class="text-white/40">·</span>
+                    @endif
+                    @if($internmentDays !== null && $internmentDays >= 0)
+                        <span class="whitespace-nowrap"><i class="fas fa-hospital-user text-[9px]"></i> {{ $internmentDays }}d internado</span>
+                        <span class="text-white/40">·</span>
+                    @endif
+                    <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
+                    @if(($this->messageStats['shift_count'] ?? 0) > 0)
+                        <span class="whitespace-nowrap font-medium">{{ $this->messageStats['shift_count'] }} no turno</span>
+                    @else
+                        <span class="whitespace-nowrap">Sem anotações</span>
+                    @endif
                 </div>
-
-                {{-- Metrics strip (compact, inline) --}}
-                @php
-                    $stats = $this->messageStats;
-                    $metricChips = [];
-
-                    if ($internmentDays !== null && $internmentDays >= 0) {
-                        $metricChips[] = [
-                            'icon' => 'fa-hospital-user',
-                            'value' => $internmentDays.'d internado',
-                            'title' => 'Tempo de internação do paciente',
-                        ];
-                    }
-
-                    if (($stats['shift_count'] ?? 0) > 0 && ($stats['unique_contributors'] ?? 0) > 0) {
-                        $metricChips[] = [
-                            'icon' => 'fa-users',
-                            'value' => $stats['unique_contributors'].' '.($stats['unique_contributors'] === 1 ? 'participante' : 'participantes'),
-                            'title' => 'Profissionais que anotaram neste turno',
-                        ];
-                    }
-
-                    $minutesAgo = $stats['last_message_minutes_ago'] ?? null;
-                    if ($minutesAgo !== null && $stats['has_messages']) {
-                        if ($minutesAgo < 1) {
-                            $lastLabel = 'agora';
-                        } elseif ($minutesAgo < 60) {
-                            $lastLabel = 'há '.$minutesAgo.'min';
-                        } elseif ($minutesAgo < 60 * 24) {
-                            $lastLabel = 'há '.intdiv($minutesAgo, 60).'h';
-                        } else {
-                            $lastLabel = 'há '.intdiv($minutesAgo, 60 * 24).'d';
-                        }
-                        $metricChips[] = [
-                            'icon' => 'fa-clock',
-                            'value' => 'Última: '.$lastLabel,
-                            'title' => 'Tempo desde a última anotação',
-                        ];
-                    }
-                @endphp
-                @if(!empty($metricChips))
-                    <div class="mt-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0 scrollbar-hide">
-                        @foreach($metricChips as $chip)
-                            <span
-                                class="inline-flex items-center gap-1 bg-black/15 rounded-full px-2 py-0.5 text-[10px] text-white/90 whitespace-nowrap flex-shrink-0"
-                                title="{{ $chip['title'] ?? '' }}"
-                            >
-                                <i class="fas {{ $chip['icon'] }} text-[9px]"></i>
-                                {{ $chip['value'] }}
-                            </span>
-                        @endforeach
-                    </div>
-                @endif
             </div>
         </div>
 
@@ -221,7 +166,7 @@
             }"
             x-show="show"
             x-cloak
-            class="flex-shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2"
+            class="flex-shrink-0 border-b border-amber-200 bg-amber-50 px-2 py-1.5"
         >
             <div class="flex items-start gap-2">
                 <i class="fas fa-circle-info text-amber-500 text-xs mt-0.5 flex-shrink-0"></i>

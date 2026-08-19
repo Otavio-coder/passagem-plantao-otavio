@@ -5,7 +5,7 @@
 ])
 
 <div x-show="activeTab === 'tab-a'"
-     class="p-1 sm:p-2 lg:p-3 h-full flex flex-col"
+     class="h-full flex flex-col"
      style="min-height: 0;">
 
     @if($currentPatient && !$currentPatient['has_patient'])

@@ -86,9 +86,12 @@ class HuddleUnitSafetyModal extends Component
         $this->authorizeConduct();
         $this->ensureAvailable();
 
-        // Recebe os dados do Alpine → Livewire
+        // Recebe os dados do Alpine → Livewire. Mescla sobre os defaults (em vez de
+        // sobrescrever) para que uma pergunta ausente no payload (ex.: form do Alpine
+        // desatualizado) vire null e falhe a validação de forma explícita por campo,
+        // em vez de desaparecer da chave e cair no "Campo ausente" silencioso.
         if (! empty($formData)) {
-            $this->safety = $formData;
+            $this->safety = array_merge($this->defaultSafety(), $formData);
         }
 
         Log::info('[HuddleRound] safety após merge', [

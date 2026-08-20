@@ -46,7 +46,11 @@
         {{-- ═══ Corpo + Rodapé com Alpine (edição) ou estático (somente-leitura) ═══ --}}
         @if($canEditSafety)
             {{-- ── MODO EDIÇÃO: Alpine local ────────────────────────────────── --}}
-            <div x-data="{
+            {{-- wire:key força o Livewire a destruir/recriar este nó (e o x-data do Alpine)
+                 a cada setor aberto — sem isso, o morph do Livewire preserva o estado JS
+                 antigo do Alpine entre trocas de setor, deixando `form` com perguntas
+                 desatualizadas em relação ao huddle_unit_questions atual. --}}
+            <div wire:key="unit-safety-form-{{ $sectorId }}" x-data="{
                      form: @js($safety),
                      saving: false,
                      validationError: '',

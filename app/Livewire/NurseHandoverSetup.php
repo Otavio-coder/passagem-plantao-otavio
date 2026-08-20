@@ -63,9 +63,11 @@ class NurseHandoverSetup extends Component
         $sectorIds = $prefs->pluck('sector_code')->map(fn ($v) => (int) $v)->unique()->all();
 
         // Cache keyed by sorted sector list — different sector sets get different entries.
+        // Hashed because the `cache` table's key column is a VARCHAR(255) primary key:
+        // users with many sectors overflow it if we concatenate raw IDs (SQLSTATE 22001).
         $sortedIds = $sectorIds;
         sort($sortedIds);
-        $cacheKey = 'setup_beds_'.implode('_', $sortedIds);
+        $cacheKey = 'setup_beds_'.md5(implode('_', $sortedIds));
 
         $bedsBySector = Cache::remember($cacheKey, 600, function () use ($sectorIds) {
             $placeholders = implode(',', array_map('intval', $sectorIds));

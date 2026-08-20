@@ -51,18 +51,11 @@
                                 <span class="hidden lg:inline xl:hidden">Huddle</span>
                             </a>
                             <a href="{{ route('huddle.safety-report') }}"
-                               title="Round Unidade - Consulta"
+                               title="Consulta — Round Unidade e Checklists"
                                class="nav-link {{ request()->routeIs('huddle.safety-report') ? 'border-blue-200' : 'border-transparent' }}">
                                 <i class="fa fa-clipboard-list"></i>
-                                <span class="hidden xl:inline">Consulta Round</span>
+                                <span class="hidden xl:inline">Consulta</span>
                                 <span class="hidden lg:inline xl:hidden">Consulta</span>
-                            </a>
-                            <a href="{{ route('huddle.checklist-report') }}"
-                               title="Checklists de Pacientes - Consulta"
-                               class="nav-link {{ request()->routeIs('huddle.checklist-report') ? 'border-blue-200' : 'border-transparent' }}">
-                                <i class="fa fa-clipboard-check"></i>
-                                <span class="hidden xl:inline">Consulta Checklists</span>
-                                <span class="hidden lg:inline xl:hidden">Checklists</span>
                             </a>
                         @endcan
 
@@ -259,15 +252,8 @@
                 </a>
                 <a href="{{ route('huddle.safety-report') }}" class="flex justify-between items-center text-sm text-gray-700">
                     <div class="px-2 pt-2 pb-3 flex flex-col">
-                        <span class="font-semibold">Consulta Round Unidade</span>
-                        <span class="text-xs text-gray-400">Formulários preenchidos por data/hospital</span>
-                    </div>
-                    <i class="fas fa-chevron-right text-sm text-gray-400"></i>
-                </a>
-                <a href="{{ route('huddle.checklist-report') }}" class="flex justify-between items-center text-sm text-gray-700">
-                    <div class="px-2 pt-2 pb-3 flex flex-col">
-                        <span class="font-semibold">Consulta Checklists</span>
-                        <span class="text-xs text-gray-400">Checklists de pacientes por data/hospital/unidade</span>
+                        <span class="font-semibold">Consulta Huddle</span>
+                        <span class="text-xs text-gray-400">Round Unidade e Checklists de pacientes</span>
                     </div>
                     <i class="fas fa-chevron-right text-sm text-gray-400"></i>
                 </a>

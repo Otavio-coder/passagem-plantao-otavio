@@ -37,12 +37,12 @@
              @click="showModal = false; $wire.closeModal();"></div>
 
         {{-- Container do Modal --}}
-        <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
+        <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-2">
             <div
                 class="relative bg-white flex flex-col overflow-hidden
                        w-full h-full
-                       sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
-                       lg:w-[85vw] lg:h-[90vh] lg:max-w-[1600px]
+                       sm:w-[99vw] sm:h-[97vh] sm:rounded-xl
+                       lg:w-[98vw] lg:h-[97vh]
                        shadow-2xl modal-patient-container"
                 wire:key="modal-{{ $currentPatient['nr_atendimento'] ?? 'empty' }}"
                 x-data="{

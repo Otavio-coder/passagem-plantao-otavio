@@ -1,53 +1,53 @@
 <div class="bg-white">
     <nav class="flex overflow-x-auto scrollbar-hide">
         {{-- S - Situação --}}
-        <button 
+        <button
             @click.prevent="switchTab('tab-s')"
             :class="activeTab === 'tab-s' ? 'border-[#0071B9] text-[#0071B9] bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
+            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
             type="button"
         >
-            <div class="flex items-center justify-center gap-2">
-                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-[#007D44] text-white text-xs font-bold flex-shrink-0">S</span>
+            <div class="flex items-center justify-center gap-1.5">
+                <span class="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#007D44] text-white text-[10px] sm:text-xs font-bold flex-shrink-0">S</span>
                 <span class="hidden sm:inline">SITUAÇÃO</span>
             </div>
         </button>
-        
+
         {{-- B - Background --}}
-        <button 
+        <button
             @click.prevent="switchTab('tab-b')"
             :class="activeTab === 'tab-b' ? 'border-[#0071B9] text-[#0071B9] bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
+            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
             type="button"
         >
-            <div class="flex items-center justify-center gap-2">
-                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-[#007D44] text-white text-xs font-bold flex-shrink-0">B</span>
+            <div class="flex items-center justify-center gap-1.5">
+                <span class="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#007D44] text-white text-[10px] sm:text-xs font-bold flex-shrink-0">B</span>
                 <span class="hidden sm:inline">BACKGROUND</span>
             </div>
         </button>
-        
+
         {{-- A - Avaliação --}}
-        <button 
+        <button
             @click.prevent="switchTab('tab-a')"
             :class="activeTab === 'tab-a' ? 'border-[#0071B9] text-[#0071B9] bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
+            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
             type="button"
         >
-            <div class="flex items-center justify-center gap-2">
-                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-[#ff6b35] text-white text-xs font-bold flex-shrink-0">A</span>
+            <div class="flex items-center justify-center gap-1.5">
+                <span class="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#ff6b35] text-white text-[10px] sm:text-xs font-bold flex-shrink-0">A</span>
                 <span class="hidden sm:inline">AVALIAÇÃO</span>
             </div>
         </button>
-        
+
         {{-- R - Recomendações --}}
-        <button 
+        <button
             @click.prevent="switchTab('tab-r')"
             :class="activeTab === 'tab-r' ? 'border-[#0071B9] text-[#0071B9] bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
+            class="flex-1 min-w-[80px] sm:flex-shrink-0 px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-sm font-medium border-b-2 whitespace-nowrap transition-all duration-200"
             type="button"
         >
-            <div class="flex items-center justify-center gap-2">
-                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-[#28a745] text-white text-xs font-bold flex-shrink-0">R</span>
+            <div class="flex items-center justify-center gap-1.5">
+                <span class="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#28a745] text-white text-[10px] sm:text-xs font-bold flex-shrink-0">R</span>
                 <span class="hidden sm:inline">RECOMENDAÇÕES</span>
             </div>
         </button>

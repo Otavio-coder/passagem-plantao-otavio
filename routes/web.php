@@ -52,6 +52,10 @@ Route::middleware(['auth', 'verify.authorization'])->group(function () {
         ->middleware('can:ver huddle')
         ->name('huddle.safety-report');
 
+    Route::view('/huddle/checklists', 'huddle.checklist-report.page')
+        ->middleware('can:ver huddle')
+        ->name('huddle.checklist-report');
+
     // Prescriptions – batch cache warm (called by SBAR page after sector loads)
     Route::post('/patient-care/prescriptions/warm',
         [PatientPrescriptionsController::class, 'warmCache'])

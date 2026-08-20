@@ -2,7 +2,7 @@
 @section('title', 'Panorama do Sistema')
 
 @push('head')
-<link rel="stylesheet" href="https://unpkg.com/cal-heatmap/dist/cal-heatmap.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cal-heatmap@4/dist/cal-heatmap.css">
 <style>
     [x-cloak] { display: none !important; }
     #archive-table_wrapper .dt-search input, #access-trail-table_wrapper .dt-search input, #nurse-stats-table_wrapper .dt-search input,
@@ -443,37 +443,47 @@
                         range: {{ $calRangeMonths }},
                         maxVal: {{ max(1, $calMax) }},
                         paint() {
-                            if (!window.CalHeatmap || !this.container) return;
+                            if (!this.container) return;
+                            if (!window.CalHeatmap) {
+                                console.error('[Atividade diária] CalHeatmap não carregou — verifique a conexão com o CDN');
+                                this.container.innerHTML = '<p class="text-xs text-amber-600 text-center py-4"><i class="fas fa-triangle-exclamation mr-1"></i>Não foi possível carregar o gráfico de atividade. Recarregue a página.</p>';
+                                return;
+                            }
                             if (_cal) { try { _cal.destroy(); } catch(e) {} _cal = null; }
                             this.container.innerHTML = '';
                             if (!this.data.length) return;
-                            const _startDate = (function(s){ const p=s.split('-').map(Number); return new Date(p[0],p[1]-1,p[2]); })(this.start);
-                            const _data = this.data.map(function(d){ const p=d.date.split('-').map(Number); return {ts: new Date(p[0],p[1]-1,p[2],12).getTime(), value: d.value}; });
-                            const _vals = _data.map(d=>d.value).filter(v=>v>0);
-                            const _domainMin = _vals.length ? Math.min(..._vals) : 1;
-                            const _domainMax = _vals.length ? Math.max(..._vals) : 3;
-                            const _monthTotals = {};
-                            _data.forEach(function(d){ const dt=new Date(d.ts); const k=dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0'); _monthTotals[k]=(_monthTotals[k]||0)+d.value; });
-                            _cal = new CalHeatmap();
-                            _cal.paint({
-                                itemSelector: this.container,
-                                data: { source: _data, x: 'ts', y: 'value', groupY: 'sum' },
-                                date: { start: _startDate },
-                                range: this.range,
-                                domain: {
-                                    type: 'month', gutter: 6,
-                                    label: {
-                                        text: (ts) => { const d=new Date(ts); const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0'); const lbl=d.toLocaleDateString('pt-BR',{month:'short',timeZone:'UTC'}); const n=_monthTotals[k]||0; return n>0?lbl+' ('+n+')':lbl; },
-                                        position: 'top', textAlign: 'start',
+                            try {
+                                const _startDate = (function(s){ const p=s.split('-').map(Number); return new Date(p[0],p[1]-1,p[2]); })(this.start);
+                                const _data = this.data.map(function(d){ const p=d.date.split('-').map(Number); return {ts: new Date(p[0],p[1]-1,p[2],12).getTime(), value: d.value}; });
+                                const _vals = _data.map(d=>d.value).filter(v=>v>0);
+                                const _domainMin = _vals.length ? Math.min(..._vals) : 1;
+                                const _domainMax = _vals.length ? Math.max(..._vals) : 3;
+                                const _monthTotals = {};
+                                _data.forEach(function(d){ const dt=new Date(d.ts); const k=dt.getUTCFullYear()+'-'+String(dt.getUTCMonth()+1).padStart(2,'0'); _monthTotals[k]=(_monthTotals[k]||0)+d.value; });
+                                _cal = new CalHeatmap();
+                                _cal.paint({
+                                    itemSelector: this.container,
+                                    data: { source: _data, x: 'ts', y: 'value', groupY: 'sum' },
+                                    date: { start: _startDate },
+                                    range: this.range,
+                                    domain: {
+                                        type: 'month', gutter: 6,
+                                        label: {
+                                            text: (ts) => { const d=new Date(ts); const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0'); const lbl=d.toLocaleDateString('pt-BR',{month:'short',timeZone:'UTC'}); const n=_monthTotals[k]||0; return n>0?lbl+' ('+n+')':lbl; },
+                                            position: 'top', textAlign: 'start',
+                                        },
                                     },
-                                },
-                                subDomain: { type: 'day', radius: 2, width: 13, height: 13, gutter: 2 },
-                                scale: { color: { type: 'linear', range: ['#FFF9C4', '#B71C1C'], domain: [_domainMin, _domainMax] } },
-                            });
+                                    subDomain: { type: 'day', radius: 2, width: 13, height: 13, gutter: 2 },
+                                    scale: { color: { type: 'linear', range: ['#FFF9C4', '#B71C1C'], domain: [_domainMin, _domainMax] } },
+                                });
+                            } catch(err) {
+                                console.error('[Atividade diária] Erro ao renderizar heatmap:', err);
+                                this.container.innerHTML = '<p class="text-xs text-red-500 text-center py-4"><i class="fas fa-triangle-exclamation mr-1"></i>Erro ao renderizar gráfico: ' + err.message + '</p>';
+                            }
                         }
                     };
                 })()"
-                x-init="container = $el; paint()"
+                x-init="container = $el; if (window.CalHeatmap) { paint(); } else { let _tries = 0; const _wait = setInterval(() => { _tries++; if (window.CalHeatmap || _tries > 20) { clearInterval(_wait); paint(); } }, 200); }"
                 class="overflow-x-auto flex justify-center">
             </div>
         </div>
@@ -1145,7 +1155,7 @@
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/cal-heatmap/dist/cal-heatmap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cal-heatmap@4/dist/cal-heatmap.min.js"></script>
 <script>
 function esc(str) {
     const d = document.createElement('div');

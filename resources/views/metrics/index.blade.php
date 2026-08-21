@@ -1165,6 +1165,9 @@
 @endsection
 
 @push('scripts')
+{{-- CalHeatmap v4 não empacota o D3 — o UMD espera window.d3 já definido no load.
+     Precisa carregar ANTES da tag abaixo (script bloqueante, ordem de documento). --}}
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="https://unpkg.com/cal-heatmap@4.2.4/dist/cal-heatmap.min.js"></script>
 <script>
 function esc(str) {

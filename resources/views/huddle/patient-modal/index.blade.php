@@ -166,7 +166,7 @@
                                     <p class="mt-2 text-[11px] text-red-600"><i class="fas fa-circle-exclamation mr-0.5"></i>{{ $item->redAction() }}</p>
                                 @endif
 
-                                {{-- Recomendação (apenas para itens vermelhos — green não requer) --}}
+                                {{-- Recomendação (apenas itens Red respondidos) --}}
                                 @if($answer && $signal === 'red')
                                     <div class="mt-2">
                                         <label class="block text-[11px] font-medium text-gray-500 mb-1">

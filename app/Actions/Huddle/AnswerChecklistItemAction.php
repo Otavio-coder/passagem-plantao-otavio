@@ -56,7 +56,17 @@ class AnswerChecklistItemAction
         ]);
 
         // Sincroniza com Tasy quando todos os itens estiverem respondidos
-        if ($cdPessoaFisica && $this->isChecklistComplete($day)) {
+        $isComplete = $this->isChecklistComplete($day);
+
+        if (! $cdPessoaFisica && $isComplete) {
+            Log::warning('[AnswerChecklistItem] Sync Tasy ignorada: cd_pessoa_fisica é null', [
+                'nr_atendimento' => $day->nr_atendimento,
+                'item' => $item->value,
+                'answered_count' => $day->checklistAnswers->count(),
+            ]);
+        }
+
+        if ($cdPessoaFisica && $isComplete) {
             $this->syncToTasy($day, $cdPessoaFisica, $nmUsuario ?? 'PASSAGEM_PLANTAO', $cdSetorAtendimento);
         }
 
@@ -84,12 +94,22 @@ class AnswerChecklistItemAction
         ?int $cdSetorAtendimento,
     ): void {
         try {
+            Log::info('[AnswerChecklistItem] Sync Tasy disparada', [
+                'nr_atendimento' => $day->nr_atendimento,
+                'cd_pessoa_fisica' => $cdPessoaFisica,
+                'nm_usuario' => $nmUsuario,
+            ]);
+
             app(SyncChecklistToTasyAction::class)->execute(
                 day: $day,
                 cdPessoaFisica: $cdPessoaFisica,
                 nmUsuario: $nmUsuario,
                 cdSetorAtendimento: $cdSetorAtendimento,
             );
+
+            Log::info('[AnswerChecklistItem] Sync Tasy concluída com sucesso', [
+                'nr_atendimento' => $day->nr_atendimento,
+            ]);
         } catch (\Throwable $e) {
             // Nunca bloqueia o fluxo do MySQL — só loga
             Log::error('[AnswerChecklistItem] Sync Tasy falhou (não-bloqueante)', [

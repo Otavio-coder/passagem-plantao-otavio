@@ -22,7 +22,8 @@
     // Cor do dia (Red2Green) — só se aplica a paciente do Huddle
     $isGreen = ($patient['huddle_color'] ?? 'red') === 'green';
     $isRed = ! $isRound && ! $isGreen;
-    $borderClass = $isRound ? 'border-slate-300' : ($isGreen ? 'border-green-400' : 'border-red-400');
+    $borderClass = $isRound ? 'border-slate-300' : ($isGreen ? 'border-green-400' : 'border-red-500');
+    $cardBgClass = $isRound ? 'bg-white' : ($isGreen ? 'bg-white' : 'bg-red-50');
 
     // Médico abreviado (primeiro + último nome), como no SBAR
     $medicoRaw = $patient['medico_responsavel'] ?? null;
@@ -51,7 +52,7 @@
 @endphp
 
 <div class="relative w-full">
-    <div class="flex flex-col rounded-xl shadow-lg overflow-hidden bg-white border-2 {{ $borderClass }} h-[430px] md:h-[520px] lg:h-[440px]">
+    <div class="flex flex-col rounded-xl shadow-lg overflow-hidden {{ $cardBgClass }} border-2 {{ $borderClass }} h-[430px] md:h-[520px] lg:h-[440px]">
 
         @if(! $isPatient)
             <x-huddle-card.empty-bed :patient="$patient" />
@@ -65,6 +66,7 @@
                         'sectorId' => (int) $sectorId,
                         'sbarPatient' => [
                             'nr_atendimento' => $patient['nr_atendimento'] ?? 0,
+                            'cd_pessoa_fisica' => $patient['cd_pessoa_fisica'] ?? null,
                             'cd_unidade_basica' => $patient['cd_unidade_basica'] ?? null,
                             'nm_pessoa_fisica' => $patient['nm_pessoa_fisica'] ?? null,
                             'has_patient' => true,

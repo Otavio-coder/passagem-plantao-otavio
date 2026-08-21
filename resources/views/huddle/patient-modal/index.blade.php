@@ -3,9 +3,37 @@
         showModal: @entangle('showModal'),
         toast: false,
         toastMsg: '',
-        timer: null
+        timer: null,
+        // ── Arrastar para o lado = navegar entre pacientes ──────────────────
+        dragStartX: null,
+        dragStartY: null,
+        dragDeltaX: 0,
+        dragging: false,
+        onDragStart(e) {
+            // Ignora o gesto se começou num elemento interativo (botão, campo, link).
+            if (e.target.closest('button, textarea, input, a, select')) return;
+            this.dragStartX = e.clientX;
+            this.dragStartY = e.clientY;
+            this.dragDeltaX = 0;
+            this.dragging = true;
+        },
+        onDragMove(e) {
+            if (! this.dragging || this.dragStartX === null) return;
+            this.dragDeltaX = e.clientX - this.dragStartX;
+        },
+        onDragEnd(e) {
+            if (! this.dragging || this.dragStartX === null) return;
+            const deltaY = (e.clientY ?? this.dragStartY) - this.dragStartY;
+            const isHorizontal = Math.abs(this.dragDeltaX) > Math.abs(deltaY);
+            if (isHorizontal && Math.abs(this.dragDeltaX) > 70) {
+                this.dragDeltaX < 0 ? $wire.goToNextPatient() : $wire.goToPreviousPatient();
+            }
+            this.dragging = false;
+            this.dragStartX = null;
+            this.dragDeltaX = 0;
+        }
     }"
-    @huddle-notes-saved.window="showModal = false; toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
+    @huddle-notes-saved.window="toastMsg = ($event.detail && $event.detail.message) ? $event.detail.message : 'Salvo!'; toast = true; clearTimeout(timer); timer = setTimeout(() => toast = false, 3500)"
     x-show="showModal"
     x-cloak
     x-effect="document.body.style.overflow = showModal ? 'hidden' : ''"
@@ -34,10 +62,14 @@
 
     {{-- Camada de centralização --}}
     <div class="absolute inset-0 flex items-center justify-center p-0 sm:p-4">
-    <div class="relative bg-white flex flex-col overflow-hidden shadow-2xl font-montserrat
+    <div class="relative bg-white flex flex-col overflow-hidden shadow-2xl font-montserrat touch-pan-y
                 w-full h-full
                 sm:w-[95vw] sm:h-[92vh] sm:rounded-2xl
-                lg:w-[85vw] lg:h-[90vh] lg:max-w-3xl">
+                lg:w-[85vw] lg:h-[90vh] lg:max-w-3xl"
+        @pointerdown="onDragStart($event)"
+        @pointermove="onDragMove($event)"
+        @pointerup="onDragEnd($event)"
+        @pointercancel="dragging = false; dragStartX = null; dragDeltaX = 0">
 
         {{-- ── Cabeçalho fixo: navegação + identificação ───────────────────── --}}
         <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3">
@@ -135,8 +167,9 @@
                             </div>
 
                             @if($canConduct)
-                                {{-- Botões Sim/Não --}}
-                                <div class="mt-2 flex gap-2" wire:key="ans-{{ $code }}">
+                                {{-- Botões Sim/Não — permanecem clicáveis após responder; clicar em outra
+                                     opção altera a resposta. O rótulo "Editar" só deixa isso explícito. --}}
+                                <div class="mt-2 flex items-center gap-2" wire:key="ans-{{ $code }}">
                                     <button type="button"
                                             wire:click="answerItem('{{ $code }}', 'sim')"
                                             wire:loading.attr="disabled"
@@ -147,6 +180,11 @@
                                             wire:loading.attr="disabled"
                                             wire:target="answerItem"
                                             class="px-3 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 {{ $answer === 'nao' ? 'bg-[#004D9D] text-white border-[#004D9D]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}">Não</button>
+                                    @if($answer)
+                                        <span class="text-[10px] text-gray-400 inline-flex items-center gap-1" title="Clique em Sim/Não para alterar a resposta">
+                                            <i class="fas fa-pen"></i>Editar
+                                        </span>
+                                    @endif
                                 </div>
 
                                 @if($signal === 'red')

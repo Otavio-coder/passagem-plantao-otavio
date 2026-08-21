@@ -36,7 +36,7 @@
         {{-- Cabeçalho --}}
         <div class="shrink-0 bg-[#004D9D] text-white px-4 py-3 flex items-center justify-between gap-3">
             <div class="min-w-0">
-                <p class="font-bold text-base leading-tight"><i class="fas fa-clipboard-check mr-1"></i>Round Unidade</p>
+                <p class="font-bold text-base leading-tight"><i class="fas fa-clipboard-check mr-1"></i>Huddle Unidade</p>
                 <p class="text-[11px] text-white/80 truncate">
                     {{ $hospitalName ?: '—' }}@if($sectorLabel) · {{ $sectorLabel }}@endif · preenchimento por unidade
                 </p>
@@ -141,7 +141,7 @@
                         @empty
                             <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
                                 <p class="font-semibold text-amber-800"><i class="fas fa-triangle-exclamation mr-1"></i>Nenhuma pergunta cadastrada</p>
-                                <p class="text-[11px] text-amber-700 mt-0.5">Execute o seeder para popular as perguntas do Round Unidade.</p>
+                                <p class="text-[11px] text-amber-700 mt-0.5">Execute o seeder para popular as perguntas do Huddle Unidade.</p>
                             </div>
                         @endforelse
                     </div>
@@ -171,7 +171,7 @@
                                 <span><i class="fas fa-spinner fa-spin mr-1"></i>Salvando…</span>
                             </template>
                             <template x-if="!saving">
-                                <span>Salvar Round Unidade</span>
+                                <span>Salvar Huddle Unidade</span>
                             </template>
                         </button>
                     </div>
@@ -186,7 +186,7 @@
                     @if($locked)
                         <div class="px-4 pt-3">
                             <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
-                                <p class="font-semibold text-green-700"><i class="fas fa-check-circle mr-1"></i>Round Unidade preenchido</p>
+                                <p class="font-semibold text-green-700"><i class="fas fa-check-circle mr-1"></i>Huddle Unidade preenchido</p>
                                 <p class="text-[11px] text-green-600 mt-0.5">Este registro não pode ser alterado. Exibindo somente leitura.</p>
                             </div>
                         </div>
@@ -251,7 +251,7 @@
                         @empty
                             <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
                                 <p class="font-semibold text-amber-800"><i class="fas fa-triangle-exclamation mr-1"></i>Nenhuma pergunta cadastrada</p>
-                                <p class="text-[11px] text-amber-700 mt-0.5">Execute o seeder para popular as perguntas do Round Unidade.</p>
+                                <p class="text-[11px] text-amber-700 mt-0.5">Execute o seeder para popular as perguntas do Huddle Unidade.</p>
                             </div>
                         @endforelse
 

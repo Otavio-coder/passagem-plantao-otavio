@@ -93,7 +93,7 @@
                                     sectorLabel: {{ \Illuminate\Support\Js::from($currentSectorLabel) }}
                                 })">
                             <i class="fas fa-clipboard-check"></i>
-                            <span>Round Unidade</span>
+                            <span>Huddle Unidade</span>
                             <i class="fas fa-check text-green-300" x-show="done" x-cloak title="Preenchido hoje"></i>
                         </button>
 
@@ -126,7 +126,7 @@
                             </div>
                         @else
                             <script>window.__huddleModalPatients = @json($patients);</script>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                            <div id="huddle-patient-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                                 @foreach($patients as $index => $patient)
                                     <div wire:key="huddle-patient-{{ $patient['nr_atendimento'] ?? 'empty-' . $index }}">
                                         <x-huddle-card
@@ -147,9 +147,20 @@
     {{-- Modal de detalhe do paciente (reutiliza o componente existente) --}}
     @livewire('huddle-patient-modal')
 
-    {{-- Modal do Huddle de Segurança por unidade (botão "Round Unidade" centralizado no header) --}}
+    {{-- Modal do Huddle de Segurança por unidade (botão "Huddle Unidade" centralizado no header) --}}
     @livewire('huddle-unit-safety-modal')
 
-    {{-- Modal de histórico de Rounds Unidade --}}
+    {{-- Modal de histórico de Huddle Unidade --}}
     @livewire('huddle-round-history-modal')
+
+    {{-- Após salvar o Huddle Unidade, rola a tela até os cards dos pacientes.
+         Guard em window evita registrar o listener de novo a cada re-render do Livewire. --}}
+    <script>
+        if (! window.__huddleScrollListenerAttached) {
+            window.__huddleScrollListenerAttached = true;
+            window.addEventListener('huddle-round-saved', () => {
+                document.getElementById('huddle-patient-cards')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+    </script>
 </div>

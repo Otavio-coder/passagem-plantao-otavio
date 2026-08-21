@@ -80,7 +80,7 @@ class HuddleUnitSafetyModal extends Component
             ->forDate(Carbon::today()->toDateString())
             ->exists();
 
-        abort_if($jaPreenchido, 403, 'O Round Unidade já foi preenchido hoje e não pode ser alterado.');
+        abort_if($jaPreenchido, 403, 'O Huddle Unidade já foi preenchido hoje e não pode ser alterado.');
 
         // Valida: todas as questões devem estar respondidas.
         $questions = $this->getQuestionsByAxis()->flatten();
@@ -102,7 +102,7 @@ class HuddleUnitSafetyModal extends Component
 
         // Avisa a tela (toast + marca o card do board) ANTES de fechar,
         // para que o evento seja emitido com o componente ainda montado.
-        $this->dispatch('huddle-round-saved', message: 'Round Unidade salvo com sucesso!');
+        $this->dispatch('huddle-round-saved', message: 'Huddle Unidade salvo com sucesso!');
         $this->dispatch('refreshData');
 
         // Fecha o modal e volta para a tela inicial. Ao reabrir, loadSafety()

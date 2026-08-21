@@ -15,7 +15,7 @@
                 <div class="flex-shrink-0 bg-[#004D9D] px-5 py-4 flex items-center justify-between">
                     <h2 class="text-lg font-bold text-white flex items-center gap-2">
                         <i class="fas fa-clock-rotate-left"></i>
-                        Histórico de Rounds Unidade
+                        Histórico de Huddle Unidade
                     </h2>
                     <button wire:click="closeModal" class="text-white/80 hover:text-white text-xl">
                         <i class="fas fa-xmark"></i>
@@ -40,7 +40,7 @@
                     @if(empty($historyByUnit))
                         <div class="text-center py-10 text-gray-500">
                             <i class="fas fa-folder-open text-4xl text-gray-300 mb-3"></i>
-                            <p class="font-semibold">Nenhum Round Unidade registrado</p>
+                            <p class="font-semibold">Nenhum Huddle Unidade registrado</p>
                             <p class="text-sm mt-1">Os registros aparecerão aqui após o primeiro preenchimento.</p>
                         </div>
                     @else

@@ -79,6 +79,11 @@
                         <span class="inline-flex items-center bg-slate-100 text-slate-800 text-sm md:text-base font-bold px-3 py-1 rounded-full shadow-sm">
                             Leito {{ $patient['cd_unidade_basica'] ?? 'N/A' }}
                         </span>
+                        @if(! $isRound && ($patient['huddle_has_record'] ?? false))
+                            <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm shrink-0" title="Checklist já iniciado hoje">
+                                <i class="fas fa-check"></i> Avaliado hoje
+                            </span>
+                        @endif
                     </div>
 
                     {{-- Nome + idade --}}

@@ -284,13 +284,10 @@ class HuddlePatientModal extends Component
 
         $this->loadHuddleState();
 
-        // Avisa a tela (toast + board) ANTES de fechar,
-        // para que o evento seja emitido com o componente ainda montado.
+        // Avisa a tela (toast + board). O modal permanece aberto — o usuário pode
+        // arrastar para o próximo paciente (goToNextPatient) sem precisar reabrir.
         $this->dispatch('huddle-notes-saved', message: 'Recomendações salvas com sucesso!');
         $this->dispatch('refreshData');
-
-        // Fecha o modal — ao reabrir, loadHuddleState() mostra o estado salvo.
-        $this->showModal = false;
     }
 
     public function render()

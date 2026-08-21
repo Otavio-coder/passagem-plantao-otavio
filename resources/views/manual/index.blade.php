@@ -334,8 +334,8 @@
         <a href="#sec-huddle"><span class="num">7</span> Huddle — Gestão de Altas</a>
         <a href="#sec-huddle-painel" class="sub">Painel do Huddle</a>
         <a href="#sec-huddle-checklist" class="sub">Checklist SAFER</a>
-        <a href="#sec-huddle-round" class="sub">Round Unidade</a>
-        <a href="#sec-huddle-historico" class="sub">Histórico de Rounds</a>
+        <a href="#sec-huddle-round" class="sub">Huddle Unidade</a>
+        <a href="#sec-huddle-historico" class="sub">Histórico de Huddle Unidade</a>
         <a href="#sec-app"><span class="num">8</span> Instalar como App</a>
         <a href="#sec-dicas"><span class="num">9</span> Dicas Importantes</a>
         <a href="#sec-glossario"><span class="num">10</span> Glossário</a>
@@ -1054,39 +1054,39 @@
                 <p>Cada resposta do checklist registra automaticamente o <strong>login do usuário</strong> e a <strong>data/hora</strong> de quem respondeu, garantindo rastreabilidade completa das decisões do Huddle.</p>
             </section>
 
-            {{-- 7.3 Round Unidade --}}
+            {{-- 7.3 Huddle Unidade --}}
             <section class="section" id="sec-huddle-round">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.3 Round Unidade</h3>
+                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.3 Huddle Unidade</h3>
 
-                <p>O <strong>Round Unidade</strong> é uma avaliação diária da segurança da unidade como um todo — diferente do checklist por paciente, ele avalia condições gerais do setor. O botão está localizado no cabeçalho do Huddle, abaixo da barra azul.</p>
+                <p>O <strong>Huddle Unidade</strong> é uma avaliação diária da segurança da unidade como um todo — diferente do checklist por paciente, ele avalia condições gerais do setor. O botão está localizado no cabeçalho do Huddle, abaixo da barra azul.</p>
 
                 <p><strong>Como funciona:</strong></p>
                 <div class="steps">
-                    <div class="step"><div class="step-body">No painel do Huddle, clique no botão <strong>Round Unidade</strong> no cabeçalho.</div></div>
+                    <div class="step"><div class="step-body">No painel do Huddle, clique no botão <strong>Huddle Unidade</strong> no cabeçalho.</div></div>
                     <div class="step"><div class="step-body">Um modal abre com perguntas organizadas por <strong>eixos temáticos</strong> (ex: Segurança do Paciente, Infraestrutura, Processos, Equipe).</div></div>
                     <div class="step"><div class="step-body">Responda cada pergunta. As perguntas são dinâmicas e podem ser adicionadas ou modificadas pelo administrador sem necessidade de atualização do sistema.</div></div>
-                    <div class="step"><div class="step-body">Clique em <strong>Salvar</strong> para registrar o Round. O botão exibirá um ícone de confirmação verde indicando que o Round já foi preenchido hoje.</div></div>
+                    <div class="step"><div class="step-body">Clique em <strong>Salvar</strong> para registrar o Huddle Unidade. O botão exibirá um ícone de confirmação verde indicando que o Huddle Unidade já foi preenchido hoje.</div></div>
                 </div>
 
                 <div class="callout callout-warn">
-                    <div class="callout-title">Limite de um Round por dia</div>
-                    Cada setor pode ter apenas <strong>um Round Unidade por dia</strong>. Se o Round já foi preenchido para o setor no dia, o sistema informa quem o preencheu e quando, impedindo duplicação.
+                    <div class="callout-title">Limite de um Huddle Unidade por dia</div>
+                    Cada setor pode ter apenas <strong>um Huddle Unidade por dia</strong>. Se o Huddle Unidade já foi preenchido para o setor no dia, o sistema informa quem o preencheu e quando, impedindo duplicação.
                 </div>
 
-                <p><strong>Eixos de avaliação:</strong> as perguntas do Round são agrupadas por eixos que cobrem diferentes dimensões da segurança assistencial. Cada eixo tem suas perguntas, e novas perguntas podem ser incluídas conforme a necessidade do hospital — sem necessidade de alteração técnica no sistema.</p>
+                <p><strong>Eixos de avaliação:</strong> as perguntas do Huddle Unidade são agrupadas por eixos que cobrem diferentes dimensões da segurança assistencial. Cada eixo tem suas perguntas, e novas perguntas podem ser incluídas conforme a necessidade do hospital — sem necessidade de alteração técnica no sistema.</p>
             </section>
 
-            {{-- 7.4 Histórico de Rounds --}}
+            {{-- 7.4 Histórico de Huddle Unidade --}}
             <section class="section" id="sec-huddle-historico">
-                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.4 Histórico de Rounds</h3>
+                <h3 class="ss-title section-anchor" style="font-size:1rem; color:var(--brand); border-bottom: 1px solid var(--brand-light); padding-bottom:0.3rem; margin-bottom:0.85rem;">7.4 Histórico de Huddle Unidade</h3>
 
-                <p>Ao lado do botão "Round Unidade", o botão <strong>Histórico</strong> permite visualizar todos os Rounds preenchidos anteriormente. O histórico é <strong>dividido por unidade (setor)</strong>, permitindo comparar as avaliações de diferentes setores ao longo do tempo.</p>
+                <p>Ao lado do botão "Huddle Unidade", o botão <strong>Histórico</strong> permite visualizar todos os registros de Huddle Unidade preenchidos anteriormente. O histórico é <strong>dividido por unidade (setor)</strong>, permitindo comparar as avaliações de diferentes setores ao longo do tempo.</p>
 
                 <p><strong>Como visualizar:</strong></p>
                 <div class="steps">
-                    <div class="step"><div class="step-body">Clique no botão <strong>Histórico</strong> ao lado do "Round Unidade" no cabeçalho do Huddle.</div></div>
+                    <div class="step"><div class="step-body">Clique no botão <strong>Histórico</strong> ao lado do "Huddle Unidade" no cabeçalho do Huddle.</div></div>
                     <div class="step"><div class="step-body">O modal exibe seções separadas por <strong>setor/unidade</strong>, com os nomes das unidades em ordem alfabética.</div></div>
-                    <div class="step"><div class="step-body">Dentro de cada unidade, os Rounds são listados por data em formato <strong>accordion</strong> — clique na data para expandir e ver as respostas.</div></div>
+                    <div class="step"><div class="step-body">Dentro de cada unidade, os registros de Huddle Unidade são listados por data em formato <strong>accordion</strong> — clique na data para expandir e ver as respostas.</div></div>
                     <div class="step"><div class="step-body">As respostas são agrupadas por eixo temático, com a informação de <strong>quem preencheu</strong> e <strong>quando</strong>.</div></div>
                 </div>
 
@@ -1278,7 +1278,7 @@
                     <p class="gi-content" x-show="open">Data prevista de alta do paciente. No sistema, pode ser preenchida automaticamente a partir do prontuário Tasy ou editada manualmente pelo enfermeiro no Huddle. A previsão de alta é o critério principal do filtro de 72 horas do painel.</p>
                 </div>
                 <div class="glossary-item" x-data="{ open: false }" :class="{ 'gi-open': open }">
-                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Round Unidade</div>
+                    <div class="gi-summary" role="button" tabindex="0" @click="open = !open" @keydown.enter.prevent="open = !open" @keydown.space.prevent="open = !open" :aria-expanded="open.toString()">Huddle Unidade</div>
                     <p class="gi-content" x-show="open">Avaliação diária de segurança da unidade hospitalar como um todo (não por paciente). No módulo Huddle, é preenchido uma vez por dia por setor, com perguntas organizadas por eixos temáticos (segurança, infraestrutura, processos, equipe). O histórico pode ser consultado dividido por unidade.</p>
                 </div>
             </section>

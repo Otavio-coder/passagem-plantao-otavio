@@ -6,7 +6,7 @@ use App\Models\Huddle\HuddleUnitQuestion;
 use Illuminate\Database\Seeder;
 
 /**
- * Popula a tabela huddle_unit_questions com as perguntas padrão do Round Unidade.
+ * Popula a tabela huddle_unit_questions com as perguntas padrão do Huddle Unidade.
  *
  * Replica as perguntas que estavam hardcoded na view — agora lidas do MySQL.
  * Idempotente: usa updateOrCreate com `field_key` como chave.

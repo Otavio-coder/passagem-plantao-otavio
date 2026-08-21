@@ -145,7 +145,7 @@
                             </div>
                             <div class="text-center sm:text-left">
                                 <p class="text-xs sm:text-sm font-semibold text-sky-600 leading-tight">Huddle — Gestão de Altas</p>
-                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Acompanhamento diário de altas com checklist SAFER e Round Unidade</p>
+                                <p class="hidden sm:block text-xs text-gray-500 mt-0.5">Acompanhamento diário de altas com checklist SAFER e Huddle Unidade</p>
                             </div>
                         </a>
                     </div>

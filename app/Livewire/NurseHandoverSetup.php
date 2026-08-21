@@ -63,9 +63,10 @@ class NurseHandoverSetup extends Component
         $sectorIds = $prefs->pluck('sector_code')->map(fn ($v) => (int) $v)->unique()->all();
 
         // Cache keyed by sorted sector list — different sector sets get different entries.
+        // Uses md5 hash to keep the key within MySQL's VARCHAR(255) limit.
         $sortedIds = $sectorIds;
         sort($sortedIds);
-        $cacheKey = 'setup_beds_'.implode('_', $sortedIds);
+        $cacheKey = 'setup_beds_'.md5(implode('_', $sortedIds));
 
         $bedsBySector = Cache::remember($cacheKey, 600, function () use ($sectorIds) {
             $placeholders = implode(',', array_map('intval', $sectorIds));
